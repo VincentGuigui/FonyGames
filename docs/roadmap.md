@@ -22,8 +22,8 @@ answer here *and* in the doc it affects.
 | --- | --- | --- | --- |
 | D1 | Build tooling | Vite + TypeScript · plain ES modules, no build · a framework | **Vite + TS** |
 | D2 | UI layer | No framework (custom components + CSS) · Preact · Svelte | **No framework** for v1 |
-| D3 | Realtime transport ⚠️ **now the critical one** | Self-hosted Node + `ws` · WebRTC data channels (peer-to-peer) · managed service (PartyKit / Cloudflare Durable Objects / Supabase Realtime) | D4 settled the *static* side only. FTPS hosting serves files; it does **not** run a Node process or accept WebSocket upgrades. So the realtime server needs a second home — a managed realtime service is now the likely answer, unless the host offers Node/WebSocket support |
-| ~~D4~~ | ~~Hosting~~ | **DECIDED** — FTPS hosting, deployed by GitHub Actions from `dev`/`prod`. See [deployment.md](deployment.md) | ✅ |
+| D3 | Realtime transport ⚠️ **now the critical one** | Self-hosted Node + `ws` · WebRTC data channels (peer-to-peer) · managed service (PartyKit / Cloudflare Durable Objects / Supabase Realtime) | D4 settled the *static* side only: the host serves files, and shared hosting usually neither runs a long-lived Node process nor proxies WebSocket upgrades. The host **does** give SSH access, so ask it whether persistent processes and a WebSocket reverse-proxy are allowed — if not, a managed realtime service is the answer |
+| ~~D4~~ | ~~Hosting~~ | **DECIDED** — shared hosting, deployed over SFTP by GitHub Actions from `dev`/`prod`. See [deployment.md](deployment.md) | ✅ |
 | D5 | Domain | `fonygames.*` — is one owned? | — |
 | D6 | Flagship game to build first | Bump Relay (physical, iconic, needs 3+ players) · Tap Duel (simplest, proves the room core with 2 players) · Tilt Arena | **Tap Duel first as the technical pathfinder, Bump Relay as the flagship**, or go straight to Bump Relay if we accept a longer M4 |
 | D7 | Local preferences storage | No storage at all · `localStorage` for name/avatar/last mode only | **Local-only preferences**, never game data |
@@ -46,6 +46,6 @@ answer here *and* in the doc it affects.
 | 2026-08-01 | Docs-first workflow, commit convention, three golden rules | [../AGENTS.md](../AGENTS.md), [conventions/commits.md](conventions/commits.md) |
 | 2026-08-01 | Hub sells a game with one illustration + one catchy sentence | [design/ui-guidelines.md](design/ui-guidelines.md), [specs/hub.md](specs/hub.md) |
 | 2026-08-01 | Mobile web only, no install, no accounts, nothing persisted | [../README.md](../README.md), [architecture.md](architecture.md) |
-| 2026-08-01 | **D4 hosting**: FTPS host, deployed by GitHub Actions | [deployment.md](deployment.md) |
+| 2026-08-01 | **D4 hosting**: shared host, deployed by GitHub Actions over SFTP | [deployment.md](deployment.md) |
 | 2026-08-01 | Branch model `feature → dev → prod`, each of `dev`/`prod` auto-deploying to its own host via a same-named GitHub Environment | [deployment.md](deployment.md), [../AGENTS.md](../AGENTS.md) §5 |
 | 2026-08-01 | Only `www/` is published; docs and repo metadata never reach the server | [deployment.md](deployment.md) §5 |

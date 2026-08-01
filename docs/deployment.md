@@ -1,6 +1,6 @@
 # Deployment
 
-The site is deployed by GitHub Actions over **FTPS** to a hosting provider. No
+The site is deployed by GitHub Actions over **SFTP** to a hosting provider. No
 manual upload, ever — the branch *is* the deploy trigger.
 
 Workflow: [`.github/workflows/main.yml`](../.github/workflows/main.yml)
@@ -60,9 +60,9 @@ separate accounts.
 
 | Secret | Contents |
 | --- | --- |
-| `FTPHOST` | FTP server hostname, e.g. `ftp.example.com` (no scheme, no port) |
-| `FTPUSER` | FTP account login |
-| `FTPPWD` | FTP account password |
+| `FTPHOST` | Server hostname, e.g. `ftp.example.com` (no scheme, no port) |
+| `FTPUSER` | SSH/SFTP account login |
+| `FTPPWD` | SSH/SFTP account password |
 
 Rules:
 
@@ -75,32 +75,53 @@ Rules:
 
 ## 4. Protocol
 
-**FTPS, explicit, port 21.**
+**SFTP over SSH, port 22, username + password.**
 
-> ⚠️ Port 22 is SSH/SFTP — a *different protocol*.
-> `SamKirkland/FTP-Deploy-Action` does not speak SFTP at all, so `protocol: ftps`
-> with `port: 22` can never connect. If the host ever requires real SFTP, the
-> action must be replaced (e.g. `wlixcc/SFTP-Deploy-Action`, or `lftp`/`rsync`
-> over SSH) and the password secret becomes an SSH key.
+The host's port 21 does answer FTP, but it rejects `AUTH TLS`
+(`500 'AUTH': command unrecognized`), so **explicit FTPS is not available** and
+plain FTP would put the password on the wire in clear text. SFTP is therefore
+the only encrypted option, which is why the deploy uses
+[`milanmk/actions-file-deployer`](https://github.com/milanmk/actions-file-deployer)
+(lftp over SSH) rather than an FTP-only action.
 
-Implicit FTPS (port 990) would be `protocol: ftps-legacy`.
+> Note for anyone swapping the action: `SamKirkland/FTP-Deploy-Action` cannot
+> speak SFTP at all, and `SamKirkland/web-deploy` does SFTP but **requires an
+> SSH private key** — it has no password input. Password auth over SFTP narrows
+> the field considerably.
+
+Moving to SSH-key auth later is a strict improvement: add the public key to the
+host, store the private key as an environment secret, and pass it as
+`ssh-private-key` instead of `remote-password`.
 
 ## 5. What gets deployed
 
-Only **`./www/`** — the site source (see
+Only the contents of **`www/`**, into **`/www`** on the server (see
 [architecture.md](architecture.md) §3). Everything else in the repository
 (`docs/`, `AGENTS.md`, `CLAUDE.md`, `.github/`) stays off the public server.
 
-Also excluded: any `.git*` file and every `README.md`, so developer notes such
-as `www/README.md` are not published.
+The action runs `lftp mirror --reverse <local-path> <remote-path>`, so
+`local-path: www` uploads the *contents* of `www/`, not the folder itself.
+`.git*` is skipped by the action; `README.md` is skipped via
+`ftp-mirror-options`, so developer notes such as `www/README.md` are not
+published.
 
-The action performs an **incremental sync**: it keeps a
-`.ftp-deploy-sync-state.json` file at the deploy root to know what changed, and
-only uploads the difference. That file is expected — leave it in place.
+It also writes two small marker files at the deploy root: `.deploy-revision`
+(the deployed commit SHA — handy for checking what is live) and a transient
+`.deploy-running`. Both are expected.
+
+### Sync modes
+
+| Mode | Behaviour | When |
+| --- | --- | --- |
+| `full` | Uploads everything under `www/`. **Never deletes** on the remote. | **Current setting.** The action's own recommendation for an initial deployment, and the safe choice while the site is empty. |
+| `delta` | Diffs the pushed commits and transfers only what changed, **including deletions**. Needs `fetch-depth: 0` on checkout (already set). | Switch to this once `www/` holds the real site — it is much faster and keeps the server free of files deleted from the repo. |
+
+If the remote ever drifts out of sync (a failed run, a manual edit on the
+server), set `sync: full` for one run to re-upload everything, then switch back.
 
 Until the hub is built, `www/` contains only an excluded `README.md`, so a
-successful run legitimately uploads **zero files**. That is a valid credential
-test, not a failure.
+successful run legitimately uploads **no site files** — only `.deploy-revision`.
+That is a valid connectivity test, not a failure.
 
 ## 6. Troubleshooting
 
@@ -108,10 +129,12 @@ test, not a failure.
 | --- | --- |
 | `Error: Input required and not supplied: server` | The job is not attached to an environment, or the secret lives at repository level instead of on the environment. Check `environment:` is present on the job and that `FTPHOST`/`FTPUSER`/`FTPPWD` are set on `dev` **and** `prod`. |
 | `Missing secret(s) in environment 'dev': FTPPWD` | The pre-flight check naming exactly what is absent. Add it to that environment. |
-| Connect timeout / `ECONNREFUSED` | Wrong port or protocol. FTPS is 21 (explicit) or 990 (`ftps-legacy`); 22 is SFTP and unsupported (§4). |
-| `530 Login incorrect` | Bad `FTPUSER`/`FTPPWD`, or the host expects the full email-style login. |
-| Certificate errors on connect | Host uses a self-signed cert. Do **not** disable verification blindly — ask the host for the right endpoint first. |
-| Deploy uploads too many files | `local-dir` lost its trailing slash, or the `exclude` list was edited. |
+| `500 'AUTH': command unrecognized` | An FTP action is being pointed at port 21, which this host serves without TLS. Use SFTP on 22 (§4). |
+| Connect timeout / `ECONNREFUSED` | Wrong port. SFTP is 22 here. |
+| `Permission denied (password)` | Bad `FTPUSER`/`FTPPWD`, or the host expects the full email-style login, or SSH access is not enabled on the account. |
+| Host key / `known_hosts` errors | The action accepts the host key on first connect. If the host is rebuilt and the key changes, the error is expected — verify the new fingerprint with the host before trusting it. |
+| Files land in the wrong folder | `remote-path` is absolute (`/www`). If the SFTP account is chrooted to its home, the web root may be `www` or `~/www` instead. |
+| Files land one level too deep | `local-path` names the folder whose *contents* are uploaded. `local-path: www` is correct; `local-path: .` would publish the whole repo. |
 | Two deploys race | Shouldn't happen: `concurrency` serialises per branch and never cancels a running sync. |
 
 ## 7. Related

@@ -29,6 +29,10 @@ jobs:
     steps:
     - name: 🚚 Get latest code
       uses: actions/checkout@v6
+      with:
+        # Full history: required by the deployer's `delta` sync mode, which we
+        # switch to once www/ holds the real site.
+        fetch-depth: 0
 
     - name: 🔐 Check deployment secrets
       env:
@@ -45,17 +49,24 @@ jobs:
           exit 1
         fi
 
+    # SFTP over SSH on port 22, with username + password. The host's port 21
+    # answers FTP but rejects AUTH TLS ("500 'AUTH': command unrecognized"), so
+    # explicit FTPS is not available and this is the only encrypted option.
     - name: 📂 Sync files
-      uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+      uses: milanmk/actions-file-deployer@1.18
       with:
-        server: ${{ secrets.FTPHOST }}
-        username: ${{ secrets.FTPUSER }}
-        password: ${{ secrets.FTPPWD }}
-        protocol: ftps
-        port: 21
-        # Only the site ships. Trailing slash is required by the action.
-        local-dir: ./www/
-        exclude: |
-          **/.git*
-          **/.git*/**
-          **/README.md
+        remote-protocol: sftp
+        remote-host: ${{ secrets.FTPHOST }}
+        remote-port: 22
+        remote-user: ${{ secrets.FTPUSER }}
+        remote-password: ${{ secrets.FTPPWD }}
+        # Contents of www/ land in /www — the action runs
+        # `lftp mirror --reverse <local-path> <remote-path>`.
+        local-path: www
+        remote-path: /www
+        # `full` uploads everything and deletes nothing — the action's own
+        # recommendation for a first deployment. Switch to `delta` (efficient,
+        # and propagates deletions) once www/ holds the real site.
+        sync: full
+        # Full sync only skips .git*/ by default; keep dev notes off the server.
+        ftp-mirror-options: --exclude-glob=README.md
