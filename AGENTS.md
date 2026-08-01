@@ -18,6 +18,7 @@ file under 200 lines** — put detail in `docs/`, not here.
 | Architecture & tech stack | [docs/architecture.md](./docs/architecture.md) |
 | Multiplayer & networking | [docs/multiplayer.md](./docs/multiplayer.md) |
 | Device capabilities (sensors, GPS, bump…) | [docs/device-capabilities.md](./docs/device-capabilities.md) |
+| Deployment (branches, environments, secrets) | [docs/deployment.md](./docs/deployment.md) |
 | UI / UX & visual guidelines | [docs/design/ui-guidelines.md](./docs/design/ui-guidelines.md) |
 | Commit convention | [docs/conventions/commits.md](./docs/conventions/commits.md) |
 | Code style | [docs/conventions/code-style.md](./docs/conventions/code-style.md) |
@@ -88,8 +89,10 @@ Nothing outside `www/` ships to users. Nothing outside `docs/` documents.
 4. **Test.** Run the checks in [docs/testing.md](./docs/testing.md); at minimum
    verify on a real phone (or device emulation) before declaring done.
 5. **Document.** Update the spec and any affected doc in the same commit series.
-6. **Push.** Feature branch, `git push -u origin <branch>`. No direct pushes to
-   the default branch. Open a PR only when explicitly asked.
+6. **Push & ship.** Work on a feature branch, `git push -u origin <branch>`.
+   Merge into `dev` to auto-deploy to the dev host, then `dev` → `prod` to
+   release. Never push straight to `dev` or `prod`; both are deploy triggers.
+   See [docs/deployment.md](./docs/deployment.md). Open a PR only when asked.
 
 ### Commit message shape
 
