@@ -1,16 +1,49 @@
-on: 
-  push:
-    branches: 
-      - prod
-      - dev
 name: 🚀 Deploy website on push
+
+on:
+  push:
+    branches:
+      - dev
+      - prod
+  workflow_dispatch:
+
+# One deploy at a time per branch. Never cancel in flight: an interrupted FTP
+# sync leaves the site half-uploaded.
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
 jobs:
   web-deploy:
     name: 🎉 Deploy
     runs-on: ubuntu-latest
+    # Guard for manual runs: workflow_dispatch from any other branch would name
+    # a non-existent environment and silently get empty secrets.
+    if: github.ref_name == 'dev' || github.ref_name == 'prod'
+    # Branch name == environment name, so `dev` and `prod` each pull their own
+    # secrets. Without this key, environment secrets resolve to "".
+    environment: ${{ github.ref_name }}
     steps:
     - name: 🚚 Get latest code
       uses: actions/checkout@v6
+
+    - name: 🔐 Check deployment secrets
+      env:
+        FTPHOST: ${{ secrets.FTPHOST }}
+        FTPUSER: ${{ secrets.FTPUSER }}
+        FTPPWD: ${{ secrets.FTPPWD }}
+      run: |
+        missing=""
+        [ -n "$FTPHOST" ] || missing="$missing FTPHOST"
+        [ -n "$FTPUSER" ] || missing="$missing FTPUSER"
+        [ -n "$FTPPWD" ]  || missing="$missing FTPPWD"
+        if [ -n "$missing" ]; then
+          echo "::error::Missing secret(s) in environment '${{ github.ref_name }}':$missing"
+          exit 1
+        fi
 
     - name: 📂 Sync files
       uses: SamKirkland/FTP-Deploy-Action@v4.4.0
@@ -19,4 +52,10 @@ jobs:
         username: ${{ secrets.FTPUSER }}
         password: ${{ secrets.FTPPWD }}
         protocol: ftps
-        port: 22 
+        port: 21
+        # Only the site ships. Trailing slash is required by the action.
+        local-dir: ./www/
+        exclude: |
+          **/.git*
+          **/.git*/**
+          **/README.md
