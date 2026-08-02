@@ -178,6 +178,77 @@ function motifBody(motif: GameMotif): JSX.Element {
           </g>
         </>
       );
+
+    case 'spill':
+      // Four phones flat in a square, seen from above, each with its top edge
+      // pointing at the middle — the arrangement *is* the game. Scaled down as
+      // a group because two upright phones do not otherwise fit the 120×90 box.
+      return (
+        <g transform="translate(60 45) scale(0.62) translate(-60 -45)">
+          <Phone x={49} y={-4} rotate={180} />
+          <Phone x={49} y={56} />
+          <Phone x={4} y={26} rotate={90} />
+          <Phone x={94} y={26} rotate={-90} />
+          <path
+            d="M52 62 Q60 30 68 34"
+            fill="none"
+            stroke="currentColor"
+            stroke-width={4}
+            stroke-dasharray="6 7"
+            stroke-linecap="round"
+          />
+          <path
+            d="M60 30 c7 9 11 13 11 18 a11 11 0 0 1-22 0 c0-5 4-9 11-18 Z"
+            fill="currentColor"
+          />
+        </g>
+      );
+
+    case 'goat':
+      // A goat sailing in over the fence towards a row of cabbages. The fence
+      // sits behind, the cabbages in front on the ground, so the depth reads.
+      return (
+        <>
+          <g stroke="currentColor" stroke-width={4} stroke-linecap="round">
+            <path d="M10 54 L110 54" />
+            <path d="M26 44 L26 60" />
+            <path d="M60 44 L60 60" />
+            <path d="M94 44 L94 60" />
+          </g>
+          <g fill="currentColor">
+            <circle cx={22} cy={72} r={8} />
+            <circle cx={44} cy={74} r={9} />
+            <circle cx={68} cy={72} r={8} />
+            <circle cx={90} cy={74} r={9} />
+          </g>
+          {/*
+            Goat in side profile, as one bold silhouette rather than stick
+            lines: at 160px a stroked skeleton reads as a spider, and the house
+            style is flat shapes anyway (docs/design/ui-guidelines.md §6).
+          */}
+          <g fill="currentColor">
+            {/* Legs, tucked as if mid-jump. */}
+            <rect x={30} y={30} width={5} height={12} rx={2.5} />
+            <rect x={39} y={32} width={5} height={11} rx={2.5} />
+            <rect x={49} y={31} width={5} height={12} rx={2.5} />
+            <rect x={57} y={30} width={5} height={11} rx={2.5} />
+            <ellipse cx={45} cy={24} rx={19} ry={10} />
+            {/* Tail. */}
+            <path d="M27 18 L20 10 L28 22 Z" />
+            {/* Neck and head. */}
+            <path d="M56 20 L66 12 L72 18 L62 26 Z" />
+            <ellipse cx={70} cy={15} rx={9} ry={6.5} />
+            {/* Beard — the one shape that says goat and not sheep. */}
+            <path d="M70 20 L67 30 L74 21 Z" />
+          </g>
+          {/* Horns sweep back over the neck. */}
+          <g fill="none" stroke="currentColor" stroke-width={3.5} stroke-linecap="round">
+            <path d="M67 9 Q62 2 55 4" />
+            <path d="M74 9 Q70 1 62 2" />
+          </g>
+          <circle cx={74} cy={13} r={2} fill="#10121a" />
+        </>
+      );
   }
 }
 

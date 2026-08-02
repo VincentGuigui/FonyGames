@@ -70,10 +70,31 @@ export function aimSeat(from: number, screenAngle: number, n: number): number | 
 }
 
 /**
- * The screen angle that hits seat `j` dead-on. The client uses this to draw the
- * layout diagram from the player's own point of view — a target drawn at this
- * angle on their screen is a target they can flick straight at.
+ * The screen angle that hits seat `j` dead-on. The client uses this for the
+ * tap-a-seat fallback and the aim preview — a target drawn at this angle on
+ * your screen is a target you can flick straight at.
  */
 export function screenAngleTo(from: number, to: number, n: number): number {
   return wrapAngle(bearingBetween(from, to, n) - flickBearing(from, 0, n));
+}
+
+/**
+ * Every seat's position **as the player at `mine` sees the table**, in canvas
+ * coordinates on a unit circle: x right, y down, the table centre at (0, 0),
+ * and the viewer themselves at (0, 1) — directly below the middle, which is
+ * where they are once their top edge points at it.
+ *
+ * Bearings alone are not enough to draw the diagram: with four players the seat
+ * opposite is √2 further away than the two beside you, so plotting everyone at
+ * one radius turns a square table into a huddle. Real positions make a square
+ * look like a square and a triangle like a triangle.
+ */
+export function seatLayout(mine: number, n: number): { x: number; y: number }[] {
+  // Rotate the table so the viewer's screen-up points at the centre.
+  const turn = flickBearing(mine, 0, n);
+  return Array.from({ length: n }, (_, j) => {
+    const p = seatPos(j, n);
+    const bearing = Math.atan2(p.x, -p.y) - turn;
+    return { x: Math.sin(bearing), y: -Math.cos(bearing) };
+  });
 }

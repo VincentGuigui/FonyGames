@@ -50,8 +50,9 @@ export type View = {
 };
 
 export class SpillGame {
-  #me: PlayerId;
-  #now: () => number;
+  /** Empty until identify() runs; state can arrive before we know who we are. */
+  #me: PlayerId = '';
+  #now: () => number = () => Date.now();
   #state: SpillState | null = null;
   #held: { dropId: string; size: number; soaksAt: number } | null = null;
   #splashes: Splash[] = [];
@@ -59,7 +60,15 @@ export class SpillGame {
   /** Set by the client the moment it flings, so the lock reads as instant. */
   #optimisticLock = 0;
 
-  constructor(me: PlayerId, now: () => number) {
+  /**
+   * Say who we are and whose clock to trust. Separate from the constructor
+   * because the object must exist before the socket opens — otherwise the first
+   * `spill` frame has nowhere to land.
+   *
+   * `now` must be RoomClient.now(), never Date.now(): every deadline in the
+   * round is in server time.
+   */
+  identify(me: PlayerId, now: () => number): void {
     this.#me = me;
     this.#now = now;
   }
@@ -97,9 +106,10 @@ export class SpillGame {
 
       case 'drop': {
         if (!this.#state) return;
-        this.#state = { ...this.#state, air: [...this.#state.air, msg.d] };
-        if (this.#state.seats[msg.d.from] === this.#me) {
-          this.#lockedUntil = msg.d.leavesAt;
+        const { levels, ...drop } = msg.d;
+        this.#state = { ...this.#state, air: [...this.#state.air, drop], levels };
+        if (this.#state.seats[drop.from] === this.#me) {
+          this.#lockedUntil = drop.leavesAt;
           this.#optimisticLock = 0;
         }
         return;

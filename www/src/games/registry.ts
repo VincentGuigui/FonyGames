@@ -30,6 +30,22 @@ export const GAMES: GameCard[] = [
     status: 'beta',
   },
   {
+    slug: 'spill',
+    title: 'Spill',
+    pitch: 'Fling your water at the neighbours before they flood you',
+    motif: 'spill',
+    accent: '#38BDF8',
+    players: [2, 4],
+    duration: '1–3 min',
+    inputs: ['touch'],
+    modes: [
+      { id: 'ring', name: 'Ring', blurb: 'Phones flat on the table, aim across the room' },
+    ],
+    // `beta`: playable end to end, but the numbers in spec §12 are guesses
+    // until a real table test.
+    status: 'beta',
+  },
+  {
     slug: 'bump-relay',
     title: 'Bump Relay',
     pitch: 'Smash phones together to pass the bomb before it blows',
@@ -44,6 +60,18 @@ export const GAMES: GameCard[] = [
       { id: 'hot-hands', name: 'Hot Hands', blurb: 'Hold it too long and it speeds up' },
       { id: 'teams', name: 'Teams', blurb: 'Two colours, one bomb, zero trust' },
     ],
+    status: 'soon',
+  },
+  {
+    slug: 'goat-siege',
+    title: 'Goat Siege',
+    pitch: "Shoo the neighbours' goats before they eat your cabbages",
+    motif: 'goat',
+    accent: '#4ADE80',
+    players: [2, 4],
+    duration: '2–3 min',
+    inputs: ['touch'],
+    modes: [],
     status: 'soon',
   },
   {

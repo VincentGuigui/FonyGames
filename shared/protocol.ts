@@ -138,8 +138,12 @@ export type ServerMessage =
   | { t: 'calm-down'; d: { untilServerTime: number } }
   /** Spill: full state. Sent at round start and after any resync. */
   | { t: 'spill'; s: number; d: SpillState }
-  /** Spill: something is in the air. */
-  | { t: 'drop'; s: number; d: SpillDrop }
+  /**
+   * Spill: something is in the air. Carries `levels` because flinging is the
+   * one thing that empties your phone — without it your own counter would sit
+   * unchanged until the drop landed a second and a half later.
+   */
+  | { t: 'drop'; s: number; d: SpillDrop & { levels: Record<PlayerId, number> } }
   /** Spill: `by` grabbed it mid-approach; it is now theirs to re-fling. */
   | { t: 'caught'; s: number; d: { dropId: string; by: PlayerId; size: number; soaksAt: number } }
   /** Spill: it landed. `on` is null when the flick missed the table entirely. */

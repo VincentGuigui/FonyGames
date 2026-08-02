@@ -17,8 +17,10 @@ const CREST = '#7fd4ff';
 
 function surfaceY(x: number, w: number, top: number, t: number, calm: boolean): number {
   if (calm) return top;
-  const a1 = 6;
-  const a2 = 3;
+  // Amplitude scales with the screen: a fixed 6px swell that reads well on a
+  // small canvas is invisible across a 390pt phone.
+  const a1 = w / 26;
+  const a2 = w / 60;
   const swell = Math.sin((x / w) * Math.PI * 2 + t * 1.1) * a1;
   const ripple = Math.sin((x / w) * Math.PI * 5.3 - t * 2.7) * a2;
   return top + swell + ripple;
@@ -74,7 +76,9 @@ export const waterTheme: Theme = {
   },
 
   drawProjectile({ ctx, t, calm }: ThemeDraw, x: number, y: number, size: number): void {
-    const r = 10 * Math.sqrt(size);
+    // Big enough to be an obvious touch target: catching one is the game's
+    // riskiest move and it must not be a game of hunting for a dot.
+    const r = 18 * Math.sqrt(size);
     // A droplet is a circle with a slight teardrop stretch, wobbling as it goes.
     const wobble = calm ? 1 : 1 + Math.sin(t * 9) * 0.08;
 

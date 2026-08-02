@@ -178,7 +178,7 @@ export async function onFling(
   s.air[dropId] = drop;
   s.lockedUntil[playerId] = drop.leavesAt;
 
-  ctx.broadcast({ t: 'drop', s: ctx.nextSeq(), d: drop });
+  ctx.broadcast({ t: 'drop', s: ctx.nextSeq(), d: { ...drop, levels: s.levels } });
 
   // Flinging is the only thing that empties a phone, so the win can land here.
   if (await settle(ctx, s)) return;

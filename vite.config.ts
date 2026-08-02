@@ -19,6 +19,7 @@ export default defineConfig({
       input: {
         hub: 'www/index.html',
         'tap-duel': 'www/tap-duel/index.html',
+        spill: 'www/spill/index.html',
       },
     },
     // Payload budget in docs/architecture.md §4 is 150 KB gzipped for the hub.

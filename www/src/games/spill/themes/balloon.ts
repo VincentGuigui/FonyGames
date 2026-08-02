@@ -76,7 +76,9 @@ export const balloonTheme: Theme = {
   },
 
   drawProjectile({ ctx, t, calm }: ThemeDraw, x: number, y: number, size: number): void {
-    const r = 12 * Math.sqrt(size);
+    // Matches water.ts: the touch target must be the same whatever the theme,
+    // or swapping the look would quietly change the difficulty.
+    const r = 18 * Math.sqrt(size);
     const spin = calm ? 0 : Math.sin(t * 5) * 0.25;
     ctx.save();
     ctx.translate(x, y);

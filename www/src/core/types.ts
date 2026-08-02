@@ -17,7 +17,9 @@ export type GameMotif =
   | 'ghost'
   | 'zone'
   | 'compass'
-  | 'scream';
+  | 'scream'
+  | 'spill'
+  | 'goat';
 
 export type GameMode = {
   id: string;
