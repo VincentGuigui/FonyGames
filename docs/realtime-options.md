@@ -120,24 +120,71 @@ Vercel/Netlify cannot help: serverless, no long-lived connections.
 
 ---
 
-## 5. Wildcard: WebRTC peer-to-peer
+## 5. WebRTC peer-to-peer — analysed against "same room, mixed networks"
 
-Players in the same physical room are the common case for FonyGames. WebRTC data
-channels send game traffic **directly phone-to-phone**, so per-message cost is
-zero and latency is the best available. A signalling server is still needed, but
-only for a handful of messages per join — that fits inside *any* free tier,
-including a plain PHP endpoint on the current host.
+The expected setup is **players physically together but on different networks**
+(one on 4G, one on the flat's WiFi, one on a different carrier). The intuition
+is that co-located players should be able to talk directly. They mostly can't,
+and the reason is worth stating precisely.
 
-Honest downsides:
-- **Mesh doesn't scale**: n×(n−1)/2 connections. Fine at 6, ugly at 10.
-- **TURN relay** is needed for the ~10–20% of networks where direct connection
-  fails. Public TURN is not free at any volume; self-hosting coturn needs a VM.
-- **No server authority.** Our specs make the server the referee for scoring and
-  anti-cheat ([multiplayer.md](multiplayer.md) §4, bump pairing in
-  [device-capabilities.md](device-capabilities.md) §3). P2P gives that up, or
-  needs a trusted-host election that a cheater can win.
+### Physical proximity is not network proximity
 
-Viable as a **latency optimisation later**, poor as the foundation.
+WebRTC finds a path based on **network topology, not distance**. Two phones
+touching each other, one on WiFi and one on 4G, have no local path between them:
+the traffic leaves the building, crosses the carrier network, and comes back.
+Sitting in the same room buys nothing.
+
+The exception is real but narrow: pairs on the **same WiFi** connect via host
+candidates over the LAN (sub-5 ms, works even with the internet down). In a
+mixed room WebRTC negotiates this per pair, so some links are fast and others
+are relayed — with the game running at the speed of the slowest link.
+
+### Mobile carriers are the worst case for hole-punching
+
+Carrier-grade NAT on mobile networks behaves as **symmetric NAT with
+endpoint-dependent mapping (EDM)**. STUN hole-punching works for
+endpoint-independent NATs, but **EDM-to-EDM almost always requires a TURN
+relay**. Two players on 4G — the case we are designing for — is precisely the
+combination that fails. Industry-wide ~15–20% of sessions need TURN; on
+mobile-to-mobile it is the norm, not the tail.
+
+**When a connection is relayed, a server is in the path anyway.** The latency
+advantage that justified P2P evaporates, and all the P2P complexity remains.
+
+### Cost is *not* the objection (correcting §6 of the first draft)
+
+Cloudflare's managed TURN is **free for the first 1,000 GB/month**, then
+$0.05/GB, with STUN free and unlimited. Our messages are a few hundred bytes,
+not video: a 6-player Profile-B round meshes out to roughly 14 MB relayed, so
+1,000 GB covers on the order of **~69,000 rounds/month**. TURN would be free at
+our scale. An earlier draft of this document claimed TURN "is not free at any
+volume" — that is wrong for data channels and has been corrected.
+
+### The actual objections
+
+1. **We don't need the latency.** [multiplayer.md](multiplayer.md) §6 targets
+   mechanics tolerant of 100–300 ms, and bump pairing uses a ±250 ms window. A
+   Cloudflare edge object answers in ~20–40 ms. WebRTC's best case (~5–30 ms)
+   buys nothing our mechanics can feel.
+2. **Join time gets worse, and join time is a product principle.** ICE gathering
+   plus DTLS handshake costs roughly 0.5–3 s per peer pair, and in a mesh you
+   wait for the slowest of 15 pairs. Against a "≤ 3 taps to play" rule, that is
+   a regression a WebSocket does not have.
+3. **Mesh scaling.** n×(n−1)/2 connections: 15 at six players, 45 at ten. Each
+   phone maintains 5–9 peer connections, with the battery and CPU cost of each.
+4. **No server authority.** Our specs make the server the referee for scoring,
+   bump pairing and anti-cheat ([multiplayer.md](multiplayer.md) §4,
+   [device-capabilities.md](device-capabilities.md) §3). P2P gives that up, or
+   needs a host election a cheater can win.
+5. **Reconnection is much harder.** Phone locks, 4G hands over to WiFi, ICE
+   restarts on every pair. A WebSocket reconnect is one socket and a resync.
+
+### Verdict
+
+**WebRTC does not help for this scenario.** Adopt it only if a specific game
+later proves it needs sub-30 ms, or if we deliberately build a *same-WiFi
+offline* mode — the one case where P2P is genuinely better, because it works
+with no internet at all. Worth revisiting then; not the foundation.
 
 ---
 
@@ -191,4 +238,6 @@ almost entirely by whether the provider charges for fan-out.
 - [Oracle Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm) · [Oracle free tier review 2026](https://space-node.net/blog/oracle-vps-free-tier-review-2026)
 - [Platforms with a real free tier 2026](https://render.com/articles/platforms-with-a-real-free-tier-for-developers-in-2026) · [Fly.io alternatives after the free tier died](https://expresstech.io/7-fly-io-alternatives-in-2026-real-pricing-after-the-free-tier-died/)
 - [PHP WebSocket libraries guide](https://websocket.org/guides/languages/php/)
+- [WebRTC NAT/STUN/TURN/ICE explained](https://www.forasoft.com/learn/video-streaming/articles-streaming/nat-stun-turn-ice-webrtc) · [TURN: when you need it and what it costs](https://bloggeek.me/webrtcglossary/turn/) · [Why WebRTC calls fail on mobile data](https://www.softpagecms.com/2026/01/06/why-webrtc-calls-fail-mobile-data-fix-2026/)
+- [Cloudflare TURN pricing & FAQ](https://developers.cloudflare.com/realtime/turn/faq/) · [Cloudflare TURN/SFU](https://www.cloudflare.com/products/turn-sfu/)
 - [Hetzner pricing calculator](https://costgoat.com/pricing/hetzner) · [Cloud VPS comparison 2026](https://apicalculators.com/cloud-vps-comparison)
