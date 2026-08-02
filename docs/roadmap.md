@@ -10,7 +10,7 @@
 | M3 | **Room core** | Durable Object, client, and lobby (code · link · QR · presence · reconnect) | ✅ done |
 | M4 | **First game live** | Tap Duel `pistol` mode end-to-end: armed → fire → result, server-refereed | ✅ done |
 | M5 | **Second & third games** | `core/sensors` (motion + bump) built and tested; Bump Relay **server complete**, phone UI still to build | 🔨 in progress |
-| M5b | **Two new games** | [Spill](specs/games/spill.md) **playable end to end** (table-position aiming, two themes, `npm test` harness); [Goat Siege](specs/games/goat-siege.md) spec written, not built | 🔨 in progress |
+| M5b | **Two new games** | [Spill](specs/games/spill.md) and [Goat Siege](specs/games/goat-siege.md) both **playable end to end**, server-refereed and covered by `npm test`. Beta until a real play test — the balance numbers in both specs are guesses | ✅ built, ⏳ untested with people |
 | M6 | **Polish** | Illustrations, sounds, PWA shell, perf budgets enforced | |
 | M7 | **Field test** | Real party, real phones; fix what confused people | |
 | M8 | **Backoffice** | Health, Cloudflare usage vs free tier, aggregate activity, **feature flags per game**. Spec: [specs/backoffice.md](specs/backoffice.md) | |
@@ -70,4 +70,5 @@ answer here *and* in the doc it affects.
 | 2026-08-02 | **The Durable Object has one alarm slot, so all scheduling goes through `#rearm()`**, which takes the earliest deadline across seat housekeeping and every game. Each subsystem arming the alarm itself meant whichever ran last cancelled the others | [realtime-server.md](realtime-server.md) §4 |
 | 2026-08-02 | **A dropped socket is not a departure.** Spill only removes a player when their seat is actually reaped, so a refresh keeps their water. Bump Relay is the deliberate exception — the bomb cannot sit on an empty seat | [specs/games/spill.md](specs/games/spill.md) §8 |
 | 2026-08-02 | **A second theme is part of building a theme interface.** One implementation proves nothing; `balloon` exists because balloons are discrete objects rather than a liquid, which is what forced `Theme` to be a real abstraction | [specs/games/spill.md](specs/games/spill.md) §6 |
+| 2026-08-02 | **Goat Siege picks a patch, not a trajectory.** `lob` carries no angle and `shoo` no client timestamp: the arc is not aimable and nothing is scored on speed, so accepting either would be an interface that lies and an attack surface for nothing | [specs/games/goat-siege.md](specs/games/goat-siege.md) §5 |
 | 2026-08-02 | **`npm test` exists**: game modules are written against a `Ctx` interface and driven through a fake one with a controlled clock. No new dependency (esbuild ships with Vite). D10 would change the runner, not the shape | [testing.md](testing.md) §1.1 |

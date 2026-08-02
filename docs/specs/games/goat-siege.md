@@ -9,7 +9,8 @@
 | **Round length** | 2–3 min |
 | **Inputs** | touch (tap, drag to aim) |
 | **Accent colour** | `#4ADE80` |
-| **Status** | 📝 spec — not built |
+| **Status** | 🎮 built and playable. **Beta** — the balance questions in §11 are real and unanswered |
+| **Code** | `worker/goatSiege.ts` (referee) · `www/src/games/goat-siege/` (client) · `shared/goatSplit.ts` (split lanes, shared by both) |
 
 ## 1. Pitch
 
@@ -84,16 +85,40 @@ seed}` once lets every client draw the whole flight without another byte. Only
 *events* cross the wire: a lob, a shoo, a split, a cabbage eaten.
 
 The split direction comes from the **server's** `seed`, so every phone draws the
-kids going the same way without any of them deciding it locally.
+kids going the same way without any of them deciding it locally. The function
+that turns a seed into lanes lives in `shared/goatSplit.ts` and is run by both
+sides — same reasoning as Spill's shared geometry: two copies of the same maths
+is two chances to disagree.
+
+Kids scatter *away* from where the adult was, alternating sides, and are clamped
+inside the patch. A kid that drifted off-screen could not be tapped, so it would
+be an unavoidable lost cabbage — a punishment for playing well.
 
 | Message | Direction | Payload |
 | --- | --- | --- |
-| `lob` | client → server | `{ to, angle, roundId }` |
-| `shoo` | client → server | `{ goatId, at, roundId }` |
-| `goat` | server → clients | `{ goatId, from, to, launchedAt, arrivesAt, kind, seed }` |
-| `split` | server → clients | `{ goatId, kids: [{ goatId, arrivesAt, seed }] }` |
-| `chomp` | server → clients | `{ victim, cabbagesLeft }` |
-| `over` | server → clients | `{ winner, standings }` |
+| `lob` | client → server | `{ to, roundId }` |
+| `shoo` | client → server | `{ goatId, roundId }` |
+| `siege` | server → clients | Whole round: `{ roundId, players, cabbages, out, air, phase }` |
+| `goat` | server → clients | `{ goatId, victim, from, kind, lane, launchedAt, arrivesAt, seed }` |
+| `split` | server → clients | `{ goatId, by, kids: Goat[] }` — empty `kids` when a kid was shooed |
+| `chomp` | server → clients | `{ goatId, victim, cabbages, out }` |
+| `siege-over` | server → clients | `{ roundId, winnerId, cabbages }` |
+
+Two departures from the sketch above, both deliberate:
+
+- **`lob` carries no angle.** You choose a *patch*, not a trajectory. An angle
+  would imply the arc is aimable, and it is not — where a goat crosses the
+  fence is the server's `lane`, and pretending otherwise would be a lie in the
+  interface.
+- **`shoo` carries no client timestamp.** Unlike a Tap Duel reaction, nothing
+  here is scored on speed: a shoo is either inside the goat's flight window or
+  it is not, and the server already knows when that window is. Accepting a
+  client time would add an attack surface for no gain.
+
+`lane` is where the goat crosses the fence, 0..1 across the patch. It is derived
+from the seed by golden-ratio stepping rather than drawn at random, so
+successive lobs land far apart and a resent state puts every goat back exactly
+where it was.
 
 **The server owns the clock and the outcome.** A shoo is accepted only if it
 arrives before that goat's `arrivesAt`, judged in server time — the same
@@ -109,8 +134,10 @@ hundred messages, so this stays comfortably inside the Cloudflare allowance from
 | --- | --- |
 | A player leaves | Their patch stops receiving; goats already in flight there vanish |
 | A player is out | They spectate; they cannot lob |
-| Two players shoo the same goat | First by corrected timestamp wins; the second tap is ignored, not penalised |
+| Two players shoo the same goat | Cannot happen as built: a goat belongs to one patch, and only its victim may shoo it |
 | A shoo lands after the goat has already eaten | Rejected — the chomp already happened |
+| Shooing a **kid** | It simply vanishes. Kids do not split again, or the screen becomes a fractal |
+| A player drops off the network | Same rule as Spill: they are only out once their seat is reaped, so a refresh does not cost them the round |
 | Everyone is out at once | Draw |
 | Refresh mid-round | Same seat, same cabbages; goats in flight are re-sent |
 | Tab backgrounded | Goats keep arriving; on return the state is resynced rather than replayed |
@@ -148,10 +175,19 @@ outlives the room ([../../database.md](../../database.md) §1).
 ## 11. Open questions
 
 - Is 6 cabbages too few? A round that ends in 30 s is not a round.
-- Should kids be worth half a cabbage instead of a whole one? Currently a kid
-  eats a full cabbage, which may make shooing strictly bad — needs a play test,
-  and if it is strictly bad the mechanic is broken.
+- **Is shooing strictly bad?** As built, a kid eats a full cabbage, so shooing an
+  adult and missing both kids costs *two* cabbages instead of one — the logic
+  tests assert exactly that. If players learn to never tap, the central mechanic
+  is broken and kids need to be worth half a cabbage, or to fly slower. **This
+  is the one question a play test must answer.**
 - Can you aim at a *specific* patch with 4 players, or is it a random neighbour?
   Currently chosen, which rewards ganging up on the leader. That might be the
   best part or the worst part.
 - Do goats bleat? Yes. (D9 says sound is M6, so: eventually.)
+
+## 12. Not built yet
+
+- The `calm` mode promised in §10 — slower flight, larger goats. The renderer
+  honours `prefers-reduced-motion` for the idle bobbing only, which is **not**
+  the same thing and does not discharge that promise.
+- Per-goat sound (D9, M6).

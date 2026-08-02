@@ -28,7 +28,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | Compass Hunt | *Follow the arrow to the treasure — so is everyone else* | compass + GPS | 2–10 | 💡 idea |
 | Scream Meter | *Loudest wins. Your neighbours will not be thanked* | mic | 2–8 | 💡 idea |
 | [Spill](games/spill.md) | *Fling your water at the neighbours before they flood you* | touch | 2–4 | 🎮 `ring` beta — numbers untested on a real table |
-| [Goat Siege](games/goat-siege.md) | *Shoo the neighbours' goats before they eat your cabbages* | touch | 2–4 | 📝 draft |
+| [Goat Siege](games/goat-siege.md) | *Shoo the neighbours' goats before they eat your cabbages* | touch | 2–4 | 🎮 beta — balance untested |
 
 ### Idea notes (not yet specs)
 
