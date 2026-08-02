@@ -8,20 +8,24 @@ Workflow: [`.github/workflows/main.yml`](../.github/workflows/main.yml)
 ## 1. Branch model
 
 ```
-feature branch  →  dev  →  prod
-  (no deploy)      ↓        ↓
-              dev host   production host
+feat/…  fix/…  docs/…  →  main  →  dev   →  dev host
+                          trunk  →  prod  →  production host
+                        (no deploy)
 ```
 
 | Branch | Deploys to | When |
 | --- | --- | --- |
+| `main` | nothing | never — it is not in the trigger list |
 | `dev` | the dev host | on every push |
 | `prod` | the production host | on every push |
 | anything else | nothing | never — the workflow ignores it |
 
-Work happens on a feature branch (`claude/<topic>`, `<initials>/<topic>`), which
-is merged into `dev` to publish it for testing, then `dev` is merged into `prod`
-to release. `prod` is only ever fed from `dev`.
+Work happens on a `feat/`, `fix/`, `docs/` or `chore/` branch (see
+[conventions/commits.md](conventions/commits.md)) and is merged into **`main`**,
+which deploys nothing — so trunk is an integration point, not a release.
+Publishing is a separate, deliberate act: fast-forward `dev` from `main` to put
+it on the dev host, and `prod` from `main` to release. Neither `dev` nor `prod`
+is ever developed on directly.
 
 The workflow can also be run manually (`workflow_dispatch`) — useful after
 rotating a credential — but a job guard makes it a no-op unless it is run from

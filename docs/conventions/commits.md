@@ -44,6 +44,38 @@ in the same commit or in an adjacent `docs:` commit — never be forgotten.
 
 ## Branches
 
-- `claude/<topic>` or `<initials>/<topic>` for work branches.
+### Long-lived
+
+| Branch | Role | Rules |
+| --- | --- | --- |
+| `main` | Trunk and default branch. The source of truth. | Never committed to directly — only merged into. Deploys nothing. |
+| `dev` | Deploys to the dev host on every push. | Only ever fast-forwarded from `main`. Never developed on. |
+| `prod` | Deploys to production on every push. | Only ever fast-forwarded from `main`. Never developed on. |
+
+See [../deployment.md](../deployment.md) for what each deploy does.
+
+### Work branches
+
+`<prefix>/<topic>`, topic in kebab-case:
+
+| Prefix | For |
+| --- | --- |
+| `feat/` | New games, new capabilities |
+| `fix/` | Bug fixes |
+| `docs/` | Documentation and specs |
+| `chore/` | Tooling, CI, deployment, housekeeping |
+
+For game work the topic **is the game slug**, so everything lines up:
+
+```
+branch  feat/bump-relay
+spec    docs/specs/games/bump-relay.md
+code    www/src/games/bump-relay/
+```
+
+Branch prefixes are deliberately coarser than the commit types above. One
+`feat/tap-duel` branch will contain `spec:`, `ui:`, `test:` and `game:` commits —
+that is expected.
+
 - Push with `git push -u origin <branch>`.
-- No direct push to the default branch. PRs are opened only on request.
+- PRs are opened only on request.

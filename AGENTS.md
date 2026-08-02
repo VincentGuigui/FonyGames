@@ -89,10 +89,12 @@ Nothing outside `www/` ships to users. Nothing outside `docs/` documents.
 4. **Test.** Run the checks in [docs/testing.md](./docs/testing.md); at minimum
    verify on a real phone (or device emulation) before declaring done.
 5. **Document.** Update the spec and any affected doc in the same commit series.
-6. **Push & ship.** Work on a feature branch, `git push -u origin <branch>`.
-   Merge into `dev` to auto-deploy to the dev host, then `dev` → `prod` to
-   release. Never push straight to `dev` or `prod`; both are deploy triggers.
-   See [docs/deployment.md](./docs/deployment.md). Open a PR only when asked.
+6. **Push & ship.** Work on a `feat/` · `fix/` · `docs/` · `chore/` branch,
+   `git push -u origin <branch>`, then merge into **`main`** (trunk, deploys
+   nothing). To publish, fast-forward `dev` from `main` for the dev host, and
+   `prod` from `main` to release. Never commit directly to `main`, `dev` or
+   `prod`. See [docs/conventions/commits.md](./docs/conventions/commits.md) and
+   [docs/deployment.md](./docs/deployment.md). Open a PR only when asked.
 
 ### Commit message shape
 
