@@ -83,6 +83,9 @@ to directly. Our [architecture.md](architecture.md) already isolates this behind
 | **Ably** | 6M msg/month, 200 connections, 500 msg/s | ~208 | Counts fan-out. No daily cap. |
 | **Pusher Channels** | 200k msg/**day**, 100 connections | ~7/day (~210/mo) | Counts fan-out. Daily cap bites hard. |
 | **Supabase Realtime** | 2M msg/month, 200 concurrent | ~69 | Tightest. Useful if you want auth + DB in one. |
+| **Firebase Realtime DB** | 100 simultaneous connections, 10 GB/mo download | ~2,000 (but 100-connection ceiling) | Best Google option. Billed by bandwidth, not messages. See §3.2. |
+| **Google Cloud Run** | 2M req/mo, 180k vCPU-s, 360k GiB-s | ~1,500 | Can host our own WS server, but room affinity is *best-effort*. See §3.2. |
+| **Firestore** | 50k reads + 20k writes **per day** | **~1.4 per day** | Unusable — see §3.2. |
 
 ### Why Cloudflare is ~20× cheaper for this workload
 
@@ -102,6 +105,62 @@ The Hibernation API means idle rooms holding open sockets aren't billed at all.
 **Cost of the trade:** it's TypeScript on Cloudflare's runtime, not PHP, and
 Durable Objects are Cloudflare-specific. `core/room` limits the blast radius if
 we ever move.
+
+### 3.2 Google Cloud / Firebase
+
+Google has no single product that maps onto "authoritative game room" the way
+Durable Objects do. Three come close, in descending order of usefulness.
+
+**Firebase Realtime Database** — the only genuinely viable Google option. Clients
+subscribe to a JSON subtree and get pushed updates; billing is by **bandwidth
+downloaded, not message count**, which suits fan-out far better than Ably or
+Pusher. A Profile-B round moves roughly 3–5 MB, so the 10 GB/month allowance is
+around **2,000 rounds**.
+
+Three catches:
+- **100 simultaneous connections** on the free Spark plan — a hard ceiling of
+  ~16 concurrent 6-player rooms, regardless of how much bandwidth is left.
+- **It is a database, not a game server.** Our 20 Hz state is ephemeral; RTDB
+  wants to persist every write to a JSON tree we then have to clean up.
+- **No server-side authority.** Logic lives in security rules or a Cloud
+  Function reacting after the fact. Bump pairing and scoring
+  ([multiplayer.md](multiplayer.md) §4) assume a referee that can hold state and
+  arbitrate within ±250 ms. Rules cannot do that.
+
+**Cloud Run** — supports WebSockets and could host the same Node/`ws` server we'd
+otherwise self-host, with 2M requests, 180k vCPU-s and 360k GiB-s free per
+month; a 2-min round on one instance is ~120 vCPU-s, so roughly **1,500 rounds**
+free. The blocker is architectural, not financial:
+
+> **Session affinity on Cloud Run is explicitly "best effort".** If an instance
+> is terminated, hits max concurrency, or hits max CPU, affinity breaks and
+> requests route elsewhere.
+
+Players in one room can therefore land on **different instances**, which for a
+room-based game means the room simply doesn't work. Fixing it means an external
+shared state store (Memorystore/Redis — no meaningful free tier) or pinning
+`min-instances=1`, which burns the free allowance continuously and reintroduces
+the always-on server we were avoiding. Scale-to-zero also means a cold start for
+the first player to arrive, against a "≤ 3 taps to play" rule.
+
+**Firestore** — do not use for this. Realtime listeners bill per document read
+and every state change is a write: a single Profile-B round is ~14,400 writes
+against a **20,000-writes-per-day** free quota, i.e. **1.4 rounds per day**, with
+reads blowing past 50k/day even faster.
+
+**Not applicable:** Cloud Pub/Sub (server-to-server, no browser WebSocket),
+Firebase Cloud Messaging (push notifications, not low-latency bidirectional),
+App Engine Flexible (no free tier).
+
+### 3.3 The thing that actually separates them
+
+Cloudflare gives **one authoritative object per room, globally unique, as a
+platform primitive** — `env.ROOM.idFromName(roomCode)` always routes to the same
+object, and that object holds the room's state in memory. Every other option
+here makes us build that ourselves: sticky routing (best-effort on Cloud Run) plus
+an external store (paid), or give up server authority entirely (Firebase RTDB).
+
+For a product whose unit of work *is* a room, that is the whole decision.
 
 ---
 
@@ -200,6 +259,8 @@ active party game).
 | **Cloudflare Workers Paid** | **$5** | Headroom: 1M req/mo + 400k GB-s included, then $0.15/M req. Only needed past ~4,000 rounds/mo. |
 | **Hetzner CX-series VPS** | **€4.35** | Full control, 20 TB egress. Could run PHP Workerman. |
 | **DigitalOcean / Linode** | **$5** | 1 vCPU / 1 GB. |
+| **Firebase RTDB (Blaze)** | **~$19** | $1/GB downloaded after 10 GB free; ~29 GB/mo at this load. Must leave Spark anyway to pass 100 connections. |
+| **Google Cloud Run** | **$0 → $35+** | Free at this volume *if* affinity holds — but rooms only work reliably once you add Memorystore Redis, from ~$35/mo. |
 | **Supabase Pro** | **$25** | Only if you also want auth + Postgres. |
 | **Pusher Startup** | **$49** | 10M msg/mo — **not enough** at this load; realistically Pro **$99** (4M/day). |
 | **Ably pay-as-you-go** | **~$57** | 6M free, then 22.8M × $2.50/M. |
@@ -221,11 +282,19 @@ almost entirely by whether the provider charges for fan-out.
 3. **Not recommended:** Pusher/Ably/Supabase free tiers — all three run out
    during a single evening of testing Profile B, and their paid tiers cost 10–20×
    Cloudflare for this shape of traffic.
+4. **Google:** no product matches Durable Objects for room-shaped state.
+   Firebase RTDB is the closest and is capped at 100 free connections with no
+   server authority; Cloud Run can host our own server but its session affinity
+   is best-effort, so rooms need a paid Redis to be reliable; Firestore is
+   unusable at ~1.4 rounds/day. See §3.2.
 
-**Before deciding, answer two questions:**
-- Is "realtime layer is not PHP" acceptable? (§2 reframing)
-- Run the SSH test in §2 — if the host *does* allow persistent processes, the
-  self-hosted PHP option gets much more attractive.
+**Constraint resolved (2026-08-02):** the maintainer confirmed the realtime layer
+does **not** need to be PHP. The static hub keeps deploying to the PHP host
+unchanged; only the WebSocket service lives elsewhere.
+
+Remaining optional check: the SSH test in §2. If the host *does* allow
+persistent processes it doesn't change the recommendation, but it would make a
+self-hosted fallback cheap to keep in reserve.
 
 ---
 
