@@ -47,7 +47,15 @@ export type ClientMessage =
   /** This phone felt a knock. The SERVER pairs two of these into a contact. */
   | { t: 'bump'; d: { at: number; roundId: number } }
   /** Touch fallback for a player without motion: pass to a chosen player. */
-  | { t: 'pass'; d: { to: PlayerId; roundId: number } };
+  | { t: 'pass'; d: { to: PlayerId; roundId: number } }
+  /**
+   * Spill: flick water off your screen. `angle` is radians clockwise from
+   * screen-up; `speed` is in **screen heights per second**, so the server never
+   * has to know how big anyone's phone is. `dropId` re-flings a caught drop.
+   */
+  | { t: 'fling'; d: { angle: number; speed: number; roundId: number; dropId?: string } }
+  /** Spill: grab an incoming drop during its approach window. */
+  | { t: 'catch'; d: { dropId: string; roundId: number } };
 
 /* ------------------------------------------------------------------ */
 /* server -> client                                                     */
@@ -72,6 +80,34 @@ export type RoundResult = {
   noContest: boolean;
 };
 
+/** Spill: one projectile, described once and animated locally from then on. */
+export type SpillDrop = {
+  dropId: string;
+  /** Seat index it left. */
+  from: number;
+  /** Seat index it is heading for; null when the flick missed the table. */
+  to: number | null;
+  /** 1 for a normal drop, doubling with every catch. */
+  size: number;
+  launchedAt: number;
+  /** Server time it clears the thrower's screen — also their launch lock. */
+  leavesAt: number;
+  /** Server time it lands. Everything is animated against this. */
+  arrivesAt: number;
+};
+
+/** Spill: the whole round, as a client needs it after a join or a refresh. */
+export type SpillState = {
+  roundId: number;
+  /** Player at each seat; the index **is** the physical position. */
+  seats: PlayerId[];
+  levels: Record<PlayerId, number>;
+  /** Players who reached SPILL_LOSE_LEVEL and are now spectating. */
+  out: PlayerId[];
+  air: SpillDrop[];
+  phase: 'running' | 'done';
+};
+
 export type ServerMessage =
   /** Sent once, immediately after a successful join. */
   | {
@@ -93,6 +129,30 @@ export type ServerMessage =
   | { t: 'boom'; s: number; d: { roundId: number; victim: PlayerId; alive: PlayerId[] } }
   /** Bump Relay: too many bumps too fast — this player's bumps are muted briefly. */
   | { t: 'calm-down'; d: { untilServerTime: number } }
+  /** Spill: full state. Sent at round start and after any resync. */
+  | { t: 'spill'; s: number; d: SpillState }
+  /** Spill: something is in the air. */
+  | { t: 'drop'; s: number; d: SpillDrop }
+  /** Spill: `by` grabbed it mid-approach; it is now theirs to re-fling. */
+  | { t: 'caught'; s: number; d: { dropId: string; by: PlayerId; size: number; soaksAt: number } }
+  /** Spill: it landed. `on` is null when the flick missed the table entirely. */
+  | {
+      t: 'land';
+      s: number;
+      d: {
+        dropId: string;
+        on: PlayerId | null;
+        size: number;
+        levels: Record<PlayerId, number>;
+        out: PlayerId[];
+      };
+    }
+  /** Spill: round over. `winnerId` emptied their phone, or was last standing. */
+  | {
+      t: 'spill-over';
+      s: number;
+      d: { roundId: number; winnerId: PlayerId | null; levels: Record<PlayerId, number> };
+    }
   | { t: 'error'; d: { code: ErrorCode; message: string } };
 
 export const MAX_PLAYERS = 10;
@@ -163,6 +223,49 @@ export const BUMP_RELAY_MIN_PLAYERS = 3;
 /** A round is hard-capped, per the safety rules in the spec. */
 export const BUMP_ROUND_CAP_MS = 5 * 60_000;
 
+/* ------------------------------------------------------------------ */
+/* Spill (docs/specs/games/spill.md)                                    */
+/* ------------------------------------------------------------------ */
+
+/** Two is a duel; above four the ring gets too crowded to aim (spec §12). */
+export const SPILL_MIN_PLAYERS = 2;
+export const SPILL_MAX_PLAYERS = 4;
+
+/** Start half full; reach the ceiling and you are out (spec §3). */
+export const SPILL_START_LEVEL = 20;
+export const SPILL_LOSE_LEVEL = 40;
+
+/**
+ * Flick speed is clamped rather than rejected: a fast screen and a cheat look
+ * identical from here, and silently capping is better UX than an accusation
+ * (spec §9). Units are screen heights per second.
+ */
+export const SPILL_SPEED_MIN = 0.5;
+export const SPILL_SPEED_MAX = 6;
+
+/** Bounds on how long a drop takes to clear the thrower's screen (spec §4). */
+export const SPILL_LOCK_MIN_MS = 250;
+export const SPILL_LOCK_MAX_MS = 1_200;
+
+/** Time spent over the table, visible to nobody. */
+export const SPILL_GAP_MS = 200;
+
+/** How long a drop is visible to its target before it lands — the catch window. */
+export const SPILL_APPROACH_MS = 900;
+
+/** Hold a caught drop longer than this and it soaks in, doubled (spec §5). */
+export const SPILL_HOLD_MS = 2_500;
+
+/**
+ * Aim tolerance as a fraction of the half-gap between seats. Below 1 there is
+ * always a sliver you can miss through, which is what keeps a wild flick a real
+ * (and sometimes deliberate) way to shed water.
+ */
+export const SPILL_AIM_FRACTION = 0.7;
+
+/** A round is capped like every other, so a stalemate cannot run forever. */
+export const SPILL_ROUND_CAP_MS = 5 * 60_000;
+
 const CLIENT_TYPES = new Set([
   'join',
   'set-profile',
@@ -171,6 +274,8 @@ const CLIENT_TYPES = new Set([
   'tap',
   'bump',
   'pass',
+  'fling',
+  'catch',
 ]);
 
 export function isClientMessage(value: unknown): value is ClientMessage {

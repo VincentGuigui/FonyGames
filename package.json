@@ -11,6 +11,7 @@
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json",
+    "test": "esbuild worker/spill.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/spill.test.mjs --log-level=warning && node node_modules/.cache/spill.test.mjs",
     "worker:dev": "wrangler dev",
     "worker:deploy:dev": "wrangler deploy --env dev",
     "worker:deploy:prod": "wrangler deploy --env prod"
