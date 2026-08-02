@@ -20,12 +20,12 @@ feat/…  fix/…  docs/…  →  main  →  dev   →  dev host
                         (no deploy)
 ```
 
-| Branch | Deploys to | When |
-| --- | --- | --- |
-| `main` | nothing | never — it is not in the trigger list |
-| `dev` | the dev host | on every push |
-| `prod` | the production host | on every push |
-| anything else | nothing | never — the workflow ignores it |
+| Branch | Site | Room server | When |
+| --- | --- | --- | --- |
+| `main` | nothing | nothing | never — not in the trigger list |
+| `dev` | https://fonygames-dev.guigui.fr | `fonygames-worker-dev` | on every push |
+| `prod` | https://fonygames.guigui.fr | `fonygames-worker` | on every push |
+| anything else | nothing | nothing | never — the workflow ignores it |
 
 Work happens on a `feat/`, `fix/`, `docs/` or `chore/` branch (see
 [conventions/commits.md](conventions/commits.md)) and is merged into **`main`**,

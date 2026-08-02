@@ -1,6 +1,11 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "fonygames-rooms-dev",
+
+  // Deliberately a name that exists nowhere. This top-level block is what a
+  // bare `wrangler deploy` (no --env) would use, so an accidental deploy
+  // creates a throwaway Worker instead of clobbering dev or prod.
+  // Real deploys always pass --env dev | --env prod.
+  "name": "fonygames-worker-local",
   "main": "worker/index.ts",
   "compatibility_date": "2026-08-01",
 
@@ -24,19 +29,29 @@
 
   // Two Workers, so a dev round can never land in a production room: separate
   // Workers mean separate Durable Object namespaces.
+  // NOTE: `durable_objects` and `vars` are NOT inherited by environments —
+  // they must be repeated in every env block or the deployed Worker silently
+  // loses the binding. `migrations` and `compatibility_date` are inherited.
   "env": {
     "dev": {
-      "name": "fonygames-rooms-dev",
+      "name": "fonygames-worker-dev",
+      "durable_objects": {
+        "bindings": [{ "name": "ROOM", "class_name": "Room" }]
+      },
       "vars": {
-        // TODO(hosting): add the dev site origin once its URL is confirmed.
-        "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173"
+        // The dev Worker also serves local development, so localhost is
+        // allowed here and nowhere else.
+        "ALLOWED_ORIGINS": "https://fonygames-dev.guigui.fr,http://localhost:5173,http://127.0.0.1:5173"
       }
     },
     "prod": {
-      "name": "fonygames-rooms-prod",
+      // Reuses the Worker created in the dashboard, so nothing is orphaned.
+      "name": "fonygames-worker",
+      "durable_objects": {
+        "bindings": [{ "name": "ROOM", "class_name": "Room" }]
+      },
       "vars": {
-        // TODO(hosting): replace with the production site origin.
-        "ALLOWED_ORIGINS": "https://example.invalid"
+        "ALLOWED_ORIGINS": "https://fonygames.guigui.fr"
       }
     }
   }

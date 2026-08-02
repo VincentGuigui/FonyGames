@@ -4,6 +4,7 @@ import type {
   RoomSnapshot,
   ServerMessage,
 } from '../../../../shared/protocol';
+import { toWebSocketUrl } from './config';
 
 /**
  * The only thing in the app that opens a socket. Games never talk to the
@@ -90,7 +91,7 @@ export class RoomClient {
   #open(profile?: { name?: string; avatar?: string }): void {
     this.#setStatus(this.#attempt === 0 ? 'connecting' : 'reconnecting');
 
-    const url = new URL(this.#url);
+    const url = new URL(toWebSocketUrl(this.#url));
     url.pathname = '/room';
     url.searchParams.set('code', this.#code);
 

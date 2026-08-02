@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json",
     "worker:dev": "wrangler dev",
-    "worker:deploy": "wrangler deploy"
+    "worker:deploy:dev": "wrangler deploy --env dev",
+    "worker:deploy:prod": "wrangler deploy --env prod"
   },
   "dependencies": {
     "preact": "^10.27.2"

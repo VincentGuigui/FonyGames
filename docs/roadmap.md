@@ -7,7 +7,7 @@
 | M0 | **Foundations** | README, AGENTS/CLAUDE, docs index, conventions, hub spec, one game spec | ✅ done |
 | M1 | **Decisions** | Stack, hosting, realtime and first game all settled | ✅ done |
 | M2 | **Walking skeleton** | Vite+TS+Preact build; static hub with card grid and placeholder art; no realtime | ✅ done |
-| M3 | **Room core** | Durable Object, room create/join by link·QR·code, lobby, presence, reconnect | ▶️ next |
+| M3 | **Room core** | Durable Object + client done and tested; **lobby UI still to build** | 🔨 in progress |
 | M4 | **First game live** | Tap Duel end-to-end on real phones, one mode | blocked by M3 |
 | M5 | **Second & third games** | Prove `core/` is reusable; add modes to the flagship | |
 | M6 | **Polish** | Illustrations, sounds, PWA shell, perf budgets enforced | |
@@ -24,7 +24,7 @@ answer here *and* in the doc it affects.
 | ~~D2~~ | ~~UI layer~~ | **DECIDED** — Preact + plain CSS, design tokens in `core/ui/theme.css` | ✅ |
 | ~~D3~~ | ~~Realtime transport~~ | **DECIDED** — Cloudflare Durable Objects on the free plan, WebSocket transport. Full survey: [realtime-options.md](realtime-options.md) | ✅ |
 | ~~D4~~ | ~~Hosting~~ | **DECIDED** — shared hosting, deployed over SFTP by GitHub Actions from `dev`/`prod`. See [deployment.md](deployment.md) | ✅ |
-| D5 | Domain | `fonygames.*` — is one owned? | — |
+| ~~D5~~ | ~~Domain~~ | **DECIDED** — `guigui.fr`, with `fonygames.` (prod) and `fonygames-dev.` (dev) subdomains | ✅ |
 | ~~D6~~ | ~~First build~~ | **DECIDED** — hub shell first (M2, done), then Tap Duel as the room-core pathfinder | ✅ |
 | D7 | Local preferences storage | No storage at all · `localStorage` for name/avatar/last mode only | **Local-only preferences**, never game data |
 | D8 | Language / i18n | English only · English + French from the start | **English only** in v1, keep strings in one file |
@@ -54,4 +54,5 @@ answer here *and* in the doc it affects.
 | 2026-08-02 | **D3 realtime**: Cloudflare Durable Objects, free plan, WebSocket. One object per room is a platform primitive; outgoing messages are free | [realtime-options.md](realtime-options.md) |
 | 2026-08-02 | **MySQL is available on the host** but is not used for game state. Any use requires an init script plus idempotent migrations; local MariaDB for tests | [database.md](database.md) |
 | 2026-08-01 | ~~Only `www/` is published~~ — superseded: `www/` is source, the built `dist/` is what ships | [deployment.md](deployment.md) §5 |
+| 2026-08-02 | **D5 domain**: `guigui.fr` — `fonygames.guigui.fr` (prod), `fonygames-dev.guigui.fr` (dev). Room server on `*.vincent-f02.workers.dev` | [realtime-server.md](realtime-server.md) §6 |
 | 2026-08-02 | **D1/D2 stack**: Vite + TypeScript (`strict`) + Preact + plain CSS. **D6**: hub shell first, then Tap Duel | [architecture.md](architecture.md) §2 |

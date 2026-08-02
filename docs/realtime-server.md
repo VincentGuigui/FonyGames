@@ -78,10 +78,36 @@ both strings render on other players' phones.
 Two Workers, so a dev round can never land in a production room (separate
 Workers mean separate DO namespaces):
 
-| Branch | Worker |
-| --- | --- |
-| `dev` | `fonygames-rooms-dev` |
-| `prod` | `fonygames-rooms-prod` |
+| Branch | Site | Worker | Worker URL |
+| --- | --- | --- | --- |
+| `dev` | `https://fonygames-dev.guigui.fr` | `fonygames-worker-dev` | `wss://fonygames-worker-dev.vincent-f02.workers.dev` |
+| `prod` | `https://fonygames.guigui.fr` | `fonygames-worker` | `wss://fonygames-worker.vincent-f02.workers.dev` |
+
+`fonygames-worker` is the Worker originally created in the Cloudflare dashboard,
+reused for prod rather than orphaned.
+
+The browser picks its Worker from `window.location.hostname` in
+`www/src/core/room/config.ts` — a static map, **not** a build-time variable,
+because the site is built in Vite's `production` mode on *both* branches and a
+single `.env.production` could not tell the two hosts apart. Unknown hostnames
+(localhost, previews) fall back to `ws://127.0.0.1:8787`.
+
+Set `VITE_ROOM_URL` to override, e.g. to point a phone on the LAN at a laptop
+running `wrangler dev`.
+
+> ⚠️ **`durable_objects` and `vars` are not inherited by environments** in
+> `wrangler.jsonc` — they must be repeated inside every `env` block. Omit them
+> and the Worker deploys happily with **no `ROOM` binding**, failing only at
+> runtime. `wrangler deploy --env <e> --dry-run` prints the resolved bindings;
+> check `ROOM` is listed before trusting a config change. `migrations` and
+> `compatibility_date` *are* inherited.
+
+### Do not deploy without `--env`
+
+The top-level `name` in `wrangler.jsonc` is deliberately `fonygames-worker-local`,
+a Worker that exists nowhere. A bare `wrangler deploy` would use that block, so
+the mistake creates a throwaway Worker instead of clobbering dev or prod. The
+npm scripts are `worker:deploy:dev` and `worker:deploy:prod` for the same reason.
 
 Deployed by the same GitHub Actions workflow as the site, reading
 `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from the matching GitHub
