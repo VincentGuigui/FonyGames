@@ -17,6 +17,7 @@ file under 200 lines** — put detail in `docs/`, not here.
 | Full docs index | [docs/README.md](./docs/README.md) |
 | Architecture & tech stack | [docs/architecture.md](./docs/architecture.md) |
 | Multiplayer & networking | [docs/multiplayer.md](./docs/multiplayer.md) |
+| Realtime backend survey (D3) | [docs/realtime-options.md](./docs/realtime-options.md) |
 | Device capabilities (sensors, GPS, bump…) | [docs/device-capabilities.md](./docs/device-capabilities.md) |
 | Deployment (branches, environments, secrets) | [docs/deployment.md](./docs/deployment.md) |
 | UI / UX & visual guidelines | [docs/design/ui-guidelines.md](./docs/design/ui-guidelines.md) |

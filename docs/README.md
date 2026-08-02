@@ -17,6 +17,7 @@ is made in a discussion, it belongs in one of these files.
 | --- | --- |
 | [architecture.md](architecture.md) | Stack proposal, runtime shape, budgets, hosting |
 | [multiplayer.md](multiplayer.md) | Rooms, join flow, transport, state sync, latency |
+| [realtime-options.md](realtime-options.md) | Survey of realtime backends for D3: load model, free tiers, price comparison |
 | [device-capabilities.md](device-capabilities.md) | Sensors, GPS, bump detection, permissions, privacy, fallbacks |
 | [deployment.md](deployment.md) | Branch model, GitHub Environments, secrets, FTPS deploy, troubleshooting |
 | [testing.md](testing.md) | What we test, how, and on which devices |
