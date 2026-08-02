@@ -87,6 +87,13 @@ export type SpillDrop = {
   from: number;
   /** Seat index it is heading for; null when the flick missed the table. */
   to: number | null;
+  /**
+   * The screen angle it was flicked at, clamped and echoed back. The thrower
+   * animates it leaving along this; the target animates it arriving from their
+   * own bearing to `from`, which is what makes the aiming legible in both
+   * directions.
+   */
+  angle: number;
   /** 1 for a normal drop, doubling with every catch. */
   size: number;
   launchedAt: number;

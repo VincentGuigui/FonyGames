@@ -17,7 +17,7 @@ import {
   type SpillDrop,
   type SpillState,
 } from '../shared/protocol';
-import { aimSeat } from '../shared/spillGeometry';
+import { aimSeat, wrapAngle } from '../shared/spillGeometry';
 
 /**
  * Spill — the referee. Spec: docs/specs/games/spill.md
@@ -168,6 +168,7 @@ export async function onFling(
     dropId,
     from: seat,
     to,
+    angle: wrapAngle(angle),
     size,
     launchedAt: now,
     leavesAt: now + exitMs,
