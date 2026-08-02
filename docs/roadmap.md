@@ -22,7 +22,7 @@ answer here *and* in the doc it affects.
 | --- | --- | --- | --- |
 | D1 | Build tooling | Vite + TypeScript · plain ES modules, no build · a framework | **Vite + TS** |
 | D2 | UI layer | No framework (custom components + CSS) · Preact · Svelte | **No framework** for v1 |
-| D3 | Realtime transport ⚠️ **now the critical one** | Surveyed in full: **[realtime-options.md](realtime-options.md)** | **Cloudflare Durable Objects, free plan** — free at ~4,100 heavy rounds/month because outgoing WebSocket messages cost nothing and incoming bill 20:1, vs ~70–210 rounds on Ably/Pusher/Supabase free tiers. Costs us "the realtime layer is TypeScript, not PHP". Fallback if PHP is mandatory: Oracle Always Free VM + Workerman. Blocked on two answers — see the survey §7 |
+| ~~D3~~ | ~~Realtime transport~~ | **DECIDED** — Cloudflare Durable Objects on the free plan, WebSocket transport. Full survey: [realtime-options.md](realtime-options.md) | ✅ |
 | ~~D4~~ | ~~Hosting~~ | **DECIDED** — shared hosting, deployed over SFTP by GitHub Actions from `dev`/`prod`. See [deployment.md](deployment.md) | ✅ |
 | D5 | Domain | `fonygames.*` — is one owned? | — |
 | D6 | Flagship game to build first | Bump Relay (physical, iconic, needs 3+ players) · Tap Duel (simplest, proves the room core with 2 players) · Tilt Arena | **Tap Duel first as the technical pathfinder, Bump Relay as the flagship**, or go straight to Bump Relay if we accept a longer M4 |
@@ -51,4 +51,6 @@ answer here *and* in the doc it affects.
 | 2026-08-02 | **Branch model**: `main` is trunk and default branch (deploys nothing); `dev`/`prod` are fast-forwarded from `main` to deploy. Work branches are `feat/` · `fix/` · `docs/` · `chore/`. Replaces the vendor-prefixed default branch the repo was created with | [conventions/commits.md](conventions/commits.md), [deployment.md](deployment.md), [../AGENTS.md](../AGENTS.md) §5 |
 | 2026-08-02 | **The realtime layer does not have to be PHP.** The PHP host keeps serving the static hub; the WebSocket service is a separate deployment | [realtime-options.md](realtime-options.md) §2, §7 |
 | 2026-08-02 | **WebRTC rejected as the foundation.** Same-room players on mixed 4G/WiFi have no local path; mobile CGNAT forces TURN relay, so the latency win disappears while the complexity stays. Reconsider only for a same-WiFi offline mode | [realtime-options.md](realtime-options.md) §5 |
+| 2026-08-02 | **D3 realtime**: Cloudflare Durable Objects, free plan, WebSocket. One object per room is a platform primitive; outgoing messages are free | [realtime-options.md](realtime-options.md) |
+| 2026-08-02 | **MySQL is available on the host** but is not used for game state. Any use requires an init script plus idempotent migrations; local MariaDB for tests | [database.md](database.md) |
 | 2026-08-01 | Only `www/` is published; docs and repo metadata never reach the server | [deployment.md](deployment.md) §5 |

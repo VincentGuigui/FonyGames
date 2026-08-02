@@ -9,20 +9,26 @@
 
 ```
                     ┌──────────────────────────┐
-   phone browser →  │  Hub (static)            │  grid of game cards
-                    │   ├─ Game A (static)     │  each game = its own module
-                    │   ├─ Game B (static)     │
-                    └───────────┬──────────────┘
-                                │ WebSocket (rooms)
-                    ┌───────────┴──────────────┐
-                    │  Realtime room server    │  authoritative-ish state,
-                    │  (stateless, in-memory)  │  no database
-                    └──────────────────────────┘
+   phone browser →  │  Hub + games (static)    │  deployed by SFTP to the
+                    │  served by the PHP host  │  host's /www
+                    └─────┬──────────────┬─────┘
+                          │              │
+           WebSocket ─────┘              └───── HTTPS (rare, non-gameplay)
+                          │                            │
+        ┌─────────────────┴────────┐      ┌────────────┴──────────┐
+        │ Cloudflare Durable Object│      │ PHP endpoint  → MySQL │
+        │ one per room, in memory  │      │ persistence only      │
+        │ authoritative, no DB     │      │ NOT on the game path  │
+        └──────────────────────────┘      └───────────────────────┘
 ```
 
-- The **hub and the games are static assets**. They can be served from any CDN.
-- The **only backend** is a small realtime server holding ephemeral room state
-  in memory. No database, no accounts, nothing persisted between rooms.
+- The **hub and the games are static assets**, deployed to the PHP host
+  ([deployment.md](deployment.md)).
+- **Gameplay has no database.** A Durable Object holds one room's state in
+  memory and is the referee; the room's state dies with the room, by design.
+- A **MySQL** database exists on the host but is **not part of the game loop**,
+  and is unused today. It is reachable only from PHP, never from the Durable
+  Object — see [database.md](database.md) for why, and for the migration rules.
 - A game that needs no other player state (e.g. a pure local warm-up mode) must
   still work with the server unreachable.
 
@@ -35,13 +41,14 @@
 | UI | No framework — small custom components + CSS | Payload budget; games are canvas/DOM-light |
 | Rendering | DOM + CSS for UI, `<canvas>` only where a game needs it | Cheaper, more accessible |
 | Realtime | WebSocket, JSON messages | Universally supported on mobile browsers |
-| Server | Node + `ws` (single process, in-memory rooms) | Smallest thing that works |
-| Hosting | Static host for `www/`, one small always-on process for the server | Cheap |
+| Server | **Cloudflare Durable Objects** — one object per room ✅ **decided** | Room affinity is a platform primitive; free at our scale ([realtime-options.md](realtime-options.md)) |
+| Hosting | Static `www/` on the PHP host via SFTP ✅ **decided** | [deployment.md](deployment.md) |
+| Persistence | MySQL on the host, via PHP, **outside the game loop** | [database.md](database.md) |
 | PWA | Manifest + offline shell later, **never** an install requirement | Zero friction rule |
 
-Alternatives deliberately left open: Preact instead of no-framework, WebRTC
-data channels instead of a relay server, a managed realtime platform instead of
-self-hosted Node. See [roadmap.md](roadmap.md).
+WebRTC data channels were evaluated and **rejected** as the transport
+([realtime-options.md](realtime-options.md) §5). Still open: Preact instead of
+no-framework. See [roadmap.md](roadmap.md).
 
 ## 3. Source layout (proposed, under `www/`)
 
