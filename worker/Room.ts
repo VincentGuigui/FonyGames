@@ -20,6 +20,15 @@ import {
   type ServerMessage,
 } from '../shared/protocol';
 import {
+  onBump as relayBump,
+  onFuse as relayFuse,
+  onPass as relayPass,
+  onPlayerGone as relayPlayerGone,
+  startRelay,
+  type Ctx as RelayCtx,
+  type Relay,
+} from './bumpRelay';
+import {
   randomAvatar,
   randomName,
   sanitiseAvatar,
@@ -110,11 +119,21 @@ export class Room extends DurableObject {
         });
         return;
       case 'start':
-        await this.#onStart(ws);
+        await this.#onStart(ws, msg.d.mode);
         return;
       case 'tap':
         await this.#onTap(ws, msg.d);
         return;
+      case 'bump': {
+        const id = this.#idOf(ws);
+        if (id) await relayBump(this.#relayCtx(), id, msg.d.roundId, msg.d.at);
+        return;
+      }
+      case 'pass': {
+        const id = this.#idOf(ws);
+        if (id) await relayPass(this.#relayCtx(), id, msg.d.roundId, msg.d.to);
+        return;
+      }
     }
   }
 
@@ -136,6 +155,15 @@ export class Room extends DurableObject {
     if (duel && duel.phase === 'armed' && Date.now() >= duel.fireAt + DUEL_TIMEOUT_MS) {
       // Nobody tapped in time. #resolveDuel restores the housekeeping alarm.
       await this.#resolveDuel();
+      return;
+    }
+
+    const relay = await this.#relay();
+    if (relay && relay.phase === 'running' && Date.now() >= Math.min(relay.fuseAt, relay.endsAt)) {
+      const over = await relayFuse(this.#relayCtx());
+      // onFuse re-arms its own alarm while the round continues.
+      if (!over) return;
+      await this.#scheduleReap(await this.#players());
       return;
     }
 
@@ -175,17 +203,27 @@ export class Room extends DurableObject {
   /* ----------------------- Tap Duel: pistol ------------------------ */
   /* Spec: docs/specs/games/tap-duel.md                                 */
 
-  /** Host begins a duel. */
-  async #onStart(ws: WebSocket): Promise<void> {
+  /** Host begins a round. `mode` selects the game. */
+  async #onStart(ws: WebSocket, mode: string): Promise<void> {
     const id = this.#idOf(ws);
     const hostId = (await this.ctx.storage.get<PlayerId>('hostId')) ?? null;
-    if (!id || id !== hostId) return; // only the host starts duels
+    if (!id || id !== hostId) return; // only the host starts rounds
 
     const duel = await this.#duel();
-    if (duel && duel.phase !== 'done') return; // one duel at a time
+    if (duel && duel.phase !== 'done') return; // one round at a time
+    const relay = await this.#relay();
+    if (relay && relay.phase !== 'done') return;
 
     const players = await this.#players();
     const ready = [...players.values()].filter((p) => p.connected);
+
+    if (mode === 'relay') {
+      const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
+      await this.ctx.storage.put('roundId', roundId);
+      await startRelay(this.#relayCtx(), roundId, ready.map((p) => p.id));
+      return;
+    }
+
     if (ready.length < 2) return;
 
     const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
@@ -304,6 +342,27 @@ export class Room extends DurableObject {
     await this.ctx.storage.setAlarm(at);
   }
 
+  async #relay(): Promise<Relay | null> {
+    return (await this.ctx.storage.get<Relay>('relay')) ?? null;
+  }
+
+  /** Everything bumpRelay.ts needs, without giving it socket access. */
+  #relayCtx(): RelayCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => ++this.#seq,
+      broadcast: (msg) => this.#broadcast(msg),
+      sendTo: (playerId, msg) => {
+        for (const ws of this.ctx.getWebSockets()) {
+          if (this.#idOf(ws) === playerId) this.#send(ws, msg);
+        }
+      },
+      load: () => this.#relay(),
+      save: (relay) => this.ctx.storage.put('relay', relay),
+      setAlarm: (at) => this.ctx.storage.setAlarm(at),
+    };
+  }
+
   async #duel(): Promise<Duel | null> {
     return (await this.ctx.storage.get<Duel>('duel')) ?? null;
   }
@@ -419,6 +478,7 @@ export class Room extends DurableObject {
     me.goneAt = Date.now();
 
     await this.#savePlayers(players);
+    await relayPlayerGone(this.#relayCtx(), id);
     // No #ensureHost here: promoting the moment a socket drops is exactly
     // what stole the host role from anyone who refreshed. The alarm handles
     // it once HOST_GRACE_MS has passed.

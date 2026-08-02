@@ -12,7 +12,7 @@
 | **Round length** | 1–2 min |
 | **Inputs** | motion (bump), touch (fallback) |
 | **Accent colour** | `#FF5A36` |
-| **Status** | draft |
+| **Status** | server logic built and tested; **phone UI not built** — not yet playable |
 
 ## 1. Pitch
 

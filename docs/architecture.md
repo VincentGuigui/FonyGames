@@ -67,7 +67,7 @@ www/
     core/               shared runtime used by every game
       types.ts          the GameCard contract the hub reads
       room/             room code, WebSocket client, server URL mapping
-      sensors/          motion, orientation, geolocation, bump, mic   (TODO)
+      sensors/          motion + bump built; orientation, GPS, mic still TODO
       ui/               theme tokens, QR code, shared components
     hub/                catalogue rendering, cards, placeholder art
     lobby/              the shared lobby: code, share, QR, presence
@@ -83,6 +83,7 @@ shared/                 wire protocol, imported by BOTH www/ and worker/
 worker/                 the room server (docs/realtime-server.md)
   index.ts              router: origin check, code check, idFromName
   Room.ts               the Durable Object — one per room
+  bumpRelay.ts          Bump Relay round logic, driven through a Ctx interface
 wrangler.jsonc          Worker config + the irreversible SQLite migration
 dist/                   build output — generated, gitignored, deployed
 ```

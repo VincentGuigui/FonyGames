@@ -58,6 +58,13 @@ Reference algorithm (implemented once in `core/sensors/bump.ts`):
 Anti-cheat: shaking wildly produces many spikes — the 300 ms throttle plus the
 pairing requirement plus a per-round bump quota make spamming useless.
 
+> ⚠️ **`BUMP_THRESHOLD` has never been validated on a real phone.** 12 m/s² is
+> an educated guess. The detector in `www/src/core/sensors/bump.ts` is covered
+> by **synthetic** traces (knock, double-knock, sustained shaking, stillness,
+> walking) — useful for the logic, worthless for the constant. Recording real
+> traces from an actual handset and re-tuning is a prerequisite for calling any
+> bump game done ([testing.md](testing.md) §1).
+
 **Safety copy is mandatory** in any bump game: *"Tap phones gently, corner to
 corner. Cases on."*
 

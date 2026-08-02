@@ -43,7 +43,11 @@ export type ClientMessage =
   /** Host only. Begins a duel. */
   | { t: 'start'; d: { mode: string } }
   /** Finger down, at the client's clock-corrected server time. */
-  | { t: 'tap'; d: { at: number; roundId: number } };
+  | { t: 'tap'; d: { at: number; roundId: number } }
+  /** This phone felt a knock. The SERVER pairs two of these into a contact. */
+  | { t: 'bump'; d: { at: number; roundId: number } }
+  /** Touch fallback for a player without motion: pass to a chosen player. */
+  | { t: 'pass'; d: { to: PlayerId; roundId: number } };
 
 /* ------------------------------------------------------------------ */
 /* server -> client                                                     */
@@ -83,6 +87,12 @@ export type ServerMessage =
   /** Only the offender is told, and only they see it. */
   | { t: 'false-start'; d: { roundId: number } }
   | { t: 'result'; s: number; d: RoundResult }
+  /** Bump Relay: the bomb is now here. Late frames with a lower `s` are dropped. */
+  | { t: 'bomb'; s: number; d: { roundId: number; holder: PlayerId; alive: PlayerId[] } }
+  /** Bump Relay: the fuse expired on `victim`. */
+  | { t: 'boom'; s: number; d: { roundId: number; victim: PlayerId; alive: PlayerId[] } }
+  /** Bump Relay: too many bumps too fast — this player's bumps are muted briefly. */
+  | { t: 'calm-down'; d: { untilServerTime: number } }
   | { t: 'error'; d: { code: ErrorCode; message: string } };
 
 export const MAX_PLAYERS = 10;
@@ -128,7 +138,40 @@ export const CLOCK_SKEW_TOLERANCE_MS = 250;
 
 export const WIN_SCORE = 3;
 
-const CLIENT_TYPES = new Set(['join', 'set-profile', 'ping', 'start', 'tap']);
+/* ------------------------------------------------------------------ */
+/* Bump Relay (docs/specs/games/bump-relay.md)                          */
+/* ------------------------------------------------------------------ */
+
+/** First fuse is drawn in this window; both bounds shrink after each boom. */
+export const FUSE_MIN_MS = 8_000;
+export const FUSE_MAX_MS = 25_000;
+export const FUSE_SHRINK = 0.85;
+export const FUSE_FLOOR_MIN_MS = 5_000;
+export const FUSE_FLOOR_MAX_MS = 12_000;
+
+/** Two bumps this close together, from different players, are one contact. */
+export const BUMP_PAIR_WINDOW_MS = 250;
+
+/** Per-player bump budget; exceeding it mutes their bumps briefly. */
+export const BUMP_QUOTA = 6;
+export const BUMP_QUOTA_WINDOW_MS = 10_000;
+export const BUMP_MUTE_MS = 3_000;
+
+/** Bump Relay needs three players to be a game rather than a duel. */
+export const BUMP_RELAY_MIN_PLAYERS = 3;
+
+/** A round is hard-capped, per the safety rules in the spec. */
+export const BUMP_ROUND_CAP_MS = 5 * 60_000;
+
+const CLIENT_TYPES = new Set([
+  'join',
+  'set-profile',
+  'ping',
+  'start',
+  'tap',
+  'bump',
+  'pass',
+]);
 
 export function isClientMessage(value: unknown): value is ClientMessage {
   if (typeof value !== 'object' || value === null) return false;
