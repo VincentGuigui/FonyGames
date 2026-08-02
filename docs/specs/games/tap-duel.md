@@ -13,8 +13,8 @@
 
 ## 1. Pitch
 
-Everyone stares at their screen. It says WAIT. Somewhere between two and six
-seconds later it turns yellow and says TAP. First thumb down wins.
+Everyone stares at their screen. It says GET READY. Somewhere between two and
+six seconds later it turns yellow and says TAP! First thumb down wins.
 
 Twitching early loses you the duel, which is the whole game: the tension is in
 not moving. It is the simplest thing we can build that still needs a referee,
@@ -23,7 +23,8 @@ which is exactly why it goes first.
 ## 2. Core loop
 
 1. Host starts the duel.
-2. Every screen shows **WAIT** on a dark background.
+2. Every screen shows **GET READY**, plus one line telling you what to do:
+   *Tap the instant this screen changes*.
 3. After a random delay the server fires: every screen flips to **TAP**.
 4. First valid tap wins. Tapping before the signal is a **false start** and
    knocks you out of that duel.
@@ -55,15 +56,23 @@ Standard flow ([../../multiplayer.md](../../multiplayer.md) §3). Specifics:
 
 - **Lobby** — as built. `Start round` is enabled for the host once ≥ 2 players
   are connected.
-- **Armed** — full-bleed dark, one word: **WAIT**. Nothing else on screen; no
-  countdown, no progress bar, nothing that leaks the fire time.
+- **Armed** — full-bleed dark, **GET READY** with the instruction line
+  *Tap the instant this screen changes*. "WAIT" was tried first and read as an
+  order to do nothing, which is the opposite of the intent. Nothing on this
+  screen may leak the fire time: no countdown, no progress bar.
 - **Fire** — the entire viewport becomes the accent colour and reads **TAP**.
   The whole screen is the target: no button to aim at, because aiming is not
   the skill being measured.
 - **False start** — that player's screen immediately goes red and says
   *Too early*. They watch the rest of the duel; everyone else is undisturbed.
-- **Result** — ranked list of reaction times, winner first, false starts at the
-  bottom. `Play again` is the primary button.
+- **Result** — ranked list, winner first, false starts at the bottom. The
+  **reaction time is the dominant element** of each row, coloured on a
+  green → orange → red gradient by rank. The colour is **additive only**: the
+  ordering and the number already say everything, so nothing is lost to a
+  colour-blind player or a bad screen
+  ([../../design/ui-guidelines.md](../../design/ui-guidelines.md) §2).
+  False starts and no-taps sit outside the gradient in neutral grey — a false
+  start is not "slow". `Again` is the primary button, host only.
 
 ## 5. Inputs & sensors
 
@@ -141,6 +150,11 @@ to hammer the screen; the copy says *tap*, never *smash*.
 Leaves the phone: tap timestamps, player id, chosen name and avatar. Nothing
 else. All of it lives in the Durable Object for the room's lifetime and dies
 with it ([../../database.md](../../database.md) §1).
+
+Kept **on** the phone: the chosen name and avatar, in `localStorage`, so they
+persist between visits. The server never reads it. Because something is now
+stored locally, the hub's privacy line says so explicitly rather than claiming
+nothing is stored at all.
 
 ## 11. Accessibility
 

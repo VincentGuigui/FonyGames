@@ -28,7 +28,7 @@ answer here *and* in the doc it affects.
 | ~~D4~~ | ~~Hosting~~ | **DECIDED** — shared hosting, deployed over SFTP by GitHub Actions from `dev`/`prod`. See [deployment.md](deployment.md) | ✅ |
 | ~~D5~~ | ~~Domain~~ | **DECIDED** — `guigui.fr`, with `fonygames.` (prod) and `fonygames-dev.` (dev) subdomains | ✅ |
 | ~~D6~~ | ~~First build~~ | **DECIDED** — hub shell first (M2, done), then Tap Duel as the room-core pathfinder | ✅ |
-| D7 | Local preferences storage | No storage at all · `localStorage` for name/avatar/last mode | **Partly settled**: `sessionStorage` now holds the seat id so a refresh rejoins the same player ([realtime-server.md](realtime-server.md) §4). Still open: whether name/avatar persist across *sessions* via `localStorage` |
+| ~~D7~~ | ~~Local preferences storage~~ | **DECIDED** — `sessionStorage` for the seat id (dies with the tab), `localStorage` for name and avatar (persists between visits). Never game data | ✅ |
 | D8 | Language / i18n | English only · English + French from the start | **English only** in v1, keep strings in one file |
 | D9 | Sound | Required from M4 · added in M6 | **M6**, but never load-bearing (UI guidelines §7) |
 | D10 | Linter/formatter | ESLint + Prettier · Biome · none | **Biome** (one tool, fast) |
@@ -60,5 +60,6 @@ answer here *and* in the doc it affects.
 | 2026-08-02 | **Smart join**: "draw across devices on a table" is the flagship — the only method that also yields relative device positions. Shake-together is the fallback; bump is rejected for joining (pairwise). GPS is a coarse gate, never proof | [specs/join.md](specs/join.md) |
 | 2026-08-02 | **Backoffice activity metrics are anonymous aggregates only** — no per-player tracking, ever. Otherwise the about-sheet privacy promise becomes a lie | [specs/backoffice.md](specs/backoffice.md) §1 |
 | 2026-08-02 | **A page refresh must keep your seat, name and host role.** Seat id in `sessionStorage` (per tab); host promotion deferred by `HOST_GRACE_MS` so reloading does not hand the role away | [realtime-server.md](realtime-server.md) §4 |
+| 2026-08-02 | **D7 local storage**: `localStorage` for name/avatar (persists between visits), `sessionStorage` for the seat id (dies with the tab). Chosen over a cookie — the server never reads either, so a cookie would only add bytes to every request | [specs/games/tap-duel.md](specs/games/tap-duel.md) §10 |
 | 2026-08-02 | **Feature flags per game**: three states (`active` / `disabled` / `hidden`), separate per environment, held in a singleton Durable Object. dev always shows every game with a badge stating its real state. Enforced in the Worker, not just hidden on the hub — a shared link bypasses the grid. In-flight games finish. Fail-open, so a flag is not a security control | [specs/backoffice.md](specs/backoffice.md) §2b |
 | 2026-08-02 | **D1/D2 stack**: Vite + TypeScript (`strict`) + Preact + plain CSS. **D6**: hub shell first, then Tap Duel | [architecture.md](architecture.md) §2 |

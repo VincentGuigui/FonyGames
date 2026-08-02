@@ -296,10 +296,13 @@
 }
 
 .duel__word {
-  font-size: clamp(4rem, 26vw, 9rem);
+  /* Sized off the shorter axis so two words ("GET READY") still fit a narrow
+     phone without wrapping mid-word. */
+  font-size: clamp(2.75rem, 17vw, 6rem);
   font-weight: 800;
-  letter-spacing: 0.04em;
-  line-height: 1;
+  letter-spacing: 0.02em;
+  line-height: 0.95;
+  text-wrap: balance;
 }
 
 .duel__headline {
@@ -331,7 +334,7 @@
 
 .scoreline li {
   display: grid;
-  grid-template-columns: 1fr auto 2.5rem;
+  grid-template-columns: 1fr auto 2.25rem;
   gap: var(--space-3);
   align-items: center;
   padding: var(--space-3) var(--space-4);
@@ -353,9 +356,20 @@
 }
 
 .scoreline__time {
-  color: var(--color-text-dim);
+  /* Colour comes from the rank gradient, set inline. It is additive: the order
+     and the number carry the meaning on their own. */
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
-  font-size: var(--font-small);
+  white-space: nowrap;
+}
+
+.scoreline__unit {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  opacity: 0.75;
+  margin-left: 0.15em;
 }
 
 .scoreline__score {

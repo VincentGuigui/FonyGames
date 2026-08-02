@@ -7,6 +7,7 @@ import { RoomClient } from '../core/room/client';
 import { roomServerUrl } from '../core/room/config';
 import { generateRoomCode, isRoomCode, normaliseRoomCode } from '../core/room/code';
 import { loadSeat, saveSeat } from '../core/room/seat';
+import { loadProfile, saveProfile } from '../core/profile';
 import { AVATARS } from '../../../shared/names';
 import { QrCode } from '../core/ui/QrCode';
 import { Duel, type DuelPhase } from '../games/tap-duel/Duel';
@@ -62,7 +63,7 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
       setPhase('result');
     });
 
-    client.connect();
+    client.connect(loadProfile());
     return () => {
       if (fireTimer.current !== null) clearTimeout(fireTimer.current);
       client.close();
@@ -112,11 +113,14 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
 
   function setAvatar(avatar: string): void {
     clientRef.current?.send({ t: 'set-profile', d: { avatar } });
+    saveProfile({ avatar });
   }
 
   function rename(): void {
     const next = prompt('Your name', me?.name ?? '')?.trim();
-    if (next) clientRef.current?.send({ t: 'set-profile', d: { name: next } });
+    if (!next) return;
+    clientRef.current?.send({ t: 'set-profile', d: { name: next } });
+    saveProfile({ name: next });
   }
 
   const connected = room?.players.filter((p) => p.connected).length ?? 0;
