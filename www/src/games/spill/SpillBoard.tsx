@@ -52,7 +52,9 @@ export function SpillBoard({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
-  const [count, setCount] = useState(0);
+  // Seeded from the game, not from 0: zero is the *winning* number, so a board
+  // that starts at zero flashes "you won" for a moment at the top of a round.
+  const [count, setCount] = useState(() => game.view(1, 1).count);
   const [locked, setLocked] = useState(false);
 
   useEffect(() => {
@@ -88,14 +90,17 @@ export function SpillBoard({
   }, [theme]);
 
   // A cheap 4 Hz tick keeps the readout and the lock state honest without
-  // re-rendering the tree every frame.
+  // re-rendering the tree every frame. Runs once immediately so a remount never
+  // shows a quarter-second of stale state.
   useEffect(() => {
     if (!client) return;
-    const id = setInterval(() => {
+    const tick = (): void => {
       const v = game.view(1, 1);
       setCount(v.count);
       setLocked(v.lockedUntil > client.now());
-    }, 250);
+    };
+    tick();
+    const id = setInterval(tick, 250);
     return () => clearInterval(id);
   }, [game, client]);
 
