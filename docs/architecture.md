@@ -1,9 +1,8 @@
 # Architecture
 
-> **Status: PROPOSAL.** Nothing in the "Stack" section is frozen. It must be
-> validated by the maintainer before any dependency or build tool lands
-> (see rule §3.3 in [../AGENTS.md](../AGENTS.md)). Open questions are tracked in
-> [roadmap.md](roadmap.md).
+> **Status: the stack is decided and in place.** Remaining open questions are
+> tracked in [roadmap.md](roadmap.md). Adding a *new* dependency still needs a
+> yes from the maintainer (rule §3.3 in [../AGENTS.md](../AGENTS.md)).
 
 ## 1. Shape of the product
 
@@ -36,9 +35,9 @@
 
 | Layer | Proposal | Why |
 | --- | --- | --- |
-| Language | TypeScript | Catch sensor/state bugs before the phone does |
-| Build | Vite | Fast, zero-config, multi-page friendly |
-| UI | No framework — small custom components + CSS | Payload budget; games are canvas/DOM-light |
+| Language | TypeScript, `strict` ✅ **decided** | Catch sensor/state bugs before the phone does |
+| Build | Vite ✅ **decided** | Fast, multi-page friendly |
+| UI | **Preact** + plain CSS ✅ **decided** | ~4 KB; component state without the payload of React |
 | Rendering | DOM + CSS for UI, `<canvas>` only where a game needs it | Cheaper, more accessible |
 | Realtime | WebSocket, JSON messages | Universally supported on mobile browsers |
 | Server | **Cloudflare Durable Objects** — one object per room ✅ **decided** | Room affinity is a platform primitive; free at our scale ([realtime-options.md](realtime-options.md)) |
@@ -47,33 +46,51 @@
 | PWA | Manifest + offline shell later, **never** an install requirement | Zero friction rule |
 
 WebRTC data channels were evaluated and **rejected** as the transport
-([realtime-options.md](realtime-options.md) §5). Still open: Preact instead of
-no-framework. See [roadmap.md](roadmap.md).
+([realtime-options.md](realtime-options.md) §5).
 
-## 3. Source layout (proposed, under `www/`)
+## 3. Source layout
+
+`www/` is **source**. The browser never sees it — Vite compiles it to `dist/`,
+and `dist/` is what the deploy uploads ([deployment.md](deployment.md) §5).
 
 ```
+package.json            scripts: dev · build · typecheck
+tsconfig.json
+vite.config.ts          root: www/ · outDir: dist/
 www/
-  index.html            hub
+  index.html            hub entry
+  public/               copied verbatim (favicon, later: illustrations)
   src/
-    hub/                catalogue rendering, game cards
+    main.tsx            mounts the hub
     core/               shared runtime used by every game
-      room/             join, room code, presence, messaging
-      sensors/          motion, orientation, geolocation, bump, mic
-      ui/               buttons, sheets, countdown, scoreboard, toasts
-      state/            tiny store + round/timer helpers
+      types.ts          the GameCard contract the hub reads
+      room/             room code, and later: join, presence, messaging
+      sensors/          motion, orientation, geolocation, bump, mic   (TODO)
+      ui/               theme tokens, and later: shared components
+    hub/                catalogue rendering, cards, placeholder art
     games/
-      <slug>/
-        index.html      game entry (or route)
+      registry.ts       the catalogue the hub renders
+      <slug>/           one folder per built game
         game.ts         core loop
         modes.ts        mode/variation definitions
         card.ts         hub metadata: title, pitch, illustration, tags
-  public/
-    illustrations/      one illustration per game
+dist/                   build output — generated, gitignored, deployed
 ```
 
-**Rule:** a game only talks to the outside world through `core/`. No game
-imports another game.
+**Rules:**
+- A game only talks to the outside world through `core/`. No game imports
+  another game.
+- A game that is still `soon` lives as an entry in `games/registry.ts`. When it
+  is actually built it gets a folder and its card moves to
+  `games/<slug>/card.ts`, which the registry then imports.
+
+### Commands
+
+| | |
+| --- | --- |
+| `npm run dev` | Vite dev server, bound to `0.0.0.0` so a phone on the LAN can open it |
+| `npm run build` | `tsc --noEmit` then `vite build` → `dist/` |
+| `npm run typecheck` | Types only |
 
 ### Game contract
 

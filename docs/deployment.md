@@ -99,15 +99,23 @@ host, store the private key as an environment secret, and pass it as
 
 ## 5. What gets deployed
 
-Only the contents of **`www/`**, into **`/www`** on the server (see
-[architecture.md](architecture.md) §3). Everything else in the repository
-(`docs/`, `AGENTS.md`, `CLAUDE.md`, `.github/`) stays off the public server.
+**The build output, not the source.** `www/` holds TypeScript and TSX that no
+browser can run; `npm run build` (Vite) compiles it to `dist/`, and the contents
+of **`dist/`** are uploaded into **`/www`** on the server.
+
+```
+www/  (source: .tsx, .css)  ──npm run build──>  dist/  ──sftp──>  host:/www
+```
+
+Everything else in the repository (`docs/`, `AGENTS.md`, `CLAUDE.md`,
+`.github/`, `node_modules/`) never reaches the server — it isn't in `dist/`.
+
+The build runs **before** the upload and `npm run build` typechecks first
+(`tsc --noEmit && vite build`), so a type error fails the deploy rather than
+shipping a broken site.
 
 The action runs `lftp mirror --reverse <local-path> <remote-path>`, so
-`local-path: www` uploads the *contents* of `www/`, not the folder itself.
-`.git*` is skipped by the action; `README.md` is skipped via
-`ftp-mirror-options`, so developer notes such as `www/README.md` are not
-published.
+`local-path: dist` uploads the *contents* of `dist/`, not the folder itself.
 
 It also writes two small marker files at the deploy root: `.deploy-revision`
 (the deployed commit SHA — handy for checking what is live) and a transient
@@ -117,15 +125,20 @@ It also writes two small marker files at the deploy root: `.deploy-revision`
 
 | Mode | Behaviour | When |
 | --- | --- | --- |
-| `full` | Uploads everything under `www/`. **Never deletes** on the remote. | **Current setting.** The action's own recommendation for an initial deployment, and the safe choice while the site is empty. |
-| `delta` | Diffs the pushed commits and transfers only what changed, **including deletions**. Needs `fetch-depth: 0` on checkout (already set). | Switch to this once `www/` holds the real site — it is much faster and keeps the server free of files deleted from the repo. |
+| `full` | Uploads everything under `dist/`. **Never deletes** on the remote. | **Current setting, and the only viable one — see below.** |
+| `delta` | Diffs the pushed git commits and transfers only what changed, including deletions. | **Cannot be used here.** |
 
-If the remote ever drifts out of sync (a failed run, a manual edit on the
-server), set `sync: full` for one run to re-upload everything, then switch back.
+> ⚠️ **`delta` is incompatible with a build step.** It works out what to transfer
+> by running `git diff` over `local-path`. `dist/` is generated and gitignored,
+> so git reports no changes and delta would upload **nothing**, silently. It
+> would only work if we committed build output, which we won't.
 
-Until the hub is built, `www/` contains only an excluded `README.md`, so a
-successful run legitimately uploads **no site files** — only `.deploy-revision`.
-That is a valid connectivity test, not a failure.
+Consequence: stale files are never removed from the server automatically. If a
+file is dropped from the build, delete it on the host by hand, or clear `/www`
+and let the next run repopulate it.
+
+The upside is that `full` is self-healing — if the remote drifts, the next push
+re-uploads everything.
 
 ## 6. Troubleshooting
 
@@ -138,7 +151,10 @@ That is a valid connectivity test, not a failure.
 | `Permission denied (password)` | Bad `FTPUSER`/`FTPPWD`, or the host expects the full email-style login, or SSH access is not enabled on the account. |
 | Host key / `known_hosts` errors | The action accepts the host key on first connect. If the host is rebuilt and the key changes, the error is expected — verify the new fingerprint with the host before trusting it. |
 | Files land in the wrong folder | `remote-path` is absolute (`/www`). If the SFTP account is chrooted to its home, the web root may be `www` or `~/www` instead. |
-| Files land one level too deep | `local-path` names the folder whose *contents* are uploaded. `local-path: www` is correct; `local-path: .` would publish the whole repo. |
+| Files land one level too deep | `local-path` names the folder whose *contents* are uploaded. `local-path: dist` is correct; `local-path: .` would publish the whole repo. |
+| Deploy uploads nothing | Almost certainly `sync: delta`, which cannot see generated files (§5). Use `full`. |
+| Raw `.tsx` files on the server | `local-path` is pointing at `www/` (source) instead of `dist/` (build output). |
+| Build fails on a type error | Intended — `npm run build` runs `tsc --noEmit` first, so broken types never ship. |
 | Two deploys race | Shouldn't happen: `concurrency` serialises per branch and never cancels a running sync. |
 
 ## 7. Related

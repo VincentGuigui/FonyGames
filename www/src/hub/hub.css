@@ -1,0 +1,212 @@
+/* Hub layout. Rules: docs/design/ui-guidelines.md · Spec: docs/specs/hub.md */
+
+.hub {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4)
+    calc(var(--space-6) + env(safe-area-inset-bottom));
+  padding-left: max(var(--space-4), env(safe-area-inset-left));
+  padding-right: max(var(--space-4), env(safe-area-inset-right));
+}
+
+.hub__header {
+  margin-bottom: var(--space-5);
+}
+
+.hub__wordmark {
+  margin: 0;
+  font-size: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.hub__tagline {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-dim);
+  max-width: 24ch;
+}
+
+.hub__notice {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
+}
+
+/* --- join by code ------------------------------------------------------- */
+
+.join {
+  margin-bottom: var(--space-5);
+}
+
+.join__label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.join__row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.join__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--tap-target);
+  padding: 0 var(--space-4);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  /* 1rem minimum, or iOS zooms the page on focus. */
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.join__input::placeholder {
+  color: var(--color-text-dim);
+  opacity: 0.5;
+  letter-spacing: 0.3em;
+}
+
+.join__button {
+  flex: 0 0 auto;
+  height: var(--tap-target);
+  padding: 0 var(--space-5);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 700;
+}
+
+.join__button:active {
+  transform: scale(0.97);
+}
+
+.join__error {
+  margin: var(--space-2) 0 0;
+  color: var(--color-accent);
+  font-size: var(--font-small);
+}
+
+/* --- catalogue ---------------------------------------------------------- */
+
+.hub__grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 380px) {
+  .hub__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.game-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.game-card__link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.game-card__link:active {
+  transform: scale(0.98);
+}
+
+.game-card--soon {
+  opacity: 0.62;
+}
+
+.game-card__art {
+  position: relative;
+  background: var(--color-surface-2);
+}
+
+.game-illustration {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* Fixed ratio so the grid never reflows while art loads. */
+  aspect-ratio: 4 / 3;
+}
+
+.game-card__badge {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  padding: 0.15rem var(--space-2);
+  border-radius: 999px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-dim);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.game-card__badge--beta {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  border-color: transparent;
+}
+
+.game-card__body {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.game-card__title {
+  margin: 0;
+  font-size: var(--font-title);
+  font-weight: 700;
+}
+
+.game-card__pitch {
+  margin: var(--space-1) 0 var(--space-3);
+  color: var(--color-text);
+  font-size: var(--font-small);
+  line-height: 1.35;
+}
+
+.game-card__meta {
+  margin: 0;
+  color: var(--color-text-dim);
+  font-size: 0.75rem;
+}
+
+/* --- footer ------------------------------------------------------------- */
+
+.hub__footer {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
+}
+
+.hub__footer p {
+  margin: 0 0 var(--space-2);
+}
+
+.hub__footer a {
+  color: var(--color-text);
+}

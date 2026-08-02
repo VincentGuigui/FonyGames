@@ -27,12 +27,10 @@ jobs:
     # secrets. Without this key, environment secrets resolve to "".
     environment: ${{ github.ref_name }}
     steps:
+    # Shallow is fine: the deployer's `delta` mode would need full history, but
+    # delta diffs git and we deploy build output, so we stay on `full` sync.
     - name: 🚚 Get latest code
       uses: actions/checkout@v6
-      with:
-        # Full history: required by the deployer's `delta` sync mode, which we
-        # switch to once www/ holds the real site.
-        fetch-depth: 0
 
     - name: 🔐 Check deployment secrets
       env:
@@ -49,6 +47,20 @@ jobs:
           exit 1
         fi
 
+    - name: 🟢 Set up Node
+      uses: actions/setup-node@v6
+      with:
+        node-version: 22
+        cache: npm
+
+    - name: 📦 Install
+      run: npm ci
+
+    # Typechecks first (`npm run build` runs tsc --noEmit), so a type error
+    # fails the deploy instead of shipping.
+    - name: 🔨 Build
+      run: npm run build
+
     # SFTP over SSH on port 22, with username + password. The host's port 21
     # answers FTP but rejects AUTH TLS ("500 'AUTH': command unrecognized"), so
     # explicit FTPS is not available and this is the only encrypted option.
@@ -60,13 +72,14 @@ jobs:
         remote-port: 22
         remote-user: ${{ secrets.FTPUSER }}
         remote-password: ${{ secrets.FTPPWD }}
-        # Contents of www/ land in /www — the action runs
-        # `lftp mirror --reverse <local-path> <remote-path>`.
-        local-path: www
+        # The BUILD OUTPUT ships, not the source: www/ is source (TSX, CSS),
+        # dist/ is what a browser can actually run. The action runs
+        # `lftp mirror --reverse <local-path> <remote-path>`, so the contents
+        # of dist/ land directly in /www.
+        local-path: dist
         remote-path: /www
         # `full` uploads everything and deletes nothing — the action's own
-        # recommendation for a first deployment. Switch to `delta` (efficient,
-        # and propagates deletions) once www/ holds the real site.
+        # recommendation while the site is small. Switch to `delta` later;
+        # note delta diffs git, so it cannot see build output and would need
+        # dist/ committed. Staying on `full` is the correct choice here.
         sync: full
-        # Full sync only skips .git*/ by default; keep dev notes off the server.
-        ftp-mirror-options: --exclude-glob=README.md
