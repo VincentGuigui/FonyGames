@@ -9,6 +9,18 @@ export default defineConfig({
     outDir: '../dist',
     emptyOutDir: true,
     target: 'es2022',
+    // Multi-page, one real index.html per route. Static hosting serves
+    // /tap-duel/ straight from disk — no SPA rewrite rule needed, which we
+    // could not rely on having on the shared host.
+    // Rollup resolves these from the working directory (the repo root), not
+    // from Vite's `root`. Written this way to avoid pulling in @types/node
+    // just to get __dirname for two entry points.
+    rollupOptions: {
+      input: {
+        hub: 'www/index.html',
+        'tap-duel': 'www/tap-duel/index.html',
+      },
+    },
     // Payload budget in docs/architecture.md §4 is 150 KB gzipped for the hub.
     // Warn well before we get there.
     chunkSizeWarningLimit: 200,

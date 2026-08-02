@@ -16,7 +16,8 @@
     "worker:deploy:prod": "wrangler deploy --env prod"
   },
   "dependencies": {
-    "preact": "^10.27.2"
+    "preact": "^10.27.2",
+    "qrcode-generator": "^2.0.4"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260801.1",

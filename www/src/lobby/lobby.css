@@ -1,0 +1,254 @@
+/* Lobby. Spec: docs/multiplayer.md §3 · Rules: docs/design/ui-guidelines.md */
+
+.lobby {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: var(--space-4)
+    calc(var(--space-6) + env(safe-area-inset-bottom));
+  padding-left: max(var(--space-4), env(safe-area-inset-left));
+  padding-right: max(var(--space-4), env(safe-area-inset-right));
+  padding-top: var(--space-4);
+}
+
+.lobby__back {
+  display: inline-block;
+  padding: var(--space-2) 0;
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
+  text-decoration: none;
+}
+
+.lobby__title {
+  margin: var(--space-2) 0 0;
+  font-size: clamp(1.5rem, 6vw, 2rem);
+  font-weight: 800;
+  color: var(--game-accent, var(--color-accent));
+}
+
+.lobby__pitch {
+  margin: var(--space-1) 0 var(--space-5);
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
+}
+
+/* --- connection banner --------------------------------------------------- */
+
+.banner {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  font-size: var(--font-small);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-dim);
+}
+
+.banner--reconnecting,
+.banner--closed {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+}
+
+/* --- room code ----------------------------------------------------------- */
+
+.code-card {
+  padding: var(--space-4);
+  margin-bottom: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.code-card__label {
+  margin: 0;
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.code-card__code {
+  margin: var(--space-1) 0 var(--space-4);
+  /* Readable across a table, by three people at once. */
+  font-size: clamp(3rem, 18vw, 4.5rem);
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  /* Let a player long-press to select it. */
+  user-select: all;
+}
+
+.code-card__actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.code-card__qr {
+  margin-top: var(--space-4);
+}
+
+.qr {
+  width: min(220px, 60vw);
+  height: auto;
+  border-radius: var(--radius-sm);
+}
+
+.code-card__hint {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+/* --- buttons ------------------------------------------------------------- */
+
+.btn {
+  min-height: var(--tap-target);
+  padding: 0 var(--space-5);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-weight: 600;
+}
+
+.btn--primary {
+  background: var(--game-accent, var(--color-accent));
+  color: var(--color-on-accent);
+  border-color: transparent;
+}
+
+.btn--big {
+  width: 100%;
+  font-size: 1.125rem;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+/* --- players ------------------------------------------------------------- */
+
+.players__heading {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-title);
+}
+
+.players__list {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.player {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.player--me {
+  border-color: var(--game-accent, var(--color-accent));
+}
+
+/* Never state anything by colour alone — the "away" tag carries the meaning. */
+.player--away {
+  opacity: 0.55;
+}
+
+.player--ghost {
+  color: var(--color-text-dim);
+  justify-content: center;
+}
+
+.player__avatar {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.player__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player__tag {
+  flex: 0 0 auto;
+  padding: 0.1rem var(--space-2);
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-dim);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.player__edit {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: var(--space-2);
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
+  text-decoration: underline;
+}
+
+/* --- avatar picker ------------------------------------------------------- */
+
+.avatar-picker__label {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.avatar-picker__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.avatar-picker__btn {
+  width: 2.75rem;
+  height: 2.75rem;
+  font-size: 1.375rem;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  line-height: 1;
+}
+
+.avatar-picker__btn--on {
+  border-color: var(--game-accent, var(--color-accent));
+  background: var(--color-surface-2);
+}
+
+/* --- footer -------------------------------------------------------------- */
+
+.lobby__footer {
+  margin-top: var(--space-6);
+}
+
+.lobby__note {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
+}
+
+.lobby__error {
+  margin: 0 0 var(--space-4);
+  color: var(--color-accent);
+  font-size: var(--font-small);
+}

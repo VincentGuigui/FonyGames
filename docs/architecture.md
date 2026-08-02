@@ -58,16 +58,19 @@ package.json            scripts: dev · build · typecheck
 tsconfig.json
 vite.config.ts          root: www/ · outDir: dist/
 www/
-  index.html            hub entry
+  index.html            hub entry            } multi-page: one real index.html
+  tap-duel/index.html   game entry           } per route, no SPA rewrite needed
   public/               copied verbatim (favicon, later: illustrations)
   src/
     main.tsx            mounts the hub
+    tap-duel.tsx        mounts the Tap Duel lobby
     core/               shared runtime used by every game
       types.ts          the GameCard contract the hub reads
-      room/             room code, and later: join, presence, messaging
+      room/             room code, WebSocket client, server URL mapping
       sensors/          motion, orientation, geolocation, bump, mic   (TODO)
-      ui/               theme tokens, and later: shared components
+      ui/               theme tokens, QR code, shared components
     hub/                catalogue rendering, cards, placeholder art
+    lobby/              the shared lobby: code, share, QR, presence
     games/
       registry.ts       the catalogue the hub renders
       <slug>/           one folder per built game

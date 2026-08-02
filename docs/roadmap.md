@@ -7,8 +7,8 @@
 | M0 | **Foundations** | README, AGENTS/CLAUDE, docs index, conventions, hub spec, one game spec | ✅ done |
 | M1 | **Decisions** | Stack, hosting, realtime and first game all settled | ✅ done |
 | M2 | **Walking skeleton** | Vite+TS+Preact build; static hub with card grid and placeholder art; no realtime | ✅ done |
-| M3 | **Room core** | Durable Object + client done and tested; **lobby UI still to build** | 🔨 in progress |
-| M4 | **First game live** | Tap Duel end-to-end on real phones, one mode | blocked by M3 |
+| M3 | **Room core** | Durable Object, client, and lobby (code · link · QR · presence · reconnect) | ✅ done |
+| M4 | **First game live** | Tap Duel round itself — the lobby already ships | ▶️ next |
 | M5 | **Second & third games** | Prove `core/` is reusable; add modes to the flagship | |
 | M6 | **Polish** | Illustrations, sounds, PWA shell, perf budgets enforced | |
 | M7 | **Field test** | Real party, real phones; fix what confused people | |
