@@ -10,6 +10,7 @@
 | M3 | **Room core** | Durable Object, client, and lobby (code · link · QR · presence · reconnect) | ✅ done |
 | M4 | **First game live** | Tap Duel `pistol` mode end-to-end: armed → fire → result, server-refereed | ✅ done |
 | M5 | **Second & third games** | `core/sensors` (motion + bump) built and tested; Bump Relay **server complete**, phone UI still to build | 🔨 in progress |
+| M5b | **Two new games** | [Spill](specs/games/spill.md) (table-position aiming, theme-swappable renderer) and [Goat Siege](specs/games/goat-siege.md) (lob-and-shoo). Specs written | 🔨 in progress |
 | M6 | **Polish** | Illustrations, sounds, PWA shell, perf budgets enforced | |
 | M7 | **Field test** | Real party, real phones; fix what confused people | |
 | M8 | **Backoffice** | Health, Cloudflare usage vs free tier, aggregate activity, **feature flags per game**. Spec: [specs/backoffice.md](specs/backoffice.md) | |
@@ -60,6 +61,8 @@ answer here *and* in the doc it affects.
 | 2026-08-02 | **Smart join**: "draw across devices on a table" is the flagship — the only method that also yields relative device positions. Shake-together is the fallback; bump is rejected for joining (pairwise). GPS is a coarse gate, never proof | [specs/join.md](specs/join.md) |
 | 2026-08-02 | **Backoffice activity metrics are anonymous aggregates only** — no per-player tracking, ever. Otherwise the about-sheet privacy promise becomes a lie | [specs/backoffice.md](specs/backoffice.md) §1 |
 | 2026-08-02 | **A page refresh must keep your seat, name and host role.** Seat id in `sessionStorage` (per tab); host promotion deferred by `HOST_GRACE_MS` so reloading does not hand the role away | [realtime-server.md](realtime-server.md) §4 |
+| 2026-08-02 | **Spill aims by physical table position**, using assigned seats plus one convention — *top edge toward the middle of the table* — rather than the compass. No permission, no flaky sensor. M9's draw-across-devices calibration later replaces the manual arrangement | [specs/games/spill.md](specs/games/spill.md) §2 |
+| 2026-08-02 | **Continuously-animated games send trajectories, never positions.** A goat is a deterministic arc, so one message describes the whole flight. Keeps action games in Profile A of the cost model instead of Profile B | [specs/games/goat-siege.md](specs/games/goat-siege.md) §5 |
 | 2026-08-02 | **D7 local storage**: `localStorage` for name/avatar (persists between visits), `sessionStorage` for the seat id (dies with the tab). Chosen over a cookie — the server never reads either, so a cookie would only add bytes to every request | [specs/games/tap-duel.md](specs/games/tap-duel.md) §10 |
 | 2026-08-02 | **Feature flags per game**: three states (`active` / `disabled` / `hidden`), separate per environment, held in a singleton Durable Object. dev always shows every game with a badge stating its real state. Enforced in the Worker, not just hidden on the hub — a shared link bypasses the grid. In-flight games finish. Fail-open, so a flag is not a security control | [specs/backoffice.md](specs/backoffice.md) §2b |
 | 2026-08-02 | **D1/D2 stack**: Vite + TypeScript (`strict`) + Preact + plain CSS. **D6**: hub shell first, then Tap Duel | [architecture.md](architecture.md) §2 |
