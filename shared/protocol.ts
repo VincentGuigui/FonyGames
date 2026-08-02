@@ -55,7 +55,11 @@ export type ClientMessage =
    */
   | { t: 'fling'; d: { angle: number; speed: number; roundId: number; dropId?: string } }
   /** Spill: grab an incoming drop during its approach window. */
-  | { t: 'catch'; d: { dropId: string; roundId: number } };
+  | { t: 'catch'; d: { dropId: string; roundId: number } }
+  /** Goat Siege: lob a goat at a neighbour's patch. */
+  | { t: 'lob'; d: { to: PlayerId; roundId: number } }
+  /** Goat Siege: tap an incoming goat to shoo it. */
+  | { t: 'shoo'; d: { goatId: string; roundId: number } };
 
 /* ------------------------------------------------------------------ */
 /* server -> client                                                     */
@@ -115,6 +119,36 @@ export type SpillState = {
   phase: 'running' | 'done';
 };
 
+/**
+ * Goat Siege: one goat, described once and animated locally from then on.
+ *
+ * The whole flight is a deterministic arc, so a single message covers it — no
+ * position streaming. `lane` is where it crosses the fence (0..1 across the
+ * patch) and `seed` fixes the split direction, so every phone draws the same
+ * thing without any of them deciding it (spec §5).
+ */
+export type Goat = {
+  goatId: string;
+  /** Whose patch it is falling into. */
+  victim: PlayerId;
+  /** Who lobbed it; null for a kid, which comes from a split, not a player. */
+  from: PlayerId | null;
+  kind: 'adult' | 'kid';
+  lane: number;
+  launchedAt: number;
+  arrivesAt: number;
+  seed: number;
+};
+
+export type GoatState = {
+  roundId: number;
+  players: PlayerId[];
+  cabbages: Record<PlayerId, number>;
+  out: PlayerId[];
+  air: Goat[];
+  phase: 'running' | 'done';
+};
+
 export type ServerMessage =
   /** Sent once, immediately after a successful join. */
   | {
@@ -163,6 +197,20 @@ export type ServerMessage =
       t: 'spill-over';
       s: number;
       d: { roundId: number; winnerId: PlayerId | null; levels: Record<PlayerId, number> };
+    }
+  /** Goat Siege: full state. Sent at round start and after any resync. */
+  | { t: 'siege'; s: number; d: GoatState }
+  /** Goat Siege: a goat is in the air. */
+  | { t: 'goat'; s: number; d: Goat }
+  /** Goat Siege: shooed — it becomes these kids, which must each be tapped. */
+  | { t: 'split'; s: number; d: { goatId: string; by: PlayerId; kids: Goat[] } }
+  /** Goat Siege: a goat landed and ate. */
+  | { t: 'chomp'; s: number; d: { goatId: string; victim: PlayerId; cabbages: Record<PlayerId, number>; out: PlayerId[] } }
+  /** Goat Siege: round over. */
+  | {
+      t: 'siege-over';
+      s: number;
+      d: { roundId: number; winnerId: PlayerId | null; cabbages: Record<PlayerId, number> };
     }
   | { t: 'error'; d: { code: ErrorCode; message: string } };
 
@@ -277,6 +325,23 @@ export const SPILL_AIM_FRACTION = 0.7;
 /** A round is capped like every other, so a stalemate cannot run forever. */
 export const SPILL_ROUND_CAP_MS = 5 * 60_000;
 
+/* ------------------------------------------------------------------ */
+/* Goat Siege (docs/specs/games/goat-siege.md)                          */
+/* ------------------------------------------------------------------ */
+
+export const SIEGE_MIN_PLAYERS = 2;
+export const SIEGE_MAX_PLAYERS = 4;
+
+/** All provisional until a play test — spec §3. */
+export const SIEGE_CABBAGES = 6;
+export const SIEGE_ADULT_FLIGHT_MS = 2_500;
+export const SIEGE_KID_FLIGHT_MS = 1_200;
+export const SIEGE_KIDS_PER_SPLIT = 2;
+export const SIEGE_LOB_COOLDOWN_MS = 1_500;
+
+/** A round is capped like every other, so a stalemate cannot run forever. */
+export const SIEGE_ROUND_CAP_MS = 5 * 60_000;
+
 const CLIENT_TYPES = new Set([
   'join',
   'set-profile',
@@ -287,6 +352,8 @@ const CLIENT_TYPES = new Set([
   'pass',
   'fling',
   'catch',
+  'lob',
+  'shoo',
 ]);
 
 export function isClientMessage(value: unknown): value is ClientMessage {

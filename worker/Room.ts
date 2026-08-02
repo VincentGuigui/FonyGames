@@ -40,6 +40,17 @@ import {
   type Spill,
 } from './spill';
 import {
+  nextDeadline as siegeDeadline,
+  onLob as siegeLob,
+  onPlayerGone as siegePlayerGone,
+  onShoo as siegeShoo,
+  startSiege,
+  tick as siegeTick,
+  toState as siegeToState,
+  type Ctx as SiegeCtx,
+  type Siege,
+} from './goatSiege';
+import {
   randomAvatar,
   randomName,
   sanitiseAvatar,
@@ -164,6 +175,16 @@ export class Room extends DurableObject {
         if (id) await spillCatch(this.#spillCtx(), id, msg.d.roundId, msg.d.dropId);
         return;
       }
+      case 'lob': {
+        const id = this.#idOf(ws);
+        if (id) await siegeLob(this.#siegeCtx(), id, msg.d.roundId, msg.d.to);
+        return;
+      }
+      case 'shoo': {
+        const id = this.#idOf(ws);
+        if (id) await siegeShoo(this.#siegeCtx(), id, msg.d.roundId, msg.d.goatId);
+        return;
+      }
     }
   }
 
@@ -205,6 +226,13 @@ export class Room extends DurableObject {
       return;
     }
 
+    const siege = await this.#siege();
+    if (siege && siege.phase === 'running' && Date.now() >= siegeDeadline(siege)) {
+      await siegeTick(this.#siegeCtx());
+      await this.#rearm();
+      return;
+    }
+
     const players = await this.#players();
     const now = Date.now();
     let changed = false;
@@ -218,6 +246,7 @@ export class Room extends DurableObject {
         // which is precisely what the reconnect grace exists to prevent
         // (docs/specs/games/spill.md §8).
         await spillPlayerGone(this.#spillCtx(), id);
+        await siegePlayerGone(this.#siegeCtx(), id);
       }
     }
     if (changed) await this.#savePlayers(players);
@@ -258,16 +287,19 @@ export class Room extends DurableObject {
     if (relay && relay.phase !== 'done') return;
     const running = await this.#spill();
     if (running && running.phase !== 'done') return;
+    const besieged = await this.#siege();
+    if (besieged && besieged.phase !== 'done') return;
 
     const players = await this.#players();
     const ready = [...players.values()].filter((p) => p.connected);
 
-    if (mode === 'relay' || mode === 'spill') {
+    if (mode === 'relay' || mode === 'spill' || mode === 'siege') {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
       const ids = ready.map((p) => p.id);
       if (mode === 'relay') await startRelay(this.#relayCtx(), roundId, ids);
-      else await startSpill(this.#spillCtx(), roundId, ids);
+      else if (mode === 'spill') await startSpill(this.#spillCtx(), roundId, ids);
+      else await startSiege(this.#siegeCtx(), roundId, ids);
       await this.#rearm(players);
       return;
     }
@@ -422,6 +454,21 @@ export class Room extends DurableObject {
     };
   }
 
+  async #siege(): Promise<Siege | null> {
+    return (await this.ctx.storage.get<Siege>('siege')) ?? null;
+  }
+
+  #siegeCtx(): SiegeCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => ++this.#seq,
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#siege(),
+      save: (siege) => this.ctx.storage.put('siege', siege),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
   async #duel(): Promise<Duel | null> {
     return (await this.ctx.storage.get<Duel>('duel')) ?? null;
   }
@@ -499,6 +546,10 @@ export class Room extends DurableObject {
     const spill = await this.#spill();
     if (spill && spill.phase === 'running') {
       this.#send(ws, { t: 'spill', s: ++this.#seq, d: toState(spill) });
+    }
+    const siege = await this.#siege();
+    if (siege && siege.phase === 'running') {
+      this.#send(ws, { t: 'siege', s: ++this.#seq, d: siegeToState(siege) });
     }
 
     await this.#broadcastPresence(ws);
@@ -610,6 +661,9 @@ export class Room extends DurableObject {
 
     const spill = await this.#spill();
     if (spill?.phase === 'running') return spillDeadline(spill);
+
+    const siege = await this.#siege();
+    if (siege?.phase === 'running') return siegeDeadline(siege);
 
     return Infinity;
   }
