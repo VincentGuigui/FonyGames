@@ -7,6 +7,8 @@ written, registered here, and validated by the maintainer.
 | --- | --- | --- |
 | [hub.md](hub.md) | The entry point: game grid, cards, navigation | 📝 draft |
 | [game-spec-template.md](game-spec-template.md) | Template to copy for a new game | ✅ stable |
+| [join.md](join.md) | How players get into a room: link/code/QR, and the smart-join design | 📝 tier 1 built, tier 2 specced |
+| [backoffice.md](backoffice.md) | Operator view: health, Cloudflare usage, aggregate activity | 📝 stub |
 
 ## Game catalogue
 

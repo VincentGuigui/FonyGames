@@ -29,6 +29,8 @@ file under 200 lines** — put detail in `docs/`, not here.
 | Roadmap & open decisions | [docs/roadmap.md](./docs/roadmap.md) |
 | Specs index (hub + games) | [docs/specs/README.md](./docs/specs/README.md) |
 | Hub spec | [docs/specs/hub.md](./docs/specs/hub.md) |
+| Join methods (link, code, QR, smart join) | [docs/specs/join.md](./docs/specs/join.md) |
+| Backoffice spec | [docs/specs/backoffice.md](./docs/specs/backoffice.md) |
 | Game spec template | [docs/specs/game-spec-template.md](./docs/specs/game-spec-template.md) |
 
 ---

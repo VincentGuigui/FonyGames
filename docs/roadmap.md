@@ -12,6 +12,8 @@
 | M5 | **Second & third games** | Prove `core/` is reusable; add modes to the flagship | |
 | M6 | **Polish** | Illustrations, sounds, PWA shell, perf budgets enforced | |
 | M7 | **Field test** | Real party, real phones; fix what confused people | |
+| M8 | **Backoffice** | Health, Cloudflare usage vs free tier, aggregate game activity. Spec: [specs/backoffice.md](specs/backoffice.md) | |
+| M9 | **Smart join** | Draw-across-devices join (flagship) + shake-together fallback. Spec: [specs/join.md](specs/join.md) | |
 
 ## Open decisions
 
@@ -55,4 +57,6 @@ answer here *and* in the doc it affects.
 | 2026-08-02 | **MySQL is available on the host** but is not used for game state. Any use requires an init script plus idempotent migrations; local MariaDB for tests | [database.md](database.md) |
 | 2026-08-01 | ~~Only `www/` is published~~ — superseded: `www/` is source, the built `dist/` is what ships | [deployment.md](deployment.md) §5 |
 | 2026-08-02 | **D5 domain**: `guigui.fr` — `fonygames.guigui.fr` (prod), `fonygames-dev.guigui.fr` (dev). Room server on `*.vincent-f02.workers.dev` | [realtime-server.md](realtime-server.md) §6 |
+| 2026-08-02 | **Smart join**: "draw across devices on a table" is the flagship — the only method that also yields relative device positions. Shake-together is the fallback; bump is rejected for joining (pairwise). GPS is a coarse gate, never proof | [specs/join.md](specs/join.md) |
+| 2026-08-02 | **Backoffice activity metrics are anonymous aggregates only** — no per-player tracking, ever. Otherwise the about-sheet privacy promise becomes a lie | [specs/backoffice.md](specs/backoffice.md) §1 |
 | 2026-08-02 | **D1/D2 stack**: Vite + TypeScript (`strict`) + Preact + plain CSS. **D6**: hub shell first, then Tap Duel | [architecture.md](architecture.md) §2 |
