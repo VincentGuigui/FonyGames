@@ -6,6 +6,7 @@ import type { RoomStatus } from '../core/room/client';
 import { RoomClient } from '../core/room/client';
 import { roomServerUrl } from '../core/room/config';
 import { generateRoomCode, isRoomCode, normaliseRoomCode } from '../core/room/code';
+import { loadSeat, saveSeat } from '../core/room/seat';
 import { AVATARS } from '../../../shared/names';
 import { QrCode } from '../core/ui/QrCode';
 
@@ -26,11 +27,14 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
   const clientRef = useRef<RoomClient | null>(null);
 
   useEffect(() => {
-    const client = new RoomClient(roomServerUrl(), code);
+    // Recovering the seat from storage is what makes a refresh rejoin as the
+    // same player instead of spawning a ghost alongside the old one.
+    const client = new RoomClient(roomServerUrl(), code, loadSeat(code));
     clientRef.current = client;
     client.on('status', setStatus);
     client.on('presence', setRoom);
     client.on('error', setError);
+    client.on('seat', (id) => saveSeat(code, id));
     client.connect();
     return () => client.close();
   }, [code]);

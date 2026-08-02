@@ -21,6 +21,8 @@ export type RoomEvents = {
   status: (status: RoomStatus) => void;
   presence: (room: RoomSnapshot) => void;
   error: (message: string) => void;
+  /** Fires once the server confirms which seat we hold, so it can be persisted. */
+  seat: (playerId: PlayerId) => void;
 };
 
 const BACKOFF_MS = [500, 1000, 2000, 4000, 8000, 15000];
@@ -43,9 +45,15 @@ export class RoomClient {
 
   #handlers: Partial<RoomEvents> = {};
 
-  constructor(baseUrl: string, code: string) {
+  /**
+   * `resume` is a seat id recovered from storage. Passing it is what makes a
+   * page refresh rejoin as the same player rather than a new one — without it
+   * the id only survives in memory, so a reload starts a stranger.
+   */
+  constructor(baseUrl: string, code: string, resume: PlayerId | null = null) {
     this.#url = baseUrl;
     this.#code = code;
+    this.#playerId = resume;
   }
 
   on<K extends keyof RoomEvents>(event: K, fn: RoomEvents[K]): void {
@@ -136,6 +144,9 @@ export class RoomClient {
         this.#clockOffset = msg.d.serverTime - Date.now();
         this.#seq = msg.s;
         this.#setStatus('open');
+        // Note the server has the last word on identity: if our resume id was
+        // stale (room reaped, different room), it hands back a new one.
+        this.#handlers.seat?.(msg.d.you);
         this.#handlers.presence?.(msg.d.room);
         return;
 

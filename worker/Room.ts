@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import {
+  HOST_GRACE_MS,
   MAX_FRAME_BYTES,
   MAX_PLAYERS,
   RATE_LIMIT_MSGS,
@@ -102,7 +103,7 @@ export class Room extends DurableObject {
     await this.#onGone(ws);
   }
 
-  /** Fires when a dropped player's grace period expires. */
+  /** Fires when a dropped player's seat grace, or a dropped host's, expires. */
   async alarm(): Promise<void> {
     const players = await this.#players();
     const now = Date.now();
@@ -114,10 +115,15 @@ export class Room extends DurableObject {
         changed = true;
       }
     }
+    if (changed) await this.#savePlayers(players);
 
-    if (changed) {
-      await this.#savePlayers(players);
-      await this.#ensureHost(players);
+    // Host promotion is deliberately deferred to here rather than done on
+    // disconnect, so a refreshing host keeps the role (see #ensureHost).
+    const hostBefore = (await this.ctx.storage.get<PlayerId>('hostId')) ?? null;
+    await this.#ensureHost(players);
+    const hostAfter = (await this.ctx.storage.get<PlayerId>('hostId')) ?? null;
+
+    if (changed || hostBefore !== hostAfter) {
       await this.#broadcastPresence();
     }
 
@@ -151,6 +157,16 @@ export class Room extends DurableObject {
       delete resuming.goneAt;
       if (d.name) resuming.name = sanitiseName(d.name) ?? resuming.name;
       if (d.avatar) resuming.avatar = sanitiseAvatar(d.avatar) ?? resuming.avatar;
+
+      // A seat holds exactly one live connection. Duplicating a browser tab
+      // copies sessionStorage, so two tabs can legitimately try to resume the
+      // same seat — without this, both stay attached and whichever closes
+      // first marks the player away while the other is still playing.
+      for (const other of this.ctx.getWebSockets()) {
+        if (other !== ws && this.#idOf(other) === id) {
+          other.close(1000, 'seat-taken-elsewhere');
+        }
+      }
     } else {
       const active = [...players.values()].filter((p) => p.connected).length;
       if (active >= MAX_PLAYERS) {
@@ -210,25 +226,44 @@ export class Room extends DurableObject {
     const me = players.get(id);
     if (!me) return;
 
+    // Another live socket may already hold this seat — either a refresh that
+    // resumed before the old socket finished closing, or the duplicate-tab
+    // eviction in #onJoin. Marking the player away here would undo a resume
+    // that has already succeeded.
+    const heldElsewhere = this.ctx
+      .getWebSockets()
+      .some((other) => other !== ws && this.#idOf(other) === id);
+    if (heldElsewhere) return;
+
     // Not removed immediately: a phone that locked or switched network gets
     // RECONNECT_GRACE_MS to reclaim the same seat (docs/multiplayer.md §5).
     me.connected = false;
     me.goneAt = Date.now();
 
     await this.#savePlayers(players);
-    await this.#ensureHost(players);
+    // No #ensureHost here: promoting the moment a socket drops is exactly
+    // what stole the host role from anyone who refreshed. The alarm handles
+    // it once HOST_GRACE_MS has passed.
     await this.#broadcastPresence();
     await this.#scheduleReap(players);
   }
 
   /**
    * The host is a UI role only — the server owns round state — but it must
-   * always point at someone present, so a host leaving never stalls the room.
+   * point at someone present, so a host leaving never stalls the room.
+   *
+   * Crucially it does **not** demote a host who has only just dropped: a page
+   * refresh looks exactly like a disconnect, and promoting instantly would
+   * hand the role to someone else every time the host reloaded. Within
+   * HOST_GRACE_MS the role is held for them; the alarm promotes once that
+   * expires.
    */
   async #ensureHost(players: Map<PlayerId, StoredPlayer>): Promise<void> {
     const current = (await this.ctx.storage.get<PlayerId>('hostId')) ?? null;
-    const stillHere = current && players.get(current)?.connected;
-    if (stillHere) return;
+    const host = current ? players.get(current) : undefined;
+
+    if (host?.connected) return;
+    if (host && Date.now() - (host.goneAt ?? 0) < HOST_GRACE_MS) return;
 
     const next = [...players.values()].find((p) => p.connected)?.id ?? null;
     if (next === current) return;
@@ -236,16 +271,28 @@ export class Room extends DurableObject {
     else await this.ctx.storage.delete('hostId');
   }
 
+  /**
+   * Next housekeeping moment: the earliest of any dropped player's seat
+   * expiry and, if the host is among them, their (much shorter) host-role
+   * expiry. Miss the host deadline and a genuinely departed host would hold
+   * the role for the full minute.
+   */
   async #scheduleReap(players: Map<PlayerId, StoredPlayer>): Promise<void> {
-    const pending = [...players.values()]
-      .filter((p) => !p.connected)
-      .map((p) => (p.goneAt ?? 0) + RECONNECT_GRACE_MS);
+    const hostId = (await this.ctx.storage.get<PlayerId>('hostId')) ?? null;
+    const deadlines: number[] = [];
 
-    if (pending.length === 0) {
+    for (const p of players.values()) {
+      if (p.connected) continue;
+      const goneAt = p.goneAt ?? 0;
+      deadlines.push(goneAt + RECONNECT_GRACE_MS);
+      if (p.id === hostId) deadlines.push(goneAt + HOST_GRACE_MS);
+    }
+
+    if (deadlines.length === 0) {
       await this.ctx.storage.deleteAlarm();
       return;
     }
-    await this.ctx.storage.setAlarm(Math.min(...pending));
+    await this.ctx.storage.setAlarm(Math.min(...deadlines));
   }
 
   async #broadcastPresence(except?: WebSocket): Promise<void> {

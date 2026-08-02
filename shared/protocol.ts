@@ -69,6 +69,14 @@ export const RATE_LIMIT_WINDOW_MS = 1000;
 /** How long a dropped player keeps their seat (docs/multiplayer.md §1). */
 export const RECONNECT_GRACE_MS = 60_000;
 
+/**
+ * How long a dropped host keeps the host role before it passes to someone
+ * else. Much shorter than the seat grace: a page refresh completes in ~1–2 s
+ * and must not cost you the role, but a player who has genuinely walked off
+ * must not block the room for a whole minute.
+ */
+export const HOST_GRACE_MS = 8_000;
+
 export function isClientMessage(value: unknown): value is ClientMessage {
   if (typeof value !== 'object' || value === null) return false;
   const t = (value as { t?: unknown }).t;

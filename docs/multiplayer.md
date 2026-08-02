@@ -75,6 +75,7 @@ Rules:
 | Player leaves mid-round | Round continues; they can rejoin as spectator or player |
 | Host leaves | Another player is promoted silently |
 | Screen locks / tab backgrounded | Sensors stop; player marked `away`; on return, resync (never resume a physical game mid-action without a 3·2·1) |
+| **Page refresh** | Same seat, same name, same host role. The seat id is kept in `sessionStorage` per tab, so a reload resumes but closing the tab releases the seat |
 | Server unreachable | Clear message + retry button; local/solo mode offered when the game has one |
 | Two players, one drops | Round ends gracefully with a "no contest" result |
 

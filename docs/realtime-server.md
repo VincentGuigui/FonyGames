@@ -53,10 +53,32 @@ are a `WeakMap` and deliberately disposable.
 | Event | Behaviour |
 | --- | --- |
 | Join | New player gets a UUID, a silly name and an emoji avatar. First player present becomes host. |
-| Rejoin (`resume`) | Client replays its player id and reclaims the **same seat**, name and host role. This is what makes a phone lock or a 4G→WiFi handover invisible. |
+| Rejoin (`resume`) | Client replays its player id and reclaims the **same seat**, name and host role. This is what makes a phone lock, a 4G→WiFi handover, or a **page refresh** invisible. |
 | Drop | Player is marked `connected: false`, **not removed**. An alarm is set for `RECONNECT_GRACE_MS` (60 s). |
 | Grace expiry | The alarm removes them and re-broadcasts presence. |
-| Host leaves | Another connected player is promoted silently. The host is a UI role only — the object owns round state, so a host leaving never stalls a room. |
+| Host drops | The role is **held for `HOST_GRACE_MS` (8 s)**, then passed to another connected player by the alarm. |
+
+### Why refresh is the hard case
+
+A page refresh destroys the JS context, so the seat id has to survive outside
+it — `www/src/core/room/seat.ts` keeps it in **sessionStorage**, which lives
+exactly as long as the tab. Without that, `join` arrives with no `resume`, the
+server mints a new player, and the old one lingers as a ghost for a minute:
+you see yourself twice.
+
+Two consequences follow, and both are load-bearing:
+
+1. **Host promotion is deferred, not immediate.** A refresh is
+   indistinguishable from a disconnect, so promoting the instant a socket drops
+   handed the host role to someone else every time the host reloaded. Promotion
+   now happens in the alarm, once `HOST_GRACE_MS` has passed — long enough for a
+   reload (~1–2 s), short enough that a player who actually walked off does not
+   block the room for a full minute.
+2. **One live socket per seat.** Duplicating a tab copies sessionStorage, so two
+   tabs can resume the same seat. `#onJoin` closes any other socket holding that
+   id, and `#onGone` ignores a close when another live socket still holds the
+   seat — otherwise the old socket's close event would mark a player away who
+   had already successfully resumed.
 | Room empties | Once no players remain and no socket is attached, `storage.deleteAll()`. A room's state dies with the room ([architecture.md](architecture.md) §1). |
 
 ## 5. Safety limits
