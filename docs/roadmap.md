@@ -10,7 +10,7 @@
 | M3 | **Room core** | Durable Object, client, and lobby (code · link · QR · presence · reconnect) | ✅ done |
 | M4 | **First game live** | Tap Duel `pistol` mode end-to-end: armed → fire → result, server-refereed | ✅ done |
 | M5 | **Second & third games** | `core/sensors` (motion + bump) built and tested; Bump Relay **server complete**, phone UI still to build | 🔨 in progress |
-| M5b | **Two new games** | [Spill](specs/games/spill.md) (table-position aiming, theme-swappable renderer) and [Goat Siege](specs/games/goat-siege.md) (lob-and-shoo). Specs written | 🔨 in progress |
+| M5b | **Two new games** | [Spill](specs/games/spill.md) **playable end to end** (table-position aiming, two themes, `npm test` harness); [Goat Siege](specs/games/goat-siege.md) spec written, not built | 🔨 in progress |
 | M6 | **Polish** | Illustrations, sounds, PWA shell, perf budgets enforced | |
 | M7 | **Field test** | Real party, real phones; fix what confused people | |
 | M8 | **Backoffice** | Health, Cloudflare usage vs free tier, aggregate activity, **feature flags per game**. Spec: [specs/backoffice.md](specs/backoffice.md) | |
@@ -66,3 +66,8 @@ answer here *and* in the doc it affects.
 | 2026-08-02 | **D7 local storage**: `localStorage` for name/avatar (persists between visits), `sessionStorage` for the seat id (dies with the tab). Chosen over a cookie — the server never reads either, so a cookie would only add bytes to every request | [specs/games/tap-duel.md](specs/games/tap-duel.md) §10 |
 | 2026-08-02 | **Feature flags per game**: three states (`active` / `disabled` / `hidden`), separate per environment, held in a singleton Durable Object. dev always shows every game with a badge stating its real state. Enforced in the Worker, not just hidden on the hub — a shared link bypasses the grid. In-flight games finish. Fail-open, so a flag is not a security control | [specs/backoffice.md](specs/backoffice.md) §2b |
 | 2026-08-02 | **D1/D2 stack**: Vite + TypeScript (`strict`) + Preact + plain CSS. **D6**: hub shell first, then Tap Duel | [architecture.md](architecture.md) §2 |
+| 2026-08-02 | **One shared geometry module per game that needs it.** Spill's seating maths lives in `shared/`, imported by both the Worker and the browser, in one handedness (canvas: x right, y down, clockwise from up). Writing it twice is how aiming ends up silently mirrored | [specs/games/spill.md](specs/games/spill.md) §2 |
+| 2026-08-02 | **The Durable Object has one alarm slot, so all scheduling goes through `#rearm()`**, which takes the earliest deadline across seat housekeeping and every game. Each subsystem arming the alarm itself meant whichever ran last cancelled the others | [realtime-server.md](realtime-server.md) §4 |
+| 2026-08-02 | **A dropped socket is not a departure.** Spill only removes a player when their seat is actually reaped, so a refresh keeps their water. Bump Relay is the deliberate exception — the bomb cannot sit on an empty seat | [specs/games/spill.md](specs/games/spill.md) §8 |
+| 2026-08-02 | **A second theme is part of building a theme interface.** One implementation proves nothing; `balloon` exists because balloons are discrete objects rather than a liquid, which is what forced `Theme` to be a real abstraction | [specs/games/spill.md](specs/games/spill.md) §6 |
+| 2026-08-02 | **`npm test` exists**: game modules are written against a `Ctx` interface and driven through a fake one with a controlled clock. No new dependency (esbuild ships with Vite). D10 would change the runner, not the shape | [testing.md](testing.md) §1.1 |

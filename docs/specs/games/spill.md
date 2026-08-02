@@ -9,7 +9,8 @@
 | **Round length** | 1–3 min |
 | **Inputs** | touch (drag / flick) |
 | **Accent colour** | `#38BDF8` |
-| **Status** | 📝 spec — not built |
+| **Status** | 🎮 `ring` mode built and playable. **Beta** until a real table test — every number in §12 is still a guess |
+| **Code** | `worker/spill.ts` (referee) · `www/src/games/spill/` (client) · `shared/spillGeometry.ts` (the seating maths, shared by both) |
 
 ## 1. Pitch
 
@@ -55,6 +56,34 @@ closest to it, and delivers the drop there if the error is within
 water, which keeps wild flicks tempting rather than punished).
 
 Layouts: **2** = facing each other, **3** = triangle, **4** = square.
+
+#### As built
+
+`shared/spillGeometry.ts` is the single source of this maths, imported by the
+Worker (which referees every flick) and the browser (which draws the diagram and
+the aim preview) so the two cannot drift apart. Its frame is **the view from
+above, with canvas handedness** — x right, y down, angles clockwise from up —
+because mixing handedness between a table model and a canvas is the obvious way
+to end up with an aiming system that is silently mirrored.
+
+The resulting screen angles are pleasingly simple, and identical from every
+seat:
+
+| Players | Where you flick to hit each opponent |
+| --- | --- |
+| 2 | straight up (0°), tolerance ±63° |
+| 3 | ∓30°, tolerance ±42° |
+| 4 | −45° / 0° / +45°, tolerance ±32° |
+
+Tolerance is `SPILL_AIM_FRACTION` (0.7) of the half-gap between seats, so there
+is always a sliver you can miss through.
+
+**The layout diagram is drawn from each player's own point of view**, and uses
+true relative positions rather than one radius per seat — with four players the
+seat opposite is √2 further away, and plotting everyone at one radius turns a
+square table into a huddle. Each phone glyph is also rotated so *its* top edge
+faces the middle: a diagram that showed every phone upright would contradict the
+one instruction it exists to give.
 
 > Why not the compass? `webkitCompassHeading` would let each phone discover its
 > own rotation and drop the convention. It also needs a motion permission, is
@@ -137,6 +166,29 @@ export type Theme = {
 Adding a theme is adding one file and one registry line. **No theme may change
 the rules** — sizes, speeds and counts live in `game.ts`.
 
+### As built
+
+The real interface takes a `ThemeDraw` bundle (`ctx`, `w`, `h`, `t`, `calm`)
+rather than a long argument list, and adds `drawBackdrop`. Two themes ship:
+`water` (default) and `balloon`. The second exists to keep the first honest —
+balloons are **discrete objects**, not a liquid, so if `Theme` only worked for
+things that slosh it would be water with a colour knob rather than an
+abstraction.
+
+Rules the registry enforces on any new theme:
+
+- **The chrome must stay readable.** The board scrims the top and bottom strips
+  precisely so no theme can make the HUD illegible — the balloon pile is nearly
+  white in places.
+- **Projectile size is fixed across themes** (`18 * √size`). Changing it would
+  quietly change how hard the game is to play, which is a rule change.
+- `calm` (from `prefers-reduced-motion`) **flattens, never removes**.
+
+The picker lives on the setup screen and is reachable mid-round from the board's
+**Table** button, so the look can be changed without ending a round. The choice
+is remembered in `localStorage` (`fony:spill:theme`), re-validated against the
+registry on read.
+
 ### The water look
 
 Wavy and alive, per the request. Two summed sine waves at different frequencies
@@ -151,12 +203,29 @@ Server-authoritative. Clients send intent; the server owns every count.
 
 | Message | Direction | Payload |
 | --- | --- | --- |
-| `fling` | client → server | `{ angle, speed, roundId }` — screen-space angle |
+| `fling` | client → server | `{ angle, speed, roundId, dropId? }` — screen-space angle; `dropId` re-flings a caught drop |
 | `catch` | client → server | `{ dropId, roundId }` |
-| `drop` | server → clients | `{ dropId, from, to, size, arrivesAt }` |
-| `land` | server → clients | `{ dropId, on, size, levels }` |
-| `levels` | server → clients | `{ levels: Record<PlayerId, number> }` |
-| `over` | server → clients | `{ winner, loser, levels }` |
+| `spill` | server → clients | Whole round: `{ roundId, seats, levels, out, air, phase }` |
+| `drop` | server → clients | `{ dropId, from, to, angle, size, launchedAt, leavesAt, arrivesAt, levels }` |
+| `caught` | server → clients | `{ dropId, by, size, soaksAt }` |
+| `land` | server → clients | `{ dropId, on, size, levels, out }` |
+| `spill-over` | server → clients | `{ roundId, winnerId, levels }` |
+
+Three details of the shapes above are load-bearing:
+
+- **`speed` is in screen heights per second, not pixels.** The server must not
+  need to know how big anyone's phone is, and a device-independent unit is what
+  lets one clamp be fair on a small Android and a large iPhone alike.
+- **`drop` carries `levels`.** Flinging is the only thing that empties your
+  phone, so without it your own counter would sit unchanged for the second and
+  a half until the drop landed somewhere else.
+- **`drop` carries `angle`.** The thrower animates it leaving along that angle;
+  the target animates it arriving from *their* bearing back to `from`. That is
+  what makes the physical arrangement legible in both directions — water comes
+  in from the side of the screen the thrower is actually sitting on.
+
+There is no separate `levels` message: every frame that can change a level
+already carries the new ones, which keeps the round inside Profile A.
 
 Traffic is **event-driven, not streamed** — a flick, a catch, a landing. That
 keeps it in Profile A of the cost model ([../../realtime-options.md](../../realtime-options.md) §1),
@@ -167,7 +236,8 @@ so a round costs almost nothing. Drop flight is animated client-side from
 
 | Case | Behaviour |
 | --- | --- |
-| A player leaves mid-round | Their seat empties; drops aimed there are lost. Below 2 players the round ends |
+| A player leaves mid-round | Their **seat stays put** and becomes a hole; drops aimed there are lost. Renumbering seats would silently rotate everyone else's aim. Below 2 players the round ends |
+| A player drops off the network | Nothing happens until their seat is actually reaped (`RECONNECT_GRACE_MS`). Acting on the socket closing would knock anyone who refreshed out of the round |
 | Flick outside `AIM_TOLERANCE` | Water leaves, lands nowhere. Legal and sometimes smart |
 | Two drops land at once | Both apply; the server holds one count |
 | A player refreshes | Same seat, same level ([../../realtime-server.md](../../realtime-server.md) §4) |

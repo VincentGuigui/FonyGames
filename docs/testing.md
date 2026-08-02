@@ -1,19 +1,60 @@
 # Testing
 
-> Status: strategy agreed, tooling **not yet installed** (needs validation —
-> see [roadmap.md](roadmap.md)).
+> Status: a **logic harness runs today** (`npm test`). A general test framework
+> is still an open choice — see §1.1 and [roadmap.md](roadmap.md).
 
 Sensors, permissions and multi-device timing cannot be fully faked. So: automate
 what is deterministic, and keep a short, ruthless manual pass for the rest.
 
 ## 1. Layers
 
-| Layer | Scope | Tool (proposed) |
+| Layer | Scope | Tool |
 | --- | --- | --- |
-| Unit | Pure logic: bump detection on recorded sample data, scoring, timers, room-code generation, geo maths | Vitest |
-| Contract | Client/server message schemas, round state machine | Vitest against an in-process server |
-| End-to-end | Two simulated players joining a room, playing a round, results | Playwright (Chromium, mobile emulation), synthetic sensor events |
+| Unit | Pure logic: bump detection on recorded sample data, scoring, timers, room-code generation, geo maths | **`npm test`** today; Vitest proposed |
+| Contract | Client/server message schemas, round state machine | Drive the real module through a fake `Ctx` (§1.1) |
+| End-to-end | Simulated players joining a room and playing a round | Real WebSockets against `wrangler dev` (§1.2) |
 | Manual | Real phones, real permissions, real network | The checklist in §3 |
+
+### 1.1 `npm test` — the logic harness
+
+`worker/spill.test.ts` is the pattern to copy. It bundles with esbuild (already
+present via Vite, so no new dependency) and runs on plain Node:
+
+```
+npm test
+```
+
+Every game module is written against a `Ctx` interface — `now()`, `broadcast()`,
+`load()`, `save()`, `setAlarm()` — for exactly this reason. The harness supplies
+a fake one with **a clock it controls**, so timing rules (launch locks, approach
+windows, hold expiry) are *tested* rather than raced against. No wrangler, no
+sockets, no sleeping.
+
+Deciding on Vitest (D10-adjacent) would replace the hand-rolled `check()` and
+give watch mode; it would not change the shape of the tests, because the shape
+comes from `Ctx`, not the runner.
+
+### 1.2 End-to-end against a real Worker
+
+The harness proves the referee. It cannot prove that `Room.ts` routes to it, that
+the wire types survive `JSON.stringify`, or that a refresh really reclaims a
+seat. For that, connect real `WebSocket`s (Node has one built in) to
+`wrangler dev` and play a round.
+
+Two traps that have already cost time:
+
+- **Kill any stale `wrangler`/`workerd` by PID before starting.** A leftover on
+  8787 answers `/health` happily and you will test the previous build.
+- **The Worker's origin allow-list is real.** `ALLOWED_ORIGINS` permits port
+  **5173** — serve the built site there (`vite preview --port 5173`) or every
+  socket is correctly refused and the page just says "reconnecting".
+
+For browser-level checks, Chromium is preinstalled but Playwright is not, and
+headless Chrome **ignores `--window-size`** — it renders at 500px and crops,
+which looks exactly like a CSS overflow bug. Drive it over CDP and set
+`Emulation.setDeviceMetricsOverride` explicitly, and call `Page.bringToFront`
+before a screenshot or a backgrounded tab never composites and the capture
+hangs.
 
 Sensor input in automated tests is injected as **recorded traces** (JSON arrays
 of samples captured on a real phone) — never random noise. Traces live in
