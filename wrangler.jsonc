@@ -1,0 +1,43 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fonygames-rooms-dev",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-08-01",
+
+  // Durable Object bindings. `idFromName(roomCode)` routes every player with
+  // the same code to the same object — see docs/realtime-server.md.
+  "durable_objects": {
+    "bindings": [{ "name": "ROOM", "class_name": "Room" }]
+  },
+
+  // IRREVERSIBLE. The Workers Free plan only supports SQLite-backed Durable
+  // Objects, and Cloudflare rejects switching the backend on an already
+  // deployed class. `new_sqlite_classes` must be right on the first deploy.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+
+  "vars": {
+    // Overridden per environment below. Local dev only.
+    "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173"
+  },
+
+  "observability": { "enabled": true },
+
+  // Two Workers, so a dev round can never land in a production room: separate
+  // Workers mean separate Durable Object namespaces.
+  "env": {
+    "dev": {
+      "name": "fonygames-rooms-dev",
+      "vars": {
+        // TODO(hosting): add the dev site origin once its URL is confirmed.
+        "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173"
+      }
+    },
+    "prod": {
+      "name": "fonygames-rooms-prod",
+      "vars": {
+        // TODO(hosting): replace with the production site origin.
+        "ALLOWED_ORIGINS": "https://example.invalid"
+      }
+    }
+  }
+}

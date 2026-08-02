@@ -83,3 +83,56 @@ jobs:
         # note delta diffs git, so it cannot see build output and would need
         # dist/ committed. Staying on `full` is the correct choice here.
         sync: full
+
+  # The room server (Cloudflare Durable Objects). Independent of the site
+  # deploy: a Worker problem must not stop the hub from shipping, and vice
+  # versa. Docs: docs/realtime-server.md
+  worker-deploy:
+    name: ☁️ Deploy room server
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'dev' || github.ref_name == 'prod'
+    environment: ${{ github.ref_name }}
+    steps:
+    - name: 🚚 Get latest code
+      uses: actions/checkout@v6
+
+    # Skip rather than fail while the Cloudflare secrets are not yet set, so
+    # adding this job cannot break the site deploy. Remove once both are in
+    # every environment.
+    - name: 🔐 Check Cloudflare credentials
+      id: creds
+      env:
+        CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      run: |
+        if [ -n "$CF_API_TOKEN" ] && [ -n "$CF_ACCOUNT_ID" ]; then
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "ready=false" >> "$GITHUB_OUTPUT"
+          echo "::warning::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set in environment '${{ github.ref_name }}' — skipping room server deploy."
+        fi
+
+    - name: 🟢 Set up Node
+      if: steps.creds.outputs.ready == 'true'
+      uses: actions/setup-node@v6
+      with:
+        node-version: 22
+        cache: npm
+
+    - name: 📦 Install
+      if: steps.creds.outputs.ready == 'true'
+      run: npm ci
+
+    - name: 🧪 Typecheck worker
+      if: steps.creds.outputs.ready == 'true'
+      run: npx tsc --noEmit -p tsconfig.worker.json
+
+    - name: ☁️ Publish
+      if: steps.creds.outputs.ready == 'true'
+      uses: cloudflare/wrangler-action@v3
+      with:
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        # --env selects the block in wrangler.jsonc, so `dev` and `prod` are
+        # separate Workers with separate Durable Object namespaces.
+        command: deploy --env ${{ github.ref_name }}

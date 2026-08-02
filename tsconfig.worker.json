@@ -3,30 +3,22 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ],
-    "types": [
-      "vite/client"
-    ],
+    "lib": ["ES2022"],
+    // No DOM: the Worker runtime is not a browser. WebSocket, Request and
+    // Response come from the Workers types instead.
+    "types": ["@cloudflare/workers-types"],
+
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
-    "jsx": "react-jsx",
-    "jsxImportSource": "preact",
+
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": [
-    "www/src",
-    "shared",
-    "vite.config.ts"
-  ]
+  "include": ["worker", "shared", "www/src/core/room/code.ts"]
 }

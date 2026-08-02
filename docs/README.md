@@ -18,6 +18,7 @@ is made in a discussion, it belongs in one of these files.
 | [architecture.md](architecture.md) | Stack proposal, runtime shape, budgets, hosting |
 | [multiplayer.md](multiplayer.md) | Rooms, join flow, transport, state sync, latency |
 | [realtime-options.md](realtime-options.md) | Survey of realtime backends for D3: load model, free tiers, price comparison |
+| [realtime-server.md](realtime-server.md) | The room server: Durable Objects, hibernation, lifecycle, limits, local dev |
 | [device-capabilities.md](device-capabilities.md) | Sensors, GPS, bump detection, permissions, privacy, fallbacks |
 | [deployment.md](deployment.md) | Branch model, GitHub Environments, secrets, SFTP deploy, troubleshooting |
 | [database.md](database.md) | MySQL: what it may hold, init + idempotent migration rules, local MariaDB |

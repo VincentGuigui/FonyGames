@@ -1,7 +1,14 @@
 # Deployment
 
-The site is deployed by GitHub Actions over **SFTP** to a hosting provider. No
-manual upload, ever — the branch *is* the deploy trigger.
+Two things deploy from the same workflow, on the same trigger, independently:
+
+| What | Where | Job |
+| --- | --- | --- |
+| The site (`dist/`) | the web host, over **SFTP** | `web-deploy` |
+| The room server (`worker/`) | **Cloudflare**, via Wrangler | `worker-deploy` |
+
+They are separate jobs on purpose: a Worker problem must not stop the hub from
+shipping, and vice versa. No manual upload, ever — the branch *is* the trigger.
 
 Workflow: [`.github/workflows/main.yml`](../.github/workflows/main.yml)
 
@@ -62,11 +69,17 @@ deploying instantly.
 Each environment holds its own credentials — the two hosts are separate, with
 separate accounts.
 
-| Secret | Contents |
-| --- | --- |
-| `FTPHOST` | Server hostname, e.g. `ftp.example.com` (no scheme, no port) |
-| `FTPUSER` | SSH/SFTP account login |
-| `FTPPWD` | SSH/SFTP account password |
+| Secret | Contents | Used by |
+| --- | --- | --- |
+| `FTPHOST` | Server hostname, e.g. `ftp.example.com` (no scheme, no port) | site |
+| `FTPUSER` | SSH/SFTP account login | site |
+| `FTPPWD` | SSH/SFTP account password | site |
+| `CLOUDFLARE_API_TOKEN` | "Edit Cloudflare Workers" token, scoped to the account | room server |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID | room server |
+
+The Cloudflare pair is **optional until set**: the `worker-deploy` job detects
+them missing and skips with a warning instead of failing, so the site keeps
+deploying either way.
 
 Rules:
 

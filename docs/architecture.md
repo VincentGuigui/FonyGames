@@ -31,9 +31,9 @@
 - A game that needs no other player state (e.g. a pure local warm-up mode) must
   still work with the server unreachable.
 
-## 2. Stack (proposed)
+## 2. Stack
 
-| Layer | Proposal | Why |
+| Layer | Choice | Why |
 | --- | --- | --- |
 | Language | TypeScript, `strict` ✅ **decided** | Catch sensor/state bugs before the phone does |
 | Build | Vite ✅ **decided** | Fast, multi-page friendly |
@@ -74,6 +74,13 @@ www/
         game.ts         core loop
         modes.ts        mode/variation definitions
         card.ts         hub metadata: title, pitch, illustration, tags
+shared/                 wire protocol, imported by BOTH www/ and worker/
+  protocol.ts           message envelope and types
+  names.ts              silly player names + avatars
+worker/                 the room server (docs/realtime-server.md)
+  index.ts              router: origin check, code check, idFromName
+  Room.ts               the Durable Object — one per room
+wrangler.jsonc          Worker config + the irreversible SQLite migration
 dist/                   build output — generated, gitignored, deployed
 ```
 
@@ -90,19 +97,21 @@ dist/                   build output — generated, gitignored, deployed
 | --- | --- |
 | `npm run dev` | Vite dev server, bound to `0.0.0.0` so a phone on the LAN can open it |
 | `npm run build` | `tsc --noEmit` then `vite build` → `dist/` |
-| `npm run typecheck` | Types only |
+| `npm run typecheck` | Types only — site **and** worker (two tsconfigs) |
+| `npm run worker:dev` | `wrangler dev` on :8787, fully local |
 
 ### Game contract
 
 Every game exposes the same metadata so the hub can render it without knowing
-anything about it:
+anything about it. Source of truth: `www/src/core/types.ts`.
 
 ```ts
 type GameCard = {
   slug: string;            // url segment, kebab-case
   title: string;           // "Bump Relay"
   pitch: string;           // ONE catchy sentence, ≤ 60 chars
-  illustration: string;    // path, explicit at a glance
+  motif: GameMotif;        // placeholder art until real illustrations (M6)
+  accent: string;          // '#RRGGBB', from the game's spec
   players: [min: number, max: number];
   duration: string;        // "1–2 min"
   inputs: Array<'touch'|'motion'|'orientation'|'gps'|'compass'|'mic'>;

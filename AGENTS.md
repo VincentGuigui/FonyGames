@@ -18,6 +18,7 @@ file under 200 lines** — put detail in `docs/`, not here.
 | Architecture & tech stack | [docs/architecture.md](./docs/architecture.md) |
 | Multiplayer & networking | [docs/multiplayer.md](./docs/multiplayer.md) |
 | Realtime backend survey (D3) | [docs/realtime-options.md](./docs/realtime-options.md) |
+| Realtime server (Durable Objects) | [docs/realtime-server.md](./docs/realtime-server.md) |
 | Device capabilities (sensors, GPS, bump…) | [docs/device-capabilities.md](./docs/device-capabilities.md) |
 | Deployment (branches, environments, secrets) | [docs/deployment.md](./docs/deployment.md) |
 | Database (MySQL, migrations) | [docs/database.md](./docs/database.md) |
@@ -35,15 +36,20 @@ file under 200 lines** — put detail in `docs/`, not here.
 ## 2. Directory structure
 
 ```
-/                     README.md, CLAUDE.md, AGENTS.md
+/                     README.md, CLAUDE.md, AGENTS.md, package.json, wrangler.jsonc
 /docs                 documentation
 /docs/conventions     commits, code style
 /docs/design          UI/UX guidelines, assets guidance
 /docs/specs           hub spec + one file per game under /docs/specs/games
-/www                  source code of the site (hub + games)
+/www                  source of the site (hub + games) — compiled, not served
+/worker               the room server: Cloudflare Durable Objects
+/shared               wire protocol used by both www/ and worker/
+/dist                 build output — generated, gitignored, deployed
 ```
 
-Nothing outside `www/` ships to users. Nothing outside `docs/` documents.
+Two deploy targets, both driven from `dev`/`prod`:
+`dist/` → the web host, `worker/` → Cloudflare.
+Nothing outside those ships. Nothing outside `docs/` documents.
 
 ---
 
