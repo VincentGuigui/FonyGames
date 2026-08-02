@@ -9,7 +9,7 @@
 | **Round length** | ~1 min for best-of-5 |
 | **Inputs** | touch |
 | **Accent colour** | `#FFC93C` |
-| **Status** | building — `pistol` mode is M4 |
+| **Status** | `pistol` live (M4) · `sprint` and `simon` still to build |
 
 ## 1. Pitch
 

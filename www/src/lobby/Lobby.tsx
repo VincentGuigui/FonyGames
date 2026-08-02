@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../core/types';
-import type { RoomSnapshot } from '../../../shared/protocol';
+import type { RoomSnapshot, RoundResult } from '../../../shared/protocol';
 import type { RoomStatus } from '../core/room/client';
 import { RoomClient } from '../core/room/client';
 import { roomServerUrl } from '../core/room/config';
@@ -9,6 +9,7 @@ import { generateRoomCode, isRoomCode, normaliseRoomCode } from '../core/room/co
 import { loadSeat, saveSeat } from '../core/room/seat';
 import { AVATARS } from '../../../shared/names';
 import { QrCode } from '../core/ui/QrCode';
+import { Duel, type DuelPhase } from '../games/tap-duel/Duel';
 
 /**
  * The lobby, shared by every game (docs/multiplayer.md §3).
@@ -23,6 +24,10 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
   const [room, setRoom] = useState<RoomSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showQr, setShowQr] = useState(false);
+  const [phase, setPhase] = useState<DuelPhase>('idle');
+  const [result, setResult] = useState<RoundResult | null>(null);
+  const roundRef = useRef<number | null>(null);
+  const fireTimer = useRef<number | null>(null);
   const [copied, setCopied] = useState(false);
   const clientRef = useRef<RoomClient | null>(null);
 
@@ -35,8 +40,33 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
     client.on('presence', setRoom);
     client.on('error', setError);
     client.on('seat', (id) => saveSeat(code, id));
+
+    client.on('arm', (roundId, fireAt) => {
+      roundRef.current = roundId;
+      setResult(null);
+      setPhase('armed');
+      // Scheduled against SERVER time, so every screen flips at the same true
+      // instant however different the pings are (tap-duel.md §6).
+      const delay = Math.max(0, fireAt - client.now());
+      if (fireTimer.current !== null) clearTimeout(fireTimer.current);
+      fireTimer.current = setTimeout(() => {
+        setPhase((p) => (p === 'armed' ? 'fire' : p));
+      }, delay) as unknown as number;
+    });
+
+    client.on('falseStart', () => setPhase('burned'));
+
+    client.on('result', (r) => {
+      if (fireTimer.current !== null) clearTimeout(fireTimer.current);
+      setResult(r);
+      setPhase('result');
+    });
+
     client.connect();
-    return () => client.close();
+    return () => {
+      if (fireTimer.current !== null) clearTimeout(fireTimer.current);
+      client.close();
+    };
   }, [code]);
 
   const joinUrl = `${location.origin}${location.pathname}#${code}`;
@@ -66,6 +96,20 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
     }
   }
 
+  function startDuel(): void {
+    clientRef.current?.send({ t: 'start', d: { mode: 'pistol' } });
+  }
+
+  function tap(): void {
+    const client = clientRef.current;
+    const roundId = roundRef.current;
+    if (!client || roundId === null) return;
+    // Sent as our clock-corrected server time; the server re-validates it.
+    client.send({ t: 'tap', d: { at: client.now(), roundId } });
+    // Local feedback only — the server decides the outcome.
+    setPhase((p) => (p === 'fire' ? 'result' : p === 'armed' ? 'burned' : p));
+  }
+
   function setAvatar(avatar: string): void {
     clientRef.current?.send({ t: 'set-profile', d: { avatar } });
   }
@@ -73,6 +117,28 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
   function rename(): void {
     const next = prompt('Your name', me?.name ?? '')?.trim();
     if (next) clientRef.current?.send({ t: 'set-profile', d: { name: next } });
+  }
+
+  const connected = room?.players.filter((p) => p.connected).length ?? 0;
+  const canStart = isHost && connected >= 2;
+
+  if (phase !== 'idle') {
+    return (
+      <div
+        class="duel-screen"
+        style={{ '--game-accent': game.accent } as JSX.CSSProperties}
+      >
+        <Duel
+          players={room?.players ?? []}
+          me={me?.id ?? null}
+          phase={phase}
+          result={result}
+          onTap={tap}
+          onAgain={startDuel}
+          isHost={isHost}
+        />
+      </div>
+    );
   }
 
   return (
@@ -169,13 +235,20 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
       </section>
 
       <footer class="lobby__footer">
-        <button class="btn btn--primary btn--big" type="button" disabled>
+        <button
+          class="btn btn--primary btn--big"
+          type="button"
+          disabled={!canStart}
+          onClick={startDuel}
+        >
           Start round
         </button>
         <p class="lobby__note">
-          The round itself is still being built — this lobby is here so we can
-          test that rooms hold together across phones and networks.
-          {isHost && ' You are the host, so the start button will be yours.'}
+          {!isHost
+            ? 'The host starts the round.'
+            : connected < 2
+              ? 'Waiting for one more player…'
+              : 'Wait for the signal, then tap. Moving early loses the duel.'}
         </p>
       </footer>
     </div>

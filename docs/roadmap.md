@@ -8,8 +8,8 @@
 | M1 | **Decisions** | Stack, hosting, realtime and first game all settled | ✅ done |
 | M2 | **Walking skeleton** | Vite+TS+Preact build; static hub with card grid and placeholder art; no realtime | ✅ done |
 | M3 | **Room core** | Durable Object, client, and lobby (code · link · QR · presence · reconnect) | ✅ done |
-| M4 | **First game live** | Tap Duel round itself — the lobby already ships | ▶️ next |
-| M5 | **Second & third games** | Prove `core/` is reusable; add modes to the flagship | |
+| M4 | **First game live** | Tap Duel `pistol` mode end-to-end: armed → fire → result, server-refereed | ✅ done |
+| M5 | **Second & third games** | Prove `core/` is reusable; add Tap Duel's `sprint`/`simon`; build Bump Relay | ▶️ next |
 | M6 | **Polish** | Illustrations, sounds, PWA shell, perf budgets enforced | |
 | M7 | **Field test** | Real party, real phones; fix what confused people | |
 | M8 | **Backoffice** | Health, Cloudflare usage vs free tier, aggregate game activity. Spec: [specs/backoffice.md](specs/backoffice.md) | |

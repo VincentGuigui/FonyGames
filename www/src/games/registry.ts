@@ -26,7 +26,7 @@ export const GAMES: GameCard[] = [
       { id: 'sprint', name: 'Sprint', blurb: 'Most taps before the buzzer' },
       { id: 'simon', name: 'Simon', blurb: 'Repeat the sequence, faster each round' },
     ],
-    // `beta`: the lobby is real and testable, the round is not built yet.
+    // `beta`: pistol mode is playable; sprint and simon are not built yet.
     status: 'beta',
   },
   {

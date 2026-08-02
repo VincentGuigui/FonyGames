@@ -1,15 +1,21 @@
 import { DurableObject } from 'cloudflare:workers';
 import {
+  CLOCK_SKEW_TOLERANCE_MS,
+  DUEL_TIMEOUT_MS,
+  FIRE_MAX_MS,
+  FIRE_MIN_MS,
   HOST_GRACE_MS,
   MAX_FRAME_BYTES,
   MAX_PLAYERS,
   RATE_LIMIT_MSGS,
   RATE_LIMIT_WINDOW_MS,
+  MIN_HUMAN_REACTION_MS,
   RECONNECT_GRACE_MS,
   isClientMessage,
   type ClientMessage,
   type Player,
   type PlayerId,
+  type Reaction,
   type RoomSnapshot,
   type ServerMessage,
 } from '../shared/protocol';
@@ -37,6 +43,17 @@ type Attachment = {
 
 /** Per-connection, non-durable. Rebuilt after hibernation; that is fine — it only rate-limits. */
 type Bucket = { count: number; windowStart: number };
+
+/** A Tap Duel in progress. Persisted, so it survives hibernation. */
+type Duel = {
+  roundId: number;
+  /** Server time at which every screen flips to TAP. */
+  fireAt: number;
+  phase: 'armed' | 'done';
+  taps: Record<PlayerId, { ms: number | null; falseStart: boolean }>;
+  /** Players present when the duel started; late joiners spectate. */
+  entrants: PlayerId[];
+};
 
 export class Room extends DurableObject {
   /** seq for server->client ordering; clients drop out-of-order state. */
@@ -92,6 +109,12 @@ export class Room extends DurableObject {
           d: { at: msg.d.at, serverTime: Date.now() },
         });
         return;
+      case 'start':
+        await this.#onStart(ws);
+        return;
+      case 'tap':
+        await this.#onTap(ws, msg.d);
+        return;
     }
   }
 
@@ -103,8 +126,19 @@ export class Room extends DurableObject {
     await this.#onGone(ws);
   }
 
-  /** Fires when a dropped player's seat grace, or a dropped host's, expires. */
+  /**
+   * One alarm slot serves three deadlines: a live duel's timeout, a dropped
+   * host's grace, and a dropped player's seat grace. The duel is always the
+   * nearest when one is running, so it is checked first.
+   */
   async alarm(): Promise<void> {
+    const duel = await this.#duel();
+    if (duel && duel.phase === 'armed' && Date.now() >= duel.fireAt + DUEL_TIMEOUT_MS) {
+      // Nobody tapped in time. #resolveDuel restores the housekeeping alarm.
+      await this.#resolveDuel();
+      return;
+    }
+
     const players = await this.#players();
     const now = Date.now();
     let changed = false;
@@ -136,6 +170,150 @@ export class Room extends DurableObject {
     }
 
     await this.#scheduleReap(players);
+  }
+
+  /* ----------------------- Tap Duel: pistol ------------------------ */
+  /* Spec: docs/specs/games/tap-duel.md                                 */
+
+  /** Host begins a duel. */
+  async #onStart(ws: WebSocket): Promise<void> {
+    const id = this.#idOf(ws);
+    const hostId = (await this.ctx.storage.get<PlayerId>('hostId')) ?? null;
+    if (!id || id !== hostId) return; // only the host starts duels
+
+    const duel = await this.#duel();
+    if (duel && duel.phase !== 'done') return; // one duel at a time
+
+    const players = await this.#players();
+    const ready = [...players.values()].filter((p) => p.connected);
+    if (ready.length < 2) return;
+
+    const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
+    const spread = FIRE_MAX_MS - FIRE_MIN_MS;
+    // Redrawn every duel so the delay cannot be learned (spec §2).
+    const fireAt = Date.now() + FIRE_MIN_MS + Math.floor(Math.random() * spread);
+
+    await this.ctx.storage.put('roundId', roundId);
+    await this.#saveDuel({
+      roundId,
+      fireAt,
+      phase: 'armed',
+      taps: {},
+      // Only those present when the duel started are in it; late joiners
+      // spectate and play the next one.
+      entrants: ready.map((p) => p.id),
+    });
+
+    this.#broadcast({ t: 'arm', s: ++this.#seq, d: { roundId, fireAt } });
+
+    // The server owns the timer, not the host — so a host dropping mid-duel
+    // cannot stall it. This alarm resolves the duel if nobody taps.
+    await this.#armDeadline(fireAt + DUEL_TIMEOUT_MS);
+  }
+
+  async #onTap(ws: WebSocket, d: { at: number; roundId: number }): Promise<void> {
+    const id = this.#idOf(ws);
+    if (!id) return;
+
+    const duel = await this.#duel();
+    if (!duel || duel.phase !== 'armed') return;
+    if (duel.roundId !== d.roundId) return; // stale tap from a previous duel
+    if (!duel.entrants.includes(id)) return; // joined after the duel began
+    if (duel.taps[id]) return; // one tap per player, per duel
+
+    const now = Date.now();
+    const at = typeof d.at === 'number' && Number.isFinite(d.at) ? d.at : now;
+
+    // Reject a timestamp from the future: a client clock running fast, or a
+    // forged tap (spec §8).
+    const claimed = Math.min(at, now + CLOCK_SKEW_TOLERANCE_MS);
+    const reaction = claimed - duel.fireAt;
+
+    // Early, or superhumanly fast, is a false start either way. The floor is
+    // what makes knowing `fireAt` in advance useless to a cheat.
+    const falseStart = reaction < MIN_HUMAN_REACTION_MS;
+
+    duel.taps[id] = { ms: falseStart ? null : reaction, falseStart };
+    await this.#saveDuel(duel);
+
+    if (falseStart) {
+      // Told only to the offender: nobody else's duel is disturbed.
+      this.#send(ws, { t: 'false-start', d: { roundId: duel.roundId } });
+    }
+
+    // Resolve as soon as every entrant has committed; otherwise the deadline
+    // alarm will finish it.
+    const stillOut = duel.entrants.filter((p) => !duel.taps[p]);
+    if (stillOut.length === 0) await this.#resolveDuel();
+  }
+
+  async #resolveDuel(): Promise<void> {
+    const duel = await this.#duel();
+    if (!duel || duel.phase !== 'armed') return;
+
+    const players = await this.#players();
+    const scores = (await this.ctx.storage.get<Record<PlayerId, number>>('scores')) ?? {};
+
+    const ranking: Reaction[] = duel.entrants.map((playerId) => {
+      const tap = duel.taps[playerId];
+      return {
+        playerId,
+        ms: tap?.ms ?? null,
+        falseStart: tap?.falseStart ?? false,
+      };
+    });
+
+    // Fastest valid first; everyone without a valid time sinks to the bottom.
+    ranking.sort((a, b) => {
+      if (a.ms === null && b.ms === null) return 0;
+      if (a.ms === null) return 1;
+      if (b.ms === null) return -1;
+      return a.ms - b.ms;
+    });
+
+    const winner = ranking.find((r) => r.ms !== null) ?? null;
+    const winnerId = winner?.playerId ?? null;
+    if (winnerId) scores[winnerId] = (scores[winnerId] ?? 0) + 1;
+
+    await this.ctx.storage.put('scores', scores);
+    await this.#saveDuel({ ...duel, phase: 'done' });
+    await this.ctx.storage.deleteAlarm();
+
+    this.#broadcast({
+      t: 'result',
+      s: ++this.#seq,
+      d: {
+        roundId: duel.roundId,
+        ranking: ranking.filter((r) => players.has(r.playerId)),
+        winnerId,
+        scores,
+        noContest: winnerId === null,
+      },
+    });
+
+    // Hand the alarm back to seat/host housekeeping.
+    await this.#scheduleReap(players);
+  }
+
+  /**
+   * The duel deadline shares the single alarm slot with seat reaping. It is
+   * always the nearer of the two, so it takes precedence while a duel is live;
+   * #resolveDuel restores the housekeeping schedule afterwards.
+   */
+  async #armDeadline(at: number): Promise<void> {
+    await this.ctx.storage.setAlarm(at);
+  }
+
+  async #duel(): Promise<Duel | null> {
+    return (await this.ctx.storage.get<Duel>('duel')) ?? null;
+  }
+
+  async #saveDuel(duel: Duel): Promise<void> {
+    await this.ctx.storage.put('duel', duel);
+  }
+
+  #broadcast(msg: ServerMessage): void {
+    for (const ws of this.ctx.getWebSockets()) this.#send(ws, msg);
   }
 
   /* ---------------------------------------------------------------- */

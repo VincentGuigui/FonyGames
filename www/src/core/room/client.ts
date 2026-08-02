@@ -2,6 +2,7 @@ import type {
   ClientMessage,
   PlayerId,
   RoomSnapshot,
+  RoundResult,
   ServerMessage,
 } from '../../../../shared/protocol';
 import { toWebSocketUrl } from './config';
@@ -23,6 +24,11 @@ export type RoomEvents = {
   error: (message: string) => void;
   /** Fires once the server confirms which seat we hold, so it can be persisted. */
   seat: (playerId: PlayerId) => void;
+  /** A duel has begun. `fireAt` is server time — compare against client.now(). */
+  arm: (roundId: number, fireAt: number) => void;
+  /** You tapped before the signal. Sent only to the offender. */
+  falseStart: (roundId: number) => void;
+  result: (result: RoundResult) => void;
 };
 
 const BACKOFF_MS = [500, 1000, 2000, 4000, 8000, 15000];
@@ -159,6 +165,22 @@ export class RoomClient {
 
       case 'pong':
         this.#clockOffset = msg.d.serverTime - Date.now();
+        return;
+
+      case 'arm':
+        if (msg.s <= this.#seq) return;
+        this.#seq = msg.s;
+        this.#handlers.arm?.(msg.d.roundId, msg.d.fireAt);
+        return;
+
+      case 'false-start':
+        this.#handlers.falseStart?.(msg.d.roundId);
+        return;
+
+      case 'result':
+        if (msg.s <= this.#seq) return;
+        this.#seq = msg.s;
+        this.#handlers.result?.(msg.d);
         return;
 
       case 'error':

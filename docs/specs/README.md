@@ -22,7 +22,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | Shake Sprint | *Shake like your life depends on it — first to the finish wins* | motion | 2–8 | 💡 idea |
 | Tilt Arena | *Tilt to steer, crash to win* | orientation | 2–6 | 💡 idea |
 | Steady Hand | *Hold your phone perfectly still. Longer than everyone else* | motion | 2–8 | 💡 idea |
-| [Tap Duel](games/tap-duel.md) | *The fastest thumb in the room takes the round* | touch | 2–8 | 🚧 building — `pistol` mode |
+| [Tap Duel](games/tap-duel.md) | *The fastest thumb in the room takes the round* | touch | 2–8 | 🎮 `pistol` live · `sprint`/`simon` to come |
 | Ghost Tag | *One ghost, a whole neighbourhood, and a map that only whispers* | GPS | 3–10 | 💡 idea |
 | Zone Rush | *Claim real streets by standing on them longer than your rivals* | GPS | 2–10 | 💡 idea |
 | Compass Hunt | *Follow the arrow to the treasure — so is everyone else* | compass + GPS | 2–10 | 💡 idea |
