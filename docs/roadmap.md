@@ -47,5 +47,6 @@ answer here *and* in the doc it affects.
 | 2026-08-01 | Hub sells a game with one illustration + one catchy sentence | [design/ui-guidelines.md](design/ui-guidelines.md), [specs/hub.md](specs/hub.md) |
 | 2026-08-01 | Mobile web only, no install, no accounts, nothing persisted | [../README.md](../README.md), [architecture.md](architecture.md) |
 | 2026-08-01 | **D4 hosting**: shared host, deployed by GitHub Actions over SFTP | [deployment.md](deployment.md) |
-| 2026-08-01 | Branch model `feature → dev → prod`, each of `dev`/`prod` auto-deploying to its own host via a same-named GitHub Environment | [deployment.md](deployment.md), [../AGENTS.md](../AGENTS.md) §5 |
+| 2026-08-01 | ~~Branch model `feature → dev → prod`~~ — superseded below. `dev`/`prod` auto-deploy to their own host via a same-named GitHub Environment | [deployment.md](deployment.md), [../AGENTS.md](../AGENTS.md) §5 |
+| 2026-08-02 | **Branch model**: `main` is trunk and default branch (deploys nothing); `dev`/`prod` are fast-forwarded from `main` to deploy. Work branches are `feat/` · `fix/` · `docs/` · `chore/`. Replaces the vendor-prefixed default branch the repo was created with | [conventions/commits.md](conventions/commits.md), [deployment.md](deployment.md), [../AGENTS.md](../AGENTS.md) §5 |
 | 2026-08-01 | Only `www/` is published; docs and repo metadata never reach the server | [deployment.md](deployment.md) §5 |
