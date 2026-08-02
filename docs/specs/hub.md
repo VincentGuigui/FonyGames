@@ -38,6 +38,10 @@ play something in under ten seconds.
 - Cards are ordered: `live` first (most-played-looking order is fine — a fixed
   curated order for now), then `beta`, then `soon` (dimmed, not tappable, no
   link).
+- **Runtime feature flags** can additionally grey out or hide a card; see
+  [backoffice.md](backoffice.md) §2b. They are orthogonal to `status`, and the
+  grid paints from the compiled registry first so the flag fetch never delays
+  first render.
 - Illustrations are lazy-loaded; a coloured placeholder holds the space so the
   grid never jumps.
 

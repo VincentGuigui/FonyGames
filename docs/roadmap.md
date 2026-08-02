@@ -12,7 +12,7 @@
 | M5 | **Second & third games** | Prove `core/` is reusable; add Tap Duel's `sprint`/`simon`; build Bump Relay | ▶️ next |
 | M6 | **Polish** | Illustrations, sounds, PWA shell, perf budgets enforced | |
 | M7 | **Field test** | Real party, real phones; fix what confused people | |
-| M8 | **Backoffice** | Health, Cloudflare usage vs free tier, aggregate game activity. Spec: [specs/backoffice.md](specs/backoffice.md) | |
+| M8 | **Backoffice** | Health, Cloudflare usage vs free tier, aggregate activity, **feature flags per game**. Spec: [specs/backoffice.md](specs/backoffice.md) | |
 | M9 | **Smart join** | Draw-across-devices join (flagship) + shake-together fallback. Spec: [specs/join.md](specs/join.md) | |
 
 ## Open decisions
@@ -60,4 +60,5 @@ answer here *and* in the doc it affects.
 | 2026-08-02 | **Smart join**: "draw across devices on a table" is the flagship — the only method that also yields relative device positions. Shake-together is the fallback; bump is rejected for joining (pairwise). GPS is a coarse gate, never proof | [specs/join.md](specs/join.md) |
 | 2026-08-02 | **Backoffice activity metrics are anonymous aggregates only** — no per-player tracking, ever. Otherwise the about-sheet privacy promise becomes a lie | [specs/backoffice.md](specs/backoffice.md) §1 |
 | 2026-08-02 | **A page refresh must keep your seat, name and host role.** Seat id in `sessionStorage` (per tab); host promotion deferred by `HOST_GRACE_MS` so reloading does not hand the role away | [realtime-server.md](realtime-server.md) §4 |
+| 2026-08-02 | **Feature flags per game**: three states (`active` / `disabled` / `hidden`), separate per environment, held in a singleton Durable Object. dev always shows every game with a badge stating its real state. Enforced in the Worker, not just hidden on the hub — a shared link bypasses the grid. In-flight games finish. Fail-open, so a flag is not a security control | [specs/backoffice.md](specs/backoffice.md) §2b |
 | 2026-08-02 | **D1/D2 stack**: Vite + TypeScript (`strict`) + Preact + plain CSS. **D6**: hub shell first, then Tap Duel | [architecture.md](architecture.md) §2 |
