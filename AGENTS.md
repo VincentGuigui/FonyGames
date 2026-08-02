@@ -45,7 +45,7 @@ file under 200 lines** — put detail in `docs/`, not here.
 /docs/specs           hub spec + one file per game under /docs/specs/games
 /www                  source of the site (hub + games) — compiled, not served
 /worker               the room server: Cloudflare Durable Objects
-/shared               wire protocol used by both www/ and worker/
+/shared               wire protocol *and game maths* shared by www/ and worker/
 /dist                 build output — generated, gitignored, deployed
 ```
 
@@ -96,8 +96,10 @@ Nothing outside those ships. Nothing outside `docs/` documents.
    [docs/specs/README.md](./docs/specs/README.md), commit as `spec:`.
 2. **Validate.** Get maintainer approval on the spec before writing code.
 3. **Build.** Implement under `www/`, incrementally, committing each step.
-4. **Test.** Run the checks in [docs/testing.md](./docs/testing.md); at minimum
-   verify on a real phone (or device emulation) before declaring done.
+4. **Test.** `npm run typecheck && npm test`, then the checks in
+   [docs/testing.md](./docs/testing.md); at minimum verify on a real phone (or
+   device emulation) before declaring done. Any scoring, timing or win rule
+   gets a test in the same commit series.
 5. **Document.** Update the spec and any affected doc in the same commit series.
 6. **Push & ship.** Work on a `feat/` · `fix/` · `docs/` · `chore/` branch,
    `git push -u origin <branch>`, then merge into **`main`** (trunk, deploys

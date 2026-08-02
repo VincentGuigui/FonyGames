@@ -29,6 +29,13 @@ export type RoomEvents = {
   /** You tapped before the signal. Sent only to the offender. */
   falseStart: (roundId: number) => void;
   result: (result: RoundResult) => void;
+  /**
+   * Every message this class does not handle as a room-level concern, forwarded
+   * verbatim. Games subscribe here rather than each one adding a handful of
+   * named events — Tap Duel's three predate this and are kept for clarity, but
+   * nothing new should grow the surface above.
+   */
+  game: (msg: ServerMessage) => void;
 };
 
 const BACKOFF_MS = [500, 1000, 2000, 4000, 8000, 15000];
@@ -189,6 +196,16 @@ export class RoomClient {
         if (msg.d.code === 'room-full' || msg.d.code === 'bad-room-code') {
           this.#closedByUs = true;
         }
+        return;
+
+      default:
+        // Sequenced game frames get the same out-of-order guard as presence:
+        // after a reconnect the server may replay state we have already seen.
+        if ('s' in msg) {
+          if (msg.s <= this.#seq) return;
+          this.#seq = msg.s;
+        }
+        this.#handlers.game?.(msg);
         return;
     }
   }

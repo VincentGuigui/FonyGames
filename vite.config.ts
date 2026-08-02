@@ -14,11 +14,13 @@ export default defineConfig({
     // could not rely on having on the shared host.
     // Rollup resolves these from the working directory (the repo root), not
     // from Vite's `root`. Written this way to avoid pulling in @types/node
-    // just to get __dirname for two entry points.
+    // just to get __dirname for the entry points.
     rollupOptions: {
       input: {
         hub: 'www/index.html',
         'tap-duel': 'www/tap-duel/index.html',
+        spill: 'www/spill/index.html',
+        'goat-siege': 'www/goat-siege/index.html',
       },
     },
     // Payload budget in docs/architecture.md §4 is 150 KB gzipped for the hub.

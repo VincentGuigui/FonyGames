@@ -58,6 +58,25 @@ are a `WeakMap` and deliberately disposable.
 | Grace expiry | The alarm removes them and re-broadcasts presence. |
 | Host drops | The role is **held for `HOST_GRACE_MS` (8 s)**, then passed to another connected player by the alarm. |
 
+### One alarm slot, four things that want it
+
+A Durable Object has exactly **one** alarm. Four deadlines compete for it: a Tap
+Duel timeout, a Bump Relay fuse, a Spill drop landing, and seat/host
+housekeeping.
+
+Every subsystem calling `storage.setAlarm()` directly does not work — whichever
+ran last silently cancels the others, so a duel timeout could swallow a pending
+seat reap, and a reap could swallow a drop in mid-air. Both are the kind of bug
+that only shows up under a specific interleaving.
+
+So: **nothing outside `Room` sets the alarm.** The game modules save their state
+and call `ctx.setAlarm()`, which Room implements as `#rearm()` — ignoring the
+requested time and recomputing the earliest deadline across every subsystem from
+persisted state. `alarm()` likewise never assumes it was woken for its own
+reason: it runs whatever is actually due, then re-arms from scratch.
+
+A module cannot know what else wants the slot, so it is not allowed to decide.
+
 ### Why refresh is the hard case
 
 A page refresh destroys the JS context, so the seat id has to survive outside

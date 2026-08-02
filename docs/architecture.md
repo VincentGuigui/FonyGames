@@ -102,7 +102,14 @@ dist/                   build output — generated, gitignored, deployed
 | `npm run dev` | Vite dev server, bound to `0.0.0.0` so a phone on the LAN can open it |
 | `npm run build` | `tsc --noEmit` then `vite build` → `dist/` |
 | `npm run typecheck` | Types only — site **and** worker (two tsconfigs) |
+| `npm test` | Game-logic harness on plain Node ([testing.md](testing.md) §1.1) |
 | `npm run worker:dev` | `wrangler dev` on :8787, fully local |
+
+Each game page is its own Vite entry (`rollupOptions.input`) with a real
+`index.html`, so static hosting serves `/spill/` straight from disk and needs no
+SPA rewrite. **Adding a game means adding an entry there** as well as a card in
+the registry. Rollup resolves those paths from the working directory, not from
+Vite's `root`.
 
 ### Game contract
 

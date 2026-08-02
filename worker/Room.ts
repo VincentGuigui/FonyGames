@@ -29,6 +29,28 @@ import {
   type Relay,
 } from './bumpRelay';
 import {
+  nextDeadline as spillDeadline,
+  onCatch as spillCatch,
+  onFling as spillFling,
+  onPlayerGone as spillPlayerGone,
+  startSpill,
+  tick as spillTick,
+  toState,
+  type Ctx as SpillCtx,
+  type Spill,
+} from './spill';
+import {
+  nextDeadline as siegeDeadline,
+  onLob as siegeLob,
+  onPlayerGone as siegePlayerGone,
+  onShoo as siegeShoo,
+  startSiege,
+  tick as siegeTick,
+  toState as siegeToState,
+  type Ctx as SiegeCtx,
+  type Siege,
+} from './goatSiege';
+import {
   randomAvatar,
   randomName,
   sanitiseAvatar,
@@ -134,6 +156,35 @@ export class Room extends DurableObject {
         if (id) await relayPass(this.#relayCtx(), id, msg.d.roundId, msg.d.to);
         return;
       }
+      case 'fling': {
+        const id = this.#idOf(ws);
+        if (id) {
+          await spillFling(
+            this.#spillCtx(),
+            id,
+            msg.d.roundId,
+            msg.d.angle,
+            msg.d.speed,
+            msg.d.dropId,
+          );
+        }
+        return;
+      }
+      case 'catch': {
+        const id = this.#idOf(ws);
+        if (id) await spillCatch(this.#spillCtx(), id, msg.d.roundId, msg.d.dropId);
+        return;
+      }
+      case 'lob': {
+        const id = this.#idOf(ws);
+        if (id) await siegeLob(this.#siegeCtx(), id, msg.d.roundId, msg.d.to);
+        return;
+      }
+      case 'shoo': {
+        const id = this.#idOf(ws);
+        if (id) await siegeShoo(this.#siegeCtx(), id, msg.d.roundId, msg.d.goatId);
+        return;
+      }
     }
   }
 
@@ -146,24 +197,39 @@ export class Room extends DurableObject {
   }
 
   /**
-   * One alarm slot serves three deadlines: a live duel's timeout, a dropped
-   * host's grace, and a dropped player's seat grace. The duel is always the
-   * nearest when one is running, so it is checked first.
+   * There is exactly **one** alarm slot, and four things want it: a live duel's
+   * timeout, a relay fuse, a spill drop landing, and seat/host housekeeping.
+   *
+   * So the handler never assumes it was woken for its own reason. It runs every
+   * deadline that is actually due, then re-arms from scratch via #rearm().
+   * Anything else lets one subsystem silently cancel another's alarm.
    */
   async alarm(): Promise<void> {
     const duel = await this.#duel();
     if (duel && duel.phase === 'armed' && Date.now() >= duel.fireAt + DUEL_TIMEOUT_MS) {
-      // Nobody tapped in time. #resolveDuel restores the housekeeping alarm.
+      // Nobody tapped in time. #resolveDuel re-arms on its way out.
       await this.#resolveDuel();
       return;
     }
 
     const relay = await this.#relay();
     if (relay && relay.phase === 'running' && Date.now() >= Math.min(relay.fuseAt, relay.endsAt)) {
-      const over = await relayFuse(this.#relayCtx());
-      // onFuse re-arms its own alarm while the round continues.
-      if (!over) return;
-      await this.#scheduleReap(await this.#players());
+      await relayFuse(this.#relayCtx());
+      await this.#rearm();
+      return;
+    }
+
+    const spill = await this.#spill();
+    if (spill && spill.phase === 'running' && Date.now() >= spillDeadline(spill)) {
+      await spillTick(this.#spillCtx());
+      await this.#rearm();
+      return;
+    }
+
+    const siege = await this.#siege();
+    if (siege && siege.phase === 'running' && Date.now() >= siegeDeadline(siege)) {
+      await siegeTick(this.#siegeCtx());
+      await this.#rearm();
       return;
     }
 
@@ -175,6 +241,12 @@ export class Room extends DurableObject {
       if (!p.connected && now - (p.goneAt ?? 0) >= RECONNECT_GRACE_MS) {
         players.delete(id);
         changed = true;
+        // Only *now* is a Spill player genuinely gone. Doing this when the
+        // socket closed would knock anyone who refreshed out of the round,
+        // which is precisely what the reconnect grace exists to prevent
+        // (docs/specs/games/spill.md §8).
+        await spillPlayerGone(this.#spillCtx(), id);
+        await siegePlayerGone(this.#siegeCtx(), id);
       }
     }
     if (changed) await this.#savePlayers(players);
@@ -197,7 +269,7 @@ export class Room extends DurableObject {
       return;
     }
 
-    await this.#scheduleReap(players);
+    await this.#rearm(players);
   }
 
   /* ----------------------- Tap Duel: pistol ------------------------ */
@@ -213,14 +285,22 @@ export class Room extends DurableObject {
     if (duel && duel.phase !== 'done') return; // one round at a time
     const relay = await this.#relay();
     if (relay && relay.phase !== 'done') return;
+    const running = await this.#spill();
+    if (running && running.phase !== 'done') return;
+    const besieged = await this.#siege();
+    if (besieged && besieged.phase !== 'done') return;
 
     const players = await this.#players();
     const ready = [...players.values()].filter((p) => p.connected);
 
-    if (mode === 'relay') {
+    if (mode === 'relay' || mode === 'spill' || mode === 'siege') {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
-      await startRelay(this.#relayCtx(), roundId, ready.map((p) => p.id));
+      const ids = ready.map((p) => p.id);
+      if (mode === 'relay') await startRelay(this.#relayCtx(), roundId, ids);
+      else if (mode === 'spill') await startSpill(this.#spillCtx(), roundId, ids);
+      else await startSiege(this.#siegeCtx(), roundId, ids);
+      await this.#rearm(players);
       return;
     }
 
@@ -246,7 +326,7 @@ export class Room extends DurableObject {
 
     // The server owns the timer, not the host — so a host dropping mid-duel
     // cannot stall it. This alarm resolves the duel if nobody taps.
-    await this.#armDeadline(fireAt + DUEL_TIMEOUT_MS);
+    await this.#rearm(players);
   }
 
   async #onTap(ws: WebSocket, d: { at: number; roundId: number }): Promise<void> {
@@ -315,7 +395,6 @@ export class Room extends DurableObject {
 
     await this.ctx.storage.put('scores', scores);
     await this.#saveDuel({ ...duel, phase: 'done' });
-    await this.ctx.storage.deleteAlarm();
 
     this.#broadcast({
       t: 'result',
@@ -330,23 +409,20 @@ export class Room extends DurableObject {
     });
 
     // Hand the alarm back to seat/host housekeeping.
-    await this.#scheduleReap(players);
-  }
-
-  /**
-   * The duel deadline shares the single alarm slot with seat reaping. It is
-   * always the nearer of the two, so it takes precedence while a duel is live;
-   * #resolveDuel restores the housekeeping schedule afterwards.
-   */
-  async #armDeadline(at: number): Promise<void> {
-    await this.ctx.storage.setAlarm(at);
+    await this.#rearm(players);
   }
 
   async #relay(): Promise<Relay | null> {
     return (await this.ctx.storage.get<Relay>('relay')) ?? null;
   }
 
-  /** Everything bumpRelay.ts needs, without giving it socket access. */
+  /**
+   * Everything bumpRelay.ts needs, without giving it socket access.
+   *
+   * `setAlarm` ignores the requested time on purpose: the module has already
+   * saved the state that implies its deadline, so #rearm recomputes the correct
+   * one across *all* subsystems. A module cannot know what else wants the slot.
+   */
   #relayCtx(): RelayCtx {
     return {
       now: () => Date.now(),
@@ -359,7 +435,37 @@ export class Room extends DurableObject {
       },
       load: () => this.#relay(),
       save: (relay) => this.ctx.storage.put('relay', relay),
-      setAlarm: (at) => this.ctx.storage.setAlarm(at),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #spill(): Promise<Spill | null> {
+    return (await this.ctx.storage.get<Spill>('spill')) ?? null;
+  }
+
+  #spillCtx(): SpillCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => ++this.#seq,
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#spill(),
+      save: (spill) => this.ctx.storage.put('spill', spill),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #siege(): Promise<Siege | null> {
+    return (await this.ctx.storage.get<Siege>('siege')) ?? null;
+  }
+
+  #siegeCtx(): SiegeCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => ++this.#seq,
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#siege(),
+      save: (siege) => this.ctx.storage.put('siege', siege),
+      setAlarm: () => this.#rearm(),
     };
   }
 
@@ -433,6 +539,19 @@ export class Room extends DurableObject {
       s: ++this.#seq,
       d: { you: id, serverTime: Date.now(), room },
     });
+
+    // Someone joining — or refreshing — into a live round needs the board, not
+    // just the player list. Everything in flight is described by arrivesAt, so
+    // one snapshot is enough to resume the animation exactly where it is.
+    const spill = await this.#spill();
+    if (spill && spill.phase === 'running') {
+      this.#send(ws, { t: 'spill', s: ++this.#seq, d: toState(spill) });
+    }
+    const siege = await this.#siege();
+    if (siege && siege.phase === 'running') {
+      this.#send(ws, { t: 'siege', s: ++this.#seq, d: siegeToState(siege) });
+    }
+
     await this.#broadcastPresence(ws);
   }
 
@@ -478,12 +597,15 @@ export class Room extends DurableObject {
     me.goneAt = Date.now();
 
     await this.#savePlayers(players);
+    // Relay must react immediately — the bomb cannot sit on an empty seat. A
+    // Spill player, by contrast, is only out once their seat is reaped, so a
+    // refresh keeps their water (see the reaping loop in alarm()).
     await relayPlayerGone(this.#relayCtx(), id);
     // No #ensureHost here: promoting the moment a socket drops is exactly
     // what stole the host role from anyone who refreshed. The alarm handles
     // it once HOST_GRACE_MS has passed.
     await this.#broadcastPresence();
-    await this.#scheduleReap(players);
+    await this.#rearm(players);
   }
 
   /**
@@ -513,24 +635,51 @@ export class Room extends DurableObject {
    * Next housekeeping moment: the earliest of any dropped player's seat
    * expiry and, if the host is among them, their (much shorter) host-role
    * expiry. Miss the host deadline and a genuinely departed host would hold
-   * the role for the full minute.
+   * the role for the full minute. Infinity when everybody is present.
    */
-  async #scheduleReap(players: Map<PlayerId, StoredPlayer>): Promise<void> {
+  async #housekeepingDue(players?: Map<PlayerId, StoredPlayer>): Promise<number> {
+    const map = players ?? (await this.#players());
     const hostId = (await this.ctx.storage.get<PlayerId>('hostId')) ?? null;
-    const deadlines: number[] = [];
+    let at = Infinity;
 
-    for (const p of players.values()) {
+    for (const p of map.values()) {
       if (p.connected) continue;
       const goneAt = p.goneAt ?? 0;
-      deadlines.push(goneAt + RECONNECT_GRACE_MS);
-      if (p.id === hostId) deadlines.push(goneAt + HOST_GRACE_MS);
+      at = Math.min(at, goneAt + RECONNECT_GRACE_MS);
+      if (p.id === hostId) at = Math.min(at, goneAt + HOST_GRACE_MS);
     }
+    return at;
+  }
 
-    if (deadlines.length === 0) {
+  /** Earliest deadline any live game still owes an answer for. */
+  async #gameDue(): Promise<number> {
+    const duel = await this.#duel();
+    if (duel?.phase === 'armed') return duel.fireAt + DUEL_TIMEOUT_MS;
+
+    const relay = await this.#relay();
+    if (relay?.phase === 'running') return Math.min(relay.fuseAt, relay.endsAt);
+
+    const spill = await this.#spill();
+    if (spill?.phase === 'running') return spillDeadline(spill);
+
+    const siege = await this.#siege();
+    if (siege?.phase === 'running') return siegeDeadline(siege);
+
+    return Infinity;
+  }
+
+  /**
+   * Point the one alarm slot at whichever deadline comes first. Every path that
+   * changes a deadline ends here rather than calling setAlarm itself, which is
+   * what keeps a landing drop from cancelling a seat reap and vice versa.
+   */
+  async #rearm(players?: Map<PlayerId, StoredPlayer>): Promise<void> {
+    const at = Math.min(await this.#housekeepingDue(players), await this.#gameDue());
+    if (!Number.isFinite(at)) {
       await this.ctx.storage.deleteAlarm();
       return;
     }
-    await this.ctx.storage.setAlarm(Math.min(...deadlines));
+    await this.ctx.storage.setAlarm(at);
   }
 
   async #broadcastPresence(except?: WebSocket): Promise<void> {
