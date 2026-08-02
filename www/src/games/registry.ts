@@ -71,8 +71,11 @@ export const GAMES: GameCard[] = [
     players: [2, 4],
     duration: '2–3 min',
     inputs: ['touch'],
-    modes: [],
-    status: 'soon',
+    modes: [
+      { id: 'patch', name: 'Patch', blurb: 'Six cabbages each, last garden standing' },
+    ],
+    // `beta`: playable, but §11 of the spec lists real balance questions.
+    status: 'beta',
   },
   {
     slug: 'shake-sprint',

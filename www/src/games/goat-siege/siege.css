@@ -1,0 +1,129 @@
+/*
+ * Goat Siege. Spec: docs/specs/games/goat-siege.md
+ *
+ * Layout only — the garden, the fence and the goats are all drawn in
+ * render.ts. Mirrors spill.css deliberately: the two boards behave the same
+ * way, so they should not be laid out two different ways.
+ */
+
+.siege {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  background: var(--color-bg);
+  --game-accent: #4ade80;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.siege__canvas {
+  grid-row: 1 / -1;
+  grid-column: 1;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+.siege__hud,
+.siege__lobbar,
+.siege__hint {
+  grid-column: 1;
+  z-index: 1;
+  /* The canvas is the input surface: tapping a goat must not be swallowed by
+     chrome it happens to fly behind. Buttons opt back in. */
+  pointer-events: none;
+}
+
+.siege__hud {
+  grid-row: 1;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: max(0.75rem, env(safe-area-inset-top)) 1rem 0;
+}
+
+.siege__hud::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 8rem;
+  background: linear-gradient(to bottom, rgb(13 15 20 / 85%), rgb(13 15 20 / 0%));
+  pointer-events: none;
+}
+
+.siege__hud > * {
+  position: relative;
+}
+
+.siege__count {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.siege__count strong {
+  font-size: 2.5rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.siege__count span {
+  font-size: 0.8rem;
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.siege__leave {
+  pointer-events: auto;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.siege__lobbar {
+  grid-row: 2;
+  position: relative;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  padding: 0 1rem;
+}
+
+.siege__lob {
+  pointer-events: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: 4rem;
+  padding: 0.5rem 0.4rem;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.siege__lob-name {
+  font-size: 0.7rem;
+  color: var(--color-text-dim);
+  max-width: 5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.siege__hint {
+  grid-row: 3;
+  position: relative;
+  margin: 0;
+  padding: 0.75rem 1rem max(0.75rem, env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text-dim);
+  background: rgb(13 15 20 / 92%);
+}
