@@ -63,7 +63,8 @@ constraint is the reason for the length limit, not neatness.
 Every game shows a gear in the **same corner**, opening a bottom sheet that
 always contains:
 
-- **How to play** — the rules array.
+- **How to play** — the concept and the bullets, via the same `HowToPlay`
+  component the lobby and the pre-round panel use (§2).
 - **Leave game** — a real `<a href="/">`, not a router call, because leaving the
   page is what drops the socket and frees the seat.
 
