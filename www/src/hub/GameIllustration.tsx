@@ -96,28 +96,29 @@ function motifBody(motif: GameMotif): JSX.Element {
       );
 
     case 'tap':
+      // The archer's target the game actually shows, plus a thumb coming in at
+      // it. The old motif was expanding rings — which read as a tap *ripple*,
+      // the thing that happens after, rather than the thing you are aiming at.
       return (
         <>
-          <Phone x={49} y={26} />
-          <circle cx={60} cy={45} r={8} fill="currentColor" />
-          <circle
-            cx={60}
-            cy={45}
-            r={16}
-            fill="none"
-            stroke="currentColor"
-            stroke-width={3}
-            opacity={0.6}
-          />
-          <circle
-            cx={60}
-            cy={45}
-            r={25}
-            fill="none"
-            stroke="currentColor"
-            stroke-width={3}
-            opacity={0.3}
-          />
+          {/* Rings outside in, in the archery colours the board uses. */}
+          <circle cx={56} cy={44} r={30} fill="#f4f1e8" />
+          <circle cx={56} cy={44} r={30} fill="none" stroke="currentColor" stroke-width={3} />
+          <circle cx={56} cy={44} r={23} fill="#14161c" />
+          <circle cx={56} cy={44} r={16} fill="#1f6feb" />
+          <circle cx={56} cy={44} r={10} fill="#d92d20" />
+          <circle cx={56} cy={44} r={4.5} fill="#f5c518" />
+
+          {/*
+            A finger coming in at it from the corner. Drawn as a rounded digit
+            with a knuckle and a nail — the first attempt was one wedge plus an
+            ellipse, which read as the tail of a speech bubble.
+          */}
+          <g transform="rotate(-38 96 68)">
+            <rect x={84} y={58} width={34} height={20} rx={10} fill="currentColor" />
+            <circle cx={116} cy={68} r={12} fill="currentColor" />
+            <ellipse cx={90} cy={68} rx={5} ry={7} fill="#10121a" opacity={0.3} />
+          </g>
         </>
       );
 
@@ -180,28 +181,40 @@ function motifBody(motif: GameMotif): JSX.Element {
       );
 
     case 'spill':
-      // Four phones flat in a square, seen from above, each with its top edge
-      // pointing at the middle — the arrangement *is* the game. Scaled down as
-      // a group because two upright phones do not otherwise fit the 120×90 box.
+      // Four phones flat in a square, each with its top edge pointing at the
+      // middle — the arrangement *is* the game — with a drop arcing between them.
+      //
+      // The phones are scaled down **harder than the drop** so the drop is the
+      // subject. Scaled together they filled the box and the water, which is what
+      // the game is about, was a detail lost in the middle of them.
       return (
-        <g transform="translate(60 45) scale(0.62) translate(-60 -45)">
-          <Phone x={49} y={-4} rotate={180} />
-          <Phone x={49} y={56} />
-          <Phone x={4} y={26} rotate={90} />
-          <Phone x={94} y={26} rotate={-90} />
+        <>
+          {/* The square of phones, kept a clean square so the arrangement still
+              reads — just small, with the drop outside it rather than over it. */}
+          <g transform="translate(46 53) scale(0.5) translate(-60 -45)">
+            <Phone x={49} y={-4} rotate={180} />
+            <Phone x={49} y={56} />
+            <Phone x={4} y={26} rotate={90} />
+            <Phone x={94} y={26} rotate={-90} />
+          </g>
+
+          {/* The arc it travels, then the drop, at full size and clear of them. */}
           <path
-            d="M52 62 Q60 30 68 34"
+            d="M50 64 Q64 58 76 48"
             fill="none"
             stroke="currentColor"
             stroke-width={4}
             stroke-dasharray="6 7"
             stroke-linecap="round"
+            opacity={0.7}
           />
           <path
-            d="M60 30 c7 9 11 13 11 18 a11 11 0 0 1-22 0 c0-5 4-9 11-18 Z"
+            d="M92 12 c10 14 16 21 16 28 a16 16 0 0 1-32 0 c0-7 6-14 16-28 Z"
             fill="currentColor"
           />
-        </g>
+          {/* A highlight, so a big flat teardrop still reads as liquid. */}
+          <ellipse cx={86} cy={38} rx={4} ry={5.5} fill="#10121a" opacity={0.32} />
+        </>
       );
 
     case 'goat':
@@ -215,11 +228,37 @@ function motifBody(motif: GameMotif): JSX.Element {
             <path d="M60 44 L60 60" />
             <path d="M94 44 L94 60" />
           </g>
-          <g fill="currentColor">
-            <circle cx={22} cy={72} r={8} />
-            <circle cx={44} cy={74} r={9} />
-            <circle cx={68} cy={72} r={8} />
-            <circle cx={90} cy={74} r={9} />
+          {/* Cabbages, not dots: leaf lobes and a curled heart, matching the
+              board (games/goat-siege/render.ts). Plain circles read as tokens. */}
+          <g>
+            {[
+              [22, 72, 9],
+              [45, 74, 10],
+              [68, 72, 9],
+              [91, 74, 10],
+            ].map(([cx, cy, r]) => (
+              <g key={`${cx}`} transform={`translate(${cx} ${cy})`}>
+                {[0, 1, 2, 3, 4].map((i) => {
+                  const a = -Math.PI / 2 + (i / 5) * Math.PI * 2 + 0.3;
+                  return (
+                    <ellipse
+                      key={i}
+                      cx={Math.cos(a) * r! * 0.5}
+                      cy={Math.sin(a) * r! * 0.4}
+                      rx={r! * 0.6}
+                      ry={r! * 0.42}
+                      transform={`rotate(${(a * 180) / Math.PI})`}
+                      fill="currentColor"
+                      opacity={0.55}
+                    />
+                  );
+                })}
+                <ellipse rx={r! * 0.78} ry={r! * 0.72} fill="currentColor" />
+                {/* The heart, as a small ring rather than a curl: at this size a
+                    single curved vein read as a crescent stuck on the front. */}
+                <circle r={r! * 0.3} fill="none" stroke="#10121a" stroke-width={1.6} opacity={0.4} />
+              </g>
+            ))}
           </g>
           {/*
             Goat in side profile, as one bold silhouette rather than stick
