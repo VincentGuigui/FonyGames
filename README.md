@@ -84,6 +84,7 @@ Index: **[docs/specs/README.md](docs/specs/README.md)**
 | **[Bump Relay](docs/specs/games/bump-relay.md)** | *Smash phones together to pass the bomb before it blows.* | Bump / motion | 📝 server built, phone UI to come |
 | **[Goat Siege](docs/specs/games/goat-siege.md)** | *Shoo the neighbours' goats before they eat your cabbages.* | Touch | 🎮 playable, beta |
 | **[Sling Puck](docs/specs/games/sling-puck.md)** | *Sling every puck onto their side before they sling them back.* | Touch | 🎮 playable, beta |
+| **[Cat and Mouse](docs/specs/games/cat-and-mouse.md)** | *One cat, a floor full of mice, and nowhere to hide.* | Touch | 📝 specced, not built |
 | **Shake Sprint** | *Shake like your life depends on it — first to the finish wins.* | Motion | 💡 idea |
 | **Tilt Arena** | *Tilt to steer, crash to win.* | Orientation | 💡 idea |
 | **Steady Hand** | *Hold your phone perfectly still. Longer than everyone else.* | Motion | 💡 idea |

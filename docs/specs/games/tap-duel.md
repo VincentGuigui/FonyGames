@@ -25,12 +25,12 @@ which is exactly why it goes first.
 1. Host starts the duel.
 2. A four-second rules panel holds every screen
    ([../../design/game-chrome.md](../../design/game-chrome.md) §4).
-3. Every screen shows **GET READY**, plus one line telling you what to do:
-   *A target will appear — tap it, and nothing before it*.
-4. After a random delay the server fires: an **archer's target appears somewhere
-   on screen**, in the same place on every phone.
-5. First valid tap **on the target** wins. Tapping anywhere before the signal is a
-   **false start** and knocks you out of that duel.
+3. An **archer's target appears at a random spot**, greyed out, in the same place
+   on every phone. Every screen shows **GET READY**: *thumb over the target, tap
+   it the moment it lights up*.
+4. After a random delay the server fires: the target **lights up**, in place.
+5. First valid tap **on the target** wins. Tapping anywhere before the signal —
+   the target included — is a **false start** and knocks you out of that duel.
 6. Results show everyone's reaction time, fastest first.
 7. Play again keeps the room and the scores.
 
@@ -68,23 +68,29 @@ Standard flow ([../../multiplayer.md](../../multiplayer.md) §3). Specifics:
   *Tap the instant this screen changes*. "WAIT" was tried first and read as an
   order to do nothing, which is the opposite of the intent. Nothing on this
   screen may leak the fire time: no countdown, no progress bar.
-- **Fire** — the viewport becomes the accent colour and an **archer's target**
-  appears at a random position. Only a tap on the target counts.
+- **Fire** — the viewport becomes the accent colour and the target **lights up**
+  where it already was. Only a tap on the target counts.
 
-  This replaces an earlier design where the whole screen was the target, on the
+  This replaces the original design where the whole screen was the target, on the
   reasoning that "aiming is not the skill being measured". Reaction alone turned
-  out to be a thin game: with a thumb already resting on the glass there is
-  nothing to do but twitch. Having to *find* and *reach* the target adds a second
-  skill without removing the first, and it is still the same one instant for
-  everyone.
+  out to be a thin game: with a thumb flat on the glass there is nothing to do but
+  twitch. A target makes the round **speed plus a little accuracy**.
 
-  Three properties it has to keep:
+  Four properties it has to keep:
 
   - **The server picks the position** and sends it on `arm`, so it is identical on
     every screen. Drawn per client, the round would go to whoever got the
     luckiest placement.
-  - **It appears only on the signal.** Shown while armed, players would park a
-    thumb on it and nothing would have changed.
+  - **It is on screen for the whole round**, greyed while armed and lit on the
+    signal, and it **does not move** when it lights up. An intermediate version
+    revealed it only on the signal; that made *finding* it most of the reaction
+    time, which is a hunt rather than a duel — the player should be aiming at
+    something they can see, not guessing. The reversal is the maintainer's call and
+    it is the right one: it keeps the reflex intact and adds accuracy, instead of
+    replacing the reflex with search.
+  - **It takes no taps until the signal.** While armed it is inert, so a tap on it
+    falls through to the backdrop and is scored as the false start it is. Making it
+    a live button early would have created a hole in the one rule the mode has.
   - **It never lands under the gear or off an edge** — `TARGET_MIN/MAX_X/Y` inset
     it. A target you cannot tap without opening the menu is not a target.
 
@@ -195,12 +201,12 @@ nothing is stored at all.
 ## 11. Accessibility
 
 - **Reaching a target does need aiming**, which the full-screen version did not.
-  The target is deliberately large — `min(42vw, 42vh, 15rem)`, far above the 44 px
-  minimum — and it is one element with one focus stop, so a keyboard or switch
-  user activates it the same way. It is a real cost to anyone who cannot reach
-  across a screen quickly, and it buys the game its second skill; `sprint` and
-  `simon` (§3) do not use a target, so the mode list still offers a duel without
-  one.
+  Three things keep the cost small: the target is **large** (`min(42vw, 42vh,
+  15rem)`, far above the 44 px minimum), it is **visible from the start** so there
+  is no time pressure on finding it, and it is one element with one focus stop, so
+  a keyboard or switch user activates it the same way. It is still a real cost to
+  anyone who cannot move a thumb across a screen quickly; `sprint` and `simon`
+  (§3) use no target, so the mode list keeps a duel without one.
 - The target reads by **shape** (concentric rings) as well as colour, so it does
   not depend on distinguishing red from gold.
 - The signal is **colour + text + a layout change**, never colour alone.

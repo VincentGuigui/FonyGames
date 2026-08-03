@@ -30,6 +30,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Spill](games/spill.md) | *Fling your water at the neighbours before they flood you* | touch | 2–4 | 🎮 `ring` beta — numbers untested on a real table |
 | [Goat Siege](games/goat-siege.md) | *Shoo the neighbours' goats before they eat your cabbages* | touch | 2–4 | 🎮 beta — balance untested |
 | [Sling Puck](games/sling-puck.md) | *Sling every puck onto their side before they sling them back* | touch | 2 | 🎮 `classic` beta — puck count and gap width untested |
+| [Cat and Mouse](games/cat-and-mouse.md) | *One cat, a floor full of mice, and nowhere to hide* | touch | 2–6 | 📝 draft — **not built** |
 
 ### Idea notes (not yet specs)
 
@@ -57,6 +58,11 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 - **Goat Siege** — lob goats into a neighbour's vegetable patch; shooing one
   splits it into two kids that scatter. Last cabbage standing wins. Full spec
   written.
+- **Cat and Mouse** — one player is the cat, the rest are mice on one shared
+  floor; drag your own icon and it stops the moment you let go. Three lives each.
+  The **first Profile B game** in the catalogue — the cat and the mice have to see
+  each other, so positions genuinely go on the wire. Full spec written; awaiting a
+  go-ahead before any code.
 - **Sling Puck** — *passe-trappe* on two phones nose to nose. Each phone
   simulates its own half of the board locally at 60 fps; the only thing on the
   wire is a puck crossing the gap, which is what keeps continuous physics inside
