@@ -63,7 +63,7 @@ you let one through on purpose because you are already swamped.
 
 - **Lobby** — standard, plus who you can lob at.
 - **Rules panel** — four seconds at the top of every round
-  ([../../design/game-chrome.md](../../design/game-chrome.md) §3). Lobbing is
+  ([../../design/game-chrome.md](../../design/game-chrome.md) §4). Lobbing is
   rejected server-side until it clears.
 - **Patch** — your garden across the bottom, cabbages as discrete objects so
   damage is legible at a glance. Sky above, goats arcing in. A drag from your

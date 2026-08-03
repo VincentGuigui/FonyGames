@@ -24,7 +24,7 @@ which is exactly why it goes first.
 
 1. Host starts the duel.
 2. A four-second rules panel holds every screen
-   ([../../design/game-chrome.md](../../design/game-chrome.md) §3).
+   ([../../design/game-chrome.md](../../design/game-chrome.md) §4).
 3. Every screen shows **GET READY**, plus one line telling you what to do:
    *Tap the instant this screen changes*.
 4. After a random delay the server fires: every screen flips to **TAP**.

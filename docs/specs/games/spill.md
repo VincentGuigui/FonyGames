@@ -97,7 +97,7 @@ and the convention becomes a fallback rather than a requirement.
 
 1. Everyone lays their phone out per the diagram; host starts.
 2. A four-second rules panel holds every screen
-   ([../../design/game-chrome.md](../../design/game-chrome.md) §3). Flinging is
+   ([../../design/game-chrome.md](../../design/game-chrome.md) §4). Flinging is
    rejected server-side until it clears, so nobody gets a head start by
    dismissing it.
 3. Each phone begins with **20 drops** — the water sits at half height, moving.
