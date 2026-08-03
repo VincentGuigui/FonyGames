@@ -11,7 +11,13 @@ import {
   SPILL_START_LEVEL,
   type ServerMessage,
 } from '../shared/protocol';
-import { screenAngleTo } from '../shared/spillGeometry';
+import {
+  SPILL_NOMINAL_ASPECT,
+  bounceArriving,
+  bounceLeaving,
+  foldInto,
+  screenAngleTo,
+} from '../shared/spillGeometry';
 import {
   nextDeadline,
   onCatch,
@@ -135,6 +141,19 @@ async function preRound(): Promise<void> {
   h.advance(200);
   await onFling(h.ctx, A, 1, screenAngleTo(0, 1, 2), 3);
   check('allowed once play begins', h.of('drop').length === 1);
+
+  // "Play again" gets no panel and therefore no window: everyone has just read
+  // the rules and played a round. A window with the panel suppressed would only
+  // be four silent seconds of a board that looks live (protocol.ts preroundFor).
+  const again = harness();
+  await startSpill(again.ctx, 2, [A, B]);
+  const replay = again.last('spill');
+  check('a replay starts immediately', replay?.d.startsAt === again.at(), {
+    startsAt: replay?.d.startsAt,
+    now: again.at(),
+  });
+  await onFling(again.ctx, A, 2, screenAngleTo(0, 1, 2), 3);
+  check('and takes a fling straight away', again.of('drop').length === 1);
 }
 
 async function aimingAndLock(): Promise<void> {
@@ -354,7 +373,106 @@ async function cheating(): Promise<void> {
   check('B has not lost water to a bad frame', h.state().levels[B] === SPILL_START_LEVEL);
 }
 
-for (const t of [seating, preRound, aimingAndLock, catching, soaking, winning, flooding, leaving, cheating]) {
+
+/**
+ * The two-player flight path. Spec: docs/specs/games/spill.md §4a
+ *
+ * Pure geometry, so it gets checks rather than a look at the screen. What matters
+ * is not that it looks like a bounce — it is that **both phones agree**, since
+ * each computes its own half of the same line and nothing on the wire carries the
+ * crossing point.
+ */
+async function bouncing(): Promise<void> {
+  console.log('\nthe two-player bounce path');
+
+  const A = SPILL_NOMINAL_ASPECT;
+
+  check('folding leaves an inside value alone', Math.abs(foldInto(0.2, A) - 0.2) < 1e-12);
+  check('folding reflects an overshoot', Math.abs(foldInto(A + 0.1, A) - (A - 0.1)) < 1e-12);
+  check('and an undershoot', Math.abs(foldInto(-0.1, A) - 0.1) < 1e-12);
+  // Many bounces, not just one: a hard sideways flick crosses the board repeatedly.
+  check('and keeps folding however far out it goes',
+    foldInto(A * 7.3, A) >= 0 && foldInto(A * 7.3, A) <= A, foldInto(A * 7.3, A));
+
+  // Straight up the middle is the case a player will check first.
+  for (const p of [0, 0.25, 0.5, 0.75, 1]) {
+    check(`straight up stays in the middle at p=${p}`,
+      Math.abs(bounceLeaving(0, p).x - 0.5) < 1e-12, bounceLeaving(0, p));
+  }
+  check('and comes down the middle of theirs',
+    Math.abs(bounceArriving(0, 0.5).x - 0.5) < 1e-12, bounceArriving(0, 0.5));
+
+  // The legs meet: my top edge is their top edge.
+  check('the leaving leg starts at my middle',
+    bounceLeaving(0.6, 0).y === 0.5, bounceLeaving(0.6, 0));
+  check('and ends at the join', bounceLeaving(0.6, 1).y === 0, bounceLeaving(0.6, 1));
+  check('the arriving leg starts at the join', bounceArriving(0.6, 0).y === 0);
+  check('and ends at their middle', bounceArriving(0.6, 1).y === 0.5);
+
+  // The handoff. Their screen is mirrored, so the same point is 1 - x.
+  for (const angle of [0, 0.3, -0.45, 0.9, -1.05]) {
+    const out = bounceLeaving(angle, 1).x;
+    const inn = bounceArriving(angle, 0).x;
+    check(`the crossing point matches at angle ${angle}`, Math.abs(out + inn - 1) < 1e-9, {
+      out,
+      inn,
+    });
+  }
+
+  // **Direction survives the crossing.** Moving left on my screen is moving right
+  // on theirs, because theirs is mirrored — that is what "keeps the direction"
+  // means physically, and it falls out of the mirror rather than being preserved
+  // by hand.
+  for (const angle of [0.3, -0.45, 0.9]) {
+    const dOut = bounceLeaving(angle, 1).x - bounceLeaving(angle, 0.98).x;
+    const dIn = bounceArriving(angle, 0.02).x - bounceArriving(angle, 0).x;
+    check(`direction carries over at angle ${angle}`, Math.sign(dOut) === -Math.sign(dIn), {
+      dOut,
+      dIn,
+    });
+  }
+
+  // It must never be drawn off the screen, at any angle the server will accept.
+  let escaped: unknown = null;
+  for (const angle of [0, 0.2, -0.2, 0.6, -0.6, 1.0, -1.0, 1.09, -1.09]) {
+    for (let i = 0; i <= 200; i++) {
+      const a = bounceLeaving(angle, i / 200);
+      const b = bounceArriving(angle, i / 200);
+      for (const at of [a, b]) {
+        if (at.x < -1e-9 || at.x > 1 + 1e-9 || at.y < -1e-9 || at.y > 0.5 + 1e-9) {
+          escaped = { angle, at };
+        }
+      }
+    }
+  }
+  check('it never leaves the screen', escaped === null, escaped);
+
+  // A sideways flick has to actually reach an edge, or "bounce" is a lie.
+  let touchedEdge = false;
+  for (let i = 0; i <= 200; i++) {
+    const x = bounceLeaving(1.0, i / 200).x;
+    if (x < 0.02 || x > 0.98) touchedEdge = true;
+  }
+  check('a hard sideways flick reaches an edge', touchedEdge);
+  // And a gentle one does not — otherwise every throw would look the same.
+  let straightish = true;
+  for (let i = 0; i <= 200; i++) {
+    const x = bounceLeaving(0.1, i / 200).x;
+    if (x < 0.02 || x > 0.98) straightish = false;
+  }
+  check('a gentle one does not', straightish);
+
+  // Mirror symmetry: flicking left is flicking right, reflected.
+  let mirrored = true;
+  for (let i = 0; i <= 50; i++) {
+    const p = i / 50;
+    if (Math.abs(bounceLeaving(0.7, p).x + bounceLeaving(-0.7, p).x - 1) > 1e-9) mirrored = false;
+    if (Math.abs(bounceArriving(0.7, p).x + bounceArriving(-0.7, p).x - 1) > 1e-9) mirrored = false;
+  }
+  check('left and right are mirror images', mirrored);
+}
+
+for (const t of [seating, preRound, aimingAndLock, catching, soaking, winning, flooding, leaving, cheating, bouncing]) {
   await t();
 }
 
