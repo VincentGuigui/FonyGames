@@ -118,6 +118,60 @@ from the flick speed and the distance to the screen edge, clamped to
 until then. The client animates the same interval, so the rule reads as physical
 rather than as a cooldown.
 
+## 4a. Two players: the drop bounces
+
+With three or four phones the ring is the game — you pick a neighbour and aim at
+them. With **two** it degenerates: there is one opponent, so a flick either hits
+them or sails off the table, and the direction you flicked stops meaning anything.
+
+So with two players the drop **bounces off the left and right edges** and keeps
+going, and when it crosses the join onto the other screen it **keeps its
+direction**. Now the flick chooses *where on their screen* it arrives and *from
+which side* — which is worth being good at, and worth watching.
+
+The geometry (`shared/spillGeometry.ts`):
+
+- The two half-boards are one strip. The whole flight is a **single straight
+  line** through it, reflected off the sides; the bounces are the folding, not
+  extra cases.
+- The receiver's screen is the mirrored continuation of that line, so the handoff
+  is `x → A − x` and nothing has to *preserve* the direction — it survives
+  because the mirror is the crossing. The same trick as Sling Puck's rotation
+  ([sling-puck.md](sling-puck.md) §4).
+- The strip is `SPILL_NOMINAL_ASPECT` wide (0.46 — a nominal phone), **not** the
+  real screen. Both ends have to agree on where the drop crosses, and they cannot
+  agree on something only one of them can measure. Nothing new goes on the wire:
+  the flick angle already there is enough for both to compute their own half.
+- A drop that **missed** the table has no path to the other side, so it still
+  just sails off along its angle. Flicking backwards is still how you throw water
+  on the floor.
+
+The aim preview draws the bounces too. A preview that showed a straight line
+would be showing the player something that is not going to happen.
+
+It follows that the splash lands **where the path ran out**, not in the middle of
+the screen — which is the visible payoff for aiming.
+
+## 4b. Everyone else's count, where they are
+
+Each other player's avatar and current count are drawn **at their real position
+around the table**, using the same bearing that aims a flick at them
+(`screenAngleTo`).
+
+Two reasons it goes there rather than in a list:
+
+- It is the score. Spill is a race to empty, so who is close to winning is the
+  single most useful thing on screen, and the throw row at the bottom did not
+  carry it.
+- It reinforces the one convention the game depends on. A number that sits in the
+  direction of the person holding that phone teaches the table layout every time
+  you glance at it.
+
+Every other seat is across the table from you, and your top edge points at the
+table centre, so **every marker lands in the upper part of the screen** — the
+bottom stays clear for the throw row. That is a property of the seating, not a
+layout fudge.
+
 ## 5. Catching
 
 While a drop is travelling toward you, it is visible on your screen for
@@ -151,10 +205,8 @@ games/spill/
   game.ts          rules, state, networking — no drawing, no theme words
   render.ts        canvas loop; asks the theme what to draw
   themes/
-    index.ts       the Theme interface + registry
-    water.ts       default
-    balloon.ts     water balloons
-    poo.ts         inevitable
+    index.ts       the Theme interface
+    water.ts       the one theme
 ```
 
 A theme supplies everything visual and nothing else:
@@ -162,7 +214,7 @@ A theme supplies everything visual and nothing else:
 ```ts
 export type Theme = {
   id: string;
-  name: string;              // shown in the lobby picker
+  name: string;
   accent: string;
   /** The pool at the bottom of the screen. `level` is 0..1. */
   drawPool(ctx: CanvasRenderingContext2D, level: number, t: number): void;
@@ -174,31 +226,32 @@ export type Theme = {
 };
 ```
 
-Adding a theme is adding one file and one registry line. **No theme may change
-the rules** — sizes, speeds and counts live in `game.ts`.
+Adding a theme is adding one file. **No theme may change the rules** — sizes,
+speeds and counts live in `game.ts`.
 
 ### As built
 
 The real interface takes a `ThemeDraw` bundle (`ctx`, `w`, `h`, `t`, `calm`)
-rather than a long argument list, and adds `drawBackdrop`. Two themes ship:
-`water` (default) and `balloon`. The second exists to keep the first honest —
-balloons are **discrete objects**, not a liquid, so if `Theme` only worked for
-things that slosh it would be water with a colour knob rather than an
-abstraction.
+rather than a long argument list, and adds `drawBackdrop`.
 
-Rules the registry enforces on any new theme:
+**One theme ships: `water`, and it is not a player-facing setting.** A `balloon`
+theme was built alongside it to prove the interface was a real abstraction rather
+than water with a colour knob — balloons are discrete objects, not a liquid, so
+they exercised parts of `Theme` water never touched. It did its job and has been
+**removed**: the maintainer did not want it in the game, and a picker with one
+entry is not a picker. What the exercise leaves behind is the interface itself,
+and the confidence that a second look would slot in without touching `game.ts`.
+
+Rules any future theme still has to keep:
 
 - **The chrome must stay readable.** The board scrims the top and bottom strips
-  precisely so no theme can make the HUD illegible — the balloon pile is nearly
-  white in places.
+  precisely so no theme can make the HUD illegible.
 - **Projectile size is fixed across themes** (`18 * √size`). Changing it would
   quietly change how hard the game is to play, which is a rule change.
 - `calm` (from `prefers-reduced-motion`) **flattens, never removes**.
 
-The picker lives on the setup screen and inside the in-game gear menu, so the
-look can be changed mid-round without leaving the board. The choice
-is remembered in `localStorage` (`fony:spill:theme`), re-validated against the
-registry on read.
+There is no picker and no stored preference. Both were removed with the second
+theme; `localStorage` no longer holds anything for Spill.
 
 ### The water look
 
@@ -286,7 +339,5 @@ try it.
 - Does a caught drop keep doubling if it is caught repeatedly? A drop bouncing
   around at 2 → 4 → 8 sounds hilarious and possibly game-ending. Currently: yes,
   it keeps doubling, and that is a headline risk to watch.
-- Should the name survive theming? "Spill" reads fine for water and poo, poorly
-  for balloons.
 - 5+ players: the ring gets crowded and aiming tolerance shrinks. Capped at 4
   deliberately.

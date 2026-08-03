@@ -47,7 +47,7 @@ Both are rendered by the shared `HowToPlay` component in **three** places:
 | Where | Component |
 | --- | --- |
 | The lobby, before anyone starts | `GameLobby` |
-| A four-second panel at the top of every round | `RulesPanel` |
+| A four-second panel at the top of the **first** round (§4) | `RulesPanel` |
 | The in-game menu, any time | `GameMenu` |
 
 **Never retype the text in any of them.** If the lobby and the game disagree
@@ -91,7 +91,19 @@ Placement notes learned the hard way:
 
 ## 4. The pre-round window
 
-`PREROUND_MS` (4 s) after a round starts, the rules panel holds the screen.
+`PREROUND_MS` (4 s) after the **first** round of a room starts, the rules panel
+holds the screen.
+
+**"Play again" gets no panel — and no window either.** Everyone has just read the
+rules and played a round of the thing; being told again is four seconds of delay
+right when the room is keenest to go again. `preroundFor(roundId)` in the protocol
+returns the window length, and it is zero for every round after the first.
+
+That it is the *window* that collapses, not just the panel, is the point. Hiding
+the panel over a live-looking board that still rejects input would be strictly
+worse than the panel: four silent seconds, with nothing to explain them. One
+number decides both, so the client's panel and the server's input gate cannot
+disagree.
 
 **It is a real window, not decoration.** The server knows about it:
 
@@ -108,12 +120,13 @@ rather than the client hiding the panel early.
 
 Two details:
 
-- The panel is mounted **keyed on the round id**, so "Play again" always shows a
-  fresh one instead of reusing a dismissed one.
+- The panel is mounted **keyed on the round id**, so a fresh round never reuses a
+  dismissed panel.
 - The countdown is **clamped to `PREROUND_MS`**. `startsAt` is the server's clock
   plus four seconds, and the client's estimate of the offset can sit a few tens
   of milliseconds behind — enough for a four-second wait to open by announcing
-  "5".
+  "5". The same slack is why a window shorter than `MIN_PANEL_MS` renders nothing
+  at all: a replay's zero-length window must not flash a panel for one frame.
 
 ## 5. Opponent rows
 

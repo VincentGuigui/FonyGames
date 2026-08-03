@@ -52,7 +52,8 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
   (whisper duel), choir (team sync).
 - **Spill** — phones flat in a ring; flick your water onto a neighbour's phone,
   aiming by their real position on the table. Empty to win, 40 drops to lose.
-  Rendering is theme-swappable (water / balloon / …). Full spec written.
+  Rendering is split behind a `Theme` interface, with water the one look shipped.
+  Full spec written.
 - **Goat Siege** — lob goats into a neighbour's vegetable patch; shooing one
   splits it into two kids that scatter. Last cabbage standing wins. Full spec
   written.
