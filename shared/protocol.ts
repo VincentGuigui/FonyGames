@@ -192,8 +192,22 @@ export type ServerMessage =
    * `startsAt` is when the rules panel clears; `fireAt` is always after it, so
    * the signal can never fire behind a covered screen. Sent explicitly rather
    * than derived, because `fireAt` carries a random spread on top.
+   *
+   * `target` is where the thing to tap appears, as fractions of the viewport.
+   * The **server** picks it, so it is the same spot on every screen — a target
+   * drawn somewhere different for each player would hand the round to whoever
+   * got the luckiest placement.
    */
-  | { t: 'arm'; s: number; d: { roundId: number; fireAt: number; startsAt: number } }
+  | {
+      t: 'arm';
+      s: number;
+      d: {
+        roundId: number;
+        fireAt: number;
+        startsAt: number;
+        target: { x: number; y: number };
+      };
+    }
   /** Only the offender is told, and only they see it. */
   | { t: 'false-start'; d: { roundId: number } }
   | { t: 'result'; s: number; d: RoundResult }
@@ -353,6 +367,26 @@ export const MIN_HUMAN_REACTION_MS = 80;
 export const CLOCK_SKEW_TOLERANCE_MS = 250;
 
 export const WIN_SCORE = 3;
+
+/**
+ * Where the target may appear, as fractions of the viewport.
+ *
+ * Inset from every edge so it is never half off-screen, and kept clear of the
+ * top-right corner where the gear lives — a target under the menu button would
+ * be a target you cannot tap without opening the menu.
+ */
+export const TARGET_MIN_X = 0.2;
+export const TARGET_MAX_X = 0.8;
+export const TARGET_MIN_Y = 0.3;
+export const TARGET_MAX_Y = 0.78;
+
+/** Pick a target position. Server-side, so every screen gets the same one. */
+export function randomTarget(): { x: number; y: number } {
+  return {
+    x: TARGET_MIN_X + Math.random() * (TARGET_MAX_X - TARGET_MIN_X),
+    y: TARGET_MIN_Y + Math.random() * (TARGET_MAX_Y - TARGET_MIN_Y),
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /* Bump Relay (docs/specs/games/bump-relay.md)                          */

@@ -5,8 +5,14 @@ import { GameMenu } from '../../core/ui/GameMenu';
 /**
  * Tap Duel — `pistol` mode, presentational. Spec: docs/specs/games/tap-duel.md
  *
- * The whole viewport is the target: aiming is not the skill being measured,
- * and it keeps the game playable without looking for a button.
+ * On the signal an **archer's target appears somewhere on screen** and only a tap
+ * on it counts. The position comes from the server, so it is the same spot for
+ * everybody — drawn per client it would decide the round by luck.
+ *
+ * While armed the whole viewport is still live, because the false-start rule has
+ * not changed: jumping the gun anywhere burns you. After the signal a tap that
+ * misses the target is simply a miss — it costs the time it took, which is
+ * punishment enough and is self-limiting.
  */
 
 export type DuelPhase = 'idle' | 'armed' | 'fire' | 'burned' | 'result';
@@ -32,13 +38,16 @@ export function Duel(props: {
   result: RoundResult | null;
   onTap: () => void;
   onAgain: () => void;
+  /** Where the target sits, as fractions of the viewport. From the server. */
+  target: { x: number; y: number } | null;
   /** Only the host may start the next duel. */
   isHost: boolean;
   title: string;
   concept: string;
   rules: string[];
 }): JSX.Element | null {
-  const { players, me, phase, result, onTap, onAgain, isHost, title, concept, rules } = props;
+  const { players, me, phase, result, onTap, onAgain, isHost, title, concept, rules, target } =
+    props;
   if (phase === 'idle') return null;
 
   // Same gear, same corner, same contents as every other game. It sits outside
@@ -51,6 +60,25 @@ export function Duel(props: {
 
   const nameOf = (id: PlayerId): string =>
     players.find((p) => p.id === id)?.name ?? 'Someone';
+
+  /*
+   * Tapped, waiting for the server to say what that was worth.
+   *
+   * `tap()` moves to `result` the instant a finger lands, because the alternative
+   * is a live-looking target after you have already hit it. Until the result
+   * arrives there is nothing to rank, and without this branch the component fell
+   * through to the *armed* screen — telling a player who has just tapped to get
+   * ready.
+   */
+  if (phase === 'result' && !result) {
+    return (
+      <div class="duel duel--waiting">
+        {menu}
+        <h2 class="duel__headline">Got it</h2>
+        <p class="duel__sub">Waiting for everyone else…</p>
+      </div>
+    );
+  }
 
   if (phase === 'result' && result) {
     const headline = result.noContest
@@ -112,20 +140,46 @@ export function Duel(props: {
     );
   }
 
-  const fire = phase === 'fire';
+  if (phase === 'fire') {
+    // The backdrop is a plain div, not a button: after the signal only the target
+    // scores, so the rest of the screen must not be tappable at all rather than
+    // tappable-and-ignored.
+    return (
+      <>
+        <div class="duel duel--fire">
+          <span class="duel__word duel__word--fire">TAP THE TARGET</span>
+        </div>
+        <button
+          class="duel__bullseye"
+          type="button"
+          style={{
+            left: `${(target?.x ?? 0.5) * 100}%`,
+            top: `${(target?.y ?? 0.5) * 100}%`,
+          }}
+          // pointerdown, not click: the reaction is measured at finger-down.
+          onPointerDown={onTap}
+          aria-label="Tap the target now"
+        >
+          {/* Rings are drawn in CSS so there is one element to hit, not five. */}
+          <span class="duel__bullseye-rings" aria-hidden="true" />
+        </button>
+        {menu}
+      </>
+    );
+  }
+
   return (
     <>
       <button
-        class={`duel duel--target ${fire ? 'duel--fire' : 'duel--armed'}`}
+        class="duel duel--target duel--armed"
         type="button"
-        // pointerdown, not click: the reaction is measured at finger-down.
+        // Still the whole viewport while armed: an early tap anywhere is a false
+        // start, and that rule is what stops a player spamming their way in.
         onPointerDown={onTap}
-        aria-label={fire ? 'Tap now' : 'Get ready, tap when the screen changes'}
+        aria-label="Get ready, a target will appear"
       >
-        <span class="duel__word">{fire ? 'TAP!' : 'GET READY'}</span>
-        <span class="duel__sub">
-          {fire ? 'Fastest thumb wins' : 'Tap the instant this screen changes'}
-        </span>
+        <span class="duel__word">GET READY</span>
+        <span class="duel__sub">A target will appear — tap it, and nothing before it</span>
       </button>
       {menu}
     </>

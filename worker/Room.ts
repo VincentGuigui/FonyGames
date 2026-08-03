@@ -11,6 +11,7 @@ import {
   RATE_LIMIT_WINDOW_MS,
   MIN_HUMAN_REACTION_MS,
   preroundFor,
+  randomTarget,
   RECONNECT_GRACE_MS,
   isClientMessage,
   type ClientMessage,
@@ -370,6 +371,9 @@ export class Room extends DurableObject {
     // game where a covered screen would cost you the round.
     const startsAt = Date.now() + preroundFor(roundId);
     const fireAt = startsAt + FIRE_MIN_MS + Math.floor(Math.random() * spread);
+    // Where the target lands. Drawn here so every screen shows it in the same
+    // place — a per-client position would decide the round by luck.
+    const target = randomTarget();
 
     await this.ctx.storage.put('roundId', roundId);
     await this.#saveDuel({
@@ -382,7 +386,7 @@ export class Room extends DurableObject {
       entrants: ready.map((p) => p.id),
     });
 
-    this.#broadcast({ t: 'arm', s: ++this.#seq, d: { roundId, fireAt, startsAt } });
+    this.#broadcast({ t: 'arm', s: ++this.#seq, d: { roundId, fireAt, startsAt, target } });
 
     // The server owns the timer, not the host — so a host dropping mid-duel
     // cannot stall it. This alarm resolves the duel if nobody taps.

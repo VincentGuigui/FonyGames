@@ -26,6 +26,8 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
   const fireTimer = useRef<number | null>(null);
   /** Server time the current duel's rules panel clears. */
   const [armedAt, setArmedAt] = useState<{ roundId: number; startsAt: number } | null>(null);
+  /** Where the target will appear. From the server, so it is the same for all. */
+  const [target, setTarget] = useState<{ x: number; y: number } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const room = useRoom(code, game.slug);
@@ -34,10 +36,11 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
   useEffect(() => {
     if (!client) return;
 
-    client.on('arm', (roundId, fireAt, startsAt) => {
+    client.on('arm', (roundId, fireAt, startsAt, where) => {
       roundRef.current = roundId;
       setResult(null);
       setPhase('armed');
+      setTarget(where);
       // The server sends both times and guarantees fireAt > startsAt, so the
       // signal can never land behind the panel.
       setArmedAt({ roundId, startsAt });
@@ -100,6 +103,7 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
           result={result}
           onTap={tap}
           onAgain={startDuel}
+          target={target}
           isHost={room.isHost}
           title={game.title}
           concept={game.concept}
