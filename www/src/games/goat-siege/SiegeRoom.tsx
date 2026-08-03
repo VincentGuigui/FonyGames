@@ -118,7 +118,9 @@ function Standings({ state, players }: { state: GoatState; players: Player[] }):
     (a, b) => (state.cabbages[b] ?? 0) - (state.cabbages[a] ?? 0),
   );
   return (
-    <section class="panel">
+    // `standings` alongside `panel`: it looks like every other panel, but the
+    // result of a round should still be identifiable in the DOM.
+    <section class="panel standings">
       <h2 class="panel__heading">Result</h2>
       <ol class="scoreline">
         {ranked.map((id) => {
