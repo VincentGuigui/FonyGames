@@ -58,11 +58,11 @@ are a `WeakMap` and deliberately disposable.
 | Grace expiry | The alarm removes them and re-broadcasts presence. |
 | Host drops | The role is **held for `HOST_GRACE_MS` (8 s)**, then passed to another connected player by the alarm. |
 
-### One alarm slot, four things that want it
+### One alarm slot, everything that wants it
 
-A Durable Object has exactly **one** alarm. Four deadlines compete for it: a Tap
-Duel timeout, a Bump Relay fuse, a Spill drop landing, and seat/host
-housekeeping.
+A Durable Object has exactly **one** alarm, and every game competes for it: a Tap
+Duel timeout, a Bump Relay fuse, a Spill drop landing, a Goat Siege arrival, a
+Sling Puck round cap — with seat/host housekeeping underneath all of them.
 
 Every subsystem calling `storage.setAlarm()` directly does not work — whichever
 ran last silently cancels the others, so a duel timeout could swallow a pending

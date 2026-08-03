@@ -84,6 +84,9 @@ worker/                 the room server (docs/realtime-server.md)
   index.ts              router: origin check, code check, idFromName
   Room.ts               the Durable Object — one per room
   bumpRelay.ts          Bump Relay round logic, driven through a Ctx interface
+  spill.ts              } one referee per game, same Ctx shape, each with a
+  goatSiege.ts          } .test.ts beside it (docs/testing.md §1.1)
+  slingPuck.ts          }
 wrangler.jsonc          Worker config + the irreversible SQLite migration
 dist/                   build output — generated, gitignored, deployed
 ```
@@ -91,6 +94,12 @@ dist/                   build output — generated, gitignored, deployed
 **Rules:**
 - A game only talks to the outside world through `core/`. No game imports
   another game.
+- **Game logic that both sides must agree on goes in `shared/`; logic only one
+  side can see does not.** Spill's seat geometry and Goat Siege's split lanes are
+  shared because the server refereeing them has to compute the same answer. Sling
+  Puck's physics is *not*, and deliberately: each phone simulates its own half of
+  the board and nobody else can see it, so there is no second copy to agree with
+  ([specs/games/sling-puck.md](specs/games/sling-puck.md) §4).
 - A game that is still `soon` lives as an entry in `games/registry.ts`. When it
   is actually built it gets a folder and its card moves to
   `games/<slug>/card.ts`, which the registry then imports.
@@ -102,13 +111,13 @@ dist/                   build output — generated, gitignored, deployed
 | `npm run dev` | Vite dev server, bound to `0.0.0.0` so a phone on the LAN can open it |
 | `npm run build` | `tsc --noEmit` then `vite build` → `dist/` |
 | `npm run typecheck` | Types only — site **and** worker (two tsconfigs) |
-| `npm test` | Game-logic harness on plain Node ([testing.md](testing.md) §1.1) |
+| `npm test` | Game-logic harness on plain Node ([testing.md](testing.md) §1.1) — every game's referee, plus Sling Puck's board physics |
 | `npm run worker:dev` | `wrangler dev` on :8787, fully local |
 
 Each game page is its own Vite entry (`rollupOptions.input`) with a real
 `index.html`, so static hosting serves `/spill/` straight from disk and needs no
-SPA rewrite. **Adding a game means adding an entry there** as well as a card in
-the registry. Rollup resolves those paths from the working directory, not from
+SPA rewrite. Today: `hub`, `tap-duel`, `spill`, `goat-siege`, `sling-puck`.
+**Adding a game means adding an entry there** as well as a card in the registry. Rollup resolves those paths from the working directory, not from
 Vite's `root`.
 
 ### Game contract

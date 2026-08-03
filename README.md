@@ -8,10 +8,10 @@ taps it, the game starts. Games use what a phone actually has — touch, motion,
 bump, tilt, compass, GPS, mic, vibration — so they feel physical instead of
 being yet another screen.
 
-> Status: **three games playable** — Tap Duel, Spill and Goat Siege — on a
-> Cloudflare Durable Object room server. All in beta: none has yet been played
-> by real people in a real room, which is milestone M7 and the only thing that
-> can settle the balance numbers. See [docs/roadmap.md](docs/roadmap.md).
+> Status: **four games playable** — Tap Duel, Spill, Goat Siege and Sling Puck —
+> on a Cloudflare Durable Object room server. All in beta: none has yet been
+> played by real people in a real room, which is milestone M7 and the only thing
+> that can settle the balance numbers. See [docs/roadmap.md](docs/roadmap.md).
 
 ---
 
@@ -83,6 +83,7 @@ Index: **[docs/specs/README.md](docs/specs/README.md)**
 | **[Spill](docs/specs/games/spill.md)** | *Fling your water at the neighbours before they flood you.* | Touch | 🎮 playable, beta |
 | **[Bump Relay](docs/specs/games/bump-relay.md)** | *Smash phones together to pass the bomb before it blows.* | Bump / motion | 📝 server built, phone UI to come |
 | **[Goat Siege](docs/specs/games/goat-siege.md)** | *Shoo the neighbours' goats before they eat your cabbages.* | Touch | 🎮 playable, beta |
+| **[Sling Puck](docs/specs/games/sling-puck.md)** | *Sling every puck onto their side before they sling them back.* | Touch | 🎮 playable, beta |
 | **Shake Sprint** | *Shake like your life depends on it — first to the finish wins.* | Motion | 💡 idea |
 | **Tilt Arena** | *Tilt to steer, crash to win.* | Orientation | 💡 idea |
 | **Steady Hand** | *Hold your phone perfectly still. Longer than everyone else.* | Motion | 💡 idea |

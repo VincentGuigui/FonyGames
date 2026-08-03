@@ -29,7 +29,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | Scream Meter | *Loudest wins. Your neighbours will not be thanked* | mic | 2–8 | 💡 idea |
 | [Spill](games/spill.md) | *Fling your water at the neighbours before they flood you* | touch | 2–4 | 🎮 `ring` beta — numbers untested on a real table |
 | [Goat Siege](games/goat-siege.md) | *Shoo the neighbours' goats before they eat your cabbages* | touch | 2–4 | 🎮 beta — balance untested |
-| [Sling Puck](games/sling-puck.md) | *Sling every puck onto their side before they sling them back* | touch | 2 | 📝 spec |
+| [Sling Puck](games/sling-puck.md) | *Sling every puck onto their side before they sling them back* | touch | 2 | 🎮 `classic` beta — puck count and gap width untested |
 
 ### Idea notes (not yet specs)
 
@@ -56,6 +56,10 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 - **Goat Siege** — lob goats into a neighbour's vegetable patch; shooing one
   splits it into two kids that scatter. Last cabbage standing wins. Full spec
   written.
+- **Sling Puck** — *passe-trappe* on two phones nose to nose. Each phone
+  simulates its own half of the board locally at 60 fps; the only thing on the
+  wire is a puck crossing the gap, which is what keeps continuous physics inside
+  the cheap cost profile. Full spec written.
 
 Promote an idea by copying [game-spec-template.md](game-spec-template.md) to
 `games/<slug>.md`, filling it, and updating the row above in a `spec:` commit.

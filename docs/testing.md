@@ -34,6 +34,15 @@ Deciding on Vitest (D10-adjacent) would replace the hand-rolled `check()` and
 give watch mode; it would not change the shape of the tests, because the shape
 comes from `Ctx`, not the runner.
 
+**Not all of it is referee logic.** Sling Puck simulates its board on the phone
+(its [spec](specs/games/sling-puck.md) §4), so
+`www/src/games/sling-puck/physics.test.ts` runs the same way but has no `Ctx` at
+all — it is pure arithmetic over board units, and it earns its place because the
+bounce behaviour and the sling are *stated requirements* rather than looks. Two of
+the bugs it caught could not have been seen on a screenshot: an equal-mass
+collision impulse missing its `(1 + e)` factor, and an accessibility fallback that
+could not reach the gap from three of the five starting positions.
+
 ### 1.2 End-to-end against a real Worker
 
 The harness proves the referee. It cannot prove that `Room.ts` routes to it, that
@@ -48,6 +57,16 @@ Two traps that have already cost time:
 - **The Worker's origin allow-list is real.** `ALLOWED_ORIGINS` permits port
   **5173** — serve the built site there (`vite preview --port 5173`) or every
   socket is correctly refused and the page just says "reconnecting".
+- **Wait for the pre-round panel to *appear* before waiting for it to go.** Every
+  game shows it for 4 s after "start round"
+  ([design/game-chrome.md](design/game-chrome.md) §4), and `!document.querySelector('.preround')`
+  is trivially true for the beat before the board mounts — so a naive wait returns
+  instantly and the test then drives a board that is still rejecting input.
+- **A backgrounded tab stops running `requestAnimationFrame`.** Screenshotting one
+  page brings it to the front and therefore backgrounds the other. For a game that
+  animates on rAF this *freezes its simulation* — which is real, documented
+  behaviour (sling-puck.md §9), not a bug, and it looks exactly like broken
+  physics. Bring the page you are driving back to the front first.
 
 For browser-level checks, Chromium is preinstalled but Playwright is not, and
 headless Chrome **ignores `--window-size`** — it renders at 500px and crops,
