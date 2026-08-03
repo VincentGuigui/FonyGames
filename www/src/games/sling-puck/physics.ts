@@ -7,9 +7,18 @@
  * only thing that crosses the wire is a puck leaving through the gap. There is
  * no second copy of a puck anywhere, so there is nothing to desynchronise.
  *
- * Everything is in **normalised board units**: x and y run 0..1 across and down
- * the board, velocity is in board-heights per second. The two phones are not the
- * same size and the board has to be the same board on both.
+ * ## Units
+ *
+ * One unit is **one board width**, in *both* axes. So `x` runs 0..1 across the
+ * board and `y` runs 0..`BOARD_H` down it, and a radius means the same distance
+ * whichever way it is pointing.
+ *
+ * That isotropy is the whole reason the board has a fixed aspect ratio rather
+ * than being the shape of whatever phone it is on. Normalising `x` by the width
+ * and `y` by the height would be tidier to write and visibly wrong to play: a
+ * puck would stop short of the top wall but touch the side ones, and a bounce
+ * off a side wall would change the shot's apparent angle. Sizes differ between
+ * the two phones; the board must not.
  *
  * No trigonometry anywhere — reflections, the sling and puck collisions are all
  * dot products, so this is plain IEEE-754 arithmetic.
@@ -22,32 +31,51 @@
 /** Pucks per player at the start of a round. */
 export const SLING_PUCKS = 5;
 
-/** Puck radius, as a fraction of board width. */
+/**
+ * The board's shape: width ÷ height, for **one player's half**.
+ *
+ * Taller than it is wide, because two phones nose to nose in portrait make a
+ * long thin table and each player owns half of it. Letterboxed on screen rather
+ * than stretched to fit, so both phones simulate the same board.
+ */
+export const BOARD_ASPECT = 0.62;
+
+/** Board height, in board widths. Every `y` in this module runs 0..this. */
+export const BOARD_H = 1 / BOARD_ASPECT;
+
+/** Puck radius, in board widths — the same distance in both axes. */
 export const PUCK_RADIUS = 0.055;
 
 /**
- * Launch speed per unit of band *elongation*.
+ * Launch speed per unit of band *elongation*, in board widths per second.
  *
  * Large because the elongation is small: the band spans nearly the whole width,
- * so pulling it back by a quarter of the board only lengthens the V by about a
- * tenth. That is the real geometry of the toy, not a fudge — the constant simply
- * has to absorb it.
+ * so pulling it back by a third of a width only lengthens the V by about a
+ * quarter. That is the real geometry of the toy, not a fudge — the constant
+ * simply has to absorb it.
  */
-export const ELASTIC_K = 14;
-
-/** Hard cap on launch speed, in board-heights per second. */
-export const MAX_SPEED = 1.6;
-
-/** How far back from the band a pull may go, as a fraction of board height. */
-export const MAX_PULL = 0.24;
+export const ELASTIC_K = 8;
 
 /**
- * Where the band sits when relaxed.
+ * Hard cap on launch speed, in board widths per second.
  *
- * High enough up the board to leave `MAX_PULL` of room behind it — with the band
- * any lower there is nowhere to pull to and every shot is feeble.
+ * Above the fastest a full pull produces, so in normal play it never bites. It
+ * is a safety net for a forged or bugged pull, not part of the feel.
  */
-export const BAND_REST_Y = 0.72;
+export const MAX_SPEED = 2.6;
+
+/** How far back from the band a pull may go, in board widths. */
+export const MAX_PULL = 0.24 * BOARD_H;
+
+/**
+ * Where the band sits when relaxed, as a fraction of the board height.
+ *
+ * High enough up the board to leave `MAX_PULL` of room behind it: `0.72 + 0.24`
+ * puts a full pull at `0.96`, just inside the bottom wall. With the band any
+ * lower there is nowhere to pull to and every shot is feeble.
+ */
+export const BAND_REST_FRACTION = 0.72;
+export const BAND_REST_Y = BAND_REST_FRACTION * BOARD_H;
 
 /** How fast the band whips back once released. Visual only. */
 export const BAND_SNAP = 14;
@@ -59,7 +87,7 @@ export const BAND_SNAP = 14;
  * like syrup. Subtracting a fixed amount of speed per second is what a disc on a
  * board actually does, and it comes to rest.
  */
-export const FRICTION = 0.55;
+export const FRICTION = 0.6;
 
 /** Energy kept in a wall bounce. */
 export const RESTITUTION = 0.72;
@@ -67,24 +95,31 @@ export const RESTITUTION = 0.72;
 /** Energy kept in a puck-on-puck hit. */
 export const PUCK_RESTITUTION = 0.86;
 
-/** Width of the gap in the top wall, as a fraction of the board. */
+/** Width of the gap in the top wall, as a fraction of the board width. */
 export const GAP_FRACTION = 0.34;
 
 /** Below this a puck is treated as stopped. */
-export const REST_SPEED = 0.02;
+export const REST_SPEED = 0.03;
 
 /**
  * Physics sub-steps per rendered frame.
  *
  * This exists so a fast puck cannot tunnel through a wall. At `MAX_SPEED` one
- * 60 fps frame moves a puck ~0.027 — half a radius — and four sub-steps takes
- * that to ~0.007, leaving room for the constants to be tuned upwards without
+ * 60 fps frame moves a puck ~0.043 — most of a radius — and four sub-steps takes
+ * that to ~0.011, leaving room for the constants to be tuned upwards without
  * pucks escaping the board.
  */
 export const SUB_STEPS = 4;
 
-/** The tap-to-launch fallback fires at this fraction of a full pull (spec §13). */
-export const TAP_PULL = 0.62;
+/**
+ * The tap-to-launch fallback fires at this fraction of a full pull (spec §13).
+ *
+ * Not a gentle nudge, and it cannot be: below about 0.7 the shot does not have
+ * the speed to reach the gap at all, and a fallback that cannot score is not a
+ * fallback. It is weaker than a good drag and aims only straight ahead, which is
+ * the honest cost of not having to drag.
+ */
+export const TAP_PULL = 0.75;
 
 export type Puck = {
   id: number;
@@ -160,8 +195,8 @@ function walls(p: Puck): Crossing | null {
     p.vx = -Math.abs(p.vx) * RESTITUTION;
   }
 
-  if (p.y > 1 - r) {
-    p.y = 1 - r;
+  if (p.y > BOARD_H - r) {
+    p.y = BOARD_H - r;
     p.vy = -Math.abs(p.vy) * RESTITUTION;
     return null;
   }
@@ -234,17 +269,9 @@ function collide(pucks: Puck[]): void {
 /* The sling (spec §7)                                              */
 /* ---------------------------------------------------------------- */
 
-/** The band's two anchor posts, at the bottom corners of the play area. */
+/** The band's two anchor posts, near the side walls. */
 export const POST_LEFT = { x: 0.06, y: BAND_REST_Y };
 export const POST_RIGHT = { x: 0.94, y: BAND_REST_Y };
-
-/**
- * Where the band actually lies, given the puck held at (px, py) — or null when
- * nothing is loaded. Used by the renderer; the physics does not need it.
- */
-export function bandVertex(pull: { x: number; y: number } | null): { x: number; y: number } | null {
-  return pull;
-}
 
 /**
  * Launch velocity for a puck pulled to (px, py).
@@ -284,9 +311,14 @@ export function slingVelocity(px: number, py: number): { vx: number; vy: number 
 /** How far back a pull is allowed to go, so the band cannot be over-stretched. */
 export function clampPull(px: number, py: number): { x: number; y: number } {
   const x = Math.max(PUCK_RADIUS, Math.min(1 - PUCK_RADIUS, px));
-  const back = Math.min(BAND_REST_Y + MAX_PULL, 1 - PUCK_RADIUS);
+  const back = Math.min(BAND_REST_Y + MAX_PULL, BOARD_H - PUCK_RADIUS);
   const y = Math.max(BAND_REST_Y, Math.min(back, py));
   return { x, y };
+}
+
+/** Where the tap-to-launch fallback pulls to, for a puck resting at `x` (spec §13). */
+export function tapPull(x: number): { x: number; y: number } {
+  return clampPull(x, BAND_REST_Y + MAX_PULL * TAP_PULL);
 }
 
 /** Resting positions for `n` pucks, tucked behind the band. */

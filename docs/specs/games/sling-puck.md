@@ -92,6 +92,21 @@ velocity in board-heights per second):
 Normalised on purpose: the two phones are not the same size, and the board must
 be the same board on both.
 
+### Units, and why the board has a fixed shape
+
+One unit is **one board width**, in *both* axes. So `x` runs 0..1 across the
+board and `y` runs 0..`BOARD_H`, where `BOARD_H = 1 / BOARD_ASPECT`. Velocity is
+in board widths per second.
+
+That is the reason the board is a fixed `BOARD_ASPECT` rectangle **letterboxed**
+into the screen rather than being the shape of whatever phone it is on.
+Normalising `x` by the width and `y` by the height is tidier to write and visibly
+wrong to play: one radius would mean two different distances, so a puck would
+stop short of the top wall while touching the side ones, and a bounce off a side
+wall would change the shot's apparent angle. A fixed aspect costs a margin at the
+top and bottom of a tall screen — which the puck count, the gear and the hint
+occupy anyway.
+
 ## 5. Networking
 
 | Message | Direction | Payload |
@@ -103,7 +118,15 @@ be the same board on both.
 
 The server rotates the coordinates, so neither client has to know which way
 round it is sitting — and a client that lies about the rotation cannot make a
-puck arrive somewhere impossible.
+puck arrive somewhere impossible. Server-side constants for that:
+
+| Constant | Value | What it does |
+| --- | --- | --- |
+| `SLING_PLAYERS` | 2 | Exactly two. Not a range — the board *is* the join between the phones |
+| `SLING_START_PUCKS` | 5 | Mirrors `SLING_PUCKS` in the client physics |
+| `SLING_MIN_GAP_MS` | 250 | Floor on crossings from one player (§10) |
+| `SLING_SPEED_MAX` | 2.5 | Plausible arrival speed; a forged crossing is clamped to it |
+| `SLING_ROUND_CAP_MS` | 3 min | Then fewest pucks wins |
 
 `pucks` rides on every frame that can change it, as in Spill: the count is the
 score, and a separate message for it would only be a chance to disagree.
@@ -113,43 +136,57 @@ score, and a separate message for it would only be a chance to disagree.
 Everything below is a **tuning constant, not a player-facing option**. They live
 together at the top of `physics.ts` so a play test can move them in one place.
 
+Distances are in **board widths** and speeds in board widths per second, per the
+unit note in §4.
+
 | Constant | Start value | What it does |
 | --- | --- | --- |
 | `SLING_PUCKS` | 5 | Pucks per player |
-| `PUCK_RADIUS` | 0.055 | Fraction of board width |
-| `ELASTIC_K` | 14 | Launch speed per unit of band *elongation* |
-| `MAX_SPEED` | 1.6 | Hard cap on launch speed, in board-heights per second |
-| `MAX_PULL` | 0.24 | Longest useful pull, as a fraction of board height |
-| `BAND_REST_Y` | 0.72 | Where the band sits when relaxed |
+| `BOARD_ASPECT` | 0.62 | The board's shape: width ÷ height, for one player's half |
+| `BOARD_H` | `1 / BOARD_ASPECT` ≈ 1.61 | Board height, in board widths |
+| `PUCK_RADIUS` | 0.055 | Puck radius — the same distance in both axes |
+| `ELASTIC_K` | 8 | Launch speed per unit of band *elongation* |
+| `MAX_SPEED` | 2.6 | Hard cap on launch speed |
+| `MAX_PULL` | `0.24 × BOARD_H` | How far back from the band a pull may go |
+| `BAND_REST_FRACTION` | 0.72 | Where the band sits when relaxed, down the board |
 | `BAND_SNAP` | 14 | How fast the band whips back once released (visual only) |
-| `FRICTION` | 0.55 | Constant deceleration — a puck sliding on wood, not in treacle |
+| `FRICTION` | 0.6 | Constant deceleration — a puck sliding on wood, not in treacle |
 | `RESTITUTION` | 0.72 | Energy kept in a wall bounce |
 | `PUCK_RESTITUTION` | 0.86 | Energy kept in a puck-on-puck hit |
-| `GAP_FRACTION` | 0.34 | Width of the gap as a fraction of the board |
-| `REST_SPEED` | 0.02 | Below this a puck is treated as stopped |
+| `GAP_FRACTION` | 0.34 | Width of the gap as a fraction of the board width |
+| `REST_SPEED` | 0.03 | Below this a puck is treated as stopped |
 | `SUB_STEPS` | 4 | Physics sub-steps per rendered frame |
-| `TAP_PULL` | 0.62 | Pull strength the tap-to-launch fallback fires at (§13) |
+| `TAP_PULL` | 0.75 | Fraction of a full pull the tap-to-launch fallback fires at (§13) |
 
-Four choices in there are deliberate rather than arbitrary:
+Five choices in there are deliberate rather than arbitrary:
 
 - **Friction is a constant deceleration, not linear damping.** `v *= 0.98` never
   quite stops and feels like syrup; subtracting a fixed amount of speed per
   second is what a disc sliding on a board actually does, and it *does* stop.
-- **`SUB_STEPS` exists so fast pucks cannot tunnel.** A puck crossing half the
-  board in one frame would skip straight through a wall; four sub-steps at 60 fps
-  keeps the per-step movement to about an eighth of a puck radius at `MAX_SPEED`,
-  leaving room to tune the constants upwards without pucks escaping.
+- **`SUB_STEPS` exists so fast pucks cannot tunnel.** At `MAX_SPEED` one 60 fps
+  frame moves a puck most of a radius and could skip straight through a wall;
+  four sub-steps take that to about a fifth of a radius, leaving room to tune the
+  constants upwards without pucks escaping.
 - **`ELASTIC_K` is large because the elongation it multiplies is small.** The band
-  spans nearly the whole width, so pulling it back by a quarter of the board only
-  lengthens the V by about a tenth. That is the real geometry of the toy, not a
-  fudge; the constant absorbs it.
+  spans nearly the whole width, so pulling it back by a third of a width only
+  lengthens the V by about a quarter. That is the real geometry of the toy, not a
+  fudge; the constant absorbs it. It is also why a gentle pull does almost
+  nothing — the stretch grows quadratically at first, exactly as it does in the
+  hand.
 - **`MAX_SPEED` is a separate cap, not `MAX_PULL` doing double duty.** How far
   back you may drag and how fast the puck may end up are different questions, and
-  tying them together meant one could not be tuned without the other.
+  tying them together meant one could not be tuned without the other. It sits
+  *above* what a full pull produces, so in normal play it never bites: it is a
+  guard against a bugged or forged pull, not part of the feel.
+- **`TAP_PULL` is high, not medium.** Below about 0.7 of a full pull the shot
+  cannot reach the gap at all, and an accessibility fallback that cannot score is
+  not a fallback (§13). It is weaker than a good drag and aims only straight
+  ahead; that is the honest cost of not having to drag.
 
-`BAND_REST_Y` and `MAX_PULL` are a pair: the band has to sit high enough to leave
-`MAX_PULL` of board behind it. At `0.72 + 0.24` a full pull ends at `0.96`, just
-inside the bottom wall — any lower a band and every shot is feeble.
+`BAND_REST_FRACTION` and `MAX_PULL` are a pair: the band has to sit high enough
+to leave a full pull of board behind it. At `0.72 + 0.24` a full pull ends at
+`0.96` of the height, just inside the bottom wall — any lower a band and there is
+nowhere to pull to.
 
 ## 7. The sling
 
@@ -172,6 +209,11 @@ aiming a skill rather than a slider.
 Speed comes from the stretch: how much longer the V is than the resting band,
 times `ELASTIC_K`, capped at `MAX_SPEED`. How far back a drag may go is a
 separate limit, `MAX_PULL`.
+
+Because the band is nearly as wide as the board, a short pull barely lengthens
+the V at all, and the speed therefore ramps up slowly at first and steeply near
+full stretch. That is not a curve anyone chose — it is what the geometry does,
+and it is why a half-hearted pull in the real game goes nowhere.
 
 Only arithmetic and `sqrt` — no trigonometry anywhere in the physics.
 
