@@ -20,7 +20,8 @@ export type GameMotif =
   | 'scream'
   | 'spill'
   | 'goat'
-  | 'sling';
+  | 'sling'
+  | 'cat';
 
 export type GameMode = {
   id: string;

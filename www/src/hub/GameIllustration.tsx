@@ -12,21 +12,31 @@ import type { GameMotif } from '../core/types';
 const W = 120;
 const H = 90;
 
+/**
+ * The shared phone glyph. `x`/`y` are its top-left at `size` 1 (22×38).
+ *
+ * `size` scales the rect but **not** the outline: an SVG `scale()` would thicken
+ * the stroke too, and the house style is one outline weight across the grid
+ * (docs/design/ui-guidelines.md §6).
+ */
 function Phone(props: {
   x: number;
   y: number;
   rotate?: number;
   fill?: string;
+  size?: number;
 }): JSX.Element {
-  const { x, y, rotate = 0, fill = '#10121a' } = props;
+  const { x, y, rotate = 0, fill = '#10121a', size = 1 } = props;
+  const w = 22 * size;
+  const h = 38 * size;
   return (
-    <g transform={`rotate(${rotate} ${x + 11} ${y + 19})`}>
+    <g transform={`rotate(${rotate} ${x + w / 2} ${y + h / 2})`}>
       <rect
         x={x}
         y={y}
-        width={22}
-        height={38}
-        rx={5}
+        width={w}
+        height={h}
+        rx={5 * size}
         fill={fill}
         stroke="currentColor"
         stroke-width={3}
@@ -96,29 +106,18 @@ function motifBody(motif: GameMotif): JSX.Element {
       );
 
     case 'tap':
-      // The archer's target the game actually shows, plus a thumb coming in at
-      // it. The old motif was expanding rings — which read as a tap *ripple*,
-      // the thing that happens after, rather than the thing you are aiming at.
+      // A phone with the target inside it, and nothing else. The finger that was
+      // here read as clutter at 160 px, and the phone is the shared visual
+      // language of this grid — the target belongs *on a screen*.
       return (
         <>
+          <Phone x={39} y={9} size={1.9} />
           {/* Rings outside in, in the archery colours the board uses. */}
-          <circle cx={56} cy={44} r={30} fill="#f4f1e8" />
-          <circle cx={56} cy={44} r={30} fill="none" stroke="currentColor" stroke-width={3} />
-          <circle cx={56} cy={44} r={23} fill="#14161c" />
-          <circle cx={56} cy={44} r={16} fill="#1f6feb" />
-          <circle cx={56} cy={44} r={10} fill="#d92d20" />
-          <circle cx={56} cy={44} r={4.5} fill="#f5c518" />
-
-          {/*
-            A finger coming in at it from the corner. Drawn as a rounded digit
-            with a knuckle and a nail — the first attempt was one wedge plus an
-            ellipse, which read as the tail of a speech bubble.
-          */}
-          <g transform="rotate(-38 96 68)">
-            <rect x={84} y={58} width={34} height={20} rx={10} fill="currentColor" />
-            <circle cx={116} cy={68} r={12} fill="currentColor" />
-            <ellipse cx={90} cy={68} rx={5} ry={7} fill="#10121a" opacity={0.3} />
-          </g>
+          <circle cx={60} cy={45} r={15} fill="#f4f1e8" />
+          <circle cx={60} cy={45} r={11.6} fill="#14161c" />
+          <circle cx={60} cy={45} r={8.2} fill="#1f6feb" />
+          <circle cx={60} cy={45} r={5} fill="#d92d20" />
+          <circle cx={60} cy={45} r={2.3} fill="#f5c518" />
         </>
       );
 
@@ -214,6 +213,39 @@ function motifBody(motif: GameMotif): JSX.Element {
           />
           {/* A highlight, so a big flat teardrop still reads as liquid. */}
           <ellipse cx={86} cy={38} rx={4} ry={5.5} fill="#10121a" opacity={0.32} />
+        </>
+      );
+
+    case 'cat':
+      // A cat lunging left-to-right with mice scattering ahead of it. Filled
+      // silhouettes rather than outlines, matching the goat (house style §6).
+      return (
+        <>
+          {/* The cat: body, haunch, head with ears, and a raised tail. */}
+          <g fill="currentColor">
+            <ellipse cx={34} cy={52} rx={22} ry={13} />
+            <circle cx={52} cy={40} r={11} />
+            <path d="M44 33 L45 21 L53 30 Z" />
+            <path d="M56 30 L62 20 L63 32 Z" />
+            <path d="M13 45 Q4 34 12 26 L16 30 Q11 36 18 43 Z" />
+            {/* Legs, mid-stride. */}
+            <rect x={22} y={60} width={5} height={13} rx={2.5} />
+            <rect x={42} y={60} width={5} height={13} rx={2.5} />
+          </g>
+          <circle cx={56} cy={38} r={2} fill="#10121a" />
+
+          {/* Two mice running for it, smaller and rounder — silhouette, not hue. */}
+          {[
+            [82, 40, 1],
+            [100, 60, 0.82],
+          ].map(([mx, my, k]) => (
+            <g key={`${mx}`} transform={`translate(${mx} ${my}) scale(${k})`} fill="currentColor">
+              <ellipse rx={9} ry={6.5} />
+              <circle cx={8} cy={-3} r={4.5} />
+              <circle cx={-1} cy={-6} r={3.5} />
+              <path d="M-8 1 Q-17 3 -15 -4" fill="none" stroke="currentColor" stroke-width={2} />
+            </g>
+          ))}
         </>
       );
 
