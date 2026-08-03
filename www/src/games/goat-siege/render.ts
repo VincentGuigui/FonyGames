@@ -21,7 +21,12 @@ const SKY_LOW = '#152033';
 const GROUND = '#1d3a22';
 const FENCE = '#7a5c3a';
 const CABBAGE = '#4ADE80';
+const CABBAGE_LEAF = '#2f9e5b';
+const CABBAGE_VEIN = '#1c6b3d';
+const STUMP = '#6d7f5a';
 const GOAT = '#e8e2d4';
+const GOAT_SHADE = '#c9c1ad';
+const GOAT_HORN = '#8d8172';
 
 export type Renderer = { stop(): void };
 
@@ -108,26 +113,83 @@ function drawGarden(
   for (let i = 0; i < SIEGE_CABBAGES; i++) {
     const x = slot * (i + 1);
     const y = h * CABBAGE_Y;
-    if (i < cabbages) {
-      ctx.fillStyle = CABBAGE;
-      ctx.beginPath();
-      ctx.arc(x, y, slot * 0.3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = 'rgb(0 0 0 / 35%)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(x, y, slot * 0.16, 0, Math.PI * 2);
-      ctx.stroke();
-    } else {
-      ctx.strokeStyle = 'rgb(255 255 255 / 14%)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.arc(x, y, slot * 0.3, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
+    if (i < cabbages) drawCabbage(ctx, x, y, slot * 0.32);
+    else drawStump(ctx, x, y, slot * 0.32);
   }
+}
+
+/**
+ * A cabbage: outer leaves, a paler heart, and the curled veins that say
+ * *vegetable* rather than *green circle*.
+ *
+ * It was a circle with a ring inside, which at a glance was a token rather than
+ * something a goat would want to eat. The silhouette does the work — the leaf
+ * lobes break the outline, so it still reads as a cabbage in one colour.
+ */
+function drawCabbage(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+
+  // Sitting shadow, so it belongs on the soil instead of floating over it.
+  ctx.fillStyle = 'rgb(0 0 0 / 28%)';
+  ctx.beginPath();
+  ctx.ellipse(0, r * 0.8, r * 0.95, r * 0.26, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Outer leaves: five lobes around the head, wider than they are tall.
+  ctx.fillStyle = CABBAGE_LEAF;
+  for (let i = 0; i < 5; i++) {
+    const a = -Math.PI / 2 + (i / 5) * Math.PI * 2 + 0.3;
+    ctx.beginPath();
+    ctx.ellipse(Math.cos(a) * r * 0.52, Math.sin(a) * r * 0.42, r * 0.62, r * 0.44, a, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // The head.
+  ctx.fillStyle = CABBAGE;
+  ctx.beginPath();
+  ctx.ellipse(0, -r * 0.06, r * 0.78, r * 0.72, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Two veins curling out of the heart. Darker, not lighter: a light line on a
+  // light head disappears against the leaves behind it.
+  ctx.strokeStyle = CABBAGE_VEIN;
+  ctx.lineWidth = Math.max(1.5, r * 0.11);
+  ctx.lineCap = 'round';
+  for (const dir of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(0, r * 0.34);
+    ctx.quadraticCurveTo(dir * r * 0.5, r * 0.1, dir * r * 0.28, -r * 0.42);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** What a cabbage leaves behind: a stump and a scatter of dropped leaves. */
+function drawStump(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = 'rgb(255 255 255 / 13%)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // A chewed stalk, so an eaten slot reads as *eaten* and not merely as empty.
+  ctx.strokeStyle = STUMP;
+  ctx.lineWidth = Math.max(2, r * 0.22);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, r * 0.45);
+  ctx.lineTo(0, -r * 0.1);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.3, r * 0.5);
+  ctx.lineTo(r * 0.3, r * 0.5);
+  ctx.stroke();
+  ctx.restore();
 }
 
 /**
@@ -155,51 +217,120 @@ function drawGoat(
   ctx.ellipse(0, r * 1.8, r * 0.7, r * 0.22, 0, 0, Math.PI * 2);
   ctx.fill();
 
+  // Body: a rounded barrel with a rump, rather than a plain ellipse. The extra
+  // bulk at the back and the dip behind the shoulder are what make a four-legged
+  // animal read as an animal at 30 px.
   ctx.fillStyle = GOAT;
   ctx.beginPath();
-  ctx.ellipse(0, 0, r, r * 0.68, 0, 0, Math.PI * 2);
+  ctx.moveTo(-r * 0.95, -r * 0.1);
+  ctx.quadraticCurveTo(-r * 1.0, -r * 0.62, -r * 0.35, -r * 0.6);
+  ctx.quadraticCurveTo(r * 0.15, -r * 0.58, r * 0.5, -r * 0.5);
+  ctx.quadraticCurveTo(r * 1.0, -r * 0.4, r * 0.95, r * 0.1);
+  ctx.quadraticCurveTo(r * 0.9, r * 0.6, r * 0.2, r * 0.62);
+  ctx.quadraticCurveTo(-r * 0.5, r * 0.64, -r * 0.85, r * 0.4);
+  ctx.quadraticCurveTo(-r * 1.0, r * 0.2, -r * 0.95, -r * 0.1);
+  ctx.closePath();
   ctx.fill();
 
-  // Legs.
-  ctx.strokeStyle = GOAT;
-  ctx.lineWidth = Math.max(2, r * 0.16);
+  // Underside in shade, so the barrel has a top and a bottom. Kept low and wide
+  // and well inside the outline — drawn any higher it reads as a belt.
+  ctx.fillStyle = GOAT_SHADE;
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.05, r * 0.5, r * 0.66, r * 0.13, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Legs: two back, two front, the far pair shaded so they sit behind.
+  //
+  // Each foot lands **outside** its hip, so the stance splays — back legs
+  // trailing, front legs reaching. Curled inwards instead, all four hooves met
+  // under the belly and the goat looked hobbled.
+  const legW = Math.max(2, r * 0.15);
   ctx.lineCap = 'round';
-  for (const dx of [-0.5, -0.18, 0.18, 0.5]) {
+  ctx.lineJoin = 'round';
+  for (const [hip, far] of [
+    [-0.4, true],
+    [0.44, true],
+    [-0.58, false],
+    [0.6, false],
+  ] as [number, boolean][]) {
+    const out = hip + Math.sign(hip) * 0.3;
+    ctx.strokeStyle = far ? GOAT_SHADE : GOAT;
+    ctx.lineWidth = far ? legW * 0.85 : legW;
     ctx.beginPath();
-    ctx.moveTo(r * dx, r * 0.5);
-    ctx.lineTo(r * dx, r * 1.1);
+    ctx.moveTo(r * hip, r * 0.45);
+    // Bent at the knee — a straight stick reads as furniture, not a leap.
+    ctx.quadraticCurveTo(r * hip, r * 0.92, r * out, r * 1.1);
     ctx.stroke();
-  }
-
-  // Head.
-  ctx.fillStyle = GOAT;
-  ctx.beginPath();
-  ctx.ellipse(r * 0.85, -r * 0.45, r * 0.42, r * 0.32, -0.3, 0, Math.PI * 2);
-  ctx.fill();
-
-  if (kind === 'adult') {
-    // Horns and beard: the adult silhouette.
-    ctx.strokeStyle = GOAT;
-    ctx.lineWidth = Math.max(2, r * 0.14);
+    // A hoof, so the leg ends in something.
+    ctx.fillStyle = GOAT_HORN;
     ctx.beginPath();
-    ctx.moveTo(r * 0.75, -r * 0.75);
-    ctx.quadraticCurveTo(r * 0.4, -r * 1.3, r * 0.05, -r * 1.05);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(r * 0.95, -r * 0.72);
-    ctx.quadraticCurveTo(r * 0.7, -r * 1.35, r * 0.3, -r * 1.2);
-    ctx.stroke();
-    ctx.fillStyle = GOAT;
-    ctx.beginPath();
-    ctx.moveTo(r * 0.95, -r * 0.18);
-    ctx.lineTo(r * 0.8, r * 0.35);
-    ctx.lineTo(r * 1.15, -r * 0.1);
+    ctx.arc(r * out, r * 1.1, legW * 0.55, 0, Math.PI * 2);
     ctx.fill();
   }
 
+  // Tail, flicked up.
+  ctx.strokeStyle = GOAT;
+  ctx.lineWidth = Math.max(2, r * 0.13);
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.92, -r * 0.12);
+  ctx.quadraticCurveTo(-r * 1.25, -r * 0.3, -r * 1.18, -r * 0.6);
+  ctx.stroke();
+
+  // Neck into the head, as one shape so there is no seam between them.
+  ctx.fillStyle = GOAT;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.45, -r * 0.45);
+  ctx.quadraticCurveTo(r * 0.85, -r * 0.55, r * 0.92, -r * 0.85);
+  ctx.lineTo(r * 1.3, -r * 0.62);
+  ctx.quadraticCurveTo(r * 1.35, -r * 0.3, r * 0.9, -r * 0.2);
+  ctx.closePath();
+  ctx.fill();
+
+  // Muzzle: a snout that comes to a blunt point, which is most of "goat".
+  ctx.beginPath();
+  ctx.ellipse(r * 1.24, -r * 0.52, r * 0.3, r * 0.2, -0.35, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Ear, dropped back along the neck.
+  ctx.fillStyle = GOAT_SHADE;
+  ctx.beginPath();
+  ctx.ellipse(r * 0.82, -r * 0.82, r * 0.2, r * 0.1, -0.9, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (kind === 'adult') {
+    // Horns sweeping back over the neck, and a beard. Both are silhouette, not
+    // colour: §10 forbids telling an adult from a kid by hue.
+    // Two of them, clearly apart and short. Overlapping long curves merged into
+    // one thick line that read as an aerial.
+    ctx.strokeStyle = GOAT_HORN;
+    ctx.lineWidth = Math.max(2, r * 0.13);
+    const horns: [number, number, number, number][] = [
+      [0.34, -1.18, 0.78, -1.34],
+      [0.6, -1.32, 0.92, -1.24],
+    ];
+    for (const [tipX, tipY, ctlX, ctlY] of horns) {
+      ctx.beginPath();
+      ctx.moveTo(r * 0.97, -r * 0.92);
+      ctx.quadraticCurveTo(r * ctlX, r * ctlY, r * tipX, r * tipY);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = GOAT;
+    ctx.beginPath();
+    ctx.moveTo(r * 1.12, -r * 0.32);
+    ctx.quadraticCurveTo(r * 1.05, r * 0.22, r * 0.86, r * 0.3);
+    ctx.quadraticCurveTo(r * 1.02, -r * 0.05, r * 0.98, -r * 0.36);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Eye and nostril. The nostril is what stops the muzzle reading as a thumb.
   ctx.fillStyle = '#10121a';
   ctx.beginPath();
-  ctx.arc(r * 1.02, -r * 0.52, Math.max(1.5, r * 0.08), 0, Math.PI * 2);
+  ctx.arc(r * 1.02, -r * 0.66, Math.max(1.4, r * 0.075), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(r * 1.36, -r * 0.5, Math.max(1, r * 0.05), 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
