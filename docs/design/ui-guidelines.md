@@ -85,7 +85,9 @@ Rules:
 ## 7. Accessibility floor
 
 - Everything reachable by tap; no gesture is the *only* way to do something
-  (except the game mechanic itself, which must declare a fallback).
+  (except the game mechanic itself).
+- A game mechanic **should** declare a touch fallback. Where one is deliberately
+  not offered, the game's spec must say so explicitly and name who that excludes.
 - Focus states visible; buttons are `<button>`; the hub grid is a list.
 - No flashing above 3 Hz.
 - Sound is never required to play — every audio cue has a visual twin.
