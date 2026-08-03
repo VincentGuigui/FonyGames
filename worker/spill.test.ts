@@ -220,6 +220,19 @@ async function catching(): Promise<void> {
   await h.drain();
   check('a doubled drop lands doubled', h.state().levels[A] === SPILL_START_LEVEL - 1 + 2);
 
+  // Regression: the drop frame must name the hold it came from, or the client
+  // keeps a phantom hold, attaches its dead id to every later fling, and the
+  // server silently rejects all of them — a permanent lock-out.
+  check('re-flinging echoes which hold it replaces', relob?.d.replaces === id, relob?.d);
+  const plain = h.of('drop').find((m) => m.d.dropId === drop.d.dropId);
+  check('an ordinary fling replaces nothing', plain?.d.replaces === undefined, plain?.d);
+  check('the server forgets the hold', h.state().held[id] === undefined, h.state().held);
+
+  // And the throw after that must still work — this is what actually broke.
+  h.advance(3000);
+  const sent = h.of('drop').length;
+  await onFling(h.ctx, C, 1, screenAngleTo(2, 0, 4), 3);
+  check('you can still fling after throwing a caught drop on', h.of('drop').length === sent + 1);
 }
 
 async function soaking(): Promise<void> {

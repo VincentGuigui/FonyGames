@@ -185,8 +185,16 @@ export type ServerMessage =
    * Spill: something is in the air. Carries `levels` because flinging is the
    * one thing that empties your phone — without it your own counter would sit
    * unchanged until the drop landed a second and a half later.
+   *
+   * `replaces` is the id of the caught drop this one was thrown *from*, so the
+   * thrower knows the payload has left their hands. Without it the client keeps
+   * a phantom hold forever and every later flick is rejected server-side.
    */
-  | { t: 'drop'; s: number; d: SpillDrop & { levels: Record<PlayerId, number> } }
+  | {
+      t: 'drop';
+      s: number;
+      d: SpillDrop & { levels: Record<PlayerId, number>; replaces?: string };
+    }
   /** Spill: `by` grabbed it mid-approach; it is now theirs to re-fling. */
   | { t: 'caught'; s: number; d: { dropId: string; by: PlayerId; size: number; soaksAt: number } }
   /** Spill: it landed. `on` is null when the flick missed the table entirely. */

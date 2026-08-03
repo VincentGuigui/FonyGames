@@ -187,7 +187,15 @@ export async function onFling(
   s.air[dropId] = drop;
   s.lockedUntil[playerId] = drop.leavesAt;
 
-  ctx.broadcast({ t: 'drop', s: ctx.nextSeq(), d: { ...drop, levels: s.levels } });
+  ctx.broadcast({
+    t: 'drop',
+    s: ctx.nextSeq(),
+    // `replaces` tells the thrower their held payload is gone. Omitted (rather
+    // than null) for an ordinary fling, per exactOptionalPropertyTypes.
+    d: heldId === undefined
+      ? { ...drop, levels: s.levels }
+      : { ...drop, levels: s.levels, replaces: heldId },
+  });
 
   // Flinging is the only thing that empties a phone, so the win can land here.
   if (await settle(ctx, s)) return;

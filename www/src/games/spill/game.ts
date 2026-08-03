@@ -106,8 +106,13 @@ export class SpillGame {
 
       case 'drop': {
         if (!this.#state) return;
-        const { levels, ...drop } = msg.d;
+        const { levels, replaces, ...drop } = msg.d;
         this.#state = { ...this.#state, air: [...this.#state.air, drop], levels };
+        // The payload we were holding has been thrown on. Letting this go
+        // unhandled strands #held forever, and since heldId() is attached to
+        // every outgoing fling, the server then rejects all of them — the
+        // player is silently locked out for the rest of the round.
+        if (replaces !== undefined && this.#held?.dropId === replaces) this.#held = null;
         if (this.#state.seats[drop.from] === this.#me) {
           this.#lockedUntil = drop.leavesAt;
           this.#optimisticLock = 0;
@@ -157,6 +162,7 @@ export class SpillGame {
     const now = this.#now();
     const s = this.#state;
     const count = s?.levels[this.#me] ?? SPILL_START_LEVEL;
+    this.#expireStaleHold(now);
 
     const visible: Visible[] = [];
     for (const drop of s?.air ?? []) {
@@ -274,10 +280,26 @@ export class SpillGame {
     this.#splashes.push({ x: 0.5, y: 0.5, at: this.#now(), size });
   }
 
+  /**
+   * Belt and braces for the hold.
+   *
+   * A held payload has exactly two ends: we throw it on (the server echoes
+   * `replaces`) or it soaks in (the server sends `land`). If neither frame
+   * arrives well after `soaksAt`, our copy is stale — the server has certainly
+   * resolved it by now. Letting it linger would attach a dead id to every
+   * subsequent fling and lock the player out, which is far too harsh a
+   * punishment for one dropped frame.
+   */
+  #expireStaleHold(now: number): void {
+    if (this.#held && now > this.#held.soaksAt + HOLD_GRACE_MS) this.#held = null;
+  }
 }
 
 /** How long a splash animation runs. Shared with the renderer. */
 export const SPLASH_MS = 600;
+
+/** How long past a hold's expiry we wait for the server before giving up on it. */
+const HOLD_GRACE_MS = 2_000;
 
 /** Touch slop for grabbing an incoming drop — a fingertip is about this wide. */
 const CATCH_RADIUS = 56;
