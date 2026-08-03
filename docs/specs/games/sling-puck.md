@@ -9,7 +9,7 @@
 | **Round length** | 30 s – 2 min |
 | **Inputs** | touch (drag back and release) |
 | **Accent colour** | `#FB7185` |
-| **Status** | 📝 spec |
+| **Status** | 🎮 beta — `classic` playable; puck count and gap width untested |
 
 ## 1. Pitch
 
@@ -80,8 +80,7 @@ nothing on the server needs to agree with it.
 ### The handoff
 
 Phones nose to nose are rotated 180° from each other, so the crossing is a
-rotation. In normalised coordinates (x across the board 0..1, y down 0..1,
-velocity in board-heights per second):
+rotation. In the board units defined just below:
 
 | Leaving A | Arriving at B |
 | --- | --- |
@@ -89,8 +88,9 @@ velocity in board-heights per second):
 | `vx` | `-vx` |
 | `vy` (negative, upward) | `-vy` (positive, downward) |
 
-Normalised on purpose: the two phones are not the same size, and the board must
-be the same board on both.
+Three sign flips and nothing else — no trigonometry, and no dependence on how big
+either screen is, which matters because the two phones are not the same size and
+the board has to be the same board on both.
 
 ### Units, and why the board has a fixed shape
 
@@ -156,7 +156,7 @@ unit note in §4.
 | `GAP_FRACTION` | 0.34 | Width of the gap as a fraction of the board width |
 | `REST_SPEED` | 0.03 | Below this a puck is treated as stopped |
 | `SUB_STEPS` | 4 | Physics sub-steps per rendered frame |
-| `TAP_PULL` | 0.75 | Fraction of a full pull the tap-to-launch fallback fires at (§13) |
+| `TAP_SPEED` | 1.7 | Launch speed for the tap-to-launch fallback (§13) |
 
 Five choices in there are deliberate rather than arbitrary:
 
@@ -178,10 +178,8 @@ Five choices in there are deliberate rather than arbitrary:
   tying them together meant one could not be tuned without the other. It sits
   *above* what a full pull produces, so in normal play it never bites: it is a
   guard against a bugged or forged pull, not part of the feel.
-- **`TAP_PULL` is high, not medium.** Below about 0.7 of a full pull the shot
-  cannot reach the gap at all, and an accessibility fallback that cannot score is
-  not a fallback (§13). It is weaker than a good drag and aims only straight
-  ahead; that is the honest cost of not having to drag.
+- **`TAP_SPEED` is a speed, not a pull length.** The tap fallback does not go
+  through the sling at all — see §13 for why it cannot.
 
 `BAND_REST_FRACTION` and `MAX_PULL` are a pair: the band has to sit high enough
 to leave a full pull of board behind it. At `0.72 + 0.24` a full pull ends at
@@ -282,8 +280,27 @@ Nothing else, and none of it outlives the room
 
 - **Drag-and-release is the whole input**, and a hard drag is exactly what some
   players cannot do. A **tap-to-launch** fallback is required in the first
-  iteration, not later: tap a puck and it fires at a fixed medium strength,
-  straight up the board. Slower and less accurate, fully playable.
+  iteration, not later: tap a puck and it fires at the gap, at a fixed modest
+  speed.
+
+  It **aims, rather than imitating a pull**, and that is a correction to what this
+  section originally said. "Fires straight up the board at a fixed strength" does
+  not work, for two reasons that only showed up once it was played:
+
+  - Pulling a puck straight back does not fire it straight up unless the puck is
+    in the middle. A puck near the left edge sits in a lopsided V, so the long
+    right-hand segment wins and the shot goes up and hard to the right, into the
+    wall (§7 — this is the aiming model working correctly).
+  - Firing *literally* straight up does not help either: a puck resting near the
+    left edge would go up the left edge, and the gap is in the middle.
+
+  Three of the five pucks in the opening rack could not reach the gap either way.
+  So the tap aims at the middle of the gap. What it gives up in exchange is
+  everything else: it cannot choose power, cannot bank off a side wall, and cannot
+  line up on another puck to knock it through. It only ever plays the plainest
+  shot on the board, which is the honest cost of not having to drag — and it is
+  down in §14 as something a play test has to weigh, because "always makes the
+  plain shot" is a real advantage as well as a limitation.
 - Puck count is always a **number**, never only a row of icons.
 - The gap must read by **shape** — a break in a drawn wall — not by colour.
 - No strobing. A wall bounce is not a flash.
@@ -294,6 +311,12 @@ Nothing else, and none of it outlives the room
 ## 14. Open questions
 
 - **Is 5 pucks right?** A round that ends in four seconds is not a round.
+- **Is the tap fallback too good?** It cannot aim, bank or knock, but it never
+  misses the plain shot, and a player who only taps can empty their side at the
+  rate of `SLING_MIN_GAP_MS` plus travel time. A dragging player has strictly more
+  options and strictly worse consistency. Watch whether tapping turns out to be
+  the *optimal* way to play, which would be the wrong outcome for a game about
+  aiming (§13).
 - **Is the gap too kind at 0.34?** Wide enough and there is no skill; narrow
   enough and nothing ever crosses. Only a play test settles it.
 - Should pucks knocking each other through the gap count? Currently **yes**, and

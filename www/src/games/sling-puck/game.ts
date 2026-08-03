@@ -13,7 +13,7 @@ import {
   restingPucks,
   slingVelocity,
   step,
-  tapPull,
+  tapVelocity,
   type Puck,
 } from './physics';
 
@@ -224,18 +224,23 @@ export class SlingGame {
   }
 
   /**
-   * The tap-to-launch fallback (spec §13): fire the puck nearest the tap at a
-   * fixed strength, straight up the board. Required in the first iteration,
-   * because a hard drag is exactly what some players cannot do.
+   * The tap-to-launch fallback (spec §13): fire the puck nearest the tap at the
+   * gap, at a fixed modest speed. Required in the first iteration, because a hard
+   * drag is exactly what some players cannot do.
+   *
+   * The aiming is in `tapVelocity`, along with why it aims rather than pulls.
    */
   tap(x: number, y: number): boolean {
     if (!this.grab(x, y)) return false;
     const held = this.#drag;
+    this.#drag = null;
     if (!held) return false;
-    // Straight back from where the puck sits, so a tap never aims sideways.
-    const at = tapPull(held.x);
-    this.#drag = { ...held, x: at.x, y: at.y };
-    this.release();
+
+    const p = this.#pucks.find((q) => q.id === held.puckId);
+    if (!p) return false;
+    const v = tapVelocity(p.x, p.y);
+    p.vx = v.vx;
+    p.vy = v.vy;
     return true;
   }
 
