@@ -102,6 +102,28 @@ export const GAMES: GameCard[] = [
     status: 'beta',
   },
   {
+    slug: 'sling-puck',
+    title: 'Sling Puck',
+    pitch: 'Sling every puck onto their side before they sling them back',
+    concept: 'One board, split across two phones. Empty your half.',
+    rules: [
+      'Drag a puck back and let go — or tap it to fire straight.',
+      'Pucks bounce off every wall except the gap.',
+      'No turns. You are both slinging at once.',
+    ],
+    motif: 'sling',
+    accent: '#FB7185',
+    players: [2, 2],
+    duration: '30 s – 2 min',
+    inputs: ['touch'],
+    modes: [
+      { id: 'classic', name: 'Classic', blurb: 'Five pucks each, first side clear wins' },
+    ],
+    // `beta`: playable, but §14 of the spec has the puck count and gap width
+    // down as open questions, and only a play test settles either.
+    status: 'beta',
+  },
+  {
     slug: 'shake-sprint',
     title: 'Shake Sprint',
     pitch: 'Shake like your life depends on it — first to the finish wins',

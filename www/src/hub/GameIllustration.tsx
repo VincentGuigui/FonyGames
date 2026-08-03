@@ -249,6 +249,40 @@ function motifBody(motif: GameMotif): JSX.Element {
           <circle cx={74} cy={13} r={2} fill="#10121a" />
         </>
       );
+
+    case 'sling':
+      // Two phones nose to nose with a gap between them, the near one's band
+      // stretched into a V, and a puck already through. Laid out across the box
+      // rather than up it because the illustration is landscape — the *relative*
+      // arrangement is what has to read, not which way the table faces.
+      return (
+        <>
+          <Phone x={29} y={26} rotate={90} />
+          <Phone x={71} y={26} rotate={-90} />
+
+          {/* The band on the near phone, pulled back into a V. */}
+          <path
+            d="M27 34 L40 45 L27 56"
+            fill="none"
+            stroke="currentColor"
+            stroke-width={3.5}
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+
+          {/* The puck's path through the gap, and the puck itself past it. */}
+          <path
+            d="M46 45 L58 45"
+            fill="none"
+            stroke="currentColor"
+            stroke-width={3}
+            stroke-dasharray="5 6"
+            stroke-linecap="round"
+          />
+          <circle cx={68} cy={45} r={6} fill="currentColor" />
+          <circle cx={68} cy={45} r={2.5} fill="#10121a" />
+        </>
+      );
   }
 }
 

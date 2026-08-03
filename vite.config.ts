@@ -21,6 +21,7 @@ export default defineConfig({
         'tap-duel': 'www/tap-duel/index.html',
         spill: 'www/spill/index.html',
         'goat-siege': 'www/goat-siege/index.html',
+        'sling-puck': 'www/sling-puck/index.html',
       },
     },
     // Payload budget in docs/architecture.md §4 is 150 KB gzipped for the hub.

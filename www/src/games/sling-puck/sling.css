@@ -1,0 +1,129 @@
+/*
+ * Sling Puck. Spec: docs/specs/games/sling-puck.md
+ *
+ * Layout only — the table, the walls, the band and the pucks are all drawn in
+ * render.ts. Mirrors siege.css and spill.css deliberately: the three boards
+ * behave the same way, so they should not be laid out three different ways.
+ *
+ * The one difference: this board is letterboxed to a fixed aspect ratio
+ * (spec §4), so the canvas fills the screen and the margin the board leaves at
+ * top and bottom is exactly where the HUD and the hint sit. Nothing has to be
+ * reserved for them.
+ */
+
+.sling {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: var(--color-bg);
+  --game-accent: #fb7185;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.sling__canvas {
+  grid-row: 1 / -1;
+  grid-column: 1;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+.sling__hud,
+.sling__hint {
+  grid-column: 1;
+  z-index: 1;
+  /* The canvas is the input surface: a drag that starts under the chrome must
+     not be swallowed by it. Buttons opt back in. */
+  pointer-events: none;
+}
+
+/*
+ * The scrim uses `isolation: isolate` plus a negative-z pseudo-element rather
+ * than lifting every child with `position: relative` — see the note in
+ * siege.css for the bug that pattern caused.
+ */
+.sling__hud {
+  grid-row: 1;
+  z-index: 3;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: max(0.6rem, env(safe-area-inset-top)) 1rem 0;
+}
+
+.sling__hud::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 7rem;
+  background: linear-gradient(to bottom, rgb(13 15 20 / 88%), rgb(13 15 20 / 0%));
+  pointer-events: none;
+  z-index: -1;
+}
+
+.sling__count {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.sling__count strong {
+  font-size: 2.2rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.sling__count span {
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Their count is the same information, deliberately quieter: it is the thing you
+   glance at, not the thing you play. */
+.sling__count--them {
+  align-items: flex-end;
+  text-align: right;
+  margin-inline-start: auto;
+}
+
+.sling__count--them strong {
+  font-size: 1.5rem;
+  color: var(--color-text-dim);
+}
+
+.sling__hint {
+  grid-row: 3;
+  position: relative;
+  margin: 0;
+  padding: 0.7rem 1rem max(0.7rem, env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text-dim);
+  background: rgb(13 15 20 / 92%);
+}
+
+/* ---------------- the lobby's head-to-head diagram ---------------- */
+
+.h2h {
+  display: block;
+  margin: 0 auto 0.5rem;
+  color: var(--color-text-dim);
+}
+
+.h2h__label {
+  font-size: 11px;
+  fill: var(--color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
