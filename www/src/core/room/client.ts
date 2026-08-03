@@ -46,6 +46,7 @@ const BACKOFF_MS = [500, 1000, 2000, 4000, 8000, 15000];
 export class RoomClient {
   #url: string;
   #code: string;
+  #game: string;
   #ws: WebSocket | null = null;
   #status: RoomStatus = 'closed';
   #attempt = 0;
@@ -62,13 +63,23 @@ export class RoomClient {
   #handlers: Partial<RoomEvents> = {};
 
   /**
+   * `game` is the slug of the page we are on. The server records it against the
+   * code so the hub can resolve `CODE → game` later and route a pasted code to
+   * the right lobby (docs/specs/hub.md §4).
+   *
    * `resume` is a seat id recovered from storage. Passing it is what makes a
    * page refresh rejoin as the same player rather than a new one — without it
    * the id only survives in memory, so a reload starts a stranger.
    */
-  constructor(baseUrl: string, code: string, resume: PlayerId | null = null) {
+  constructor(
+    baseUrl: string,
+    code: string,
+    game: string,
+    resume: PlayerId | null = null,
+  ) {
     this.#url = baseUrl;
     this.#code = code;
+    this.#game = game;
     this.#playerId = resume;
   }
 
@@ -118,6 +129,7 @@ export class RoomClient {
     const url = new URL(toWebSocketUrl(this.#url));
     url.pathname = '/room';
     url.searchParams.set('code', this.#code);
+    url.searchParams.set('game', this.#game);
 
     const ws = new WebSocket(url.toString());
     this.#ws = ws;

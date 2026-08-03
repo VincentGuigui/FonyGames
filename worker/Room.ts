@@ -103,17 +103,40 @@ export class Room extends DurableObject {
   #buckets = new WeakMap<WebSocket, Bucket>();
 
   async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+
+    /**
+     * `CODE → slug` for the hub's join field (docs/specs/hub.md §4).
+     *
+     * Reads and **writes nothing**: a lookup must not bring a room into being,
+     * or every mistyped code would leave an empty object behind. An unknown code
+     * is a room nobody has joined, which is a 404 either way.
+     */
+    if (url.pathname === '/room/game') {
+      const game = (await this.ctx.storage.get<string>('game')) ?? null;
+      if (!game) return new Response('No such room', { status: 404 });
+      return Response.json({ game });
+    }
+
     if (request.headers.get('Upgrade') !== 'websocket') {
       return new Response('Expected WebSocket upgrade', { status: 426 });
     }
 
-    const code = new URL(request.url).searchParams.get('code') ?? '';
+    const code = url.searchParams.get('code') ?? '';
+    const game = url.searchParams.get('game');
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
 
     // acceptWebSocket (not server.accept) is what enables hibernation.
     this.ctx.acceptWebSocket(server);
     await this.ctx.storage.put('code', code);
+
+    // The **first** connection decides which game the room is, and later ones
+    // cannot change it. Otherwise someone opening another game's page on an
+    // existing code would repoint the room and send the hub to the wrong place.
+    if (game && !(await this.ctx.storage.get<string>('game'))) {
+      await this.ctx.storage.put('game', game);
+    }
 
     return new Response(null, { status: 101, webSocket: client });
   }

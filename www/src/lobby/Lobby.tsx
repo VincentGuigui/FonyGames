@@ -28,7 +28,7 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
   const [armedAt, setArmedAt] = useState<{ roundId: number; startsAt: number } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const room = useRoom(code);
+  const room = useRoom(code, game.slug);
   const client = room.client;
 
   useEffect(() => {

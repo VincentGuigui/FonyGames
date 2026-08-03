@@ -1,4 +1,5 @@
 import { isRoomCode, normaliseRoomCode } from '../www/src/core/room/code';
+import { gameSlug, originAllowed } from './router';
 import { Room } from './Room';
 
 export { Room };
@@ -21,6 +22,32 @@ export default {
       return Response.json({ ok: true });
     }
 
+    /**
+     * `CODE → slug`, so the hub's code field can route by code alone and a
+     * player pasting a code never has to know which game their friends picked
+     * (docs/specs/hub.md §4, docs/specs/join.md §1).
+     *
+     * A plain GET, not a socket: looking up a code must not join a room. The
+     * object answers from storage and writes nothing, so an unknown code does
+     * not leave an empty room behind.
+     */
+    if (url.pathname === '/room/game') {
+      const origin = request.headers.get('Origin');
+      if (!originAllowed(origin, env.ALLOWED_ORIGINS)) {
+        return new Response('Forbidden origin', { status: 403 });
+      }
+
+      const wanted = normaliseRoomCode(url.searchParams.get('code') ?? '');
+      if (!isRoomCode(wanted)) {
+        return cors(new Response('Bad room code', { status: 400 }), origin);
+      }
+
+      const found = await env.ROOM.get(env.ROOM.idFromName(wanted)).fetch(
+        new Request(`https://room/room/game?code=${wanted}`),
+      );
+      return cors(found, origin);
+    }
+
     if (url.pathname !== '/room') {
       return new Response('Not found', { status: 404 });
     }
@@ -39,6 +66,7 @@ export default {
     if (!isRoomCode(code)) {
       return new Response('Bad room code', { status: 400 });
     }
+    const game = gameSlug(url.searchParams.get('game'));
 
     // The whole reason for Durable Objects: this name always resolves to the
     // same object, anywhere in the world, with no routing table of our own.
@@ -47,19 +75,21 @@ export default {
 
     const forwarded = new URL(request.url);
     forwarded.searchParams.set('code', code);
+    if (game) forwarded.searchParams.set('game', game);
+    else forwarded.searchParams.delete('game');
     return stub.fetch(new Request(forwarded, request));
   },
 };
 
-export function originAllowed(origin: string | null, allowList: string): boolean {
-  const allowed = allowList
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-
-  // No Origin header: not a browser (curl, a native client, our own tests).
-  // Browsers always send one for WebSocket, so this cannot be used to bypass
-  // the check from a web page.
-  if (origin === null) return true;
-  return allowed.includes(origin);
+/**
+ * The hub is served from the PHP host, so a lookup from it is cross-origin and
+ * needs this header or the browser hides the answer. A simple GET with no custom
+ * headers, so there is no preflight to handle.
+ */
+function cors(response: Response, origin: string | null): Response {
+  if (origin === null) return response;
+  const out = new Response(response.body, response);
+  out.headers.set('Access-Control-Allow-Origin', origin);
+  out.headers.set('Vary', 'Origin');
+  return out;
 }

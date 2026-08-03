@@ -35,3 +35,8 @@ export function roomServerUrl(hostname: string = location.hostname): string {
 export function toWebSocketUrl(url: string): string {
   return url.replace(/^http:/i, 'ws:').replace(/^https:/i, 'wss:');
 }
+
+/** The other direction, for the plain-HTTP endpoints (`/health`, `/room/game`). */
+export function toHttpUrl(url: string): string {
+  return url.replace(/^ws:/i, 'http:').replace(/^wss:/i, 'https:');
+}

@@ -45,7 +45,12 @@ export type Room = {
   setAvatar: (avatar: string) => void;
 };
 
-export function useRoom(code: string, onGame?: (msg: ServerMessage) => void): Room {
+export function useRoom(
+  code: string,
+  /** Slug of this game, recorded server-side so the hub can route a pasted code. */
+  game: string,
+  onGame?: (msg: ServerMessage) => void,
+): Room {
   const [status, setStatus] = useState<RoomStatus>('connecting');
   const [room, setRoom] = useState<RoomSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +61,7 @@ export function useRoom(code: string, onGame?: (msg: ServerMessage) => void): Ro
   useEffect(() => {
     // Recovering the seat from storage is what makes a refresh rejoin as the
     // same player instead of spawning a ghost alongside the old one.
-    const client = new RoomClient(roomServerUrl(), code, loadSeat(code));
+    const client = new RoomClient(roomServerUrl(), code, game, loadSeat(code));
     clientRef.current = client;
     client.on('status', setStatus);
     client.on('presence', setRoom);
@@ -65,7 +70,7 @@ export function useRoom(code: string, onGame?: (msg: ServerMessage) => void): Ro
     client.on('game', (msg) => gameRef.current?.(msg));
     client.connect(loadProfile());
     return () => client.close();
-  }, [code]);
+  }, [code, game]);
 
   const me = room?.players.find((p) => p.id === clientRef.current?.playerId);
 

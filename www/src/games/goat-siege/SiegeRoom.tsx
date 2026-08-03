@@ -40,7 +40,7 @@ export function SiegeRoom({ game: card }: { game: GameCard }): JSX.Element {
     [game],
   );
 
-  const room = useRoom(code, onGame);
+  const room = useRoom(code, card.slug, onGame);
   const client = room.client;
   const myId = room.me?.id;
 

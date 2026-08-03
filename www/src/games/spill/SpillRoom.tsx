@@ -49,7 +49,7 @@ export function SpillRoom({ game: card }: { game: GameCard }): JSX.Element {
     [game],
   );
 
-  const room = useRoom(code, onGame);
+  const room = useRoom(code, card.slug, onGame);
   const client = room.client;
   const theme = themeById(themeId);
   const myId = room.me?.id;
