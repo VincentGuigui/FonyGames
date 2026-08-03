@@ -204,8 +204,10 @@
   margin-inline: auto;
 }
 
-.gamemenu__sheet .setup__rule {
-  margin: 0 0 var(--space-3);
+.gamemenu__sheet .howto__aside,
+.gamemenu__sheet .howto__rule {
+  margin: 0;
   text-align: center;
   font-size: var(--font-small);
+  color: var(--color-text-dim);
 }

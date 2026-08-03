@@ -1,5 +1,6 @@
 import { useState } from 'preact/hooks';
 import type { ComponentChildren, JSX } from 'preact';
+import { HowToPlay } from './HowToPlay';
 
 /**
  * The in-game menu: a gear in the corner of every game, opening a sheet.
@@ -14,11 +15,13 @@ import type { ComponentChildren, JSX } from 'preact';
  */
 export function GameMenu({
   title,
+  concept,
   rules,
   children,
 }: {
   title: string;
-  /** The single source in the game's registry entry — never retyped here. */
+  /** Both come from the game's registry entry — never retyped here. */
+  concept: string;
   rules: string[];
   children?: ComponentChildren;
 }): JSX.Element {
@@ -55,11 +58,7 @@ export function GameMenu({
             </div>
 
             <h3 class="gamemenu__label">How to play</h3>
-            <ul class="rules">
-              {rules.map((r) => (
-                <li key={r}>{r}</li>
-              ))}
-            </ul>
+            <HowToPlay concept={concept} rules={rules} />
 
             {children}
 

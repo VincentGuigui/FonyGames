@@ -17,12 +17,14 @@ import { RulesPanel } from '../../core/ui/RulesPanel';
 export function SiegeBoard({
   game,
   title,
+  concept,
   rules,
   client,
   players,
 }: {
   game: SiegeGame;
   title: string;
+  concept: string;
   rules: string[];
   client: RoomClient | null;
   players: Player[];
@@ -81,7 +83,7 @@ export function SiegeBoard({
           <strong>{cabbages}</strong>
           <span>cabbages</span>
         </p>
-        <GameMenu title={title} rules={rules} />
+        <GameMenu title={title} concept={concept} rules={rules} />
       </div>
 
       <div class="siege__lobbar">
@@ -114,6 +116,7 @@ export function SiegeBoard({
         <RulesPanel
           key={game.state.roundId}
           title={title}
+          concept={concept}
           rules={rules}
           startsAt={game.state.startsAt}
           now={() => client?.now() ?? Date.now()}

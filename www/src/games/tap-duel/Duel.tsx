@@ -35,16 +35,17 @@ export function Duel(props: {
   /** Only the host may start the next duel. */
   isHost: boolean;
   title: string;
+  concept: string;
   rules: string[];
 }): JSX.Element | null {
-  const { players, me, phase, result, onTap, onAgain, isHost, title, rules } = props;
+  const { players, me, phase, result, onTap, onAgain, isHost, title, concept, rules } = props;
   if (phase === 'idle') return null;
 
   // Same gear, same corner, same contents as every other game. It sits outside
   // the tap target so opening the menu can never be scored as a tap.
   const menu = (
     <div class="duel__menu">
-      <GameMenu title={title} rules={rules} />
+      <GameMenu title={title} concept={concept} rules={rules} />
     </div>
   );
 

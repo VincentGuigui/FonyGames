@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { PREROUND_MS } from '../../../../shared/protocol';
+import { HowToPlay } from './HowToPlay';
 
 /**
  * The four-second panel at the top of a round: how to play, in two or three
@@ -18,12 +19,14 @@ import { PREROUND_MS } from '../../../../shared/protocol';
  */
 export function RulesPanel({
   title,
+  concept,
   rules,
   /** Server time the round starts. The countdown is against the server clock. */
   startsAt,
   now,
 }: {
   title: string;
+  concept: string;
   rules: string[];
   startsAt: number;
   now: () => number;
@@ -47,11 +50,7 @@ export function RulesPanel({
     <div class="preround" role="dialog" aria-live="polite" aria-label={`${title}: how to play`}>
       <div class="preround__card">
         <h2 class="preround__title">{title}</h2>
-        <ul class="rules rules--big">
-          {rules.map((r) => (
-            <li key={r}>{r}</li>
-          ))}
-        </ul>
+        <HowToPlay concept={concept} rules={rules} size="big" />
         <p class="preround__count" aria-hidden="true">
           {seconds}
         </p>

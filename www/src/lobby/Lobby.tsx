@@ -3,7 +3,7 @@ import type { JSX } from 'preact';
 import type { GameCard } from '../core/types';
 import type { RoundResult } from '../../../shared/protocol';
 import { codeFromLocation, useRoom, shareRoom } from '../core/room/useRoom';
-import { AvatarPicker, CodeCard, ConnectionBanner, PlayerList } from './parts';
+import { GameLobby } from './GameLobby';
 import { RulesPanel } from '../core/ui/RulesPanel';
 import { Duel, type DuelPhase } from '../games/tap-duel/Duel';
 
@@ -102,12 +102,14 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
           onAgain={startDuel}
           isHost={room.isHost}
           title={game.title}
+          concept={game.concept}
           rules={game.rules}
         />
         {armedAt && (
           <RulesPanel
             key={armedAt.roundId}
             title={game.title}
+            concept={game.concept}
             rules={game.rules}
             startsAt={armedAt.startsAt}
             now={() => client?.now() ?? Date.now()}
@@ -118,66 +120,25 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
   }
 
   return (
-    <div class="lobby" style={{ '--game-accent': game.accent } as JSX.CSSProperties}>
-      <header class="lobby__header">
-        <a class="lobby__back" href="/">
-          ← All games
-        </a>
-        <h1 class="lobby__title">{game.title}</h1>
-        <p class="lobby__pitch">{game.pitch}</p>
-      </header>
-
-      <ConnectionBanner status={room.status} />
-
-      <section class="setup">
-        <h2 class="setup__heading">How to play</h2>
-        <ul class="rules">
-          {game.rules.map((r) => (
-            <li key={r}>{r}</li>
-          ))}
-        </ul>
-      </section>
-
-      <CodeCard
-        code={code}
-        joinUrl={joinUrl}
-        copied={copied}
-        showQr={showQr}
-        onShare={share}
-        onToggleQr={() => setShowQr((v) => !v)}
-      />
-
-      {room.error && (
-        <p class="lobby__error" role="alert">
-          {room.error}
-        </p>
-      )}
-
-      <section class="players">
-        <h2 class="players__heading">
-          Players{room.room ? ` (${room.room.players.length})` : ''}
-        </h2>
-        <PlayerList room={room.room} me={room.me} onRename={room.rename} />
-        {room.me && <AvatarPicker current={room.me.avatar} onPick={room.setAvatar} />}
-      </section>
-
-      <footer class="lobby__footer">
-        <button
-          class="btn btn--primary btn--big"
-          type="button"
-          disabled={!canStart}
-          onClick={startDuel}
-        >
-          Start round
-        </button>
-        <p class="lobby__note">
-          {!room.isHost
-            ? 'The host starts the round.'
-            : room.connected < 2
-              ? 'Waiting for one more player…'
-              : 'Wait for the signal, then tap. Moving early loses the duel.'}
-        </p>
-      </footer>
-    </div>
+    <GameLobby
+      card={game}
+      code={code}
+      joinUrl={joinUrl}
+      room={room}
+      copied={copied}
+      showQr={showQr}
+      onShare={share}
+      onToggleQr={() => setShowQr((v) => !v)}
+      canStart={canStart}
+      startLabel="Start round"
+      onStart={startDuel}
+      note={note(room.isHost, room.connected)}
+    />
   );
+}
+
+function note(isHost: boolean, connected: number): string {
+  if (!isHost) return 'The host starts the round.';
+  if (connected < 2) return 'Waiting for one more player…';
+  return 'Wait for the signal, then tap. Moving early loses the duel.';
 }

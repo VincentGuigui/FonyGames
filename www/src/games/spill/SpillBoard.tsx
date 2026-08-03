@@ -40,6 +40,7 @@ type Gesture = {
 export function SpillBoard({
   game,
   title,
+  concept,
   rules,
   theme,
   themeId,
@@ -50,6 +51,7 @@ export function SpillBoard({
 }: {
   game: SpillGame;
   title: string;
+  concept: string;
   rules: string[];
   theme: Theme;
   themeId: string;
@@ -190,11 +192,11 @@ export function SpillBoard({
           <strong>{count}</strong>
           <span>{theme.words.unitPlural} left</span>
         </p>
-        <GameMenu title={title} rules={rules}>
+        <GameMenu title={title} concept={concept} rules={rules}>
           {state && me && (
             <>
               <h3 class="gamemenu__label">Where to put your phone</h3>
-              <p class="setup__rule">
+              <p class="howto__aside">
                 Flat, screen up, <strong>top edge towards the middle</strong>.
               </p>
               <SeatMap
@@ -262,6 +264,7 @@ export function SpillBoard({
         <RulesPanel
           key={state.roundId}
           title={title}
+          concept={concept}
           rules={rules}
           startsAt={state.startsAt}
           now={() => client?.now() ?? Date.now()}

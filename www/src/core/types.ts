@@ -38,6 +38,15 @@ export type GameCard = {
   /** ONE catchy sentence, <= 60 chars, no trailing period. */
   pitch: string;
   /**
+   * The one idea the game turns on, in a single sentence.
+   *
+   * Not the pitch: the pitch sells the game on the hub, this explains the thing
+   * you have to *understand* to play it well. It leads the how-to-play panel,
+   * above the bullets, because a player who grasps the concept can work out the
+   * mechanics and a player who only knows the mechanics often cannot.
+   */
+  concept: string;
+  /**
    * How to play, in 2–3 short sentences.
    *
    * ONE source for three places: the lobby, the four-second panel at the top of

@@ -16,6 +16,7 @@ export const GAMES: GameCard[] = [
     slug: 'tap-duel',
     title: 'Tap Duel',
     pitch: 'The fastest thumb in the room takes the round',
+    concept: 'One signal, every screen at once — pure reflex, nothing else.',
     rules: [
       'Wait for the screen to change.',
       'Then tap as fast as you can.',
@@ -38,6 +39,7 @@ export const GAMES: GameCard[] = [
     slug: 'spill',
     title: 'Spill',
     pitch: 'Fling your water at the neighbours before they flood you',
+    concept: 'The table is the board: flick towards someone and it lands on their phone.',
     rules: [
       'Phones flat, top edge towards the middle.',
       'Flick your water at a neighbour.',
@@ -59,6 +61,7 @@ export const GAMES: GameCard[] = [
     slug: 'bump-relay',
     title: 'Bump Relay',
     pitch: 'Smash phones together to pass the bomb before it blows',
+    concept: 'The fuse is hidden, so nobody knows how long they dare hold it.',
     rules: [
       'One phone holds the bomb.',
       'Knock phones together to pass it on.',
@@ -81,6 +84,7 @@ export const GAMES: GameCard[] = [
     slug: 'goat-siege',
     title: 'Goat Siege',
     pitch: "Shoo the neighbours' goats before they eat your cabbages",
+    concept: 'Shooing is not free — one tap becomes two problems.',
     rules: [
       'Tap a neighbour to lob a goat at them.',
       'Tap incoming goats to shoo them.',
@@ -101,6 +105,7 @@ export const GAMES: GameCard[] = [
     slug: 'shake-sprint',
     title: 'Shake Sprint',
     pitch: 'Shake like your life depends on it — first to the finish wins',
+    concept: 'Pure effort: the harder you shake, the faster you move.',
     rules: [
       'Shake to move down the track.',
       'First over the finish line wins.',
@@ -117,6 +122,7 @@ export const GAMES: GameCard[] = [
     slug: 'tilt-arena',
     title: 'Tilt Arena',
     pitch: 'Tilt to steer, crash to win',
+    concept: 'Everyone shares one board, and only tilt steers you.',
     rules: [
       'Tilt your phone to steer.',
       'Shove everyone else off the board.',
@@ -133,6 +139,7 @@ export const GAMES: GameCard[] = [
     slug: 'steady-hand',
     title: 'Steady Hand',
     pitch: 'Hold your phone perfectly still. Longer than everyone else',
+    concept: 'The opposite of every other game here: do as little as possible.',
     rules: [
       'Hold your phone as still as you can.',
       'The last one still steady wins.',
@@ -149,6 +156,7 @@ export const GAMES: GameCard[] = [
     slug: 'ghost-tag',
     title: 'Ghost Tag',
     pitch: 'One ghost, a whole neighbourhood, and a map that only whispers',
+    concept: 'The map tells the ghost less than it tells you — and lies to nobody.',
     rules: [
       'One player is the ghost.',
       'The map only hints where they are.',
@@ -166,6 +174,7 @@ export const GAMES: GameCard[] = [
     slug: 'zone-rush',
     title: 'Zone Rush',
     pitch: 'Claim real streets by standing on them longer than your rivals',
+    concept: 'Ground is claimed by standing on it, not by tapping.',
     rules: [
       'Stand in a zone to start claiming it.',
       'Hold it longer than anyone else.',
@@ -182,6 +191,7 @@ export const GAMES: GameCard[] = [
     slug: 'compass-hunt',
     title: 'Compass Hunt',
     pitch: 'Follow the arrow to the treasure — so is everyone else',
+    concept: 'Everyone gets the same arrow, so the race is the game.',
     rules: [
       'Follow the arrow to the treasure.',
       'Everyone else is following it too.',
@@ -198,6 +208,7 @@ export const GAMES: GameCard[] = [
     slug: 'scream-meter',
     title: 'Scream Meter',
     pitch: 'Loudest wins. Your neighbours will not be thanked',
+    concept: 'One number, one lung-full, no strategy whatsoever.',
     rules: [
       'Make as much noise as you can.',
       'Loudest reading wins the round.',

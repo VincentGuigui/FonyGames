@@ -10,15 +10,17 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { codeFromLocation, shareRoom, useRoom } from '../../core/room/useRoom';
-import { AvatarPicker, CodeCard, ConnectionBanner, PlayerList } from '../../lobby/parts';
+import { GameLobby } from '../../lobby/GameLobby';
 import { SiegeBoard } from './SiegeBoard';
 import { SiegeGame } from './game';
 
 /**
  * Goat Siege's room screen. Spec: docs/specs/games/goat-siege.md
  *
- * Same composition as Spill's: the shared room chrome around a game-specific
- * middle. The board takes over while a round is running.
+ * The lobby is the shared template (`lobby/GameLobby.tsx`). Goat Siege needs
+ * nothing from its slots except the result of the last round, which is the
+ * point of having a template: a game that has no special requirements should
+ * not have to restate the common ones.
  */
 export function SiegeRoom({ game: card }: { game: GameCard }): JSX.Element {
   const code = useMemo(() => codeFromLocation(), []);
@@ -67,6 +69,7 @@ export function SiegeRoom({ game: card }: { game: GameCard }): JSX.Element {
       <SiegeBoard
         game={game}
         title={card.title}
+        concept={card.concept}
         rules={card.rules}
         client={client}
         players={room.room?.players ?? []}
@@ -74,86 +77,30 @@ export function SiegeRoom({ game: card }: { game: GameCard }): JSX.Element {
     );
   }
 
-  const canStart =
-    room.isHost && room.connected >= SIEGE_MIN_PLAYERS && room.connected <= SIEGE_MAX_PLAYERS;
-
   return (
-    <div class="lobby" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
-      <header class="lobby__header">
-        <a class="lobby__back" href="/">
-          ← All games
-        </a>
-        <h1 class="lobby__title">{card.title}</h1>
-        <p class="lobby__pitch">{card.pitch}</p>
-      </header>
-
-      <ConnectionBanner status={room.status} />
-
-      <section class="setup">
-        <h2 class="setup__heading">Mind your cabbages</h2>
-        <p class="setup__rule">
-          Lob a goat at a neighbour. Tap the ones coming for you —{' '}
-          <strong>a shooed goat splits into two kids</strong>, and they eat too.
-        </p>
-        <p class="setup__why">
-          So shooing everything is not the winning move. Sometimes you let one
-          through on purpose.
-        </p>
-        <h3 class="gamemenu__label">How to play</h3>
-        <ul class="rules">
-          {card.rules.map((r) => (
-            <li key={r}>{r}</li>
-          ))}
-        </ul>
-      </section>
-
-      <CodeCard
-        code={code}
-        joinUrl={joinUrl}
-        copied={copied}
-        showQr={showQr}
-        onShare={share}
-        onToggleQr={() => setShowQr((v) => !v)}
-      />
-
-      {room.error && (
-        <p class="lobby__error" role="alert">
-          {room.error}
-        </p>
-      )}
-
-      {state?.phase === 'done' && (
-        <Standings state={state} players={room.room?.players ?? []} />
-      )}
-
-      <section class="players">
-        <h2 class="players__heading">
-          Players{room.room ? ` (${room.room.players.length})` : ''}
-        </h2>
-        <PlayerList
-          room={room.room}
-          me={room.me}
-          onRename={room.rename}
-          tagFor={(id) => {
-            const n = state?.cabbages[id];
-            return n === undefined ? null : `${n} left`;
-          }}
-        />
-        {room.me && <AvatarPicker current={room.me.avatar} onPick={room.setAvatar} />}
-      </section>
-
-      <footer class="lobby__footer">
-        <button
-          class="btn btn--primary btn--big"
-          type="button"
-          disabled={!canStart}
-          onClick={() => client?.send({ t: 'start', d: { mode: 'siege' } })}
-        >
-          {state ? 'Play again' : 'Start round'}
-        </button>
-        <p class="lobby__note">{note(room.isHost, room.connected)}</p>
-      </footer>
-    </div>
+    <GameLobby
+      card={card}
+      code={code}
+      joinUrl={joinUrl}
+      room={room}
+      copied={copied}
+      showQr={showQr}
+      onShare={share}
+      onToggleQr={() => setShowQr((v) => !v)}
+      canStart={
+        room.isHost && room.connected >= SIEGE_MIN_PLAYERS && room.connected <= SIEGE_MAX_PLAYERS
+      }
+      startLabel={state ? 'Play again' : 'Start round'}
+      onStart={() => client?.send({ t: 'start', d: { mode: 'siege' } })}
+      note={note(room.isHost, room.connected)}
+      playerTag={(id) => {
+        const n = state?.cabbages[id];
+        return n === undefined ? null : `${n} left`;
+      }}
+      {...(state?.phase === 'done'
+        ? { standings: <Standings state={state} players={room.room?.players ?? []} /> }
+        : {})}
+    />
   );
 }
 
@@ -166,19 +113,13 @@ function note(isHost: boolean, connected: number): string {
   return `${SIEGE_CABBAGES} cabbages each. Last patch standing wins.`;
 }
 
-function Standings({
-  state,
-  players,
-}: {
-  state: GoatState;
-  players: Player[];
-}): JSX.Element {
+function Standings({ state, players }: { state: GoatState; players: Player[] }): JSX.Element {
   const ranked = [...state.players].sort(
     (a, b) => (state.cabbages[b] ?? 0) - (state.cabbages[a] ?? 0),
   );
   return (
-    <section class="standings">
-      <h2 class="players__heading">Result</h2>
+    <section class="panel">
+      <h2 class="panel__heading">Result</h2>
       <ol class="scoreline">
         {ranked.map((id) => {
           const p = players.find((q) => q.id === id);
