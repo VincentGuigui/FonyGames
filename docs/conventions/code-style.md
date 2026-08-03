@@ -40,6 +40,11 @@
   `core/ui/theme.css`. Never hardcode a colour in a game.
 - Mobile-first; media queries only to *add* for larger screens.
 - Use `dvh`, `env(safe-area-inset-*)`, `clamp()` for type.
+- **To move content along a flex column, use `justify-content`.**
+  `align-content` does nothing to a **single-line** flex container, so on the usual
+  full-screen `flex-direction: column` game screen it silently has no effect — the
+  rule looks right, reads right in review, and changes nothing. It cost time twice
+  on the duel screens, where centred text sat on top of the target.
 
 ## Game code rules
 
@@ -47,6 +52,12 @@
   Never assume 60 fps.
 - **State**: a single plain state object per game; render is a function of
   state. No state hidden in the DOM.
+- **Derived UI is read during render, never copied out on a timer.** A HUD that
+  polls (`setInterval(() => setPucks(game.pucks))`) is wrong twice: it lags the
+  event that changed the number by up to a tick, and a backgrounded tab throttles
+  the interval so the count freezes outright while the game carries on. Read the
+  game object where you draw it. Both Sling Puck's and Spill's counters shipped as
+  polls first and had to be undone.
 - **Sensors**: subscribe through `core/sensors/*` only, always unsubscribe on
   round end and on `visibilitychange`. A leaked motion listener is a bug.
 - **Network**: go through `core/room/*`. Games never open their own socket.

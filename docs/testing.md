@@ -53,7 +53,17 @@ seat. For that, connect real `WebSocket`s (Node has one built in) to
 Two traps that have already cost time:
 
 - **Kill any stale `wrangler`/`workerd` by PID before starting.** A leftover on
-  8787 answers `/health` happily and you will test the previous build.
+  8787 answers `/health` happily and you will test the previous build. By **PID**,
+  not `pkill -f wrangler` — a pattern kill matches the shell running it as well as
+  the target, so it kills the command mid-flight (exit 144) and takes the dev
+  servers with it. The aftermath looks like a broken lobby, not like a botched
+  cleanup: Chromium shows its own "Reload / Details" error page and you spend the
+  next twenty minutes debugging code that never ran.
+- **Use a fresh room code for every run.** Codes are just names —
+  `idFromName(code)` resolves to the *same* Durable Object as last time, live round
+  and all. Rejoin a code from an earlier run and `start` is **silently refused**
+  because a round is already in progress, so the test sits waiting for a board that
+  will never mount and reports the bug as "start round does nothing".
 - **The Worker's origin allow-list is real.** `ALLOWED_ORIGINS` permits port
   **5173** — serve the built site there (`vite preview --port 5173`) or every
   socket is correctly refused and the page just says "reconnecting".
@@ -120,3 +130,25 @@ once validated.
 A party game is only proven in the field: at least one session with **real
 people in one room** (and, for GPS games, outdoors) before a game leaves `beta`.
 Write down what confused people — confusion is a `ui:` bug.
+
+## 6. What an agent sandbox cannot check
+
+An agent working on this repo runs behind a proxy that does **not** allow egress to
+our own deployed hosts: both `guigui.fr` and `*.workers.dev` fail at `CONNECT` with
+a 403. So an agent can build the site, run the harness, and drive a local Chromium
+against `wrangler dev` — and cannot load the deployed site at all.
+
+The consequence is a rule about what may be *claimed*:
+
+- **"It works in production" is only ever second-hand.** It rests on the deploy
+  workflow's own output, and must be reported that way rather than as something
+  observed. If it matters, a human loads the URL.
+- The same goes for anything only the live edge can show: real TLS, the CDN, the
+  production `ALLOWED_ORIGINS`, and cold-start latency on a real Durable Object.
+- GitHub is reachable **only through the MCP tools** — a direct `curl` to
+  `api.github.com` is not authorised and returns nothing useful, which reads as "no
+  runs found" rather than as a permission error. Check CI with the tools, and treat
+  an empty result as unknown, not as green.
+
+None of this blocks the workflow in §1: everything the harness and a local Worker
+can prove is still proved locally. It only bounds the last claim.
