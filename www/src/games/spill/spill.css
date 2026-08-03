@@ -30,6 +30,7 @@
 }
 
 .spill__hud,
+.spill__peers,
 .spill__aimbar,
 .spill__hint {
   grid-column: 1;
@@ -101,9 +102,9 @@
 }
 
 /*
- * A theme can put anything behind the controls — the balloon pile is nearly
- * white in places. A text-shadow is not enough, so the bottom strip gets a
- * scrim. It has to be theme-independent: no theme may make the UI unreadable.
+ * A theme can put anything behind the controls, including something nearly white.
+ * A text-shadow is not enough, so the bottom strip gets a scrim. It has to be
+ * theme-independent: no theme may make the UI unreadable.
  */
 .spill__aimbar::before {
   content: '';
@@ -206,3 +207,46 @@
 }
 
 /* ---------------------------------------------------------------- */
+
+/*
+ * Everyone else's count, at their real place around the table (spec §4b).
+ *
+ * Sits in the flexible row rather than spanning the whole grid, so a marker can
+ * never land on the throw row. The markers are `aria-hidden`: the throw row below
+ * already names every opponent, and a screen reader does not want the same list
+ * twice with a number bolted on.
+ */
+.spill__peers {
+  grid-row: 1;
+  position: relative;
+}
+
+.spill__peer {
+  position: absolute;
+  /* The percentages place the marker's top-left; this pulls its middle there. */
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  line-height: 1;
+  padding: 0.3rem 0.45rem;
+  border-radius: var(--radius-md);
+  /* A puddle can be any colour under this, so the marker carries its own. */
+  background: rgb(13 15 20 / 62%);
+  backdrop-filter: blur(2px);
+}
+
+.spill__peer-who {
+  font-size: 1.15rem;
+}
+
+.spill__peer-count {
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.spill__peer--out {
+  opacity: 0.45;
+}

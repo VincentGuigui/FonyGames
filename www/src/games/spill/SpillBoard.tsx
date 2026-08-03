@@ -7,7 +7,8 @@ import { startRenderer, type Renderer } from './render';
 import { GameMenu } from '../../core/ui/GameMenu';
 import { RulesPanel } from '../../core/ui/RulesPanel';
 import { SeatMap } from './SeatMap';
-import { THEMES, type Theme } from './themes';
+import { screenAngleTo } from '../../../../shared/spillGeometry';
+import type { Theme } from './themes';
 
 /**
  * The playing surface. Spec: docs/specs/games/spill.md §3–§5
@@ -27,6 +28,15 @@ const DRAG_SLOP_PX = 24;
 /** The tap-a-seat fallback throws at a fixed, comfortable speed (spec §11). */
 const FALLBACK_SPEED = 2.2;
 
+/**
+ * How far from the middle the peer markers sit, as a percentage of the board.
+ *
+ * Narrower vertically than horizontally so the marker straight ahead — the seat
+ * opposite you, with four players — clears the count and the gear above it.
+ */
+const PEER_RADIUS_X = 34;
+const PEER_RADIUS_Y = 26;
+
 type Gesture = {
   id: number;
   x0: number;
@@ -43,8 +53,6 @@ export function SpillBoard({
   concept,
   rules,
   theme,
-  themeId,
-  onTheme,
   client,
   me,
   players,
@@ -54,8 +62,6 @@ export function SpillBoard({
   concept: string;
   rules: string[];
   theme: Theme;
-  themeId: string;
-  onTheme: (id: string) => void;
   client: RoomClient | null;
   me: PlayerId | null;
   players: Player[];
@@ -84,7 +90,8 @@ export function SpillBoard({
         const dy = g.y - g.y0;
         if (Math.hypot(dx, dy) < DRAG_SLOP_PX) return null;
         const angle = Math.atan2(dx, -dy);
-        return { angle, hit: game.target(angle) };
+        const hit = game.target(angle);
+        return { angle, hit, bounces: game.seatCount === 2 && hit !== null };
       },
     );
     rendererRef.current = renderer;
@@ -170,6 +177,9 @@ export function SpillBoard({
   const seats = state?.seats ?? [];
   const mySeat = game.seat;
   const out = state?.out ?? [];
+  // Read straight from the state: every frame that changes a level (`drop`,
+  // `land`, `spill`) re-renders this component, so there is nothing to mirror.
+  const levels = state?.levels ?? {};
 
   return (
     // The board follows the *theme's* accent, not the hub card's: the card
@@ -186,6 +196,34 @@ export function SpillBoard({
           gestureRef.current = null;
         }}
       />
+
+      {/*
+        Everyone else's count, drawn **where they actually are** (spec §4b).
+        Every other seat is across the table from you, and your top edge points at
+        the table centre, so every one of these lands in the upper part of the
+        screen — never over the throw row at the bottom.
+      */}
+      <div class="spill__peers" aria-hidden="true">
+        {seats.map((id, seat) => {
+          if (seat === mySeat || mySeat < 0) return null;
+          const p = players.find((q) => q.id === id);
+          const bearing = screenAngleTo(mySeat, seat, seats.length);
+          const gone = out.includes(id);
+          return (
+            <span
+              key={id}
+              class={`spill__peer${gone ? ' spill__peer--out' : ''}`}
+              style={{
+                left: `${50 + Math.sin(bearing) * PEER_RADIUS_X}%`,
+                top: `${50 - Math.cos(bearing) * PEER_RADIUS_Y}%`,
+              }}
+            >
+              <span class="spill__peer-who">{gone ? '·' : (p?.avatar ?? '?')}</span>
+              <strong class="spill__peer-count">{levels[id] ?? '–'}</strong>
+            </span>
+          );
+        })}
+      </div>
 
       <div class="spill__hud">
         <p class="spill__count">
@@ -208,20 +246,6 @@ export function SpillBoard({
               />
             </>
           )}
-          <h3 class="gamemenu__label">Look</h3>
-          <div class="avatar-picker__row">
-            {THEMES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                class={`btn ${t.id === themeId ? 'btn--primary' : ''}`}
-                aria-pressed={t.id === themeId}
-                onClick={() => onTheme(t.id)}
-              >
-                {t.name}
-              </button>
-            ))}
-          </div>
         </GameMenu>
       </div>
 

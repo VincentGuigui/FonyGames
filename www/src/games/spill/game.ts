@@ -9,7 +9,12 @@ import {
   type SpillDrop,
   type SpillState,
 } from '../../../../shared/protocol';
-import { aimSeat, screenAngleTo } from '../../../../shared/spillGeometry';
+import {
+  aimSeat,
+  bounceArriving,
+  bounceLeaving,
+  screenAngleTo,
+} from '../../../../shared/spillGeometry';
 
 /**
  * Spill, client side. Spec: docs/specs/games/spill.md
@@ -134,6 +139,9 @@ export class SpillGame {
 
       case 'land': {
         if (!this.#state) return;
+        // Grabbed before the filter: with two players a drop lands wherever its
+        // bounced path ended, so the splash needs the drop to know where.
+        const landed = this.#state.air.find((d) => d.dropId === msg.d.dropId);
         this.#state = {
           ...this.#state,
           air: this.#state.air.filter((d) => d.dropId !== msg.d.dropId),
@@ -142,7 +150,7 @@ export class SpillGame {
         };
         if (this.#held?.dropId === msg.d.dropId) this.#held = null;
         // Only splash for something that actually hit this phone.
-        if (msg.d.on === this.#me) this.#splash(msg.d.size);
+        if (msg.d.on === this.#me) this.#splash(msg.d.size, landed);
         return;
       }
 
@@ -249,8 +257,17 @@ export class SpillGame {
     if (!s) return null;
     const mine = this.seat;
 
+    // Two phones nose to nose: the drop bounces off the side edges and crosses
+    // the join keeping its direction (spec §4a). A drop that missed the table
+    // has no path to the other side, so it still just sails off.
+    const bounces = this.bounced(drop);
+
     if (drop.from === mine && now < drop.leavesAt) {
       const p = clamp01((now - drop.launchedAt) / Math.max(1, drop.leavesAt - drop.launchedAt));
+      if (bounces) {
+        const at = bounceLeaving(drop.angle, p);
+        return { drop, x: at.x * w, y: at.y * h, phase: 'leaving' };
+      }
       const reach = Math.hypot(w, h) / 2 + 40;
       return {
         drop,
@@ -261,13 +278,17 @@ export class SpillGame {
     }
 
     if (drop.to === mine && now >= drop.arrivesAt - SPILL_APPROACH_MS && now < drop.arrivesAt) {
+      const p = clamp01(1 - (drop.arrivesAt - now) / SPILL_APPROACH_MS);
+      if (bounces) {
+        const at = bounceArriving(drop.angle, p);
+        return { drop, x: at.x * w, y: at.y * h, phase: 'arriving' };
+      }
       // It comes in from the direction of whoever threw it — the whole point of
       // arranging the phones in the first place.
       const bearing = screenAngleTo(mine, drop.from, s.seats.length);
       const reach = Math.hypot(w, h) / 2 + 40;
       const ex = w / 2 + Math.sin(bearing) * reach;
       const ey = h / 2 - Math.cos(bearing) * reach;
-      const p = clamp01(1 - (drop.arrivesAt - now) / SPILL_APPROACH_MS);
       const tx = w / 2;
       const ty = h / 2;
       return { drop, x: ex + (tx - ex) * p, y: ey + (ty - ey) * p, phase: 'arriving' };
@@ -276,8 +297,19 @@ export class SpillGame {
     return null;
   }
 
-  #splash(size: number): void {
-    this.#splashes.push({ x: 0.5, y: 0.5, at: this.#now(), size });
+  /** True when this drop follows the two-player bounced path rather than a ray. */
+  bounced(drop: SpillDrop): boolean {
+    return this.seatCount === 2 && drop.to !== null;
+  }
+
+  /**
+   * Where the water hit. Dead centre with three or four players — a drop arrives
+   * along the bearing to whoever threw it and lands on the phone. With two it
+   * lands wherever its bounced path ran out, which is the whole point of aiming.
+   */
+  #splash(size: number, drop?: SpillDrop): void {
+    const at = drop && this.bounced(drop) ? bounceArriving(drop.angle, 1) : { x: 0.5, y: 0.5 };
+    this.#splashes.push({ x: at.x, y: at.y, at: this.#now(), size });
   }
 
   /**

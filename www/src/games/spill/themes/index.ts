@@ -1,11 +1,13 @@
 /**
- * Theme registry for Spill. Spec: docs/specs/games/spill.md §6
+ * Spill's look, behind an interface. Spec: docs/specs/games/spill.md §6
  *
- * A theme owns **everything visual and nothing else**. The rules live in
- * `game.ts` and never mention water, balloons or anything else drawable —
- * swapping the artistic direction must never change how the game plays.
+ * The theme owns **everything visual and nothing else**. The rules live in
+ * `game.ts` and never mention water or anything else drawable, and `render.ts`
+ * owns *when* and *where* rather than *what*.
  *
- * Adding a theme = one new file + one line in THEMES below.
+ * There is exactly one theme — water — and the seam stays anyway, because it is
+ * what keeps the drawing out of the rules. A second one is a new file
+ * implementing `Theme`; it is not a player-facing setting, so there is no picker.
  */
 
 export type ThemeDraw = {
@@ -21,7 +23,6 @@ export type ThemeDraw = {
 
 export type Theme = {
   id: string;
-  /** Shown in the lobby picker. */
   name: string;
   accent: string;
   /** Background behind everything. */
@@ -37,12 +38,8 @@ export type Theme = {
 };
 
 import { waterTheme } from './water';
-import { balloonTheme } from './balloon';
 
-export const THEMES: Theme[] = [waterTheme, balloonTheme];
+export { waterTheme };
 
-export const DEFAULT_THEME_ID = waterTheme.id;
-
-export function themeById(id: string | null | undefined): Theme {
-  return THEMES.find((t) => t.id === id) ?? waterTheme;
-}
+/** The theme in use. One indirection, so no caller reaches for `waterTheme`. */
+export const SPILL_THEME: Theme = waterTheme;

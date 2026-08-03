@@ -78,6 +78,70 @@ export function screenAngleTo(from: number, to: number, n: number): number {
   return wrapAngle(bearingBetween(from, to, n) - flickBearing(from, 0, n));
 }
 
+/* ---------------------------------------------------------------- */
+/* Two players: the bounced flight path (spec §4a)                    */
+/* ---------------------------------------------------------------- */
+
+/**
+ * Nominal phone shape (width ÷ height) for the two-player bounce path.
+ *
+ * Fixed rather than each phone's real aspect, and that is the point: both ends
+ * have to agree on where a drop crosses the join, and they cannot agree on
+ * something only one of them can measure. A drop is a stylised splash of water,
+ * so a path computed for a slightly different shape than the screen it is drawn
+ * on is invisible — a *disagreement* between the two screens would not be.
+ */
+export const SPILL_NOMINAL_ASPECT = 0.46;
+
+/** Reflect `v` back and forth into `[0, span]`, however many bounces it takes. */
+export function foldInto(v: number, span: number): number {
+  const period = span * 2;
+  const m = ((v % period) + period) % period;
+  return m <= span ? m : period - m;
+}
+
+/**
+ * The unfolded horizontal position after travelling `dy` screen-heights up the
+ * board, for a flick at screen angle `angle`. Straight line; the folding is what
+ * turns it into bounces.
+ */
+function unfoldedX(angle: number, dy: number): number {
+  return SPILL_NOMINAL_ASPECT / 2 + Math.tan(angle) * dy;
+}
+
+/**
+ * With two phones nose to nose, a drop **bounces off the side edges** and keeps
+ * going, and crosses the join keeping its direction (spec §4a).
+ *
+ * There is no ring to aim around with two players: you either hit the one
+ * opponent or throw off the table, which makes the aim itself meaningless. Side
+ * bounces give the flick something to be good at — where on their screen it
+ * arrives, and from which direction, is now yours to choose.
+ *
+ * Both halves of the journey are one straight line through a strip, reflected.
+ * That is why the direction survives the crossing without anything having to
+ * preserve it: the receiver's screen is the mirrored continuation of the same
+ * line, so `x → A − x` is the whole handoff, exactly as in Sling Puck.
+ *
+ * `p` runs 0..1 over the leg. Both return **fractions of the screen**.
+ */
+export function bounceLeaving(angle: number, p: number): { x: number; y: number } {
+  const A = SPILL_NOMINAL_ASPECT;
+  return {
+    x: foldInto(unfoldedX(angle, p * 0.5), A) / A,
+    y: 0.5 - p * 0.5,
+  };
+}
+
+/** The far half of the same line, in the receiver's own (mirrored) frame. */
+export function bounceArriving(angle: number, p: number): { x: number; y: number } {
+  const A = SPILL_NOMINAL_ASPECT;
+  return {
+    x: foldInto(A - unfoldedX(angle, 0.5 + p * 0.5), A) / A,
+    y: p * 0.5,
+  };
+}
+
 /**
  * Every seat's position **as the player at `mine` sees the table**, in canvas
  * coordinates on a unit circle: x right, y down, the table centre at (0, 0),

@@ -1,14 +1,15 @@
 import { SPLASH_MS, type SpillGame, type View } from './game';
 import { SPILL_HOLD_MS } from '../../../../shared/protocol';
 import type { Theme, ThemeDraw } from './themes';
+import { bounceLeaving } from '../../../../shared/spillGeometry';
 
 /**
  * The canvas loop. Spec: docs/specs/games/spill.md §6
  *
  * This file owns *when* and *where* things are drawn; the theme owns what they
- * look like. Nothing here knows about water — swap the theme and the same code
- * draws balloons. That separation is a hard requirement, not a preference, so
- * resist the urge to reach for a colour or a shape in this file.
+ * look like. Nothing here knows about water. That separation is a hard
+ * requirement, not a preference, so resist the urge to reach for a colour or a
+ * shape in this file.
  */
 
 /** Redraw budget: a phone lying on a table should not get warm. */
@@ -26,7 +27,7 @@ export function startRenderer(
   /** Server time — every deadline the renderer compares against is in it. */
   now: () => number,
   /** The current aim, while a finger is down. */
-  aim: () => { angle: number; hit: number | null } | null,
+  aim: () => { angle: number; hit: number | null; bounces: boolean } | null,
 ): Renderer {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2d canvas unavailable');
@@ -102,15 +103,20 @@ function tiltOf(view: View): number {
   return leaving ? Math.sin(leaving.drop.angle) : 0;
 }
 
-/** The line you are about to throw along, drawn in the theme's accent. */
+/**
+ * The line you are about to throw along, drawn in the theme's accent.
+ *
+ * With two players it draws the **bounces**, not a straight ray. That is not
+ * decoration: the side edges are what a two-player flick aims off, and a preview
+ * that ignored them would be showing the player something that will not happen.
+ */
 function drawAim(
   d: ThemeDraw,
-  aim: { angle: number; hit: number | null } | null,
+  aim: { angle: number; hit: number | null; bounces: boolean } | null,
   theme: Theme,
 ): void {
   if (!aim) return;
   const { ctx, w, h } = d;
-  const reach = Math.hypot(w, h) / 2;
   ctx.save();
   ctx.globalAlpha = aim.hit === null ? 0.3 : 0.9;
   ctx.strokeStyle = theme.accent;
@@ -119,11 +125,29 @@ function drawAim(
   // player gets that they are about to throw their water on the floor.
   ctx.setLineDash(aim.hit === null ? [8, 10] : []);
   ctx.beginPath();
-  ctx.moveTo(w / 2, h / 2);
-  ctx.lineTo(w / 2 + Math.sin(aim.angle) * reach, h / 2 - Math.cos(aim.angle) * reach);
+
+  if (aim.bounces) {
+    // Sampled rather than solved for the reflection points: the path is cheap to
+    // evaluate and enough samples make the corners crisp anyway.
+    for (let i = 0; i <= AIM_SAMPLES; i++) {
+      const at = bounceLeaving(aim.angle, i / AIM_SAMPLES);
+      const x = at.x * w;
+      const y = at.y * h;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+  } else {
+    const reach = Math.hypot(w, h) / 2;
+    ctx.moveTo(w / 2, h / 2);
+    ctx.lineTo(w / 2 + Math.sin(aim.angle) * reach, h / 2 - Math.cos(aim.angle) * reach);
+  }
+
   ctx.stroke();
   ctx.restore();
 }
+
+/** Enough to keep the bounce corners from visibly cutting. */
+const AIM_SAMPLES = 48;
 
 /** Marks an incoming projectile as catchable. */
 function ring(d: ThemeDraw, x: number, y: number, size: number, theme: Theme): void {

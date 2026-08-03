@@ -14,8 +14,7 @@ import { GameLobby } from '../../lobby/GameLobby';
 import { SeatMap } from './SeatMap';
 import { SpillBoard } from './SpillBoard';
 import { SpillGame } from './game';
-import { THEMES, themeById } from './themes';
-import { loadThemeId, saveThemeId } from './themePref';
+import { SPILL_THEME } from './themes';
 
 /**
  * Spill's room screen. Spec: docs/specs/games/spill.md
@@ -30,7 +29,6 @@ export function SpillRoom({ game: card }: { game: GameCard }): JSX.Element {
   const code = useMemo(() => codeFromLocation(), []);
   const [showQr, setShowQr] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [themeId, setThemeId] = useState(loadThemeId);
   const [, redraw] = useState(0);
 
   // Created before the socket, because the first `spill` frame can arrive
@@ -51,14 +49,12 @@ export function SpillRoom({ game: card }: { game: GameCard }): JSX.Element {
 
   const room = useRoom(code, card.slug, onGame);
   const client = room.client;
-  const theme = themeById(themeId);
   const myId = room.me?.id;
 
   useEffect(() => {
     if (client && myId) game.identify(myId, () => client.now());
   }, [game, client, myId]);
 
-  useEffect(() => saveThemeId(themeId), [themeId]);
 
   const joinUrl = `${location.origin}${location.pathname}#${code}`;
 
@@ -84,9 +80,7 @@ export function SpillRoom({ game: card }: { game: GameCard }): JSX.Element {
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        theme={theme}
-        themeId={themeId}
-        onTheme={setThemeId}
+        theme={SPILL_THEME}
         client={client}
         me={myId ?? null}
         players={room.room?.players ?? []}
@@ -138,24 +132,6 @@ export function SpillRoom({ game: card }: { game: GameCard }): JSX.Element {
       {...(state?.phase === 'done'
         ? { standings: <Standings state={state} players={room.room?.players ?? []} /> }
         : {})}
-      extras={
-        <section class="panel">
-          <h2 class="panel__heading">Look</h2>
-          <div class="avatar-picker__row">
-            {THEMES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                class={`btn ${t.id === themeId ? 'btn--primary' : ''}`}
-                aria-pressed={t.id === themeId}
-                onClick={() => setThemeId(t.id)}
-              >
-                {t.name}
-              </button>
-            ))}
-          </div>
-        </section>
-      }
     />
   );
 }
