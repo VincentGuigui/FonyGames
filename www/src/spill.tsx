@@ -3,6 +3,7 @@ import { SpillRoom } from './games/spill/SpillRoom';
 import { GAMES } from './games/registry';
 import './core/ui/theme.css';
 import './lobby/lobby.css';
+import './core/ui/game-chrome.css';
 import './games/spill/spill.css';
 
 const game = GAMES.find((g) => g.slug === 'spill');

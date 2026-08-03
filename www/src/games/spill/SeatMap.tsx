@@ -32,7 +32,10 @@ export function SeatMap({
   const mine = seats.indexOf(me);
   if (n < 2 || mine < 0) return null;
 
-  const r = size * 0.34;
+  // Radius leaves room for the name under the lowest phone: our own seat sits at
+  // c + r, the glyph reaches 20 below that and the label 30, so c + r + 30 must
+  // stay inside the box or the label is clipped at small sizes.
+  const r = size * 0.3;
   const c = size / 2;
   const byId = new Map(players.map((p) => [p.id, p]));
 
@@ -73,7 +76,7 @@ export function SeatMap({
             <text x={p.x} y={p.y + 6} class="seatmap__face">
               {gone ? '·' : (person?.avatar ?? '?')}
             </text>
-            <text x={p.x} y={p.y + 34} class="seatmap__name">
+            <text x={p.x} y={p.y + 30} class="seatmap__name">
               {seat === mine ? 'you' : (person?.name ?? '')}
             </text>
           </g>

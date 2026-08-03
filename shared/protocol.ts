@@ -110,6 +110,8 @@ export type SpillDrop = {
 /** Spill: the whole round, as a client needs it after a join or a refresh. */
 export type SpillState = {
   roundId: number;
+  /** Server time play actually begins — the rules panel owns the time before. */
+  startsAt: number;
   /** Player at each seat; the index **is** the physical position. */
   seats: PlayerId[];
   levels: Record<PlayerId, number>;
@@ -142,6 +144,8 @@ export type Goat = {
 
 export type GoatState = {
   roundId: number;
+  /** Server time play actually begins — the rules panel owns the time before. */
+  startsAt: number;
   players: PlayerId[];
   cabbages: Record<PlayerId, number>;
   out: PlayerId[];
@@ -159,8 +163,13 @@ export type ServerMessage =
   /** Any change to the player list or the host. */
   | { t: 'presence'; s: number; d: RoomSnapshot }
   | { t: 'pong'; d: { at: number; serverTime: number } }
-  /** A duel has begun. `fireAt` is server time — render it with client.now(). */
-  | { t: 'arm'; s: number; d: { roundId: number; fireAt: number } }
+  /**
+   * A duel has begun. `fireAt` is server time — render it with client.now().
+   * `startsAt` is when the rules panel clears; `fireAt` is always after it, so
+   * the signal can never fire behind a covered screen. Sent explicitly rather
+   * than derived, because `fireAt` carries a random spread on top.
+   */
+  | { t: 'arm'; s: number; d: { roundId: number; fireAt: number; startsAt: number } }
   /** Only the offender is told, and only they see it. */
   | { t: 'false-start'; d: { roundId: number } }
   | { t: 'result'; s: number; d: RoundResult }
@@ -215,6 +224,16 @@ export type ServerMessage =
   | { t: 'error'; d: { code: ErrorCode; message: string } };
 
 export const MAX_PLAYERS = 10;
+
+/**
+ * How long the rules panel holds the screen at the top of every round.
+ *
+ * The server knows about it rather than it being pure decoration: Tap Duel
+ * pushes `fireAt` past it so the signal cannot land behind the panel, and Spill
+ * and Goat Siege reject input until it has elapsed. A window the client alone
+ * respected would just be a head start for anyone who skipped it.
+ */
+export const PREROUND_MS = 4_000;
 
 /** Hard cap on an inbound frame; anything larger is dropped (docs/architecture.md §4). */
 export const MAX_FRAME_BYTES = 8 * 1024;

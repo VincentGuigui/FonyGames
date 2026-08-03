@@ -4,7 +4,10 @@ import type { Player, PlayerId } from '../../../../shared/protocol';
 import type { RoomClient } from '../../core/room/client';
 import type { SpillGame } from './game';
 import { startRenderer, type Renderer } from './render';
-import type { Theme } from './themes';
+import { GameMenu } from '../../core/ui/GameMenu';
+import { RulesPanel } from '../../core/ui/RulesPanel';
+import { SeatMap } from './SeatMap';
+import { THEMES, type Theme } from './themes';
 
 /**
  * The playing surface. Spec: docs/specs/games/spill.md §3–§5
@@ -36,18 +39,24 @@ type Gesture = {
 
 export function SpillBoard({
   game,
+  title,
+  rules,
   theme,
+  themeId,
+  onTheme,
   client,
   me,
   players,
-  onShowMap,
 }: {
   game: SpillGame;
+  title: string;
+  rules: string[];
   theme: Theme;
+  themeId: string;
+  onTheme: (id: string) => void;
   client: RoomClient | null;
   me: PlayerId | null;
   players: Player[];
-  onShowMap: () => void;
 }): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
@@ -155,9 +164,10 @@ export function SpillBoard({
     send(angle, speed);
   }
 
-  const seats = game.state?.seats ?? [];
+  const state = game.state;
+  const seats = state?.seats ?? [];
   const mySeat = game.seat;
-  const out = game.state?.out ?? [];
+  const out = state?.out ?? [];
 
   return (
     // The board follows the *theme's* accent, not the hub card's: the card
@@ -180,9 +190,37 @@ export function SpillBoard({
           <strong>{count}</strong>
           <span>{theme.words.unitPlural} left</span>
         </p>
-        <button class="btn spill__map" type="button" onClick={onShowMap}>
-          Table
-        </button>
+        <GameMenu title={title} rules={rules}>
+          {state && me && (
+            <>
+              <h3 class="gamemenu__label">Where to put your phone</h3>
+              <p class="setup__rule">
+                Flat, screen up, <strong>top edge towards the middle</strong>.
+              </p>
+              <SeatMap
+                seats={state.seats}
+                players={players}
+                me={me}
+                out={state.out}
+                size={200}
+              />
+            </>
+          )}
+          <h3 class="gamemenu__label">Look</h3>
+          <div class="avatar-picker__row">
+            {THEMES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                class={`btn ${t.id === themeId ? 'btn--primary' : ''}`}
+                aria-pressed={t.id === themeId}
+                onClick={() => onTheme(t.id)}
+              >
+                {t.name}
+              </button>
+            ))}
+          </div>
+        </GameMenu>
       </div>
 
       {/*
@@ -191,6 +229,7 @@ export function SpillBoard({
         slower to play, fully playable.
       */}
       <div class="spill__aimbar">
+        <span class="aimbar__label">Throw at</span>
         {seats.map((id, seat) => {
           if (seat === mySeat) return null;
           const p = players.find((q) => q.id === id);
@@ -217,6 +256,17 @@ export function SpillBoard({
             ? 'Wait for it to leave your screen…'
             : `Flick towards someone to ${theme.words.verb.toLowerCase()} a ${theme.words.unit}. Tap an incoming one to catch it.`}
       </p>
+
+      {/* Keyed on the round so "Play again" always shows a fresh panel. */}
+      {state && (
+        <RulesPanel
+          key={state.roundId}
+          title={title}
+          rules={rules}
+          startsAt={state.startsAt}
+          now={() => client?.now() ?? Date.now()}
+        />
+      )}
     </div>
   );
 }

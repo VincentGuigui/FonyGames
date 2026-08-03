@@ -3,6 +3,7 @@ import { SiegeRoom } from './games/goat-siege/SiegeRoom';
 import { GAMES } from './games/registry';
 import './core/ui/theme.css';
 import './lobby/lobby.css';
+import './core/ui/game-chrome.css';
 import './games/goat-siege/siege.css';
 
 const game = GAMES.find((g) => g.slug === 'goat-siege');

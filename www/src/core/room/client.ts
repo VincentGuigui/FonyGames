@@ -24,8 +24,11 @@ export type RoomEvents = {
   error: (message: string) => void;
   /** Fires once the server confirms which seat we hold, so it can be persisted. */
   seat: (playerId: PlayerId) => void;
-  /** A duel has begun. `fireAt` is server time — compare against client.now(). */
-  arm: (roundId: number, fireAt: number) => void;
+  /**
+   * A duel has begun. Both times are server time — compare against
+   * client.now(). `startsAt` is when the rules panel clears.
+   */
+  arm: (roundId: number, fireAt: number, startsAt: number) => void;
   /** You tapped before the signal. Sent only to the offender. */
   falseStart: (roundId: number) => void;
   result: (result: RoundResult) => void;
@@ -177,7 +180,7 @@ export class RoomClient {
       case 'arm':
         if (msg.s <= this.#seq) return;
         this.#seq = msg.s;
-        this.#handlers.arm?.(msg.d.roundId, msg.d.fireAt);
+        this.#handlers.arm?.(msg.d.roundId, msg.d.fireAt, msg.d.startsAt);
         return;
 
       case 'false-start':

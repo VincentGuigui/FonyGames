@@ -39,9 +39,23 @@
   pointer-events: none;
 }
 
+/*
+ * The scrims use `isolation: isolate` plus a negative-z pseudo-element rather
+ * than lifting every child with `position: relative`. A blanket
+ * `.<hud> > * { position: relative }` also hits the game menu, which needs
+ * `position: fixed` — same specificity, so whichever stylesheet loaded last
+ * silently won and the sheet rendered in the wrong place.
+ */
+/*
+ * Above the other rows, not level with them: the game menu opens *inside* this
+ * element, and `isolation` traps its z-index here — so if the hud sat at the
+ * same level as the button rows they would paint over the open sheet.
+ */
 .spill__hud {
   grid-row: 1;
+  z-index: 3;
   position: relative;
+  isolation: isolate;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -56,10 +70,7 @@
   height: 9rem;
   background: linear-gradient(to bottom, rgb(13 15 20 / 88%), rgb(13 15 20 / 0%));
   pointer-events: none;
-}
-
-.spill__hud > * {
-  position: relative;
+  z-index: -1;
 }
 
 .spill__count {
@@ -101,20 +112,20 @@
   height: 14rem;
   background: linear-gradient(to top, rgb(13 15 20 / 92%), rgb(13 15 20 / 0%));
   pointer-events: none;
+  z-index: -1;
 }
 
 .spill__aimbar {
   grid-row: 2;
   position: relative;
+  isolation: isolate;
   display: flex;
+  align-items: stretch;
   gap: 0.5rem;
   justify-content: center;
-  padding: 0 1rem;
+  padding: 0 0.75rem;
 }
 
-.spill__aimbar > .spill__aim {
-  position: relative;
-}
 
 .spill__aim {
   pointer-events: auto;

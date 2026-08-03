@@ -1,5 +1,6 @@
 import type { JSX } from 'preact';
 import type { Player, PlayerId, RoundResult } from '../../../../shared/protocol';
+import { GameMenu } from '../../core/ui/GameMenu';
 
 /**
  * Tap Duel — `pistol` mode, presentational. Spec: docs/specs/games/tap-duel.md
@@ -33,9 +34,19 @@ export function Duel(props: {
   onAgain: () => void;
   /** Only the host may start the next duel. */
   isHost: boolean;
+  title: string;
+  rules: string[];
 }): JSX.Element | null {
-  const { players, me, phase, result, onTap, onAgain, isHost } = props;
+  const { players, me, phase, result, onTap, onAgain, isHost, title, rules } = props;
   if (phase === 'idle') return null;
+
+  // Same gear, same corner, same contents as every other game. It sits outside
+  // the tap target so opening the menu can never be scored as a tap.
+  const menu = (
+    <div class="duel__menu">
+      <GameMenu title={title} rules={rules} />
+    </div>
+  );
 
   const nameOf = (id: PlayerId): string =>
     players.find((p) => p.id === id)?.name ?? 'Someone';
@@ -52,6 +63,7 @@ export function Duel(props: {
 
     return (
       <div class="duel duel--result">
+        {menu}
         <h2 class="duel__headline">{headline}</h2>
         <ol class="scoreline">
           {result.ranking.map((r) => {
@@ -92,6 +104,7 @@ export function Duel(props: {
   if (phase === 'burned') {
     return (
       <div class="duel duel--burned">
+        {menu}
         <h2 class="duel__headline">Too early</h2>
         <p class="duel__sub">You’re out of this one. Watch the others suffer.</p>
       </div>
@@ -100,17 +113,20 @@ export function Duel(props: {
 
   const fire = phase === 'fire';
   return (
-    <button
-      class={`duel duel--target ${fire ? 'duel--fire' : 'duel--armed'}`}
-      type="button"
-      // pointerdown, not click: the reaction is measured at finger-down.
-      onPointerDown={onTap}
-      aria-label={fire ? 'Tap now' : 'Get ready, tap when the screen changes'}
-    >
-      <span class="duel__word">{fire ? 'TAP!' : 'GET READY'}</span>
-      <span class="duel__sub">
-        {fire ? 'Fastest thumb wins' : 'Tap the instant this screen changes'}
-      </span>
-    </button>
+    <>
+      <button
+        class={`duel duel--target ${fire ? 'duel--fire' : 'duel--armed'}`}
+        type="button"
+        // pointerdown, not click: the reaction is measured at finger-down.
+        onPointerDown={onTap}
+        aria-label={fire ? 'Tap now' : 'Get ready, tap when the screen changes'}
+      >
+        <span class="duel__word">{fire ? 'TAP!' : 'GET READY'}</span>
+        <span class="duel__sub">
+          {fire ? 'Fastest thumb wins' : 'Tap the instant this screen changes'}
+        </span>
+      </button>
+      {menu}
+    </>
   );
 }

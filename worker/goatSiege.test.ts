@@ -1,4 +1,5 @@
 import {
+  PREROUND_MS,
   SIEGE_ADULT_FLIGHT_MS,
   SIEGE_CABBAGES,
   SIEGE_KID_FLIGHT_MS,
@@ -92,10 +93,31 @@ async function starting(): Promise<void> {
   );
 }
 
+async function preRound(): Promise<void> {
+  console.log('\nthe rules panel window');
+  const h = harness();
+  await startSiege(h.ctx, 1, [A, B]);
+
+  const start = h.last('siege');
+  check('the round announces when play begins', start?.d.startsAt === h.at() + PREROUND_MS, {
+    startsAt: start?.d.startsAt,
+    now: h.at(),
+  });
+
+  // Enforced server-side so skipping the panel is not a head start.
+  await onLob(h.ctx, A, 1, B);
+  check('no lobbing while the rules are up', h.of('goat').length === 0);
+
+  h.advance(PREROUND_MS + 1);
+  await onLob(h.ctx, A, 1, B);
+  check('allowed once play begins', h.of('goat').length === 1);
+}
+
 async function lobbing(): Promise<void> {
   console.log('\nlobbing and chomping');
   const h = harness();
   await startSiege(h.ctx, 1, [A, B, C]);
+  h.advance(PREROUND_MS + 1); // past the rules panel; see the guard test below
 
   await onLob(h.ctx, A, 1, B);
   const goat = h.last('goat');
@@ -130,6 +152,7 @@ async function splitting(): Promise<void> {
   console.log('\nshooing splits the problem in two');
   const h = harness();
   await startSiege(h.ctx, 1, [A, B]);
+  h.advance(PREROUND_MS + 1); // past the rules panel; see the guard test below
   await onLob(h.ctx, A, 1, B);
   const goat = h.last('goat')!;
 
@@ -173,6 +196,7 @@ async function kidsDoNotSplit(): Promise<void> {
   console.log('\nkids do not split again');
   const h = harness();
   await startSiege(h.ctx, 1, [A, B]);
+  h.advance(PREROUND_MS + 1); // past the rules panel; see the guard test below
   await onLob(h.ctx, A, 1, B);
   h.advance(300);
   await onShoo(h.ctx, B, 1, h.last('goat')!.d.goatId);
@@ -193,6 +217,7 @@ async function lateShoo(): Promise<void> {
   console.log('\ntoo late to shoo');
   const h = harness();
   await startSiege(h.ctx, 1, [A, B]);
+  h.advance(PREROUND_MS + 1); // past the rules panel; see the guard test below
   await onLob(h.ctx, A, 1, B);
   const goat = h.last('goat')!;
 
@@ -208,6 +233,7 @@ async function elimination(): Promise<void> {
   console.log('\nlosing the patch');
   const h = harness();
   await startSiege(h.ctx, 1, [A, B, C]);
+  h.advance(PREROUND_MS + 1); // past the rules panel; see the guard test below
   const s = h.state();
   s.cabbages[B] = 1;
   await h.ctx.save(s);
@@ -244,6 +270,7 @@ async function leaving(): Promise<void> {
   console.log('\nsomeone walks off');
   const h = harness();
   await startSiege(h.ctx, 1, [A, B, C]);
+  h.advance(PREROUND_MS + 1); // past the rules panel; see the guard test below
   await onLob(h.ctx, A, 1, B);
   check('a goat is heading for B', h.last('goat')?.d.victim === B);
 
@@ -260,6 +287,7 @@ async function rejections(): Promise<void> {
   console.log('\nstale and forged frames');
   const h = harness();
   await startSiege(h.ctx, 1, [A, B]);
+  h.advance(PREROUND_MS + 1); // past the rules panel; see the guard test below
   const sent = h.sent.length;
 
   await onLob(h.ctx, A, 99, B);
@@ -272,6 +300,7 @@ async function rejections(): Promise<void> {
 
 for (const t of [
   starting,
+  preRound,
   lobbing,
   splitting,
   kidsDoNotSplit,

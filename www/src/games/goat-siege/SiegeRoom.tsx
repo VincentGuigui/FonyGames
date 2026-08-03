@@ -24,7 +24,6 @@ export function SiegeRoom({ game: card }: { game: GameCard }): JSX.Element {
   const code = useMemo(() => codeFromLocation(), []);
   const [showQr, setShowQr] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [inRoom, setInRoom] = useState(false);
   const [, redraw] = useState(0);
 
   const gameRef = useRef<SiegeGame | null>(null);
@@ -61,13 +60,16 @@ export function SiegeRoom({ game: card }: { game: GameCard }): JSX.Element {
 
   const state = game.state;
 
-  if (state?.phase === 'running' && !inRoom) {
+  // While a round is live the board owns the screen; the rules and the way out
+  // live in its gear menu, so there is no bouncing back to the lobby.
+  if (state?.phase === 'running') {
     return (
       <SiegeBoard
         game={game}
+        title={card.title}
+        rules={card.rules}
         client={client}
         players={room.room?.players ?? []}
-        onLeave={() => setInRoom(true)}
       />
     );
   }
@@ -78,15 +80,9 @@ export function SiegeRoom({ game: card }: { game: GameCard }): JSX.Element {
   return (
     <div class="lobby" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
       <header class="lobby__header">
-        {inRoom && state?.phase === 'running' ? (
-          <button class="lobby__back" type="button" onClick={() => setInRoom(false)}>
-            ← Back to your patch
-          </button>
-        ) : (
-          <a class="lobby__back" href="/">
-            ← All games
-          </a>
-        )}
+        <a class="lobby__back" href="/">
+          ← All games
+        </a>
         <h1 class="lobby__title">{card.title}</h1>
         <p class="lobby__pitch">{card.pitch}</p>
       </header>
@@ -103,6 +99,12 @@ export function SiegeRoom({ game: card }: { game: GameCard }): JSX.Element {
           So shooing everything is not the winning move. Sometimes you let one
           through on purpose.
         </p>
+        <h3 class="gamemenu__label">How to play</h3>
+        <ul class="rules">
+          {card.rules.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ul>
       </section>
 
       <CodeCard

@@ -10,6 +10,7 @@ import {
   RATE_LIMIT_MSGS,
   RATE_LIMIT_WINDOW_MS,
   MIN_HUMAN_REACTION_MS,
+  PREROUND_MS,
   RECONNECT_GRACE_MS,
   isClientMessage,
   type ClientMessage,
@@ -308,8 +309,11 @@ export class Room extends DurableObject {
 
     const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
     const spread = FIRE_MAX_MS - FIRE_MIN_MS;
-    // Redrawn every duel so the delay cannot be learned (spec §2).
-    const fireAt = Date.now() + FIRE_MIN_MS + Math.floor(Math.random() * spread);
+    // Redrawn every duel so the delay cannot be learned (spec §2), and pushed
+    // past the rules panel so the signal can never fire behind it — the one
+    // game where a covered screen would cost you the round.
+    const startsAt = Date.now() + PREROUND_MS;
+    const fireAt = startsAt + FIRE_MIN_MS + Math.floor(Math.random() * spread);
 
     await this.ctx.storage.put('roundId', roundId);
     await this.#saveDuel({
@@ -322,7 +326,7 @@ export class Room extends DurableObject {
       entrants: ready.map((p) => p.id),
     });
 
-    this.#broadcast({ t: 'arm', s: ++this.#seq, d: { roundId, fireAt } });
+    this.#broadcast({ t: 'arm', s: ++this.#seq, d: { roundId, fireAt, startsAt } });
 
     // The server owns the timer, not the host — so a host dropping mid-duel
     // cannot stall it. This alarm resolves the duel if nobody taps.

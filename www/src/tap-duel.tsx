@@ -3,6 +3,7 @@ import { Lobby } from './lobby/Lobby';
 import { GAMES } from './games/registry';
 import './core/ui/theme.css';
 import './lobby/lobby.css';
+import './core/ui/game-chrome.css';
 
 const game = GAMES.find((g) => g.slug === 'tap-duel');
 if (!game) throw new Error('tap-duel missing from the registry');

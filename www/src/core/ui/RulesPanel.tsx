@@ -1,0 +1,66 @@
+import { useEffect, useState } from 'preact/hooks';
+import type { JSX } from 'preact';
+import { PREROUND_MS } from '../../../../shared/protocol';
+
+/**
+ * The four-second panel at the top of a round: how to play, in two or three
+ * lines, before anyone has to do anything.
+ *
+ * Text comes from the game's `rules` in the registry — the same array the lobby
+ * and the in-game menu render, so the three can never disagree.
+ *
+ * It covers the whole screen on purpose. For Spill and Goat Siege that is what
+ * stops an early flick or lob getting through while people are still reading
+ * (the server enforces the same window, so a modified client gains nothing).
+ *
+ * Mount it keyed on the round id, so a new round always shows a fresh panel
+ * rather than reusing a dismissed one.
+ */
+export function RulesPanel({
+  title,
+  rules,
+  /** Server time the round starts. The countdown is against the server clock. */
+  startsAt,
+  now,
+}: {
+  title: string;
+  rules: string[];
+  startsAt: number;
+  now: () => number;
+}): JSX.Element | null {
+  const [left, setLeft] = useState(() => startsAt - now());
+
+  useEffect(() => {
+    const id = setInterval(() => setLeft(startsAt - now()), 100);
+    return () => clearInterval(id);
+  }, [startsAt, now]);
+
+  if (left <= 0) return null;
+  // Clamped to the panel's own duration. The server sets `startsAt` to its own
+  // clock plus PREROUND_MS, and our estimate of the offset can be a few tens of
+  // milliseconds behind — enough for `left` to exceed 4000 and for a four-second
+  // wait to open by announcing "5".
+  const remaining = Math.min(left, PREROUND_MS);
+  const seconds = Math.ceil(remaining / 1000);
+
+  return (
+    <div class="preround" role="dialog" aria-live="polite" aria-label={`${title}: how to play`}>
+      <div class="preround__card">
+        <h2 class="preround__title">{title}</h2>
+        <ul class="rules rules--big">
+          {rules.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ul>
+        <p class="preround__count" aria-hidden="true">
+          {seconds}
+        </p>
+        {/* The bar is the honest version of the countdown: a number alone is
+            easy to miss, and this shows how much reading time is left. */}
+        <div class="preround__bar">
+          <span style={{ width: `${(remaining / PREROUND_MS) * 100}%` }} />
+        </div>
+      </div>
+    </div>
+  );
+}

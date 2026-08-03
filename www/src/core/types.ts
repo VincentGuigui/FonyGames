@@ -37,6 +37,17 @@ export type GameCard = {
   title: string;
   /** ONE catchy sentence, <= 60 chars, no trailing period. */
   pitch: string;
+  /**
+   * How to play, in 2–3 short sentences.
+   *
+   * ONE source for three places: the lobby, the four-second panel at the top of
+   * a round, and the in-game menu. Written here so they can never drift — if
+   * the rules differ between the lobby and the game, one of them is lying.
+   *
+   * Keep each bullet under about 60 characters: it has to be readable in the
+   * four seconds the pre-round panel is on screen.
+   */
+  rules: string[];
   motif: GameMotif;
   /** Accent colour, from the game's spec. */
   accent: string;

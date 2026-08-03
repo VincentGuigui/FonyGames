@@ -257,6 +257,7 @@
 /* Spec: docs/specs/games/tap-duel.md §4 */
 
 .duel-screen {
+  position: relative;
   min-height: 100dvh;
   display: grid;
   place-items: stretch;
@@ -426,4 +427,16 @@
 
 .standings {
   margin-bottom: 1.5rem;
+}
+
+/*
+ * The gear on the duel screen. The duel target is the whole viewport, so the
+ * menu has to sit above it — and outside it, or opening the menu would register
+ * as a tap and burn the round.
+ */
+.duel__menu {
+  position: absolute;
+  top: max(0.75rem, env(safe-area-inset-top));
+  right: 1rem;
+  z-index: 10;
 }

@@ -4,6 +4,7 @@ import type { GameCard } from '../core/types';
 import type { RoundResult } from '../../../shared/protocol';
 import { codeFromLocation, useRoom, shareRoom } from '../core/room/useRoom';
 import { AvatarPicker, CodeCard, ConnectionBanner, PlayerList } from './parts';
+import { RulesPanel } from '../core/ui/RulesPanel';
 import { Duel, type DuelPhase } from '../games/tap-duel/Duel';
 
 /**
@@ -23,6 +24,8 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
   const [result, setResult] = useState<RoundResult | null>(null);
   const roundRef = useRef<number | null>(null);
   const fireTimer = useRef<number | null>(null);
+  /** Server time the current duel's rules panel clears. */
+  const [armedAt, setArmedAt] = useState<{ roundId: number; startsAt: number } | null>(null);
   const [copied, setCopied] = useState(false);
 
   const room = useRoom(code);
@@ -31,10 +34,13 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
   useEffect(() => {
     if (!client) return;
 
-    client.on('arm', (roundId, fireAt) => {
+    client.on('arm', (roundId, fireAt, startsAt) => {
       roundRef.current = roundId;
       setResult(null);
       setPhase('armed');
+      // The server sends both times and guarantees fireAt > startsAt, so the
+      // signal can never land behind the panel.
+      setArmedAt({ roundId, startsAt });
       // Scheduled against SERVER time, so every screen flips at the same true
       // instant however different the pings are (tap-duel.md §6).
       const delay = Math.max(0, fireAt - client.now());
@@ -95,7 +101,18 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
           onTap={tap}
           onAgain={startDuel}
           isHost={room.isHost}
+          title={game.title}
+          rules={game.rules}
         />
+        {armedAt && (
+          <RulesPanel
+            key={armedAt.roundId}
+            title={game.title}
+            rules={game.rules}
+            startsAt={armedAt.startsAt}
+            now={() => client?.now() ?? Date.now()}
+          />
+        )}
       </div>
     );
   }
@@ -111,6 +128,15 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
       </header>
 
       <ConnectionBanner status={room.status} />
+
+      <section class="setup">
+        <h2 class="setup__heading">How to play</h2>
+        <ul class="rules">
+          {game.rules.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ul>
+      </section>
 
       <CodeCard
         code={code}

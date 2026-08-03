@@ -4,6 +4,8 @@ import type { Player, PlayerId } from '../../../../shared/protocol';
 import type { RoomClient } from '../../core/room/client';
 import type { SiegeGame } from './game';
 import { startRenderer, type Renderer } from './render';
+import { GameMenu } from '../../core/ui/GameMenu';
+import { RulesPanel } from '../../core/ui/RulesPanel';
 
 /**
  * The patch. Spec: docs/specs/games/goat-siege.md §4
@@ -14,14 +16,16 @@ import { startRenderer, type Renderer } from './render';
  */
 export function SiegeBoard({
   game,
+  title,
+  rules,
   client,
   players,
-  onLeave,
 }: {
   game: SiegeGame;
+  title: string;
+  rules: string[];
   client: RoomClient | null;
   players: Player[];
-  onLeave: () => void;
 }): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
@@ -77,12 +81,11 @@ export function SiegeBoard({
           <strong>{cabbages}</strong>
           <span>cabbages</span>
         </p>
-        <button class="btn siege__leave" type="button" onClick={onLeave}>
-          Room
-        </button>
+        <GameMenu title={title} rules={rules} />
       </div>
 
       <div class="siege__lobbar">
+        <span class="aimbar__label">Attack</span>
         {game.targets().map((id) => {
           const p = players.find((q) => q.id === id);
           return (
@@ -105,6 +108,17 @@ export function SiegeBoard({
           ? 'Your patch is bare. Watching the rest of them.'
           : 'Tap a goat to shoo it — it splits into two kids, so tap those too.'}
       </p>
+
+      {/* Keyed on the round so "Play again" always shows a fresh panel. */}
+      {game.state && (
+        <RulesPanel
+          key={game.state.roundId}
+          title={title}
+          rules={rules}
+          startsAt={game.state.startsAt}
+          now={() => client?.now() ?? Date.now()}
+        />
+      )}
     </div>
   );
 }

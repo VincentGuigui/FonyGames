@@ -20,17 +20,15 @@ import { loadThemeId, saveThemeId } from './themePref';
 /**
  * Spill's room screen. Spec: docs/specs/games/spill.md
  *
- * Two states: the table setup — where you are told where to put your phone —
- * and the board. The setup is not a loading screen: reading it is what makes
- * the aiming work, so it stays reachable mid-round from the board's Table
- * button (spec §8).
+ * Two states: the lobby, where you are told where to put your phone, and the
+ * board. Reading the placement rule is what makes the aiming work, so it is
+ * also in the board's gear menu — it must stay reachable mid-round (spec §8).
  */
 export function SpillRoom({ game: card }: { game: GameCard }): JSX.Element {
   const code = useMemo(() => codeFromLocation(), []);
   const [showQr, setShowQr] = useState(false);
   const [copied, setCopied] = useState(false);
   const [themeId, setThemeId] = useState(loadThemeId);
-  const [showMap, setShowMap] = useState(false);
   const [, redraw] = useState(0);
 
   // Created before the socket, because the first `spill` frame can arrive
@@ -74,15 +72,21 @@ export function SpillRoom({ game: card }: { game: GameCard }): JSX.Element {
 
   const state = game.state;
 
-  if (state?.phase === 'running' && !showMap) {
+  // While a round is live the board owns the screen. Everything the player
+  // might want mid-round — the rules, the table diagram, the look, the way out
+  // — is in the board's gear menu, so there is no bouncing back to the lobby.
+  if (state?.phase === 'running') {
     return (
       <SpillBoard
         game={game}
+        title={card.title}
+        rules={card.rules}
         theme={theme}
+        themeId={themeId}
+        onTheme={setThemeId}
         client={client}
         me={myId ?? null}
         players={room.room?.players ?? []}
-        onShowMap={() => setShowMap(true)}
       />
     );
   }
@@ -93,15 +97,9 @@ export function SpillRoom({ game: card }: { game: GameCard }): JSX.Element {
   return (
     <div class="lobby spill-lobby" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
       <header class="lobby__header">
-        {showMap ? (
-          <button class="lobby__back" type="button" onClick={() => setShowMap(false)}>
-            ← Back to the game
-          </button>
-        ) : (
-          <a class="lobby__back" href="/">
-            ← All games
-          </a>
-        )}
+        <a class="lobby__back" href="/">
+          ← All games
+        </a>
         <h1 class="lobby__title">{card.title}</h1>
         <p class="lobby__pitch">{card.pitch}</p>
       </header>
@@ -112,7 +110,7 @@ export function SpillRoom({ game: card }: { game: GameCard }): JSX.Element {
         <h2 class="setup__heading">Phones flat on the table</h2>
         <p class="setup__rule">
           Screen up, with the <strong>top edge pointing at the middle</strong> of the
-          table.
+          table. That one rule is what lets you aim.
         </p>
         {state && myId ? (
           <SeatMap
@@ -128,17 +126,18 @@ export function SpillRoom({ game: card }: { game: GameCard }): JSX.Element {
             {SPILL_MAX_PLAYERS} players in a ring.
           </p>
         )}
-        <p class="setup__why">
-          That one rule is what lets you aim: flick towards someone and it lands on
-          their phone.
-        </p>
+        <h3 class="gamemenu__label">How to play</h3>
+        <ul class="rules">
+          {card.rules.map((r) => (
+            <li key={r}>{r}</li>
+          ))}
+        </ul>
         <p class="setup__warn" role="note">
           No actual liquids near the phones.
         </p>
       </section>
 
-      {/* Outside the block below on purpose: the look is switchable mid-round
-          from the Table screen, not only before the first one starts. */}
+      {/* Also in the board's gear menu, so the look can be changed mid-round. */}
       <section class="theme-picker">
         <h2 class="players__heading">Look</h2>
         <div class="avatar-picker__row">
@@ -156,56 +155,52 @@ export function SpillRoom({ game: card }: { game: GameCard }): JSX.Element {
         </div>
       </section>
 
-      {showMap ? null : (
-        <>
-          <CodeCard
-            code={code}
-            joinUrl={joinUrl}
-            copied={copied}
-            showQr={showQr}
-            onShare={share}
-            onToggleQr={() => setShowQr((v) => !v)}
-          />
+      <CodeCard
+        code={code}
+        joinUrl={joinUrl}
+        copied={copied}
+        showQr={showQr}
+        onShare={share}
+        onToggleQr={() => setShowQr((v) => !v)}
+      />
 
-          {room.error && (
-            <p class="lobby__error" role="alert">
-              {room.error}
-            </p>
-          )}
-
-          {state?.phase === 'done' && (
-            <Standings state={state} players={room.room?.players ?? []} />
-          )}
-
-          <section class="players">
-            <h2 class="players__heading">
-              Players{room.room ? ` (${room.room.players.length})` : ''}
-            </h2>
-            <PlayerList
-              room={room.room}
-              me={room.me}
-              onRename={room.rename}
-              tagFor={(id) => {
-                const i = state?.seats.indexOf(id) ?? -1;
-                return i < 0 ? null : `seat ${i + 1}`;
-              }}
-            />
-            {room.me && <AvatarPicker current={room.me.avatar} onPick={room.setAvatar} />}
-          </section>
-
-          <footer class="lobby__footer">
-            <button
-              class="btn btn--primary btn--big"
-              type="button"
-              disabled={!canStart}
-              onClick={() => client?.send({ t: 'start', d: { mode: 'spill' } })}
-            >
-              {state ? 'Play again' : 'Start round'}
-            </button>
-            <p class="lobby__note">{note(room.isHost, room.connected)}</p>
-          </footer>
-        </>
+      {room.error && (
+        <p class="lobby__error" role="alert">
+          {room.error}
+        </p>
       )}
+
+      {state?.phase === 'done' && (
+        <Standings state={state} players={room.room?.players ?? []} />
+      )}
+
+      <section class="players">
+        <h2 class="players__heading">
+          Players{room.room ? ` (${room.room.players.length})` : ''}
+        </h2>
+        <PlayerList
+          room={room.room}
+          me={room.me}
+          onRename={room.rename}
+          tagFor={(id) => {
+            const i = state?.seats.indexOf(id) ?? -1;
+            return i < 0 ? null : `seat ${i + 1}`;
+          }}
+        />
+        {room.me && <AvatarPicker current={room.me.avatar} onPick={room.setAvatar} />}
+      </section>
+
+      <footer class="lobby__footer">
+        <button
+          class="btn btn--primary btn--big"
+          type="button"
+          disabled={!canStart}
+          onClick={() => client?.send({ t: 'start', d: { mode: 'spill' } })}
+        >
+          {state ? 'Play again' : 'Start round'}
+        </button>
+        <p class="lobby__note">{note(room.isHost, room.connected)}</p>
+      </footer>
     </div>
   );
 }

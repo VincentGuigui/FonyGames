@@ -9,6 +9,7 @@ import {
   SPILL_MAX_PLAYERS,
   SPILL_MIN_PLAYERS,
   SPILL_ROUND_CAP_MS,
+  PREROUND_MS,
   SPILL_SPEED_MAX,
   SPILL_SPEED_MIN,
   SPILL_START_LEVEL,
@@ -32,6 +33,8 @@ import { aimSeat, wrapAngle } from '../shared/spillGeometry';
 
 export type Spill = {
   roundId: number;
+  /** Server time play begins. The rules panel owns the window before it. */
+  startsAt: number;
   /** Player at each seat. The index *is* the physical position on the table. */
   seats: PlayerId[];
   levels: Record<PlayerId, number>;
@@ -82,6 +85,7 @@ export async function startSpill(
   // the player list they were just looking at.
   const spill: Spill = {
     roundId,
+    startsAt: now + PREROUND_MS,
     seats: [...connected],
     levels,
     out: [],
@@ -89,7 +93,8 @@ export async function startSpill(
     air: {},
     held: {},
     nextDrop: 0,
-    endsAt: now + SPILL_ROUND_CAP_MS,
+    // The cap runs from the start of play, not from the panel.
+    endsAt: now + PREROUND_MS + SPILL_ROUND_CAP_MS,
     phase: 'running',
   };
 
@@ -103,6 +108,7 @@ export async function startSpill(
 export function toState(s: Spill): SpillState {
   return {
     roundId: s.roundId,
+    startsAt: s.startsAt,
     seats: s.seats,
     levels: s.levels,
     out: s.out,
@@ -135,6 +141,9 @@ export async function onFling(
   if (seat < 0 || s.out.includes(playerId)) return;
 
   const now = ctx.now();
+  // Nothing leaves a phone while the rules are still on screen. Enforced here
+  // as well as in the UI, so skipping the panel is not a head start.
+  if (now < s.startsAt) return;
   if ((s.lockedUntil[playerId] ?? 0) > now) return;
 
   // Where the payload comes from: a drop you caught, or your own pool.

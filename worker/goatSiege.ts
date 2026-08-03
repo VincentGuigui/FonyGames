@@ -7,6 +7,7 @@ import {
   SIEGE_MAX_PLAYERS,
   SIEGE_MIN_PLAYERS,
   SIEGE_ROUND_CAP_MS,
+  PREROUND_MS,
   type Goat,
   type GoatState,
   type PlayerId,
@@ -28,6 +29,8 @@ import { splitLanes } from '../shared/goatSplit';
 
 export type Siege = {
   roundId: number;
+  /** Server time play begins. The rules panel owns the window before it. */
+  startsAt: number;
   players: PlayerId[];
   cabbages: Record<PlayerId, number>;
   out: PlayerId[];
@@ -57,6 +60,7 @@ function standing(s: Siege): PlayerId[] {
 export function toState(s: Siege): GoatState {
   return {
     roundId: s.roundId,
+    startsAt: s.startsAt,
     players: s.players,
     cabbages: s.cabbages,
     out: s.out,
@@ -84,6 +88,7 @@ export async function startSiege(
 
   const siege: Siege = {
     roundId,
+    startsAt: now + PREROUND_MS,
     players: [...connected],
     cabbages,
     out: [],
@@ -91,7 +96,8 @@ export async function startSiege(
     cooldown: {},
     nextGoat: 0,
     nextSeed: 1,
-    endsAt: now + SIEGE_ROUND_CAP_MS,
+    // The cap runs from the start of play, not from the panel.
+    endsAt: now + PREROUND_MS + SIEGE_ROUND_CAP_MS,
     phase: 'running',
   };
 
@@ -114,6 +120,8 @@ export async function onLob(
   if (from === to || !s.players.includes(to) || s.out.includes(to)) return;
 
   const now = ctx.now();
+  // No goats in the air while the rules are still on screen (see spill.ts).
+  if (now < s.startsAt) return;
   if ((s.cooldown[from] ?? 0) > now) return;
 
   const seed = s.nextSeed++;

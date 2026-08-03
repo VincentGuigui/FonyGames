@@ -273,6 +273,7 @@ export class SpillGame {
   #splash(size: number): void {
     this.#splashes.push({ x: 0.5, y: 0.5, at: this.#now(), size });
   }
+
 }
 
 /** How long a splash animation runs. Shared with the renderer. */

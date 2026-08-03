@@ -1,0 +1,211 @@
+/*
+ * Chrome every game shares: the gear menu and the pre-round rules panel.
+ *
+ * One stylesheet rather than one per game, because the whole point is that a
+ * player finds the same gear in the same corner in every game.
+ */
+
+/* --- rules list, used in three places ------------------------------------ */
+
+.rules {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rules li {
+  position: relative;
+  padding-left: 1.4rem;
+  color: var(--color-text);
+  font-size: var(--font-small);
+  line-height: 1.4;
+}
+
+.rules li::before {
+  content: '';
+  position: absolute;
+  left: 0.25rem;
+  top: 0.5em;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--game-accent, var(--color-accent));
+}
+
+.rules--big li {
+  font-size: 1.0625rem;
+  padding-left: 1.6rem;
+}
+
+/* --- the gear ------------------------------------------------------------ */
+
+.gamemenu__gear {
+  pointer-events: auto;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: rgb(23 26 34 / 88%);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.gamemenu__gear:active {
+  transform: scale(0.94);
+}
+
+/* --- the sheet ---------------------------------------------------------- */
+
+.gamemenu {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  pointer-events: auto;
+}
+
+.gamemenu__scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgb(8 9 12 / 70%);
+  cursor: pointer;
+}
+
+.gamemenu__sheet {
+  position: relative;
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-4) max(var(--space-4), env(safe-area-inset-bottom));
+  background: var(--color-surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-top: 2px solid var(--game-accent, var(--color-accent));
+  /* Not the whole screen: seeing the board behind it is what makes this read as
+     a pause rather than as having left the game. */
+}
+
+.gamemenu__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.gamemenu__title {
+  margin: 0;
+  font-size: var(--font-title);
+  color: var(--game-accent, var(--color-accent));
+}
+
+.gamemenu__close {
+  padding: 0.4rem 0.9rem;
+  font-size: var(--font-small);
+}
+
+.gamemenu__label {
+  margin: 0 0 var(--space-2);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dim);
+}
+
+.gamemenu__exit {
+  display: block;
+  margin-top: var(--space-4);
+  text-align: center;
+  text-decoration: none;
+}
+
+/* --- the pre-round panel ------------------------------------------------- */
+
+.preround {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: rgb(8 9 12 / 92%);
+  /* Swallows taps on purpose: for Spill and Goat Siege this is what stops an
+     early throw while people are still reading. The server enforces the same
+     window, so this is convenience rather than the actual rule. */
+  pointer-events: auto;
+}
+
+.preround__card {
+  width: 100%;
+  max-width: 22rem;
+  padding: var(--space-5) var(--space-4);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+}
+
+.preround__title {
+  margin: 0 0 var(--space-4);
+  font-size: 1.5rem;
+  color: var(--game-accent, var(--color-accent));
+}
+
+.preround__count {
+  margin: 0 0 var(--space-2);
+  text-align: right;
+  font-size: var(--font-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-dim);
+}
+
+.preround__bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+.preround__bar span {
+  display: block;
+  height: 100%;
+  background: var(--game-accent, var(--color-accent));
+  /* No transition: the width is recomputed against server time every 100ms, and
+     an easing curve would fight it. */
+}
+
+/*
+ * The label in front of a row of opponent buttons ("Throw at", "Attack").
+ * Shared by Spill and Goat Siege — the row means the same thing in both, so it
+ * should not be captioned two different ways.
+ */
+.aimbar__label {
+  align-self: center;
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dim);
+  text-align: right;
+  max-width: 3.5rem;
+  line-height: 1.1;
+}
+
+/* Anything block-level the sheet hosts (Spill's table diagram) centres itself. */
+.gamemenu__sheet > svg,
+.gamemenu__sheet .seatmap {
+  margin-inline: auto;
+}
+
+.gamemenu__sheet .setup__rule {
+  margin: 0 0 var(--space-3);
+  text-align: center;
+  font-size: var(--font-small);
+}

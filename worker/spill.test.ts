@@ -4,6 +4,7 @@
  * actually testable rather than raced against.
  */
 import {
+  PREROUND_MS,
   SPILL_APPROACH_MS,
   SPILL_HOLD_MS,
   SPILL_LOSE_LEVEL,
@@ -110,10 +111,37 @@ async function seating(): Promise<void> {
   check('state is broadcast at start', first?.d.roundId === 1 && first.d.phase === 'running');
 }
 
+async function preRound(): Promise<void> {
+  console.log('\nthe rules panel window');
+  const h = harness();
+  await startSpill(h.ctx, 1, [A, B]);
+
+  const start = h.last('spill');
+  check('the round announces when play begins', start?.d.startsAt === h.at() + PREROUND_MS, {
+    startsAt: start?.d.startsAt,
+    now: h.at(),
+  });
+
+  // The whole point of enforcing it server-side: a client that skipped the
+  // panel must not get a head start.
+  await onFling(h.ctx, A, 1, screenAngleTo(0, 1, 2), 3);
+  check('no flinging while the rules are up', h.of('drop').length === 0);
+  check('and no water is lost trying', h.state().levels[A] === SPILL_START_LEVEL);
+
+  h.advance(PREROUND_MS - 100);
+  await onFling(h.ctx, A, 1, screenAngleTo(0, 1, 2), 3);
+  check('still refused just before the panel ends', h.of('drop').length === 0);
+
+  h.advance(200);
+  await onFling(h.ctx, A, 1, screenAngleTo(0, 1, 2), 3);
+  check('allowed once play begins', h.of('drop').length === 1);
+}
+
 async function aimingAndLock(): Promise<void> {
   console.log('\naiming, launch lock, landing');
   const h = harness();
   await startSpill(h.ctx, 1, [A, B, C, D]);
+  h.advance(PREROUND_MS + 1); // past the rules panel; see the guard test below
 
   // A sits at seat 0. Flick straight at seat 2 (the far side of the table).
   const straight = screenAngleTo(0, 2, 4);
@@ -159,6 +187,7 @@ async function catching(): Promise<void> {
   console.log('\ncatching');
   const h = harness();
   await startSpill(h.ctx, 1, [A, B, C, D]);
+  h.advance(PREROUND_MS + 1); // past the rules panel; see the guard test below
   await onFling(h.ctx, A, 1, screenAngleTo(0, 2, 4), 3);
   const drop = h.last('drop')!;
   const id = drop.d.dropId;
@@ -190,12 +219,14 @@ async function catching(): Promise<void> {
   h.advance(5000);
   await h.drain();
   check('a doubled drop lands doubled', h.state().levels[A] === SPILL_START_LEVEL - 1 + 2);
+
 }
 
 async function soaking(): Promise<void> {
   console.log('\nholding too long');
   const h = harness();
   await startSpill(h.ctx, 1, [A, B]);
+  h.advance(PREROUND_MS + 1); // past the rules panel; see the guard test below
   await onFling(h.ctx, A, 1, screenAngleTo(0, 1, 2), 3);
   const drop = h.last('drop')!;
 
@@ -214,6 +245,7 @@ async function winning(): Promise<void> {
   console.log('\nwinning by emptying');
   const h = harness();
   await startSpill(h.ctx, 1, [A, B]);
+  h.advance(PREROUND_MS + 1); // past the rules panel; see the guard test below
   const s = h.state();
   s.levels[A] = 1;
   await h.ctx.save(s);
@@ -233,6 +265,7 @@ async function flooding(): Promise<void> {
   console.log('\nflooding out');
   const h = harness();
   await startSpill(h.ctx, 1, [A, B, C]);
+  h.advance(PREROUND_MS + 1); // past the rules panel; see the guard test below
   const s = h.state();
   s.levels[C] = SPILL_LOSE_LEVEL - 1;
   await h.ctx.save(s);
@@ -267,6 +300,7 @@ async function leaving(): Promise<void> {
   console.log('\nsomeone walks off');
   const h = harness();
   await startSpill(h.ctx, 1, [A, B, C, D]);
+  h.advance(PREROUND_MS + 1); // past the rules panel; see the guard test below
 
   const seatsBefore = h.state().seats.join();
   await onPlayerGone(h.ctx, B);
@@ -288,6 +322,7 @@ async function cheating(): Promise<void> {
   console.log('\nclamping and stale rounds');
   const h = harness();
   await startSpill(h.ctx, 1, [A, B]);
+  h.advance(PREROUND_MS + 1); // past the rules panel; see the guard test below
 
   await onFling(h.ctx, A, 1, screenAngleTo(0, 1, 2), 10_000);
   const fast = h.last('drop')!;
@@ -306,7 +341,7 @@ async function cheating(): Promise<void> {
   check('B has not lost water to a bad frame', h.state().levels[B] === SPILL_START_LEVEL);
 }
 
-for (const t of [seating, aimingAndLock, catching, soaking, winning, flooding, leaving, cheating]) {
+for (const t of [seating, preRound, aimingAndLock, catching, soaking, winning, flooding, leaving, cheating]) {
   await t();
 }
 
