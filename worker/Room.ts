@@ -52,6 +52,16 @@ import {
   type Siege,
 } from './goatSiege';
 import {
+  nextDeadline as slingDeadline,
+  onCross as slingCross,
+  onPlayerGone as slingPlayerGone,
+  startSling,
+  tick as slingTick,
+  toState as slingToState,
+  type Ctx as SlingCtx,
+  type Sling,
+} from './slingPuck';
+import {
   randomAvatar,
   randomName,
   sanitiseAvatar,
@@ -186,6 +196,17 @@ export class Room extends DurableObject {
         if (id) await siegeShoo(this.#siegeCtx(), id, msg.d.roundId, msg.d.goatId);
         return;
       }
+      case 'cross': {
+        const id = this.#idOf(ws);
+        if (id) {
+          await slingCross(this.#slingCtx(), id, msg.d.roundId, {
+            x: msg.d.x,
+            vx: msg.d.vx,
+            vy: msg.d.vy,
+          });
+        }
+        return;
+      }
     }
   }
 
@@ -198,8 +219,9 @@ export class Room extends DurableObject {
   }
 
   /**
-   * There is exactly **one** alarm slot, and four things want it: a live duel's
-   * timeout, a relay fuse, a spill drop landing, and seat/host housekeeping.
+   * There is exactly **one** alarm slot, and every game wants it: a live duel's
+   * timeout, a relay fuse, a spill drop landing, a goat arriving, a Sling Puck
+   * round cap — plus seat/host housekeeping underneath all of them.
    *
    * So the handler never assumes it was woken for its own reason. It runs every
    * deadline that is actually due, then re-arms from scratch via #rearm().
@@ -234,6 +256,13 @@ export class Room extends DurableObject {
       return;
     }
 
+    const sling = await this.#sling();
+    if (sling && sling.phase === 'running' && Date.now() >= slingDeadline(sling)) {
+      await slingTick(this.#slingCtx());
+      await this.#rearm();
+      return;
+    }
+
     const players = await this.#players();
     const now = Date.now();
     let changed = false;
@@ -248,6 +277,7 @@ export class Room extends DurableObject {
         // (docs/specs/games/spill.md §8).
         await spillPlayerGone(this.#spillCtx(), id);
         await siegePlayerGone(this.#siegeCtx(), id);
+        await slingPlayerGone(this.#slingCtx(), id);
       }
     }
     if (changed) await this.#savePlayers(players);
@@ -290,17 +320,20 @@ export class Room extends DurableObject {
     if (running && running.phase !== 'done') return;
     const besieged = await this.#siege();
     if (besieged && besieged.phase !== 'done') return;
+    const slinging = await this.#sling();
+    if (slinging && slinging.phase !== 'done') return;
 
     const players = await this.#players();
     const ready = [...players.values()].filter((p) => p.connected);
 
-    if (mode === 'relay' || mode === 'spill' || mode === 'siege') {
+    if (mode === 'relay' || mode === 'spill' || mode === 'siege' || mode === 'sling') {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
       const ids = ready.map((p) => p.id);
       if (mode === 'relay') await startRelay(this.#relayCtx(), roundId, ids);
       else if (mode === 'spill') await startSpill(this.#spillCtx(), roundId, ids);
-      else await startSiege(this.#siegeCtx(), roundId, ids);
+      else if (mode === 'siege') await startSiege(this.#siegeCtx(), roundId, ids);
+      else await startSling(this.#slingCtx(), roundId, ids);
       await this.#rearm(players);
       return;
     }
@@ -473,6 +506,21 @@ export class Room extends DurableObject {
     };
   }
 
+  async #sling(): Promise<Sling | null> {
+    return (await this.ctx.storage.get<Sling>('sling')) ?? null;
+  }
+
+  #slingCtx(): SlingCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => ++this.#seq,
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#sling(),
+      save: (sling) => this.ctx.storage.put('sling', sling),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
   async #duel(): Promise<Duel | null> {
     return (await this.ctx.storage.get<Duel>('duel')) ?? null;
   }
@@ -554,6 +602,13 @@ export class Room extends DurableObject {
     const siege = await this.#siege();
     if (siege && siege.phase === 'running') {
       this.#send(ws, { t: 'siege', s: ++this.#seq, d: siegeToState(siege) });
+    }
+    // Sling Puck resyncs the **count** and nothing else: the pucks were never
+    // the server's to remember, so a refresher gets their own five back at rest
+    // and loses only the motion nobody else could see (spec §9).
+    const sling = await this.#sling();
+    if (sling && sling.phase === 'running') {
+      this.#send(ws, { t: 'sling', s: ++this.#seq, d: slingToState(sling) });
     }
 
     await this.#broadcastPresence(ws);
@@ -668,6 +723,9 @@ export class Room extends DurableObject {
 
     const siege = await this.#siege();
     if (siege?.phase === 'running') return siegeDeadline(siege);
+
+    const sling = await this.#sling();
+    if (sling?.phase === 'running') return slingDeadline(sling);
 
     return Infinity;
   }

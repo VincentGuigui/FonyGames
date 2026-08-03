@@ -59,7 +59,14 @@ export type ClientMessage =
   /** Goat Siege: lob a goat at a neighbour's patch. */
   | { t: 'lob'; d: { to: PlayerId; roundId: number } }
   /** Goat Siege: tap an incoming goat to shoo it. */
-  | { t: 'shoo'; d: { goatId: string; roundId: number } };
+  | { t: 'shoo'; d: { goatId: string; roundId: number } }
+  /**
+   * Sling Puck: a puck left my half through the gap, described **in my own
+   * frame** — x across my board 0..1, velocity in board-heights per second. The
+   * server rotates it for the receiver, so no client needs to know which way
+   * round the other phone is lying (spec §5).
+   */
+  | { t: 'cross'; d: { roundId: number; x: number; vx: number; vy: number } };
 
 /* ------------------------------------------------------------------ */
 /* server -> client                                                     */
@@ -153,6 +160,23 @@ export type GoatState = {
   phase: 'running' | 'done';
 };
 
+/**
+ * Sling Puck: the round as the server sees it — which is only the **counts**.
+ *
+ * There is deliberately no puck geometry here. Each phone simulates its own half
+ * and nobody else can see it, so positions are private to a client and the only
+ * shared fact is how many pucks are on each side (spec §4).
+ */
+export type SlingState = {
+  roundId: number;
+  /** Server time play actually begins — the rules panel owns the time before. */
+  startsAt: number;
+  /** Exactly two, in seat order. */
+  players: PlayerId[];
+  pucks: Record<PlayerId, number>;
+  phase: 'running' | 'done';
+};
+
 export type ServerMessage =
   /** Sent once, immediately after a successful join. */
   | {
@@ -228,6 +252,35 @@ export type ServerMessage =
       t: 'siege-over';
       s: number;
       d: { roundId: number; winnerId: PlayerId | null; cabbages: Record<PlayerId, number> };
+    }
+  /** Sling Puck: full state. Sent at round start and after any resync. */
+  | { t: 'sling'; s: number; d: SlingState }
+  /**
+   * Sling Puck: a puck arrived. **Already rotated into the receiver's frame**,
+   * so `x` and the velocity can be handed straight to the local simulation.
+   *
+   * `at` is the server time it crossed; the receiver advances it by the time
+   * since, so a puck does not visibly stall for the length of the trip. `pucks`
+   * rides along because a crossing is the only thing that changes the score.
+   */
+  | {
+      t: 'puck';
+      s: number;
+      d: {
+        from: PlayerId;
+        to: PlayerId;
+        x: number;
+        vx: number;
+        vy: number;
+        at: number;
+        pucks: Record<PlayerId, number>;
+      };
+    }
+  /** Sling Puck: round over. `winnerId` cleared their side, or had fewest at the cap. */
+  | {
+      t: 'sling-over';
+      s: number;
+      d: { roundId: number; winnerId: PlayerId | null; pucks: Record<PlayerId, number> };
     }
   | { t: 'error'; d: { code: ErrorCode; message: string } };
 
@@ -369,6 +422,31 @@ export const SIEGE_LOB_COOLDOWN_MS = 1_500;
 /** A round is capped like every other, so a stalemate cannot run forever. */
 export const SIEGE_ROUND_CAP_MS = 5 * 60_000;
 
+/* ------------------------------------------------------------------ */
+/* Sling Puck (docs/specs/games/sling-puck.md)                          */
+/* ------------------------------------------------------------------ */
+
+/** Two phones nose to nose. Not a range — the board is the join between them. */
+export const SLING_PLAYERS = 2;
+
+/** Starting pucks per side. Mirrors `SLING_PUCKS` in the client physics (spec §6). */
+export const SLING_START_PUCKS = 5;
+
+/**
+ * Floor on how fast crossings may arrive from one player.
+ *
+ * Not a fairness rule — a good human throw takes over a second, so this never
+ * touches real play. It is the cheap half of the anti-cheat in spec §10: it caps
+ * how fast a modified client can empty its side, and it costs nothing.
+ */
+export const SLING_MIN_GAP_MS = 250;
+
+/** Plausible arrival speed. A forged crossing cannot spawn a puck faster than this. */
+export const SLING_SPEED_MAX = 2.5;
+
+/** A round is capped like every other, so a stalemate cannot run forever. */
+export const SLING_ROUND_CAP_MS = 3 * 60_000;
+
 const CLIENT_TYPES = new Set([
   'join',
   'set-profile',
@@ -381,6 +459,7 @@ const CLIENT_TYPES = new Set([
   'catch',
   'lob',
   'shoo',
+  'cross',
 ]);
 
 export function isClientMessage(value: unknown): value is ClientMessage {
