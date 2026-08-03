@@ -251,18 +251,44 @@ function motifBody(motif: GameMotif): JSX.Element {
       );
 
     case 'sling':
-      // Two phones nose to nose with a gap between them, the near one's band
-      // stretched into a V, and a puck already through. Laid out across the box
-      // rather than up it because the illustration is landscape — the *relative*
-      // arrangement is what has to read, not which way the table faces.
+      // The two halves of one board, the join between them broken by the gap,
+      // your band stretched into a V and a puck already through it.
+      //
+      // Not drawn with the shared `Phone` glyph: two portrait phones nose to nose
+      // is a tall, narrow arrangement, and at card size it came out as two flat
+      // bars with a dot in one of them. These are the two *halves of the board*,
+      // proportioned to fill the box — the true phone geometry is taught by the
+      // lobby's diagram, where it can be read properly.
       return (
         <>
-          <Phone x={29} y={26} rotate={90} />
-          <Phone x={71} y={26} rotate={-90} />
+          <g fill="#10121a" stroke="currentColor" stroke-width={3}>
+            <rect x={38} y={5} width={44} height={36} rx={6} />
+            <rect x={38} y={49} width={44} height={36} rx={6} />
+          </g>
 
-          {/* The band on the near phone, pulled back into a V. */}
+          {/* The join, with the gap as a break in it. */}
+          <g stroke="currentColor" stroke-width={4} stroke-linecap="round">
+            <path d="M36 45 L52 45" />
+            <path d="M68 45 L84 45" />
+          </g>
+
+          {/*
+            Both bands, each with its two posts. The posts matter: without them a
+            plain line at the top of a rounded rect reads as a phone's speaker
+            grille, and a bare V reads as a downward arrow rather than as
+            something under tension.
+          */}
+          <g fill="currentColor">
+            <circle cx={44} cy={14} r={2.5} />
+            <circle cx={76} cy={14} r={2.5} />
+            <circle cx={44} cy={66} r={2.5} />
+            <circle cx={76} cy={66} r={2.5} />
+          </g>
+          <path d="M44 14 L76 14" stroke="currentColor" stroke-width={2.5} stroke-linecap="round" />
+
+          {/* Yours, pulled deep — the moment before a shot. */}
           <path
-            d="M27 34 L40 45 L27 56"
+            d="M44 66 L60 79 L76 66"
             fill="none"
             stroke="currentColor"
             stroke-width={3.5}
@@ -270,17 +296,22 @@ function motifBody(motif: GameMotif): JSX.Element {
             stroke-linejoin="round"
           />
 
-          {/* The puck's path through the gap, and the puck itself past it. */}
+          {/*
+            The puck caught **in** the gap, mid-crossing, rather than past it with
+            a trail behind. A trail long enough to read had to start inside the V,
+            and dashes-into-a-V is a downward arrow, which is the opposite of what
+            is happening. Sitting in the break says the same thing with no arrow.
+          */}
           <path
-            d="M46 45 L58 45"
+            d="M60 63 L60 54"
             fill="none"
             stroke="currentColor"
-            stroke-width={3}
-            stroke-dasharray="5 6"
+            stroke-width={2.5}
+            stroke-dasharray="4 5"
             stroke-linecap="round"
           />
-          <circle cx={68} cy={45} r={6} fill="currentColor" />
-          <circle cx={68} cy={45} r={2.5} fill="#10121a" />
+          <circle cx={60} cy={45} r={7} fill="#f4f1e8" />
+          <circle cx={60} cy={45} r={3} fill="#10121a" />
         </>
       );
   }

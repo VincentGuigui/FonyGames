@@ -121,6 +121,12 @@
   color: var(--color-text-dim);
 }
 
+/* The join is drawn brighter than the phones so the break in it — the gap, which
+   is the one thing the diagram exists to teach — reads at a glance. */
+.h2h__join {
+  stroke: var(--color-text);
+}
+
 .h2h__label {
   font-size: 11px;
   fill: var(--color-text-dim);

@@ -23,7 +23,9 @@ export function GameCardTile({ game }: { game: GameCard }): JSX.Element {
   // `soon` cards are shown honestly and are not tappable (hub spec §2).
   const playable = game.status !== 'soon';
 
-  const meta = `${min}–${max} players · ${game.duration} · ${game.inputs
+  // A game with a fixed player count reads "2 players", not "2–2 players".
+  const who = min === max ? `${min} players` : `${min}–${max} players`;
+  const meta = `${who} · ${game.duration} · ${game.inputs
     .map((i) => INPUT_LABEL[i])
     .join(' + ')}`;
 

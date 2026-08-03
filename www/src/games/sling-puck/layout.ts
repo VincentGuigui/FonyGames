@@ -10,25 +10,35 @@ import { BOARD_ASPECT, BOARD_H } from './physics';
  */
 
 export type Board = {
-  /** Top-left of the board in CSS pixels. */
+  /** Top-left of the **play area** in CSS pixels — board unit (0, 0). */
   left: number;
   top: number;
-  /** Board size in CSS pixels. */
+  /** Play area size in CSS pixels. */
   w: number;
   h: number;
   /** Pixels per board unit — one number, because the units are isotropic. */
   scale: number;
+  /** Wall thickness in CSS pixels. Drawn *outside* the play area (see below). */
+  lip: number;
 };
 
 /**
- * Fit a `BOARD_ASPECT` rectangle into the canvas, centred, leaving a margin.
+ * Fit a `BOARD_ASPECT` rectangle into the canvas, centred, and hand back the
+ * **play area** inside it.
  *
  * Letterboxed rather than stretched: the board must be the same board on both
  * phones, and stretching it to each screen would make one radius mean two
  * different distances (spec §4).
+ *
+ * The walls get their own margin outside the play area rather than being painted
+ * over its edge. Board unit 0 is where the physics stops a puck, so a wall drawn
+ * inwards from there overlaps every puck resting against it — which is exactly
+ * how the outermost pucks in the opening rack first looked.
  */
 export function fit(w: number, h: number): Board {
-  const bw = Math.min(w, h * BOARD_ASPECT);
+  const outerW = Math.min(w, h * BOARD_ASPECT);
+  const lip = Math.max(5, outerW * 0.022);
+  const bw = outerW - lip * 2;
   const bh = bw / BOARD_ASPECT;
   return {
     left: (w - bw) / 2,
@@ -36,6 +46,7 @@ export function fit(w: number, h: number): Board {
     w: bw,
     h: bh,
     scale: bw,
+    lip,
   };
 }
 

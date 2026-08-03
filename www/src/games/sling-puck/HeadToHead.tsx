@@ -57,26 +57,30 @@ export function HeadToHead({ size = 210 }: { size?: number }): JSX.Element {
       role="img"
       aria-label="Two phones laid on a table, top edge to top edge, with the gap where they meet"
     >
-      {/* The join, and the gap in it — the only way a puck gets across. */}
+      {phone(midY - ph - 2, true)}
+      {phone(midY + 2, false)}
+
+      {/*
+        The join, and the gap in it — the only way a puck gets across. Drawn
+        *after* the phones so the break can never be hidden behind one; the break
+        is the whole thing the diagram is teaching.
+      */}
       <line
-        x1={cx - pw / 2}
+        class="h2h__join"
+        x1={cx - pw / 2 - 3}
         y1={midY}
         x2={cx - gapW / 2}
         y2={midY}
-        stroke="currentColor"
-        stroke-width="3"
+        stroke-width="5"
       />
       <line
+        class="h2h__join"
         x1={cx + gapW / 2}
         y1={midY}
-        x2={cx + pw / 2}
+        x2={cx + pw / 2 + 3}
         y2={midY}
-        stroke="currentColor"
-        stroke-width="3"
+        stroke-width="5"
       />
-
-      {phone(midY - ph - 2, true)}
-      {phone(midY + 2, false)}
 
       {/* A puck on its way through the gap. */}
       <circle cx={cx} cy={midY - ph * 0.18} r={pw * 0.07} fill="#f4f1e8" />

@@ -110,26 +110,29 @@ function drawTable(ctx: CanvasRenderingContext2D, b: Board): void {
   ctx.fillStyle = felt;
   ctx.fillRect(b.left, b.top, b.w, b.h);
 
-  const lip = Math.max(5, b.scale * 0.022);
+  // Every wall is drawn in the margin *outside* the play area: its inner face
+  // lands exactly where the physics stops a puck (see layout.ts).
+  const lip = b.lip;
+  const mid = lip / 2;
   ctx.lineWidth = lip;
   ctx.lineCap = 'butt';
 
   // Left, right and bottom walls: one continuous path.
   ctx.strokeStyle = WALL;
   ctx.beginPath();
-  ctx.moveTo(b.left + lip / 2, b.top);
-  ctx.lineTo(b.left + lip / 2, b.top + b.h - lip / 2);
-  ctx.lineTo(b.left + b.w - lip / 2, b.top + b.h - lip / 2);
-  ctx.lineTo(b.left + b.w - lip / 2, b.top);
+  ctx.moveTo(b.left - mid, b.top - lip);
+  ctx.lineTo(b.left - mid, b.top + b.h + mid);
+  ctx.lineTo(b.left + b.w + mid, b.top + b.h + mid);
+  ctx.lineTo(b.left + b.w + mid, b.top - lip);
   ctx.stroke();
 
   // Top wall in two pieces, with the gap between them.
-  const y = b.top + lip / 2;
+  const y = b.top - mid;
   ctx.beginPath();
-  ctx.moveTo(b.left, y);
+  ctx.moveTo(b.left - lip, y);
   ctx.lineTo(b.left + GAP_LEFT * b.scale, y);
   ctx.moveTo(b.left + GAP_RIGHT * b.scale, y);
-  ctx.lineTo(b.left + b.w, y);
+  ctx.lineTo(b.left + b.w + lip, y);
   ctx.stroke();
 
   // Short returns into the board at each side of the break, so the opening reads
@@ -139,8 +142,8 @@ function drawTable(ctx: CanvasRenderingContext2D, b: Board): void {
   for (const gx of [GAP_LEFT, GAP_RIGHT]) {
     const x = b.left + gx * b.scale;
     ctx.beginPath();
-    ctx.moveTo(x, b.top);
-    ctx.lineTo(x, b.top + b.scale * 0.05);
+    ctx.moveTo(x, b.top - lip);
+    ctx.lineTo(x, b.top + b.scale * 0.045);
     ctx.stroke();
   }
 }
