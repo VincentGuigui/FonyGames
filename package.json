@@ -11,14 +11,15 @@
     "build": "npm run typecheck && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json",
-    "test": "npm run test:spill && npm run test:siege && npm run test:sling && npm run test:sling-room",
+    "test": "npm run test:router && npm run test:spill && npm run test:siege && npm run test:sling && npm run test:sling-room",
     "test:spill": "esbuild worker/spill.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/spill.test.mjs --log-level=warning && node node_modules/.cache/spill.test.mjs",
     "test:siege": "esbuild worker/goatSiege.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/siege.test.mjs --log-level=warning && node node_modules/.cache/siege.test.mjs",
     "worker:dev": "wrangler dev",
     "worker:deploy:dev": "wrangler deploy --env dev",
     "worker:deploy:prod": "wrangler deploy --env prod",
     "test:sling": "esbuild www/src/games/sling-puck/physics.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/sling.test.mjs --log-level=warning && node node_modules/.cache/sling.test.mjs",
-    "test:sling-room": "esbuild worker/slingPuck.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/slingRoom.test.mjs --log-level=warning && node node_modules/.cache/slingRoom.test.mjs"
+    "test:sling-room": "esbuild worker/slingPuck.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/slingRoom.test.mjs --log-level=warning && node node_modules/.cache/slingRoom.test.mjs",
+    "test:router": "esbuild worker/router.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/router.test.mjs --log-level=warning && node node_modules/.cache/router.test.mjs"
   },
   "dependencies": {
     "preact": "^10.27.2",
