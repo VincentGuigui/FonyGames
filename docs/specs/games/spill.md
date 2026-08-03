@@ -252,7 +252,7 @@ so a round costs almost nothing. Drop flight is animated client-side from
 | Flick outside `AIM_TOLERANCE` | Water leaves, lands nowhere. Legal and sometimes smart |
 | Two drops land at once | Both apply; the server holds one count |
 | A player refreshes | Same seat, same level ([../../realtime-server.md](../../realtime-server.md) §4) |
-| Someone rotates their phone mid-round | Their aim is now wrong. The layout diagram stays reachable from the in-game gear menu ([../../design/game-chrome.md](../../design/game-chrome.md) §2) |
+| Someone rotates their phone mid-round | Their aim is now wrong. The layout diagram stays reachable from the in-game gear menu ([../../design/game-chrome.md](../../design/game-chrome.md) §3) |
 | Both 0 and 40 reached in one tick | Reaching 0 wins; that resolves first |
 
 ## 9. Anti-cheat

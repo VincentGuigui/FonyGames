@@ -1,29 +1,64 @@
 # In-game chrome
 
 Rules that apply to **every** game, so a player who learns one learns all of
-them. Code: `www/src/core/ui/`.
+them. Code: `www/src/core/ui/` and `www/src/lobby/`.
 
-## 1. One source for the rules
+## 1. The lobby template
 
-Each game's registry entry carries `rules: string[]` — two or three sentences,
-each under about 60 characters.
+**Every game's lobby is `lobby/GameLobby.tsx`.** The panels and their order are
+fixed:
 
-That array is rendered in **three** places:
+1. **Title and tagline** — the title, then the game's `pitch` verbatim.
+2. **How to play** — the concept, then the bullets (§2).
+3. **Room code** — the code, share link, QR.
+4. **Players** — the list, plus your own avatar picker.
+5. **Start** — the button and one line of context.
+
+A game customises it only through slots:
+
+| Slot | Where it lands | Used by |
+| --- | --- | --- |
+| `aside` | inside how-to-play, after the bullets | Spill's table diagram and its no-liquids note |
+| `standings` | above the players | Spill, Goat Siege |
+| `extras` | below the players | Spill's theme picker |
+
+**A slot can never reorder or replace a panel.** If a game needs something the
+template cannot express, change the template for everyone rather than
+special-casing one game — that is the entire point. Before this existed each
+game had drifted into its own arrangement of the same pieces, so learning your
+way around one lobby taught you nothing about the next.
+
+Panels share one `.panel` class for the same reason.
+
+## 2. One source for how to play
+
+Each game's registry entry carries:
+
+- `concept: string` — the one idea the game turns on, in a sentence.
+- `rules: string[]` — two or three sentences, each under about 60 characters.
+
+`concept` is **not** the pitch. The pitch sells the game on the hub; the concept
+explains the thing you have to *understand* to play it well, and it leads the
+bullets because a player who grasps "shooing is not free" can work out the
+mechanics, while one who only memorised the taps often cannot.
+
+Both are rendered by the shared `HowToPlay` component in **three** places:
 
 | Where | Component |
 | --- | --- |
-| The lobby, before anyone starts | the game's room screen |
+| The lobby, before anyone starts | `GameLobby` |
 | A four-second panel at the top of every round | `RulesPanel` |
 | The in-game menu, any time | `GameMenu` |
 
 **Never retype the text in any of them.** If the lobby and the game disagree
 about how to play, one of them is lying to the player, and there is no way to
-tell which from the outside. The array is the fix, not a convention to remember.
+tell which from the outside. One array plus one component is the fix, not a
+convention to remember.
 
 Keep the bullets short enough to read inside the panel's four seconds. That
 constraint is the reason for the length limit, not neatness.
 
-## 2. The gear
+## 3. The gear
 
 Every game shows a gear in the **same corner**, opening a bottom sheet that
 always contains:
@@ -53,7 +88,7 @@ Placement notes learned the hard way:
   whichever stylesheet loaded last won and the sheet rendered in the wrong
   place.
 
-## 3. The pre-round window
+## 4. The pre-round window
 
 `PREROUND_MS` (4 s) after a round starts, the rules panel holds the screen.
 
@@ -79,7 +114,7 @@ Two details:
   of milliseconds behind — enough for a four-second wait to open by announcing
   "5".
 
-## 4. Opponent rows
+## 5. Opponent rows
 
 Where a game shows a row of buttons for the other players, it is captioned:
 Spill's is **Throw at**, Goat Siege's is **Attack**. The row means the same
