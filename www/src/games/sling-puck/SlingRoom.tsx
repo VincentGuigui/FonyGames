@@ -35,10 +35,12 @@ export function SlingRoom({ game: card }: { game: GameCard }): JSX.Element {
   const onGame = useCallback(
     (msg: ServerMessage) => {
       game.apply(msg);
-      // `puck` frames arrive several times a second and only change the canvas,
-      // which paints itself. Re-rendering the chrome for them would be a diff
-      // per crossing for no visible difference.
-      if (msg.t !== 'puck') redraw((n) => n + 1);
+      // Every message, including `puck`. A crossing changes the score, and the
+      // score is chrome — so the chrome has to re-render for it. Cheap enough to
+      // do unconditionally: `SLING_MIN_GAP_MS` caps crossings at about eight a
+      // second across both players, and the board itself paints on its own rAF
+      // loop rather than through Preact.
+      redraw((n) => n + 1);
     },
     [game],
   );

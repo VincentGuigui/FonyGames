@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { RoomClient } from '../../core/room/client';
 import type { SlingGame } from './game';
@@ -16,8 +16,9 @@ import { RulesPanel } from '../../core/ui/RulesPanel';
  * virtual-DOM diff never happens — but here the loop is also what advances the
  * simulation, so `onCross` is wired straight into it.
  *
- * A tap without a drag fires at a fixed strength instead: the accessibility
- * fallback from §13, which is required in the first iteration rather than later.
+ * A tap without a drag fires the puck at the gap instead, at a fixed speed: the
+ * accessibility fallback from §13, required in the first iteration rather than
+ * later.
  */
 
 /** Movement under this many board units is a tap, not a drag. */
@@ -42,13 +43,6 @@ export function SlingBoard({
   // be told from a drag on release.
   const pointerRef = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
 
-  // Seeded from the game rather than from zero: zero is the winning number, and
-  // a board that flashed it for a frame would announce the wrong thing.
-  const [counts, setCounts] = useState(() => {
-    const v = game.view();
-    return { mine: v.mine, theirs: v.theirs };
-  });
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !client) return;
@@ -67,16 +61,6 @@ export function SlingBoard({
       rendererRef.current = null;
     };
   }, [game, client]);
-
-  useEffect(() => {
-    const tick = (): void => {
-      const v = game.view();
-      setCounts({ mine: v.mine, theirs: v.theirs });
-    };
-    tick();
-    const id = setInterval(tick, 200);
-    return () => clearInterval(id);
-  }, [game]);
 
   /** Pointer position in board units, or null before the first frame. */
   function at(e: PointerEvent): { x: number; y: number } | null {
@@ -112,8 +96,8 @@ export function SlingBoard({
     if (owner.moved) {
       game.release();
     } else {
-      // A tap: fire at a fixed strength, straight up the board (spec §13). The
-      // grab already happened on pointerdown, so this only has to set the pull.
+      // A tap, not a drag: fire at the gap at a fixed speed (spec §13). The grab
+      // from pointerdown is released first so `tap` can make its own.
       game.cancel();
       game.tap(owner.x, owner.y);
     }
@@ -128,6 +112,10 @@ export function SlingBoard({
     game.cancel();
   }
 
+  // Read straight from the game on every render, rather than mirrored into state
+  // by a timer. A polled copy lagged the crossing that changed it, and in a
+  // throttled background tab it stopped updating altogether — the count showed a
+  // score the server had already moved on from.
   const view = game.view();
 
   return (
@@ -143,11 +131,11 @@ export function SlingBoard({
 
       <div class="sling__hud">
         <p class="sling__count">
-          <strong>{counts.mine}</strong>
+          <strong>{view.mine}</strong>
           <span>yours</span>
         </p>
         <p class="sling__count sling__count--them">
-          <strong>{counts.theirs}</strong>
+          <strong>{view.theirs}</strong>
           <span>theirs</span>
         </p>
         <GameMenu title={title} concept={concept} rules={rules} />
