@@ -61,6 +61,7 @@ Full index: **[docs/README.md](docs/README.md)**
 | Multiplayer & networking | [docs/multiplayer.md](docs/multiplayer.md) |
 | Sensors, GPS, bump, permissions | [docs/device-capabilities.md](docs/device-capabilities.md) |
 | UI / UX guidelines | [docs/design/ui-guidelines.md](docs/design/ui-guidelines.md) |
+| In-game chrome (gear menu, rules panel) | [docs/design/game-chrome.md](docs/design/game-chrome.md) |
 | Commit convention | [docs/conventions/commits.md](docs/conventions/commits.md) |
 | Code style | [docs/conventions/code-style.md](docs/conventions/code-style.md) |
 | Testing | [docs/testing.md](docs/testing.md) |

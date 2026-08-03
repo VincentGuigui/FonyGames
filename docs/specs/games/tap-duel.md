@@ -23,13 +23,20 @@ which is exactly why it goes first.
 ## 2. Core loop
 
 1. Host starts the duel.
-2. Every screen shows **GET READY**, plus one line telling you what to do:
+2. A four-second rules panel holds every screen
+   ([../../design/game-chrome.md](../../design/game-chrome.md) §3).
+3. Every screen shows **GET READY**, plus one line telling you what to do:
    *Tap the instant this screen changes*.
-3. After a random delay the server fires: every screen flips to **TAP**.
-4. First valid tap wins. Tapping before the signal is a **false start** and
+4. After a random delay the server fires: every screen flips to **TAP**.
+5. First valid tap wins. Tapping before the signal is a **false start** and
    knocks you out of that duel.
-5. Results show everyone's reaction time, fastest first.
-6. Play again keeps the room and the scores.
+6. Results show everyone's reaction time, fastest first.
+7. Play again keeps the room and the scores.
+
+**The signal is scheduled after the panel, not merely displayed after it.**
+`fireAt` is `startsAt + FIRE_MIN..MAX`, both sent on `arm`. This is the one game
+where a covered screen would cost you the round through no fault of your own, so
+the server moves the signal rather than the client hoping the panel is gone.
 
 **Win condition:** fastest valid reaction in the duel.
 **Scoring:** 1 point per duel won; the session is first to 3.

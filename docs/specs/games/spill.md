@@ -96,12 +96,16 @@ and the convention becomes a fallback rather than a requirement.
 ## 3. Core loop
 
 1. Everyone lays their phone out per the diagram; host starts.
-2. Each phone begins with **20 drops** — the water sits at half height, moving.
-3. **Flick** to fling a drop toward a neighbour.
-4. You **cannot flick again until your drop has left your screen** (§4).
-5. A drop that lands adds to that player's water.
-6. An incoming drop can be **caught** — see §5. A caught drop doubles.
-7. First to **0 drops wins**. First to **40 drops is out**.
+2. A four-second rules panel holds every screen
+   ([../../design/game-chrome.md](../../design/game-chrome.md) §3). Flinging is
+   rejected server-side until it clears, so nobody gets a head start by
+   dismissing it.
+3. Each phone begins with **20 drops** — the water sits at half height, moving.
+4. **Flick** to fling a drop toward a neighbour.
+5. You **cannot flick again until your drop has left your screen** (§4).
+6. A drop that lands adds to that player's water.
+7. An incoming drop can be **caught** — see §5. A caught drop doubles.
+8. First to **0 drops wins**. First to **40 drops is out**.
 
 ## 4. Launch lock
 
@@ -126,6 +130,13 @@ While a drop is travelling toward you, it is visible on your screen for
 
 That is the risk: catching is the only way to move a big payload, and the only
 way to take one in the face.
+
+**A hold has exactly two ends**, and the client must be told about both: the
+`drop` frame that throws it on carries `replaces`, and a soak arrives as `land`.
+Missing the first end was a real bug — the client kept a phantom hold, attached
+its dead id to every later flick, and the server rejected all of them, locking
+the player out for the rest of the round with a stalled timer on screen. If a
+third way to end a hold is ever added, it needs a frame too.
 
 ## 6. Theming — a hard requirement
 
@@ -184,8 +195,8 @@ Rules the registry enforces on any new theme:
   quietly change how hard the game is to play, which is a rule change.
 - `calm` (from `prefers-reduced-motion`) **flattens, never removes**.
 
-The picker lives on the setup screen and is reachable mid-round from the board's
-**Table** button, so the look can be changed without ending a round. The choice
+The picker lives on the setup screen and inside the in-game gear menu, so the
+look can be changed mid-round without leaving the board. The choice
 is remembered in `localStorage` (`fony:spill:theme`), re-validated against the
 registry on read.
 
@@ -241,7 +252,7 @@ so a round costs almost nothing. Drop flight is animated client-side from
 | Flick outside `AIM_TOLERANCE` | Water leaves, lands nowhere. Legal and sometimes smart |
 | Two drops land at once | Both apply; the server holds one count |
 | A player refreshes | Same seat, same level ([../../realtime-server.md](../../realtime-server.md) §4) |
-| Someone rotates their phone mid-round | Their aim is now wrong. The layout diagram stays reachable from a corner button |
+| Someone rotates their phone mid-round | Their aim is now wrong. The layout diagram stays reachable from the in-game gear menu ([../../design/game-chrome.md](../../design/game-chrome.md) §2) |
 | Both 0 and 40 reached in one tick | Reaching 0 wins; that resolves first |
 
 ## 9. Anti-cheat

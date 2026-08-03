@@ -23,6 +23,7 @@ file under 200 lines** — put detail in `docs/`, not here.
 | Deployment (branches, environments, secrets) | [docs/deployment.md](./docs/deployment.md) |
 | Database (MySQL, migrations) | [docs/database.md](./docs/database.md) |
 | UI / UX & visual guidelines | [docs/design/ui-guidelines.md](./docs/design/ui-guidelines.md) |
+| In-game chrome (gear menu, rules panel) | [docs/design/game-chrome.md](./docs/design/game-chrome.md) |
 | Commit convention | [docs/conventions/commits.md](./docs/conventions/commits.md) |
 | Code style | [docs/conventions/code-style.md](./docs/conventions/code-style.md) |
 | Testing strategy | [docs/testing.md](./docs/testing.md) |

@@ -62,6 +62,9 @@ you let one through on purpose because you are already swamped.
 ## 4. Screens
 
 - **Lobby** — standard, plus who you can lob at.
+- **Rules panel** — four seconds at the top of every round
+  ([../../design/game-chrome.md](../../design/game-chrome.md) §3). Lobbing is
+  rejected server-side until it clears.
 - **Patch** — your garden across the bottom, cabbages as discrete objects so
   damage is legible at a glance. Sky above, goats arcing in. A drag from your
   patch shows an aim arc; release lobs.
@@ -69,6 +72,9 @@ you let one through on purpose because you are already swamped.
 - **Out** — your patch is bare. You keep watching, and you can still see who is
   winning.
 - **Result** — cabbages remaining per player, winner first.
+
+The row of opponent buttons is labelled **Attack**. The gear in the corner opens
+the shared in-game menu (how to play, leave game).
 
 ## 5. Networking — the expensive one
 
