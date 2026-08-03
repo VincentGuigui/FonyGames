@@ -117,9 +117,10 @@ together at the top of `physics.ts` so a play test can move them in one place.
 | --- | --- | --- |
 | `SLING_PUCKS` | 5 | Pucks per player |
 | `PUCK_RADIUS` | 0.055 | Fraction of board width |
-| `ELASTIC_K` | 5.2 | Launch speed per unit of stretch |
-| `MAX_PULL` | 0.28 | Longest useful pull, as a fraction of board height |
-| `BAND_REST_Y` | 0.82 | Where the band sits when relaxed |
+| `ELASTIC_K` | 14 | Launch speed per unit of band *elongation* |
+| `MAX_SPEED` | 1.6 | Hard cap on launch speed, in board-heights per second |
+| `MAX_PULL` | 0.24 | Longest useful pull, as a fraction of board height |
+| `BAND_REST_Y` | 0.72 | Where the band sits when relaxed |
 | `BAND_SNAP` | 14 | How fast the band whips back once released (visual only) |
 | `FRICTION` | 0.55 | Constant deceleration — a puck sliding on wood, not in treacle |
 | `RESTITUTION` | 0.72 | Energy kept in a wall bounce |
@@ -127,16 +128,28 @@ together at the top of `physics.ts` so a play test can move them in one place.
 | `GAP_FRACTION` | 0.34 | Width of the gap as a fraction of the board |
 | `REST_SPEED` | 0.02 | Below this a puck is treated as stopped |
 | `SUB_STEPS` | 4 | Physics sub-steps per rendered frame |
+| `TAP_PULL` | 0.62 | Pull strength the tap-to-launch fallback fires at (§13) |
 
-Two choices in there are deliberate rather than arbitrary:
+Four choices in there are deliberate rather than arbitrary:
 
 - **Friction is a constant deceleration, not linear damping.** `v *= 0.98` never
   quite stops and feels like syrup; subtracting a fixed amount of speed per
   second is what a disc sliding on a board actually does, and it *does* stop.
 - **`SUB_STEPS` exists so fast pucks cannot tunnel.** A puck crossing half the
   board in one frame would skip straight through a wall; four sub-steps at 60 fps
-  keeps the per-step movement well under a puck radius at the top speed
-  `ELASTIC_K × MAX_PULL` allows.
+  keeps the per-step movement to about an eighth of a puck radius at `MAX_SPEED`,
+  leaving room to tune the constants upwards without pucks escaping.
+- **`ELASTIC_K` is large because the elongation it multiplies is small.** The band
+  spans nearly the whole width, so pulling it back by a quarter of the board only
+  lengthens the V by about a tenth. That is the real geometry of the toy, not a
+  fudge; the constant absorbs it.
+- **`MAX_SPEED` is a separate cap, not `MAX_PULL` doing double duty.** How far
+  back you may drag and how fast the puck may end up are different questions, and
+  tying them together meant one could not be tuned without the other.
+
+`BAND_REST_Y` and `MAX_PULL` are a pair: the band has to sit high enough to leave
+`MAX_PULL` of board behind it. At `0.72 + 0.24` a full pull ends at `0.96`, just
+inside the bottom wall — any lower a band and every shot is feeble.
 
 ## 7. The sling
 
@@ -157,7 +170,8 @@ it falls out of the model rather than being special-cased, and it is what makes
 aiming a skill rather than a slider.
 
 Speed comes from the stretch: how much longer the V is than the resting band,
-times `ELASTIC_K`, capped at `MAX_PULL`.
+times `ELASTIC_K`, capped at `MAX_SPEED`. How far back a drag may go is a
+separate limit, `MAX_PULL`.
 
 Only arithmetic and `sqrt` — no trigonometry anywhere in the physics.
 
