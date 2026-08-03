@@ -282,50 +282,68 @@
   cursor: pointer;
 }
 
+/*
+ * Both duel screens push their text to the **top**.
+ *
+ * The target can land anywhere, and centred text ends up underneath it — which
+ * happened on the armed screen first, leaving "GET READY" and the greyed rings
+ * fighting each other in the middle of the phone. `justify-content` does this;
+ * `align-content` does not, on a single-line flex column.
+ */
+.duel--armed,
 .duel--fire {
-  background: var(--game-accent, var(--color-accent));
-  color: var(--color-on-accent);
-  /* Not a button any more: after the signal only the target scores, so the
-     backdrop must not be tappable at all rather than tappable-and-ignored. */
   justify-content: flex-start;
   padding-top: max(3.5rem, calc(env(safe-area-inset-top) + 2rem));
 }
 
-/*
- * The instruction sits at the top, out of the way: it must not be mistaken for
- * the thing to hit, and the target has to be free to land anywhere without the
- * two colliding. `justify-content` on the parent does that — `align-content` does
- * not, on a single-line flex column, which is how it ended up centred under the
- * target the first time.
- */
+.duel--fire {
+  background: var(--game-accent, var(--color-accent));
+  color: var(--color-on-accent);
+}
+
+/* Small, because the target is the thing to look at now — not the caption. */
+.duel--armed .duel__word,
 .duel__word--fire {
   font-size: clamp(1.25rem, 6vw, 2rem);
   opacity: 0.8;
 }
 
 /*
- * The archer's target. One button, so there is one thing to hit and one focus
- * stop; the rings are a single radial-gradient with hard stops rather than five
- * nested elements.
+ * The archer's target. On screen for the **whole round** — greyed while armed,
+ * lit on the signal — so the player gets a thumb ready over something they can
+ * see. It only becomes a button on the signal; while armed a tap has to fall
+ * through to the backdrop and be scored as the false start it is.
  */
 .duel__bullseye {
   position: fixed;
-  /* left/top are set inline from the server's position; this centres the button
+  /* left/top are set inline from the server's position; this centres the target
      on that point rather than putting its corner there. */
   transform: translate(-50%, -50%);
   width: min(42vw, 42vh, 15rem);
   aspect-ratio: 1;
+  border-radius: 50%;
+  z-index: 2;
+  display: grid;
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 35%);
+}
+
+/* Waiting: unmistakably not yet, and not in the way of a tap. */
+.duel__bullseye--waiting {
+  pointer-events: none;
+  filter: grayscale(1);
+  opacity: 0.42;
+}
+
+.duel__bullseye-hit {
+  width: 100%;
+  height: 100%;
   padding: 0;
   border: 0;
   border-radius: 50%;
   background: none;
-  z-index: 2;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  /* A target that grew into place would add its animation time to everyone's
-     reaction, so it simply appears. */
-  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 35%);
 }
 
 .duel__bullseye-rings {
@@ -350,13 +368,13 @@
   );
 }
 
-.duel__bullseye:active .duel__bullseye-rings {
+.duel__bullseye-hit:active .duel__bullseye-rings {
   /* Confirms the hit landed on the target and not beside it. */
   filter: brightness(1.25);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .duel__bullseye:active .duel__bullseye-rings {
+  .duel__bullseye-hit:active .duel__bullseye-rings {
     filter: none;
   }
 }

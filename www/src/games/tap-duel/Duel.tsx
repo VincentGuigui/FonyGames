@@ -5,13 +5,19 @@ import { GameMenu } from '../../core/ui/GameMenu';
 /**
  * Tap Duel — `pistol` mode, presentational. Spec: docs/specs/games/tap-duel.md
  *
- * On the signal an **archer's target appears somewhere on screen** and only a tap
- * on it counts. The position comes from the server, so it is the same spot for
- * everybody — drawn per client it would decide the round by luck.
+ * An **archer's target sits at a random spot on screen for the whole round**, and
+ * only a tap on it counts. The position comes from the server, so it is the same
+ * spot for everybody — drawn per client it would decide the round by luck.
+ *
+ * It is **visible while armed**, greyed out, so the round is speed plus a little
+ * accuracy rather than a hunt: you get your thumb ready over a target you can
+ * see. Hiding it until the signal made finding it most of the reaction time,
+ * which is a different and worse game.
  *
  * While armed the whole viewport is still live, because the false-start rule has
- * not changed: jumping the gun anywhere burns you. After the signal a tap that
- * misses the target is simply a miss — it costs the time it took, which is
+ * not changed: jumping the gun anywhere burns you — including on the target,
+ * which is why it does not take pointer events until the signal. After the signal
+ * a tap that misses is simply a miss; it costs the time it took, which is
  * punishment enough and is self-limiting.
  */
 
@@ -140,22 +146,22 @@ export function Duel(props: {
     );
   }
 
-  if (phase === 'fire') {
-    // The backdrop is a plain div, not a button: after the signal only the target
-    // scores, so the rest of the screen must not be tappable at all rather than
-    // tappable-and-ignored.
-    return (
-      <>
-        <div class="duel duel--fire">
-          <span class="duel__word duel__word--fire">TAP THE TARGET</span>
-        </div>
+  const fire = phase === 'fire';
+
+  // The same target, in the same place, both before and after the signal — only
+  // its colour and whether it takes taps change.
+  const bullseye = (
+    <span
+      class={`duel__bullseye ${fire ? 'duel__bullseye--live' : 'duel__bullseye--waiting'}`}
+      style={{
+        left: `${(target?.x ?? 0.5) * 100}%`,
+        top: `${(target?.y ?? 0.5) * 100}%`,
+      }}
+    >
+      {fire ? (
         <button
-          class="duel__bullseye"
+          class="duel__bullseye-hit"
           type="button"
-          style={{
-            left: `${(target?.x ?? 0.5) * 100}%`,
-            top: `${(target?.y ?? 0.5) * 100}%`,
-          }}
           // pointerdown, not click: the reaction is measured at finger-down.
           onPointerDown={onTap}
           aria-label="Tap the target now"
@@ -163,6 +169,24 @@ export function Duel(props: {
           {/* Rings are drawn in CSS so there is one element to hit, not five. */}
           <span class="duel__bullseye-rings" aria-hidden="true" />
         </button>
+      ) : (
+        // Not a button while armed: a tap here must fall through to the backdrop
+        // and be scored as the false start it is.
+        <span class="duel__bullseye-rings" aria-hidden="true" />
+      )}
+    </span>
+  );
+
+  if (fire) {
+    // The backdrop is a plain div now: after the signal only the target scores,
+    // so the rest of the screen must not be tappable at all rather than
+    // tappable-and-ignored.
+    return (
+      <>
+        <div class="duel duel--fire">
+          <span class="duel__word duel__word--fire">NOW</span>
+        </div>
+        {bullseye}
         {menu}
       </>
     );
@@ -173,14 +197,16 @@ export function Duel(props: {
       <button
         class="duel duel--target duel--armed"
         type="button"
-        // Still the whole viewport while armed: an early tap anywhere is a false
-        // start, and that rule is what stops a player spamming their way in.
+        // Still the whole viewport while armed: an early tap anywhere — the
+        // target included — is a false start, and that rule is what stops a
+        // player spamming their way in.
         onPointerDown={onTap}
-        aria-label="Get ready, a target will appear"
+        aria-label="Get ready. Tap the target the moment it lights up"
       >
         <span class="duel__word">GET READY</span>
-        <span class="duel__sub">A target will appear — tap it, and nothing before it</span>
+        <span class="duel__sub">Thumb over the target. Tap it the moment it lights up</span>
       </button>
+      {bullseye}
       {menu}
     </>
   );

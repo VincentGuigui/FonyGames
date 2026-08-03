@@ -16,11 +16,11 @@ export const GAMES: GameCard[] = [
     slug: 'tap-duel',
     title: 'Tap Duel',
     pitch: 'The fastest thumb in the room takes the round',
-    concept: 'One signal, every screen at once — pure reflex, nothing else.',
+    concept: 'One signal, every screen at once. A target is waiting — hit it first.',
     rules: [
-      'Wait for the screen to change.',
-      'Then tap as fast as you can.',
-      'Tap too early and you lose the round.',
+      'A target sits somewhere on your screen. Get a thumb ready.',
+      'The instant it lights up, tap the target.',
+      'Tap before it lights up and you lose the round.',
     ],
     motif: 'tap',
     accent: '#FFC93C',
@@ -122,6 +122,28 @@ export const GAMES: GameCard[] = [
     // `beta`: playable, but §14 of the spec has the puck count and gap width
     // down as open questions, and only a play test settles either.
     status: 'beta',
+  },
+  {
+    slug: 'cat-and-mouse',
+    title: 'Cat and Mouse',
+    pitch: 'One cat, a floor full of mice, and nowhere to hide',
+    concept: 'One shared floor. Your mouse moves only while you are moving it.',
+    rules: [
+      'Drag your own icon. Let go and it stops dead.',
+      'The cat is faster, and only has to touch you.',
+      'Three lives each. Outlast the clock and the mice win.',
+    ],
+    motif: 'cat',
+    accent: '#C084FC',
+    players: [2, 6],
+    duration: '60–90 s',
+    inputs: ['touch'],
+    modes: [
+      { id: 'chase', name: 'Chase', blurb: 'One cat, three lives each, beat the clock' },
+    ],
+    // Specced, not built: docs/specs/games/cat-and-mouse.md is a draft awaiting
+    // the maintainer's go-ahead, and it needs an accessible fallback first (§12).
+    status: 'soon',
   },
   {
     slug: 'shake-sprint',
