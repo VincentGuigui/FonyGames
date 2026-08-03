@@ -9,7 +9,7 @@ import {
   SPILL_MAX_PLAYERS,
   SPILL_MIN_PLAYERS,
   SPILL_ROUND_CAP_MS,
-  PREROUND_MS,
+  preroundFor,
   SPILL_SPEED_MAX,
   SPILL_SPEED_MIN,
   SPILL_START_LEVEL,
@@ -77,6 +77,8 @@ export async function startSpill(
   }
 
   const now = ctx.now();
+  // Only the first round of a room gets a rules panel (protocol.ts).
+  const preround = preroundFor(roundId);
   const levels: Record<PlayerId, number> = {};
   for (const p of connected) levels[p] = SPILL_START_LEVEL;
 
@@ -85,7 +87,7 @@ export async function startSpill(
   // the player list they were just looking at.
   const spill: Spill = {
     roundId,
-    startsAt: now + PREROUND_MS,
+    startsAt: now + preround,
     seats: [...connected],
     levels,
     out: [],
@@ -94,7 +96,7 @@ export async function startSpill(
     held: {},
     nextDrop: 0,
     // The cap runs from the start of play, not from the panel.
-    endsAt: now + PREROUND_MS + SPILL_ROUND_CAP_MS,
+    endsAt: now + preround + SPILL_ROUND_CAP_MS,
     phase: 'running',
   };
 

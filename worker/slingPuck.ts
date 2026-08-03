@@ -1,5 +1,5 @@
 import {
-  PREROUND_MS,
+  preroundFor,
   SLING_MIN_GAP_MS,
   SLING_PLAYERS,
   SLING_ROUND_CAP_MS,
@@ -73,17 +73,19 @@ export async function startSling(
   if (connected.length !== SLING_PLAYERS) return false;
 
   const now = ctx.now();
+  // Only the first round of a room gets a rules panel (protocol.ts).
+  const preround = preroundFor(roundId);
   const pucks: Record<PlayerId, number> = {};
   for (const p of connected) pucks[p] = SLING_START_PUCKS;
 
   const sling: Sling = {
     roundId,
-    startsAt: now + PREROUND_MS,
+    startsAt: now + preround,
     players: [...connected],
     pucks,
     gate: {},
     // The cap runs from the start of play, not from the panel.
-    endsAt: now + PREROUND_MS + SLING_ROUND_CAP_MS,
+    endsAt: now + preround + SLING_ROUND_CAP_MS,
     phase: 'running',
   };
 

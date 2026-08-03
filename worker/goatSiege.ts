@@ -7,7 +7,7 @@ import {
   SIEGE_MAX_PLAYERS,
   SIEGE_MIN_PLAYERS,
   SIEGE_ROUND_CAP_MS,
-  PREROUND_MS,
+  preroundFor,
   type Goat,
   type GoatState,
   type PlayerId,
@@ -83,12 +83,14 @@ export async function startSiege(
   }
 
   const now = ctx.now();
+  // Only the first round of a room gets a rules panel (protocol.ts).
+  const preround = preroundFor(roundId);
   const cabbages: Record<PlayerId, number> = {};
   for (const p of connected) cabbages[p] = SIEGE_CABBAGES;
 
   const siege: Siege = {
     roundId,
-    startsAt: now + PREROUND_MS,
+    startsAt: now + preround,
     players: [...connected],
     cabbages,
     out: [],
@@ -97,7 +99,7 @@ export async function startSiege(
     nextGoat: 0,
     nextSeed: 1,
     // The cap runs from the start of play, not from the panel.
-    endsAt: now + PREROUND_MS + SIEGE_ROUND_CAP_MS,
+    endsAt: now + preround + SIEGE_ROUND_CAP_MS,
     phase: 'running',
   };
 

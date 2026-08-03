@@ -296,6 +296,23 @@ export const MAX_PLAYERS = 10;
  */
 export const PREROUND_MS = 4_000;
 
+/**
+ * How long the rules panel holds the screen for round `roundId` of a room.
+ *
+ * **Only the first round gets one.** "Play again" means everybody has just read
+ * the rules and played a round of the thing, so showing them again is four
+ * seconds of being told what you already know — and it lands right when the room
+ * is keenest to go again.
+ *
+ * The window collapses to zero rather than the panel merely being hidden: a
+ * silent four-second wait on a live-looking board is worse than the panel it
+ * replaced. Deciding it here, from a number the server owns, is what keeps the
+ * client's panel and the server's input gate agreeing.
+ */
+export function preroundFor(roundId: number): number {
+  return roundId <= 1 ? PREROUND_MS : 0;
+}
+
 /** Hard cap on an inbound frame; anything larger is dropped (docs/architecture.md §4). */
 export const MAX_FRAME_BYTES = 8 * 1024;
 

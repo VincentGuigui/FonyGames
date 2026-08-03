@@ -10,7 +10,7 @@ import {
   RATE_LIMIT_MSGS,
   RATE_LIMIT_WINDOW_MS,
   MIN_HUMAN_REACTION_MS,
-  PREROUND_MS,
+  preroundFor,
   RECONNECT_GRACE_MS,
   isClientMessage,
   type ClientMessage,
@@ -368,7 +368,7 @@ export class Room extends DurableObject {
     // Redrawn every duel so the delay cannot be learned (spec §2), and pushed
     // past the rules panel so the signal can never fire behind it — the one
     // game where a covered screen would cost you the round.
-    const startsAt = Date.now() + PREROUND_MS;
+    const startsAt = Date.now() + preroundFor(roundId);
     const fireAt = startsAt + FIRE_MIN_MS + Math.floor(Math.random() * spread);
 
     await this.ctx.storage.put('roundId', roundId);

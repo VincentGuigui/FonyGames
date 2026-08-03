@@ -16,6 +16,12 @@ import { HowToPlay } from './HowToPlay';
  *
  * Mount it keyed on the round id, so a new round always shows a fresh panel
  * rather than reusing a dismissed one.
+ *
+ * **It does not appear on "Play again."** The server gives a replay a zero-length
+ * pre-round window (`preroundFor` in the protocol), so `startsAt` has already
+ * passed and this renders nothing. Nobody needs the rules a second time, and the
+ * window collapsing with the panel is what stops the replacement being four
+ * silent seconds of a live-looking board.
  */
 export function RulesPanel({
   title,
@@ -38,7 +44,11 @@ export function RulesPanel({
     return () => clearInterval(id);
   }, [startsAt, now]);
 
-  if (left <= 0) return null;
+  // A window this short is not a window: `preroundFor` gives replays zero, and
+  // our estimate of the clock offset can put `startsAt` a few tens of
+  // milliseconds in the future anyway — enough for the panel to flash up and
+  // vanish, which is worse than either showing it or not.
+  if (left <= MIN_PANEL_MS) return null;
   // Clamped to the panel's own duration. The server sets `startsAt` to its own
   // clock plus PREROUND_MS, and our estimate of the offset can be a few tens of
   // milliseconds behind — enough for `left` to exceed 4000 and for a four-second
@@ -63,3 +73,6 @@ export function RulesPanel({
     </div>
   );
 }
+
+/** Below this the panel would be a flicker rather than something to read. */
+const MIN_PANEL_MS = 400;
