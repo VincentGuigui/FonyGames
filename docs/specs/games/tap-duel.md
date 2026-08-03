@@ -26,10 +26,11 @@ which is exactly why it goes first.
 2. A four-second rules panel holds every screen
    ([../../design/game-chrome.md](../../design/game-chrome.md) §4).
 3. Every screen shows **GET READY**, plus one line telling you what to do:
-   *Tap the instant this screen changes*.
-4. After a random delay the server fires: every screen flips to **TAP**.
-5. First valid tap wins. Tapping before the signal is a **false start** and
-   knocks you out of that duel.
+   *A target will appear — tap it, and nothing before it*.
+4. After a random delay the server fires: an **archer's target appears somewhere
+   on screen**, in the same place on every phone.
+5. First valid tap **on the target** wins. Tapping anywhere before the signal is a
+   **false start** and knocks you out of that duel.
 6. Results show everyone's reaction time, fastest first.
 7. Play again keeps the room and the scores.
 
@@ -67,9 +68,29 @@ Standard flow ([../../multiplayer.md](../../multiplayer.md) §3). Specifics:
   *Tap the instant this screen changes*. "WAIT" was tried first and read as an
   order to do nothing, which is the opposite of the intent. Nothing on this
   screen may leak the fire time: no countdown, no progress bar.
-- **Fire** — the entire viewport becomes the accent colour and reads **TAP**.
-  The whole screen is the target: no button to aim at, because aiming is not
-  the skill being measured.
+- **Fire** — the viewport becomes the accent colour and an **archer's target**
+  appears at a random position. Only a tap on the target counts.
+
+  This replaces an earlier design where the whole screen was the target, on the
+  reasoning that "aiming is not the skill being measured". Reaction alone turned
+  out to be a thin game: with a thumb already resting on the glass there is
+  nothing to do but twitch. Having to *find* and *reach* the target adds a second
+  skill without removing the first, and it is still the same one instant for
+  everyone.
+
+  Three properties it has to keep:
+
+  - **The server picks the position** and sends it on `arm`, so it is identical on
+    every screen. Drawn per client, the round would go to whoever got the
+    luckiest placement.
+  - **It appears only on the signal.** Shown while armed, players would park a
+    thumb on it and nothing would have changed.
+  - **It never lands under the gear or off an edge** — `TARGET_MIN/MAX_X/Y` inset
+    it. A target you cannot tap without opening the menu is not a target.
+
+  A tap that **misses** after the signal is just a miss: it is ignored, not
+  punished. It already cost the time it took, which is self-limiting, and adding a
+  penalty would turn one bad reach into a lost round.
 - **False start** — that player's screen immediately goes red and says
   *Too early*. They watch the rest of the duel; everyone else is undisturbed.
 - **Result** — ranked list, winner first, false starts at the bottom. The
@@ -129,6 +150,14 @@ decides the ranking. A client never says "I won".
 
 The obvious exploit is a scripted tap, or lying about `at`.
 
+**The target is not part of the defence, and `tap` deliberately carries no
+position.** The client knows where the target is — it has to, in order to draw it
+— so a modified client asked for coordinates would simply send the centre of it.
+Accepting a field that cannot be validated would add an attack surface and buy
+nothing, which is the same reasoning that keeps an angle off Goat Siege's `lob`
+([goat-siege.md](goat-siege.md) §5). What is checked is the **timing**, below, and
+that is what the score is made of.
+
 - **Timestamp window.** `at` is rejected unless it falls in
   `[fireAt, serverNow + 250 ms]`. Claiming to have tapped before the signal is a
   false start by definition; claiming the future is discarded.
@@ -165,7 +194,15 @@ nothing is stored at all.
 
 ## 11. Accessibility
 
-- The whole viewport is the target, so no fine motor control or aiming.
+- **Reaching a target does need aiming**, which the full-screen version did not.
+  The target is deliberately large — `min(42vw, 42vh, 15rem)`, far above the 44 px
+  minimum — and it is one element with one focus stop, so a keyboard or switch
+  user activates it the same way. It is a real cost to anyone who cannot reach
+  across a screen quickly, and it buys the game its second skill; `sprint` and
+  `simon` (§3) do not use a target, so the mode list still offers a duel without
+  one.
+- The target reads by **shape** (concentric rings) as well as colour, so it does
+  not depend on distinguishing red from gold.
 - The signal is **colour + text + a layout change**, never colour alone.
 - The fire flip is a single state change, not a flash or strobe — safe under
   `prefers-reduced-motion` and nowhere near the 3 Hz limit.
