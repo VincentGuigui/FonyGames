@@ -8,7 +8,8 @@ import {
   BAND_REST_Y,
   MAX_PULL,
   PUCK_RADIUS,
-  clampPull,
+  clampBoard,
+  inSling,
   isLoadable,
   restingPucks,
   slingVelocity,
@@ -37,9 +38,18 @@ import {
 
 export type Drag = {
   puckId: number;
-  /** Where the puck is being held, already clamped to a legal pull. */
+  /** Where the puck is being held, clamped to the board. */
   x: number;
   y: number;
+  /**
+   * Finger-to-centre offset, fixed at grab time.
+   *
+   * This is what stops the puck teleporting under the touch: the puck keeps the
+   * distance it had from your finger when you took hold of it, so grabbing it is
+   * silent and only moving your finger moves the puck.
+   */
+  ox: number;
+  oy: number;
 };
 
 export type SlingView = {
@@ -170,9 +180,15 @@ export class SlingGame {
   /* ------------------------- input ------------------------- */
 
   /**
-   * Start a drag on the puck under (x, y), in board units. Only a resting puck
-   * can be loaded — grabbing one that is still bouncing around would turn the
-   * board into a stack of held pucks.
+   * Take hold of the puck under (x, y), in board units.
+   *
+   * Two rules here, both of them corrections to how this first worked:
+   *
+   * - **Any puck can be grabbed, moving or not.** Catching one in flight is part
+   *   of playing — a puck rattling back down your half is exactly the one you want
+   *   to reload — and refusing it just meant waiting for the board to settle.
+   * - **The puck does not jump to your finger.** The offset is recorded and kept,
+   *   so you pick a puck up where it lies and *carry* it to the sling.
    */
   grab(x: number, y: number): boolean {
     if (!this.playing || !this.live || this.#drag) return false;
@@ -180,7 +196,6 @@ export class SlingGame {
     let best: Puck | null = null;
     let bestDist = GRAB_SLOP;
     for (const p of this.#pucks) {
-      if (!isLoadable(p)) continue;
       const d = Math.hypot(p.x - x, p.y - y);
       if (d < bestDist) {
         bestDist = d;
@@ -189,20 +204,44 @@ export class SlingGame {
     }
     if (!best) return false;
 
-    const at = clampPull(x, y);
-    this.#drag = { puckId: best.id, x: at.x, y: at.y };
+    // It is in a hand now, so it is not travelling. Without this a puck caught in
+    // flight would keep its old momentum and leap away the moment you let go.
+    best.vx = 0;
+    best.vy = 0;
+
+    this.#drag = {
+      puckId: best.id,
+      x: best.x,
+      y: best.y,
+      ox: best.x - x,
+      oy: best.y - y,
+    };
     return true;
   }
 
   /** Move the held puck. Returns false when there is nothing held. */
   drag(x: number, y: number): boolean {
-    if (!this.#drag) return false;
-    const at = clampPull(x, y);
-    this.#drag = { ...this.#drag, x: at.x, y: at.y };
+    const held = this.#drag;
+    if (!held) return false;
+    const at = clampBoard(x + held.ox, y + held.oy);
+    this.#drag = { ...held, x: at.x, y: at.y };
+    // Keep the puck itself under the finger, so a round that ends mid-carry
+    // leaves it where you were holding it rather than where you picked it up.
+    const p = this.#pucks.find((q) => q.id === held.puckId);
+    if (p) {
+      p.x = at.x;
+      p.y = at.y;
+    }
     return true;
   }
 
-  /** Let go. The puck takes the band's launch velocity from where it was held. */
+  /**
+   * Let go.
+   *
+   * In the band's zone the puck takes the sling's launch velocity. Above it there
+   * is no band to push, so it is simply put down — which is what makes carrying a
+   * puck down to the sling a move rather than an accident.
+   */
   release(): void {
     const held = this.#drag;
     this.#drag = null;
@@ -211,11 +250,16 @@ export class SlingGame {
     const p = this.#pucks.find((q) => q.id === held.puckId);
     if (!p) return;
 
-    const v = slingVelocity(held.x, held.y);
     p.x = held.x;
     p.y = held.y;
-    p.vx = v.vx;
-    p.vy = v.vy;
+    if (inSling(held.y)) {
+      const v = slingVelocity(held.x, held.y);
+      p.vx = v.vx;
+      p.vy = v.vy;
+    } else {
+      p.vx = 0;
+      p.vy = 0;
+    }
   }
 
   /** Abandon a drag without firing — a cancelled pointer, or the round ending. */

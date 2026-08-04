@@ -5,6 +5,7 @@ import {
   POST_LEFT,
   POST_RIGHT,
   PUCK_RADIUS,
+  inSling,
 } from './physics';
 import { ARRIVE_MS, type SlingGame } from './game';
 import { fit, toScreen, type Board } from './layout';
@@ -75,8 +76,13 @@ export function startRenderer(
     for (const c of game.advance(dt)) onCross(c);
 
     const view = game.view();
+    // A puck can be carried anywhere on the board, but the band only follows one
+    // that has reached it. Above the band line there is nothing loaded, so it is
+    // drawn slack and no aim is shown — which is also the honest picture: a
+    // release up there puts the puck down instead of firing it.
+    const loaded = view.drag && inSling(view.drag.y) ? view.drag : null;
     drawTable(ctx!, board);
-    drawBand(ctx!, board, view.drag, calm ? 0 : ts / 1000);
+    drawBand(ctx!, board, loaded, calm ? 0 : ts / 1000);
 
     for (const p of view.pucks) {
       const arrived = view.arrivals.find((a) => a.id === p.id);
@@ -87,7 +93,7 @@ export function startRenderer(
       drawPuck(ctx!, board, held ?? p, Math.max(0, glow));
     }
 
-    if (view.drag) drawAim(ctx!, board, view.drag);
+    if (loaded) drawAim(ctx!, board, loaded);
   }
 
   raf = requestAnimationFrame(frame);

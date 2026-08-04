@@ -315,6 +315,35 @@ export function clampPull(px: number, py: number): { x: number; y: number } {
 }
 
 /**
+ * Keep a carried puck inside the play area.
+ *
+ * Distinct from `clampPull`, which pins a puck into the band's pull zone. A puck
+ * under a finger is allowed anywhere on the board, because a puck that came to
+ * rest up-board has to be **carried down to the sling** — the alternative was
+ * teleporting it there the instant it was touched.
+ *
+ * Carrying it as far as the gap is not a way to score: crossing only ever comes
+ * out of `step`, so a puck put down with no velocity sits where it was left.
+ */
+export function clampBoard(px: number, py: number): { x: number; y: number } {
+  return {
+    x: Math.max(PUCK_RADIUS, Math.min(1 - PUCK_RADIUS, px)),
+    y: Math.max(PUCK_RADIUS, Math.min(BOARD_H - PUCK_RADIUS, py)),
+  };
+}
+
+/**
+ * Is a puck held here touching the band?
+ *
+ * Below the band line the V is stretched and a release fires. Above it there is
+ * no band to push, so a release just puts the puck down — `slingVelocity` would
+ * otherwise point *back* down the board and fire it the wrong way.
+ */
+export function inSling(py: number): boolean {
+  return py >= BAND_REST_Y;
+}
+
+/**
  * Launch velocity for the tap-to-launch fallback (spec §13): straight at the
  * middle of the gap, at a fixed modest speed.
  *

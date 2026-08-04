@@ -215,6 +215,34 @@ and it is why a half-hearted pull in the real game goes nowhere.
 
 Only arithmetic and `sqrt` — no trigonometry anywhere in the physics.
 
+### Taking hold of a puck
+
+Two rules, both of them corrections to the first build:
+
+- **A puck is carried, never teleported.** Touching a puck records the offset
+  between your finger and its centre and keeps it, so the puck stays exactly where
+  it lay and only *moving* your finger moves it. Before this, a grab snapped the
+  puck into the band's pull zone from wherever it was, which made loading feel like
+  a menu selection instead of a hand on a puck.
+- **Any puck can be grabbed, moving or not.** A puck rattling back down your half
+  is the one you most want to reload, and refusing it just meant waiting for the
+  board to settle. Catching one stops it dead: it is in a hand now.
+
+A carried puck may go anywhere on the board, not only into the pull zone. It is
+released two different ways depending on where it is:
+
+| Released | Result |
+| --- | --- |
+| in the band's zone (`y ≥ BAND_REST_Y`) | fires, per the model above |
+| above the band | put down, velocity zero |
+
+So bringing a puck down to the sling is a deliberate move, and the band is only
+drawn stretched — and the aim only shown — once a puck has actually reached it.
+
+Carrying a puck to the gap is **not** a way to score. A crossing only ever comes
+out of the simulation step, so a puck put down by hand has no velocity and sits
+where it was left.
+
 ## 8. Screens
 
 - **Lobby** — the shared template ([../../design/game-chrome.md](../../design/game-chrome.md) §1),

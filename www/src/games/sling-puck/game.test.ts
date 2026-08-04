@@ -1,0 +1,143 @@
+/**
+ * Sling Puck's input rules. Spec: docs/specs/games/sling-puck.md §7
+ *
+ * `physics.test.ts` covers the board. This covers the hand: what grabbing a puck
+ * does to it, that it is carried rather than teleported, and where a release
+ * fires and where it only puts the puck down.
+ */
+import { SlingGame } from './game';
+import { BAND_REST_Y, BOARD_H, PUCK_RADIUS, SLING_PUCKS } from './physics';
+import type { SlingState } from '../../../../shared/protocol';
+
+let failures = 0;
+function check(label: string, cond: boolean, extra?: unknown): void {
+  if (cond) console.log(`  ok   ${label}`);
+  else {
+    failures++;
+    console.log(`  FAIL ${label}`, extra === undefined ? '' : JSON.stringify(extra));
+  }
+}
+
+const ME = 'me';
+const THEM = 'them';
+
+/** A game mid-round with a full rack, past the pre-round panel. */
+function running(): SlingGame {
+  const g = new SlingGame();
+  g.identify(ME, () => 10_000);
+  const d: SlingState = {
+    roundId: 1,
+    startsAt: 0,
+    players: [ME, THEM],
+    pucks: { [ME]: SLING_PUCKS, [THEM]: SLING_PUCKS },
+    phase: 'running',
+  };
+  g.apply({ t: 'sling', s: 1, d });
+  return g;
+}
+
+function carrying(): void {
+  const g = running();
+  const p = g.view().pucks[0]!;
+  // Snapshot: `p` is the live puck and a drag moves it, so comparing against
+  // `p.x` after the fact would be comparing the puck with itself.
+  const x0 = p.x;
+  const y0 = p.y;
+
+  // Grab off-centre: a finger a third of a radius away from the middle of it.
+  const off = PUCK_RADIUS * 0.34;
+  check('a grab off-centre still takes the puck', g.grab(x0 + off, y0));
+
+  const held = g.view().drag!;
+  check(
+    'and the puck does not jump to the finger',
+    held.x === x0 && held.y === y0,
+    { held, puck: { x: x0, y: y0 } },
+  );
+
+  // Move the finger by a known amount; the puck should move by the same amount.
+  g.drag(x0 + off + 0.1, y0 - 0.2);
+  const moved = g.view().drag!;
+  check(
+    'it travels with the finger, keeping the offset',
+    Math.abs(moved.x - (x0 + 0.1)) < 1e-9 && Math.abs(moved.y - (y0 - 0.2)) < 1e-9,
+    moved,
+  );
+
+  // Carrying cannot post a puck out through the walls.
+  g.drag(-5, -5);
+  const corner = g.view().drag!;
+  check(
+    'and is clamped to the board, not to the pull zone',
+    corner.x >= PUCK_RADIUS && corner.y >= PUCK_RADIUS && corner.y < BAND_REST_Y,
+    corner,
+  );
+  g.drag(99, 99);
+  const far = g.view().drag!;
+  check('at the far corner too', far.x <= 1 - PUCK_RADIUS && far.y <= BOARD_H - PUCK_RADIUS, far);
+}
+
+function grabbingInFlight(): void {
+  const g = running();
+  const p = g.view().pucks[0]!;
+
+  // Fire it, let it travel, then catch it.
+  g.grab(p.x, p.y);
+  g.drag(p.x, BAND_REST_Y + 0.2);
+  g.release();
+  check('a released puck is moving', p.vx !== 0 || p.vy !== 0, p);
+
+  g.advance(1 / 60);
+  const inFlight = g.view().pucks.find((q) => q.id === p.id)!;
+  check('a puck in flight can be grabbed', g.grab(inFlight.x, inFlight.y), inFlight);
+  check(
+    'and catching it stops it dead',
+    inFlight.vx === 0 && inFlight.vy === 0,
+    inFlight,
+  );
+}
+
+function releasing(): void {
+  // Above the band there is no band to push, so a release puts the puck down.
+  const g = running();
+  const p = g.view().pucks[0]!;
+  g.grab(p.x, p.y);
+  g.drag(0.5, BAND_REST_Y - 0.3);
+  const up = g.view().drag!;
+  check('a puck can be carried up-board, past the band', up.y < BAND_REST_Y, up);
+  g.release();
+  const put = g.view().pucks.find((q) => q.id === p.id)!;
+  check('releasing there puts it down, it does not fire', put.vx === 0 && put.vy === 0, put);
+  check('and it stays where it was carried to', Math.abs(put.y - up.y) < 1e-9, put);
+
+  // In the band's zone it fires up-board, as before.
+  const h = running();
+  const q = h.view().pucks[0]!;
+  h.grab(q.x, q.y);
+  h.drag(q.x, BAND_REST_Y + 0.2);
+  h.release();
+  const shot = h.view().pucks.find((r) => r.id === q.id)!;
+  check('releasing at the band fires it', shot.vy < 0, shot);
+}
+
+function oneAtATime(): void {
+  const g = running();
+  const a = g.view().pucks[0]!;
+  const b = g.view().pucks[1]!;
+  check('the first grab takes', g.grab(a.x, a.y));
+  check('a second grab is refused while one is held', !g.grab(b.x, b.y));
+  g.cancel();
+  check('and allowed again once let go', g.grab(b.x, b.y));
+}
+
+console.log('\ncarrying a puck');
+carrying();
+console.log('\ngrabbing one in flight');
+grabbingInFlight();
+console.log('\nreleasing');
+releasing();
+console.log('\none puck at a time');
+oneAtATime();
+
+if (failures > 0) throw new Error(`${failures} check(s) failed`);
+console.log('\nall passed');
