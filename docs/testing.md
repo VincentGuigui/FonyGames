@@ -104,10 +104,22 @@ ls dist/assets/*.svg                             # one hashed file per illustrat
 gzip -9c dist/assets/hub-*.js | wc -c            # write the number down
 ```
 
-**Write the number down.** The hub chunk was **10,125 raw / 3,444 gzipped** on
-2026-08-04, before the illustrations moved out of it; without a recorded baseline a
-regression here is invisible, because nothing fails — the page just gets heavier.
-Why `?no-inline` is what keeps the first two at zero:
+**Write the numbers down**, because a regression here fails nothing — the page just
+gets heavier. Measured on 2026-08-04:
+
+| | Hub chunk | Whole hub page | A game page |
+| --- | --- | --- | --- |
+| Art inline in the JS | 10,125 / **3,444 gz** | 10,995 gz, 2 files | 23,061 gz (tap-duel) |
+| Art as files | 8,328 / **3,639 gz** | 11,224 gz, 2 files | 21,920 gz |
+
+The hub *chunk* barely moved and the *page* is 229 bytes heavier — because the
+illustrations left, but thirteen `card.ts` files and four duplicated cards arrived.
+That is the honest result: **the win was the rule, not the bytes.** The art is now a
+set of separately cacheable files that a redraw does not rebuild the JS for, the
+below-fold ones are never fetched at all, and every game page is 1.1–1.5 KB lighter
+because it carries one card instead of thirteen.
+
+Why `?no-inline` is what keeps the first two greps at zero:
 [design/illustrations.md](design/illustrations.md) §2.
 
 Sensor input in automated tests is injected as **recorded traces** (JSON arrays
