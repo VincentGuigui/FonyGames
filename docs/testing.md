@@ -155,12 +155,29 @@ The consequence is a rule about what may be *claimed*:
   result as unknown rather than as green.
 
 Measured 2026-08-04. The block is the **environment's network policy**, applied
-upstream of the container, so no permission granted inside a session lifts it — it
-takes a policy change on the environment
-([code.claude.com/docs/en/claude-code-on-the-web](https://code.claude.com/docs/en/claude-code-on-the-web)).
+upstream of the container, so no permission granted inside a session lifts it.
 `curl -sS "$HTTPS_PROXY/__agentproxy/status"` lists recent denials as
 `connect_rejected` and is the quickest way to tell a policy denial from a genuinely
 broken host.
+
+**To lift it for our own hosts**, set the cloud environment's **Network access** to
+**Custom** and list them under **Allowed domains** (tick *also include the default
+package-manager list* to keep npm working). The setting lives behind the cloud icon
+above the message box at claude.ai/code — there is no settings URL for it — and it
+applies to **new sessions**, not a running one
+([docs](https://code.claude.com/docs/en/cloud-environments#access-levels)):
+
+```
+fonygames.guigui.fr
+fonygames-dev.guigui.fr
+fonygames-worker.vincent-f02.workers.dev
+fonygames-worker-dev.vincent-f02.workers.dev
+```
+
+Listed in full rather than as `*.workers.dev`: the Worker hostnames are two labels
+deep and the documented wildcard examples only cover one. This buys exactly one
+thing — loading the deployed sites directly instead of trusting CI. It does **not**
+fix GitHub, whose proxy is independent of the access level.
 
 None of this blocks the workflow in §1: everything the harness and a local Worker
 can prove is still proved locally. It only bounds the last claim.
