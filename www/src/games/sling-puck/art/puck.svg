@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88" width="88" height="88">
+  <!--
+    Sling Puck's puck.
+
+    Ported from drawPuck: the disc, a machined rim, and an inner ring that makes
+    spin-free sliding legible against the felt.
+
+    Square and centred on the drawing origin, so render.ts blits it with no offset
+    arithmetic. Declares width, height AND viewBox because the sprite loader reads
+    naturalWidth to know it decoded (docs/design/illustrations.md §4).
+
+    The arrival glow is NOT here: it is alpha driven by how long ago the puck landed,
+    so it stays procedural and is drawn under this.
+
+    Literal hexes, no currentColor: canvas draws this through an Image, which cannot
+    see the page's CSS.
+  -->
+  <circle cx="44" cy="44" r="40" fill="#f4f1e8"/>
+  <circle cx="44" cy="44" r="36.8" fill="none" stroke="#b9b2a0" stroke-width="5.6"/>
+  <circle cx="44" cy="44" r="18" fill="none" stroke="#b9b2a0" stroke-width="3.2"/>
+</svg>

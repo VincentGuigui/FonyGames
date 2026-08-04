@@ -7,6 +7,8 @@ import {
   PUCK_RADIUS,
   inSling,
 } from './physics';
+import { art } from '../../core/art/sprites';
+import puckUrl from './art/puck.svg?url&no-inline';
 import { ARRIVE_MS, type SlingGame } from './game';
 import { fit, toScreen, type Board } from './layout';
 
@@ -35,6 +37,16 @@ const WALL_LIP = '#5d472d';
 const BAND = '#FB7185';
 const PUCK = '#f4f1e8';
 const PUCK_EDGE = '#b9b2a0';
+
+/**
+ * The puck art, at module scope so the fetch starts with this chunk.
+ *
+ * The best sprite in the codebase: `b.scale` only changes when the canvas is
+ * resized, so a round rasterises the puck **once** and then blits it five to ten
+ * times a frame. `PUCK_SPAN` is the file's box in units of the puck radius.
+ */
+const puckArt = art(puckUrl);
+const PUCK_SPAN = 2.2;
 const AIM = 'rgb(251 113 133 / 45%)';
 
 export type Renderer = { stop(): void; board(): Board };
@@ -90,7 +102,7 @@ export function startRenderer(
       // A held puck is drawn where the finger is, not where the simulation left
       // it — it was taken out of the simulation the moment it was grabbed.
       const held = view.drag?.puckId === p.id ? view.drag : null;
-      drawPuck(ctx!, board, held ?? p, Math.max(0, glow));
+      drawPuck(ctx!, board, held ?? p, Math.max(0, glow), dpr);
     }
 
     if (loaded) drawAim(ctx!, board, loaded);
@@ -195,16 +207,26 @@ function drawPuck(
   b: Board,
   p: { x: number; y: number },
   glow: number,
+  dpr: number,
 ): void {
   const s = toScreen(b, p.x, p.y);
   const r = PUCK_RADIUS * b.scale;
 
+  // The glow stays procedural: its alpha comes from how long ago the puck arrived,
+  // so it is not a fixed shape. Drawn first, under the disc, exactly as before.
   if (glow > 0) {
     ctx.strokeStyle = `rgb(251 113 133 / ${Math.round(glow * 70)}%)`;
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(s.x, s.y, r + 4 + (1 - glow) * 10, 0, Math.PI * 2);
     ctx.stroke();
+  }
+
+  const px = r * PUCK_SPAN;
+  const sprite = puckArt.at(px, dpr);
+  if (sprite) {
+    ctx.drawImage(sprite.source, s.x - sprite.w / 2, s.y - sprite.h / 2, sprite.w, sprite.h);
+    return;
   }
 
   ctx.fillStyle = PUCK;
