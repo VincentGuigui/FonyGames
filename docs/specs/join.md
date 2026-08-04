@@ -124,3 +124,30 @@ has any reason to trust us.
    admitted — a false positive must not drop a stranger into the room.
 4. **Time-boxed.** A join gesture window lasts seconds and then closes; no
    sensor stream is left running.
+
+## A damaged link
+
+A room code in the URL hash is one of three things, and the third used to be folded
+into the first:
+
+| Hash | Meaning | Behaviour |
+| --- | --- | --- |
+| empty | starting a room | mint a code and write it to the URL at once, so a reload rejoins rather than creating a second room |
+| a valid code | joining | use it |
+| anything else | the link arrived damaged | **"This room doesn't exist"**, with the bad hash left in place |
+
+An invalid hash used to mint a fresh code as well, which dropped the player into a
+*different, empty room* and erased the bad code from the URL. They believed they had
+joined, they were alone, and the evidence was gone — a chat app eating a character, or
+a code copied one short, does exactly that.
+
+The copy names the room, not the code: from where the player stands they followed a
+link and there is nothing at the end of it, and whether the code was malformed or
+merely unused changes nothing they can act on. Two exits, because the screen it
+replaces was a silent dead end — start a fresh room of that game, or go back and type
+the code.
+
+**Codes are generated from the alphabet, never sanitised into it.**
+`generateRoomCode()` draws every character from `ROOM_CODE_ALPHABET`, so it cannot
+emit an excluded glyph. `normaliseRoomCode()` exists only for input the app does not
+control — what a human types, and what arrives in a hash.

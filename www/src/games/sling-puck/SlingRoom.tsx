@@ -8,6 +8,7 @@ import {
   type ServerMessage,
   type SlingState,
 } from '../../../../shared/protocol';
+import { NoSuchRoom } from '../../lobby/NoSuchRoom';
 import { codeFromLocation, shareRoom, useRoom } from '../../core/room/useRoom';
 import { GameLobby } from '../../lobby/GameLobby';
 import { SlingBoard } from './SlingBoard';
@@ -22,8 +23,21 @@ import { SlingGame } from './game';
  * "top edge to top edge" is a physical instruction the game cannot check and
  * cannot work without.
  */
-export function SlingRoom({ game: card }: { game: GameCard }): JSX.Element {
+
+/**
+ * Reads the room code, and stops here if the link was damaged.
+ *
+ * A wrapper rather than an early return inside the component below: the guard has to
+ * come before `useRoom`, and skipping hooks conditionally is not something to rely on
+ * even when the condition cannot change.
+ */
+export function SlingRoom(props: { game: GameCard }): JSX.Element {
   const code = useMemo(() => codeFromLocation(), []);
+  if (code === null) return <NoSuchRoom card={props.game} />;
+  return <SlingRoomInner game={props.game} code={code} />;
+}
+
+function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
   const [showQr, setShowQr] = useState(false);
   const [copied, setCopied] = useState(false);
   const [, redraw] = useState(0);

@@ -9,6 +9,7 @@ import {
   type ServerMessage,
   type SpillState,
 } from '../../../../shared/protocol';
+import { NoSuchRoom } from '../../lobby/NoSuchRoom';
 import { codeFromLocation, shareRoom, useRoom } from '../../core/room/useRoom';
 import { GameLobby } from '../../lobby/GameLobby';
 import { SeatMap } from './SeatMap';
@@ -25,8 +26,21 @@ import { SPILL_THEME } from './themes';
  * work, so the diagram is also in the board's gear menu: it has to stay
  * reachable mid-round (spec §8).
  */
-export function SpillRoom({ game: card }: { game: GameCard }): JSX.Element {
+
+/**
+ * Reads the room code, and stops here if the link was damaged.
+ *
+ * A wrapper rather than an early return inside the component below: the guard has to
+ * come before `useRoom`, and skipping hooks conditionally is not something to rely on
+ * even when the condition cannot change.
+ */
+export function SpillRoom(props: { game: GameCard }): JSX.Element {
   const code = useMemo(() => codeFromLocation(), []);
+  if (code === null) return <NoSuchRoom card={props.game} />;
+  return <SpillRoomInner game={props.game} code={code} />;
+}
+
+function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
   const [showQr, setShowQr] = useState(false);
   const [copied, setCopied] = useState(false);
   const [, redraw] = useState(0);

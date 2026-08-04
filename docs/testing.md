@@ -64,6 +64,11 @@ Two traps that have already cost time:
   `#SIEGRA`, `#SIEGRB` and `#SIEGRC` are all the room `SIEG`. Three "fresh" codes, one
   room, and a test that quietly picks up the players and the live round from the run
   before. Use four legal characters and nothing more.
+
+  An **illegal** character fails differently: `#TDNI` has an `I`, sanitises to three
+  characters, and no longer validates — so every tab lands on "This room doesn't
+  exist" instead of a room. Nine tabs, nine failures, and it reads like a broken join
+  gate. Both traps come from the same line of `normaliseRoomCode`.
 - **Use a fresh room code for every run.** Codes are just names —
   `idFromName(code)` resolves to the *same* Durable Object as last time, live round
   and all. Rejoin a code from an earlier run and `start` is **silently refused**

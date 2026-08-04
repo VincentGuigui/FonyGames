@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../core/types';
 import type { RoundResult } from '../../../shared/protocol';
+import { NoSuchRoom } from './NoSuchRoom';
 import { codeFromLocation, useRoom, shareRoom } from '../core/room/useRoom';
 import { PLAYERS } from '../../../shared/players';
 import { GameLobby } from './GameLobby';
@@ -18,8 +19,21 @@ import { Duel, type DuelPhase } from '../games/tap-duel/Duel';
  * The connection, the join card and the player list are shared with every other
  * game; what is specific to Tap Duel is the duel screen and the `pistol` start.
  */
-export function Lobby({ game }: { game: GameCard }): JSX.Element {
+
+/**
+ * Reads the room code, and stops here if the link was damaged.
+ *
+ * A wrapper rather than an early return inside the component below: the guard has to
+ * come before `useRoom`, and skipping hooks conditionally is not something to rely on
+ * even when the condition cannot change.
+ */
+export function Lobby(props: { game: GameCard }): JSX.Element {
   const code = useMemo(() => codeFromLocation(), []);
+  if (code === null) return <NoSuchRoom card={props.game} />;
+  return <LobbyInner game={props.game} code={code} />;
+}
+
+function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Element {
   const [showQr, setShowQr] = useState(false);
   const [phase, setPhase] = useState<DuelPhase>('idle');
   const [result, setResult] = useState<RoundResult | null>(null);

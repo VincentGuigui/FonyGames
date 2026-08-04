@@ -549,3 +549,49 @@
   right: 1rem;
   z-index: 10;
 }
+
+/* --- a damaged join link (NoSuchRoom.tsx) -------------------------------- */
+
+/*
+ * Deliberately plain: it is an explanation and two exits, not a screen anyone
+ * should spend time on. Reuses `.lobby__back` and the button tokens rather than
+ * inventing a look for a dead end.
+ */
+.nosuchroom {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4)
+    calc(var(--space-6) + env(safe-area-inset-bottom));
+  padding-left: max(var(--space-4), env(safe-area-inset-left));
+  padding-right: max(var(--space-4), env(safe-area-inset-right));
+}
+
+.nosuchroom__title {
+  margin: var(--space-4) 0 0;
+  font-size: clamp(1.5rem, 6vw, 2rem);
+  font-weight: 800;
+  color: var(--game-accent, var(--color-accent));
+}
+
+.nosuchroom__body {
+  margin: var(--space-3) 0 var(--space-5);
+  color: var(--color-text-dim);
+  max-width: 34ch;
+}
+
+/*
+ * Stacked and full width: on a phone these are the only things to press.
+ *
+ * Flex rather than `display: block`, because `.btn` centres its label the way a
+ * <button> does — on an <a> that leaves the text sitting at the top of the
+ * min-height box.
+ */
+.nosuchroom__cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-bottom: var(--space-3);
+  text-align: center;
+  text-decoration: none;
+}

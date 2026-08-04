@@ -7,17 +7,33 @@ import { generateRoomCode, isRoomCode, normaliseRoomCode } from './code';
 import { loadProfile, saveProfile } from '../profile';
 
 /**
- * The room code lives in the URL hash so the page is shareable as-is. Landing
- * here without one means you are starting a room, so we mint a code and put it
- * in the URL immediately — before anyone connects — so a reload rejoins the
- * same room instead of silently creating a second one.
+ * The room code in the URL hash, or **null** when the hash holds something that is
+ * not a code.
  *
- * Lives here rather than in code.ts because that module is shared with the
- * Worker, which has no `location` and must stay DOM-free.
+ * Three cases, and the third used to be silently folded into the first:
+ *
+ * | Hash | Meaning | What happens |
+ * | --- | --- | --- |
+ * | empty | starting a room | mint a code and put it in the URL at once, so a reload rejoins instead of creating a second room |
+ * | a valid code | joining that room | use it |
+ * | anything else | a link that arrived damaged | **null** — the caller shows "this room doesn't exist" |
+ *
+ * The third case used to mint a fresh code too, which meant a mangled link dropped
+ * you into a *different, empty room* with the bad code erased from the URL. You
+ * thought you had joined; you were alone, and the evidence was gone. A chat app
+ * eating a character, or a code copied one short, does exactly that.
+ *
+ * So an invalid hash is **left alone**: not rewritten, so it can still be read and
+ * compared against the code the sender meant to send.
+ *
+ * Lives here rather than in code.ts because that module is shared with the Worker,
+ * which has no `location` and must stay DOM-free.
  */
-export function codeFromLocation(): string {
-  const fromHash = normaliseRoomCode(location.hash.replace(/^#/, ''));
+export function codeFromLocation(): string | null {
+  const raw = location.hash.replace(/^#/, '');
+  const fromHash = normaliseRoomCode(raw);
   if (isRoomCode(fromHash)) return fromHash;
+  if (raw !== '') return null;
 
   const fresh = generateRoomCode();
   history.replaceState(null, '', `${location.pathname}#${fresh}`);
