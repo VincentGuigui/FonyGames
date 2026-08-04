@@ -492,6 +492,17 @@ export const SLING_START_PUCKS = 5;
  */
 export const SLING_MIN_GAP_MS = 250;
 
+/**
+ * Crossings accepted back to back before the floor above starts to bite.
+ *
+ * The floor was originally a hard one-per-`SLING_MIN_GAP_MS`, on the assumption
+ * that "no human throws twice at once". A human does not have to: one shot can
+ * knock a second puck through a few frames later, and knocking pucks through is
+ * the whole point of the sling. Those crossings were refused silently, so the
+ * sender lost a puck the server never counted.
+ */
+export const SLING_CROSS_BURST = 3;
+
 /** Plausible arrival speed. A forged crossing cannot spawn a puck faster than this. */
 export const SLING_SPEED_MAX = 2.5;
 

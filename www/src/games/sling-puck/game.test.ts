@@ -5,9 +5,19 @@
  * does to it, that it is carried rather than teleported, and where a release
  * fires and where it only puts the puck down.
  */
-import { SlingGame } from './game';
-import { BAND_REST_Y, BOARD_H, PUCK_RADIUS, SLING_PUCKS } from './physics';
+import { CROSS_ACK_MS, SlingGame } from './game';
+import {
+  BAND_REST_Y,
+  BOARD_H,
+  GAP_LEFT,
+  GAP_RIGHT,
+  MAX_PULL,
+  PUCK_RADIUS,
+  SLING_PUCKS,
+} from './physics';
 import type { SlingState } from '../../../../shared/protocol';
+
+const GAP_MID = (GAP_LEFT + GAP_RIGHT) / 2;
 
 let failures = 0;
 function check(label: string, cond: boolean, extra?: unknown): void {
@@ -130,10 +140,62 @@ function oneAtATime(): void {
   check('and allowed again once let go', g.grab(b.x, b.y));
 }
 
+/**
+ * The count and the board must not be able to disagree for long.
+ *
+ * The reported bug: "1 in yours, 0 visible". A crossing removes the puck locally
+ * and only then goes on the wire, so any crossing the server never accepts — one
+ * it refuses, or one sent while the socket was reconnecting — left the board a
+ * puck short of its own count for the rest of the round.
+ */
+function healing(): void {
+  let clock = 10_000;
+  const g = new SlingGame();
+  g.identify(ME, () => clock);
+  const base: SlingState = {
+    roundId: 1,
+    startsAt: 0,
+    players: [ME, THEM],
+    pucks: { [ME]: SLING_PUCKS, [THEM]: SLING_PUCKS },
+    phase: 'running',
+  };
+  g.apply({ t: 'sling', s: 1, d: base });
+
+  // Fire one through the gap, and never tell the server about it.
+  const p = g.view().pucks[0]!;
+  g.grab(p.x, p.y);
+  g.drag(GAP_MID, BAND_REST_Y + MAX_PULL);
+  g.release();
+  let crossed = 0;
+  for (let i = 0; i < 240 && crossed === 0; i++) crossed += g.advance(1 / 60).length;
+  check('the shot crossed the gap', crossed === 1, crossed);
+  check('and left the local board', g.view().pucks.length === SLING_PUCKS - 1);
+  check('while the count still says otherwise', g.view().mine === SLING_PUCKS);
+
+  // In transit, the difference is not real yet, so nothing must be invented.
+  g.advance(1 / 60);
+  check(
+    'a crossing in transit is not reconciled away',
+    g.view().pucks.length === SLING_PUCKS - 1,
+    g.view().pucks.length,
+  );
+
+  // Past the acknowledgement window it is presumed lost, and the server wins.
+  clock += CROSS_ACK_MS + 1;
+  g.advance(1 / 60);
+  check(
+    'a lost crossing heals: the board catches up to the count',
+    g.view().pucks.length === g.view().mine,
+    { pucks: g.view().pucks.length, mine: g.view().mine },
+  );
+}
+
 console.log('\ncarrying a puck');
 carrying();
 console.log('\ngrabbing one in flight');
 grabbingInFlight();
+console.log('\nthe count and the board');
+healing();
 console.log('\nreleasing');
 releasing();
 console.log('\none puck at a time');

@@ -1,5 +1,6 @@
 import {
   PREROUND_MS,
+  SLING_CROSS_BURST,
   SLING_MIN_GAP_MS,
   SLING_ROUND_CAP_MS,
   SLING_SPEED_MAX,
@@ -197,19 +198,30 @@ async function cheatFloor(): Promise<void> {
   console.log('\nthe rate floor');
 
   const h = await running();
-  await onCross(h.ctx, A, 1, shot);
-  const after = h.sent.filter((m) => m.t === 'puck').length;
+  const crossings = () => h.sent.filter((m) => m.t === 'puck').length;
 
-  // Back-to-back in the same millisecond: no human throws twice at once.
+  // A burst is legitimate: one shot can knock a second and third puck through a
+  // few frames behind it. Refusing those used to cost the sender pucks the server
+  // never counted — the board went empty while the count still said 1.
+  for (let i = 0; i < SLING_CROSS_BURST; i++) await onCross(h.ctx, A, 1, shot);
+  check('a burst of crossings all count', crossings() === SLING_CROSS_BURST, crossings());
+  check('and the count moved by the whole burst',
+    h.state().pucks[A] === SLING_START_PUCKS - SLING_CROSS_BURST, h.state().pucks);
+
+  // Past the burst, the floor bites.
+  const full = crossings();
   await onCross(h.ctx, A, 1, shot);
-  check('a second crossing straight away is refused',
-    h.sent.filter((m) => m.t === 'puck').length === after, h.sent.length);
-  check('and the count did not move', h.state().pucks[A] === SLING_START_PUCKS - 1);
+  check('one crossing too many is refused', crossings() === full, crossings());
+  check('and the count did not move',
+    h.state().pucks[A] === SLING_START_PUCKS - SLING_CROSS_BURST, h.state().pucks);
+  // The refusal is *not* silent: without a correction the sender's board keeps
+  // showing one puck fewer than its own count for the rest of the round.
+  check('but the sender is told, so its board can reconcile',
+    h.sent.at(-1)?.t === 'sling', h.sent.at(-1));
 
   h.advance(SLING_MIN_GAP_MS);
   await onCross(h.ctx, A, 1, shot);
-  check('after the gap it is allowed again',
-    h.sent.filter((m) => m.t === 'puck').length === after + 1);
+  check('after the gap it is allowed again', crossings() === full + 1, crossings());
 
   // The gate is per player: A throwing must not silence B.
   const g = await running();
@@ -229,8 +241,12 @@ async function emptySide(): Promise<void> {
   h.sent.length = 0;
 
   await onCross(h.ctx, A, 1, shot);
-  check('an empty side cannot cross', h.sent.length === 0, h.sent);
+  check('an empty side cannot cross', !h.sent.some((m) => m.t === 'puck'), h.sent);
   check('and cannot go negative', (h.state().pucks[A] ?? 0) === 0, h.state().pucks);
+  // Corrected rather than ignored: the sender's board already dropped that puck,
+  // so silence would leave it and the count disagreeing for the rest of the round.
+  check('but the sender gets the real state back',
+    h.sent.some((m) => m.t === 'sling'), h.sent);
 }
 
 async function winning(): Promise<void> {

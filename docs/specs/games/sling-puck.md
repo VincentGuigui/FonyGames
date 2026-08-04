@@ -124,7 +124,8 @@ puck arrive somewhere impossible. Server-side constants for that:
 | --- | --- | --- |
 | `SLING_PLAYERS` | 2 | Exactly two. Not a range — the board *is* the join between the phones |
 | `SLING_START_PUCKS` | 5 | Mirrors `SLING_PUCKS` in the client physics |
-| `SLING_MIN_GAP_MS` | 250 | Floor on crossings from one player (§10) |
+| `SLING_MIN_GAP_MS` | 250 | Sustained floor on crossings from one player (§10) |
+| `SLING_CROSS_BURST` | 3 | Crossings accepted back to back before that floor bites |
 | `SLING_SPEED_MAX` | 2.5 | Plausible arrival speed; a forged crossing is clamped to it |
 | `SLING_ROUND_CAP_MS` | 3 min | Then fewest pucks wins |
 
@@ -266,6 +267,32 @@ important thing to read at a glance.
 | A player leaves | The round ends. Two players is the whole game |
 | Tab backgrounded | `requestAnimationFrame` stops, so their half freezes. On return the simulation resumes from where it was — it is theirs alone, so a frozen half only hurts them |
 | Round cap | 3 min, then fewest pucks wins; a draw if level |
+| The count and the board disagree | Self-healing. See below |
+
+### When the count and the board disagree
+
+A crossing leaves the local board the instant it happens and only *then* goes on
+the wire, so the two are briefly and legitimately out of step by one puck. If that
+crossing never lands — the server refuses it, or the socket happened to be
+reconnecting when it was sent — the puck is gone from the board and still on the
+count. That was a real bug, seen as **"1 yours" over an empty table**, and it
+lasted the rest of the round because the board was only ever reconciled on a full
+resync.
+
+Three things fix it, and all three are needed:
+
+- The client reconciles after **every** message carrying `pucks`, and on every
+  frame — not only on a resync.
+- It tracks crossings it has sent but not seen echoed back. While one is
+  outstanding the difference is not real yet, so nothing is invented; the puck
+  would otherwise be duplicated the moment the echo arrived.
+- A crossing unacknowledged after `CROSS_ACK_MS` (1.5 s) is presumed lost, and
+  from then on the server's count wins.
+
+A puck can never be lost the other way — off the table. `walls()` decides a
+crossing on the puck's centre inside the gap span and bounces every other contact,
+so the only way off the board is through the gap, and that always produces a
+crossing.
 
 ## 10. Anti-cheat — and its honest limit
 
@@ -275,8 +302,14 @@ What the server does enforce:
   exactly one. You cannot invent a puck to throw.
 - **You cannot pass what you do not have.** A crossing from an empty side is
   rejected.
-- **A floor on throughput.** `SLING_MIN_GAP_MS` between crossings from the same
-  player, on top of the room's per-connection rate limit.
+- **A floor on throughput.** A sustained one crossing per `SLING_MIN_GAP_MS` from
+  the same player, on top of the room's per-connection rate limit — but with a
+  burst allowance of `SLING_CROSS_BURST`, because a single shot can knock a second
+  puck through a few frames behind it and knocking pucks through is the point.
+  A hard one-per-250 ms gate refused those, and it refused them *silently*: the
+  sender's board had already dropped the puck, so it ran a puck short of its own
+  count for the rest of the round. **A refused crossing is now answered with the
+  current state**, so the sender's board puts the puck back.
 - **Arrival is clamped.** `x` into 0..1 and the speed into a plausible range, so
   a forged crossing cannot spawn a puck outside the board or moving at an
   impossible speed.

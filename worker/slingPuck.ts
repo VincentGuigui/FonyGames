@@ -1,5 +1,6 @@
 import {
   preroundFor,
+  SLING_CROSS_BURST,
   SLING_MIN_GAP_MS,
   SLING_PLAYERS,
   SLING_ROUND_CAP_MS,
@@ -115,18 +116,35 @@ export async function onCross(
   const now = ctx.now();
   // Nothing crosses while the rules are still on screen (see spill.ts, siege).
   if (now < s.startsAt) return;
-  if ((s.gate[from] ?? 0) > now) return;
+
+  // The throughput floor, as a small burst allowance rather than a hard gate.
+  // `gate[from]` is the earliest time a crossing could be *scheduled*, which runs
+  // ahead of the clock as crossings arrive; a sender is refused only once it is
+  // more than a full burst ahead. Sustained rate is still one per
+  // SLING_MIN_GAP_MS, so a modified client gains nothing, but the legitimate case
+  // — a shot that knocks another puck through behind it — now counts.
+  const scheduled = Math.max(s.gate[from] ?? 0, now);
+  if (scheduled - now >= SLING_MIN_GAP_MS * SLING_CROSS_BURST) {
+    // Refused. Say so: the sender's copy of that puck is already gone, and a
+    // silent refusal leaves its board short of its own count for the rest of the
+    // round. The state is enough — the client reconciles the puck back on.
+    broadcastState(ctx, s);
+    return;
+  }
 
   // Conservation: you cannot pass a puck you do not have. This is what keeps the
   // two counts adding up to the number the round started with.
-  if ((s.pucks[from] ?? 0) <= 0) return;
+  if ((s.pucks[from] ?? 0) <= 0) {
+    broadcastState(ctx, s);
+    return;
+  }
 
   const to = s.players.find((p) => p !== from);
   if (to === undefined) return;
 
   s.pucks[from] = (s.pucks[from] ?? 0) - 1;
   s.pucks[to] = (s.pucks[to] ?? 0) + 1;
-  s.gate[from] = now + SLING_MIN_GAP_MS;
+  s.gate[from] = scheduled + SLING_MIN_GAP_MS;
 
   const arrival = rotate(claim);
 

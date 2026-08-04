@@ -67,6 +67,16 @@ export type SlingView = {
 /** How long an arrival is highlighted. */
 export const ARRIVE_MS = 420;
 
+/**
+ * How long a crossing may go unacknowledged before it is presumed lost.
+ *
+ * A crossing removes the puck locally the instant it happens and only *then*
+ * goes on the wire, so for a moment the local board is legitimately one puck
+ * short of the server's count. Reconciling during that window would conjure a
+ * duplicate. After it, the server's count wins — see `#reconcile`.
+ */
+export const CROSS_ACK_MS = 1500;
+
 /** Touch slop for grabbing a resting puck, in board widths. */
 const GRAB_SLOP = PUCK_RADIUS * 1.8;
 
@@ -82,6 +92,17 @@ export class SlingGame {
 
   /** Crossings the simulation produced that still have to go on the wire. */
   #outbound: { x: number; vx: number; vy: number }[] = [];
+
+  /**
+   * When each crossing was handed to the caller to send, oldest first.
+   *
+   * An entry is cleared when the server echoes the crossing back, and expires
+   * after `CROSS_ACK_MS` if it never does — which happens for real: the socket may
+   * have been mid-reconnect when it was sent, or the server may have refused it.
+   * Either way the local board is short a puck the server still counts, and this
+   * is what lets `#reconcile` tell that case from a crossing merely in transit.
+   */
+  #awaiting: number[] = [];
 
   identify(me: PlayerId, now: () => number): void {
     this.#me = me;
@@ -119,8 +140,14 @@ export class SlingGame {
       case 'puck': {
         if (!this.#state) return;
         this.#state = { ...this.#state, pucks: msg.d.pucks };
-        if (msg.d.to !== this.#me) return;
-        this.#spawn(msg.d);
+        // My own crossing, echoed back: it is confirmed, so stop waiting for it.
+        if (msg.d.from === this.#me) this.#awaiting.shift();
+        if (msg.d.to === this.#me) this.#spawn(msg.d);
+        // Every message carrying `pucks` is a chance to notice the board and the
+        // count have drifted apart. Without this the only cure was a full resync,
+        // so a single lost crossing left "1 yours" over an empty board for the
+        // rest of the round.
+        this.#reconcile();
         return;
       }
 
@@ -158,6 +185,15 @@ export class SlingGame {
 
     const out = this.#outbound;
     this.#outbound = [];
+    // Handed over to be sent. Each one is owed an echo from the server.
+    const now = this.#now();
+    for (let i = 0; i < out.length; i++) this.#awaiting.push(now);
+
+    // Also heal here, not only on an incoming message: a crossing that never
+    // reaches the server produces no message to react to, so waiting for one
+    // would leave the board wrong until the next crossing — or for the whole
+    // round, if that was the last puck.
+    this.#reconcile();
     return out;
   }
 
@@ -302,6 +338,7 @@ export class SlingGame {
     this.#drag = null;
     this.#arrivals = [];
     this.#outbound = [];
+    this.#awaiting = [];
   }
 
   /** A puck arrived from the other side, already rotated into my frame. */
@@ -322,13 +359,26 @@ export class SlingGame {
   /**
    * Make the local puck count match the server's.
    *
-   * Only ever needed after a resync — a refresh, or a message that went missing.
+   * Runs after a resync *and* after every crossing, because the count and the
+   * board can drift apart in ordinary play: a crossing the server refuses, or one
+   * sent while the socket happened to be reconnecting, is gone from the board and
+   * still on the count. That is the "1 yours, nothing on the table" bug.
+   *
    * Extra local pucks are dropped (resting ones first, so a shot in flight
    * survives); missing ones are replaced at rest behind the band. The player
    * loses the *motion* of anything the server did not know about, which nobody
    * else could see anyway (spec §9).
+   *
+   * The one thing it must not do is fix a difference that is not real yet. A
+   * crossing in transit has already left the board and has not yet reached the
+   * count, so reconciling then would put the puck back and the server's echo would
+   * then leave the board one too many. Hence `#awaiting`.
    */
   #reconcile(): void {
+    const now = this.#now();
+    this.#awaiting = this.#awaiting.filter((at) => now - at < CROSS_ACK_MS);
+    if (this.#awaiting.length > 0) return;
+
     const want = this.#state?.pucks[this.#me] ?? this.#pucks.length;
     if (want === this.#pucks.length) return;
 
