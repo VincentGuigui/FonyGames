@@ -56,6 +56,12 @@ jobs:
     - name: 📦 Install
       run: npm ci
 
+    # The logic harness, before the build. It is the only thing that checks the
+    # referees, the board physics and the card import rules, and it costs seconds
+    # — leaving it out meant a guard that only ever ran on someone's laptop.
+    - name: 🧪 Test
+      run: npm test
+
     # Typechecks first (`npm run build` runs tsc --noEmit), so a type error
     # fails the deploy instead of shipping.
     - name: 🔨 Build
