@@ -109,9 +109,15 @@
   list-style: none;
 }
 
-@media (min-width: 380px) {
+/*
+ * 340px, not 380px: a Galaxy S20 FE reports 360 CSS px and so did every other
+ * Samsung we checked, which left the most common Android width on one column.
+ * 340 keeps a 320px iPhone SE at one column, where two would be 136px each.
+ */
+@media (min-width: 340px) {
   .hub__grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
   }
 }
 
@@ -171,20 +177,25 @@
 }
 
 .game-card__body {
-  padding: var(--space-3) var(--space-4) var(--space-4);
+  padding: var(--space-2) var(--space-3) var(--space-3);
 }
 
+/*
+ * Fluid so a two-up card at 156px (360px phone) is not wearing a title sized
+ * for a 34rem page. Never grows past --font-title, which is the one-column size.
+ */
 .game-card__title {
   margin: 0;
-  font-size: var(--font-title);
+  font-size: clamp(0.9375rem, 3.4vw, var(--font-title));
   font-weight: 700;
+  line-height: 1.2;
 }
 
 .game-card__pitch {
-  margin: var(--space-1) 0 var(--space-3);
+  margin: var(--space-1) 0 var(--space-2);
   color: var(--color-text);
   font-size: var(--font-small);
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
 .game-card__meta {
