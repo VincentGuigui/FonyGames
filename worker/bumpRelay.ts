@@ -3,6 +3,7 @@ import {
   BUMP_PAIR_WINDOW_MS,
   BUMP_QUOTA,
   BUMP_QUOTA_WINDOW_MS,
+  BUMP_RELAY_MAX_PLAYERS,
   BUMP_RELAY_MIN_PLAYERS,
   BUMP_ROUND_CAP_MS,
   CLOCK_SKEW_TOLERANCE_MS,
@@ -64,7 +65,10 @@ export async function startRelay(
   roundId: number,
   connected: PlayerId[],
 ): Promise<boolean> {
+  // Both ends, from shared/players.ts. The maximum was missing, so a ninth and tenth
+  // player could join and start a round the card had promised was 3-8.
   if (connected.length < BUMP_RELAY_MIN_PLAYERS) return false;
+  if (connected.length > BUMP_RELAY_MAX_PLAYERS) return false;
 
   const now = ctx.now();
   const holder = connected[Math.floor(Math.random() * connected.length)] as PlayerId;

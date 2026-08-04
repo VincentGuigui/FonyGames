@@ -21,6 +21,7 @@ import {
   type RoomSnapshot,
   type ServerMessage,
 } from '../shared/protocol';
+import { PLAYERS } from '../shared/players';
 import {
   onBump as relayBump,
   onFuse as relayFuse,
@@ -362,7 +363,15 @@ export class Room extends DurableObject {
       return;
     }
 
-    if (ready.length < 2) return;
+    // Tap Duel's own limits, from shared/players.ts, so the card's promise and the
+    // referee cannot disagree. The maximum was missing entirely: a ninth player made
+    // the card a lie rather than being turned away.
+    //
+    // Enforced at round start, NOT at the join gate. Extra players stay in the room
+    // and spectate, which is a designed behaviour — Sling Puck is exactly two and
+    // shows a third player the board with `spectating` set.
+    const [duelMin, duelMax] = PLAYERS['tap-duel'];
+    if (ready.length < duelMin || ready.length > duelMax) return;
 
     const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
     const spread = FIRE_MAX_MS - FIRE_MIN_MS;

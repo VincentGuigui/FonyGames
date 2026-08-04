@@ -3,6 +3,7 @@ import type { JSX } from 'preact';
 import type { GameCard } from '../core/types';
 import type { RoundResult } from '../../../shared/protocol';
 import { codeFromLocation, useRoom, shareRoom } from '../core/room/useRoom';
+import { PLAYERS } from '../../../shared/players';
 import { GameLobby } from './GameLobby';
 import { RulesPanel } from '../core/ui/RulesPanel';
 import { Duel, type DuelPhase } from '../games/tap-duel/Duel';
@@ -91,7 +92,11 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
     setPhase((p) => (p === 'fire' ? 'result' : p === 'armed' ? 'burned' : p));
   }
 
-  const canStart = room.isHost && room.connected >= 2;
+  const [minPlayers, maxPlayers] = PLAYERS['tap-duel'];
+  // Matches what the server will accept. Offering Start when the referee would
+  // refuse it is the silent no-op this project keeps having to fix.
+  const canStart =
+    room.isHost && room.connected >= minPlayers && room.connected <= maxPlayers;
 
   if (phase !== 'idle') {
     return (
@@ -142,7 +147,10 @@ export function Lobby({ game }: { game: GameCard }): JSX.Element {
 }
 
 function note(isHost: boolean, connected: number): string {
+  const [min, max] = PLAYERS['tap-duel'];
   if (!isHost) return 'The host starts the round.';
-  if (connected < 2) return 'Waiting for one more player…';
+  if (connected < min) return 'Waiting for one more player…';
+  // Say the number rather than leaving a dead button and no explanation.
+  if (connected > max) return `Tap Duel is ${min}–${max} players. Someone has to sit out.`;
   return 'Wait for the signal, then tap. Moving early loses the duel.';
 }
