@@ -42,8 +42,11 @@ play something in under ten seconds.
   [backoffice.md](backoffice.md) §2b. They are orthogonal to `status`, and the
   grid paints from the compiled registry first so the flag fetch never delays
   first render.
-- Illustrations are lazy-loaded; a coloured placeholder holds the space so the
-  grid never jumps.
+- Illustrations are lazy-loaded: `loading="lazy"` on an `<img>` with intrinsic
+  `width`/`height`, so the box is reserved even if the stylesheet is late. The
+  placeholder is the game's accent at 14%, painted by the element — it stays
+  behind the transparent art after it loads, so it is one paint doing two jobs.
+  See [../design/illustrations.md](../design/illustrations.md).
 
 ## 3. Filters (v1: minimal)
 
@@ -72,6 +75,11 @@ the catalogue is small enough to scan.
 The catalogue is a **static list** built at compile time from each game's
 `card.ts`. No API call on first load. A game is added to the hub by adding its
 folder — the hub imports the registry, it does not maintain its own copy.
+
+The order in `registry.ts` is the curated order from §2 and is **written out as
+explicit imports**, not discovered by `import.meta.glob`: a glob is a Vite-only
+transform that breaks any node-run test importing the registry, it is untyped, and
+it would throw the ordering away.
 
 ## 6. Performance
 

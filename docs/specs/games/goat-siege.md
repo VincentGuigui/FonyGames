@@ -4,7 +4,7 @@
 | --- | --- |
 | **Slug** | `goat-siege` |
 | **Catchy sentence** | *Shoo the neighbours' goats before they eat your cabbages* |
-| **Illustration** | `illustrations/goat-siege.svg` — a tidy row of cabbages, three goats sailing in over the fence, one mid-bleat |
+| **Illustration** | `www/src/games/goat-siege/art/card.svg` — a tidy row of cabbages, three goats sailing in over the fence, one mid-bleat |
 | **Players** | 2–4 |
 | **Round length** | 2–3 min |
 | **Inputs** | touch (tap, drag to aim) |

@@ -46,6 +46,16 @@
   rule looks right, reads right in review, and changes nothing. It cost time twice
   on the duel screens, where centred text sat on top of the target.
 
+## Game art and cards
+
+- **A `card.ts` is a leaf.** It may import only `core/types`, `shared/players` and
+  its own `art/`. The hub imports every card, so one import of a game's runtime
+  drags every game into the hub chunk — `www/src/games/cards.test.ts` guards it.
+- **Art is a file, never inline SVG in a component.** `games/<slug>/art/*.svg`,
+  imported with `?url&no-inline`. And it uses literal hexes: an `<img>`-loaded SVG
+  cannot see the page's CSS, so `currentColor` renders black and `var(--…)`
+  disappears. Full contract: [../design/illustrations.md](../design/illustrations.md).
+
 ## Game code rules
 
 - **The loop**: one `requestAnimationFrame` loop per game, driven by delta time.

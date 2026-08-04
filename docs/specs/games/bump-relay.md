@@ -7,7 +7,7 @@
 | --- | --- |
 | **Slug** | `bump-relay` |
 | **Catchy sentence** | *Smash phones together to pass the bomb before it blows* |
-| **Illustration** | `illustrations/bump-relay.svg` — two phones tapping corner to corner, a cartoon bomb with a lit fuse jumping between them |
+| **Illustration** | `www/src/games/bump-relay/art/card.svg` — two phones tapping corner to corner, a cartoon bomb with a lit fuse jumping between them |
 | **Players** | 3–8 |
 | **Round length** | 1–2 min |
 | **Inputs** | motion (bump), touch (fallback) |

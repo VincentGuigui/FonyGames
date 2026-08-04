@@ -4,7 +4,7 @@
 | --- | --- |
 | **Slug** | `tap-duel` |
 | **Catchy sentence** | *The fastest thumb in the room takes the round* |
-| **Illustration** | `illustrations/tap-duel.svg` — a phone with a fingertip landing on it, two ripples spreading out |
+| **Illustration** | `www/src/games/tap-duel/art/card.svg` — a phone with a fingertip landing on it, two ripples spreading out |
 | **Players** | 2–8 |
 | **Round length** | ~1 min for best-of-5 |
 | **Inputs** | touch |

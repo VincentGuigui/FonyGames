@@ -80,7 +80,13 @@ Rules:
 - Show **the action**, not a logo: two phones tapping, a tilted phone, a runner
   on a map.
 - Format: SVG when possible, otherwise WebP; ≤ 40 KB each; lazy-loaded below the
-  fold; `alt` text describing the action.
+  fold; `alt` text describing the action — and the `alt` is **required by the
+  type**, as `GameCard.art.alt`, so it cannot be forgotten.
+- Each game's illustration is `www/src/games/<slug>/art/card.svg`, `viewBox="0 0
+  120 90"`, transparent, and **literal hex colours only** — no `currentColor` and
+  no CSS variables, because it is loaded through `<img>` and cannot see the page's
+  stylesheet. Mechanics, and the phone glyph's fixed outline weight:
+  [illustrations.md](./illustrations.md).
 
 ## 7. Accessibility floor
 

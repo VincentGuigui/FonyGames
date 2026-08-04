@@ -85,6 +85,26 @@ which looks exactly like a CSS overflow bug. Drive it over CDP and set
 before a screenshot or a backgrounded tab never composites and the capture
 hangs.
 
+### 1.3 The payload proof
+
+Two budgets in [architecture.md](architecture.md) §4 are invisible to `npm test`
+because they are properties of the *build*, not of the logic. Check them by hand
+after any change to the hub or to game art:
+
+```bash
+npm run build
+grep -c 'data:image/svg' dist/assets/hub-*.js   # 0 — nothing was base64-inlined
+grep -o '"M[0-9]' dist/assets/hub-*.js | wc -l  # 0 — no SVG path data left in JS
+ls dist/assets/*.svg                             # one hashed file per illustration
+gzip -9c dist/assets/hub-*.js | wc -c            # write the number down
+```
+
+**Write the number down.** The hub chunk was **10,125 raw / 3,444 gzipped** on
+2026-08-04, before the illustrations moved out of it; without a recorded baseline a
+regression here is invisible, because nothing fails — the page just gets heavier.
+Why `?no-inline` is what keeps the first two at zero:
+[design/illustrations.md](design/illustrations.md) §2.
+
 Sensor input in automated tests is injected as **recorded traces** (JSON arrays
 of samples captured on a real phone) — never random noise. Traces live in
 `www/src/core/sensors/__fixtures__/`.
@@ -103,7 +123,8 @@ of samples captured on a real phone) — never random noise. Traces live in
 Devices: at least one **iOS Safari** and one **Android Chrome**, plus one older
 mid-range phone if available.
 
-- [ ] Hub loads over 4G in ≤ 2.5 s; illustrations readable at a glance.
+- [ ] Hub loads over 4G in ≤ 2.5 s; illustrations readable at a glance, **and the
+      grid does not shift as they arrive**.
 - [ ] Join by link, by QR, and by typed code — all three work.
 - [ ] Permission primer appears before the OS prompt; **denying** it lands on
       the declared fallback, not an error.

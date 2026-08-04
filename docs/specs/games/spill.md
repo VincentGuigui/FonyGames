@@ -4,7 +4,7 @@
 | --- | --- |
 | **Slug** | `spill` |
 | **Catchy sentence** | *Fling your water at the neighbours before they flood you* |
-| **Illustration** | `illustrations/spill.svg` — four phones laid flat in a square, a fat droplet arcing from one to the next |
+| **Illustration** | `www/src/games/spill/art/card.svg` — four phones laid flat in a square, a fat droplet arcing from one to the next |
 | **Players** | 2–4 (4 is the cap until we field-test more) |
 | **Round length** | 1–3 min |
 | **Inputs** | touch (drag / flick) |

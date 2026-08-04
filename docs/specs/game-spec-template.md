@@ -9,7 +9,7 @@
 | --- | --- |
 | **Slug** | `kebab-case` (folder + URL) |
 | **Catchy sentence** | One line, ≤ 60 chars, imperative or second person, no period |
-| **Illustration** | `illustrations/<slug>.svg` — describe it in one line |
+| **Illustration** | `www/src/games/<slug>/art/card.svg` — describe it in one line |
 | **Players** | min–max |
 | **Round length** | e.g. 1–2 min |
 | **Inputs** | touch / motion / orientation / gps / compass / mic |

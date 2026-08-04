@@ -4,7 +4,7 @@
 | --- | --- |
 | **Slug** | `sling-puck` |
 | **Catchy sentence** | *Sling every puck onto their side before they sling them back* |
-| **Illustration** | `illustrations/sling-puck.svg` — two phones nose to nose, a stretched elastic on the near one, a puck streaking through the gap between them |
+| **Illustration** | `www/src/games/sling-puck/art/card.svg` — two phones nose to nose, a stretched elastic on the near one, a puck streaking through the gap between them |
 | **Players** | 2 — exactly |
 | **Round length** | 30 s – 2 min |
 | **Inputs** | touch (drag back and release) |

@@ -36,6 +36,7 @@ is made in a discussion, it belongs in one of these files.
 | Doc | What's in it |
 | --- | --- |
 | [design/ui-guidelines.md](design/ui-guidelines.md) | Layout, type, colour, motion, game card anatomy |
+| [design/illustrations.md](design/illustrations.md) | Where art lives, the `<img>` colour trap, sprites vs procedural |
 | [design/game-chrome.md](design/game-chrome.md) | The gear menu, the pre-round rules panel, and the one-source rules array |
 
 ## Specifications

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 44" width="28" height="44">
+  <!--
+    The phone glyph, at scale 1. Copy this into a card rather than redrawing it.
+
+    Geometry: 22 x 38, rx 5. Both scale together when the glyph is drawn larger or
+    smaller.
+
+    The STROKE DOES NOT SCALE. stroke-width is 3 at every size, because the house
+    style is one outline weight across the whole grid (docs/design/ui-guidelines.md
+    §6). That is also why the glyph must never be wrapped in an SVG `scale()`,
+    which would thicken the stroke along with the shape — resize the rect and the
+    rx by hand instead.
+
+    Colours are literal hexes, never `currentColor` or `var(--…)`: a card is loaded
+    through <img> and cannot see the page's CSS. See illustrations.md §3.
+    Fill #10121a is the screen; replace the stroke with the game's accent.
+  -->
+  <rect x="3" y="3" width="22" height="38" rx="5"
+        fill="#10121a" stroke="#8891a8" stroke-width="3" />
+</svg>

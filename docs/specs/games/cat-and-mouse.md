@@ -4,7 +4,7 @@
 | --- | --- |
 | **Slug** | `cat-and-mouse` |
 | **Catchy sentence** | *One cat, a floor full of mice, and nowhere to hide* |
-| **Illustration** | `illustrations/cat-and-mouse.svg` — a cat silhouette lunging, three mice scattering ahead of it |
+| **Illustration** | `www/src/games/cat-and-mouse/art/card.svg` — a cat silhouette lunging, three mice scattering ahead of it |
 | **Players** | 2–6 |
 | **Round length** | 60–90 s |
 | **Inputs** | touch (drag) |
