@@ -23,10 +23,19 @@ export default defineConfig({
         'goat-siege': 'www/goat-siege/index.html',
         'sling-puck': 'www/sling-puck/index.html',
       },
+      output: {
+        // A card imported by BOTH the hub and its own game page would otherwise be
+        // split into a ~700-byte shared chunk — and the hub imports all thirteen, so
+        // that was four extra requests on the one page with a first-load target.
+        // Absorbing chunks this small into their importers duplicates a few hundred
+        // bytes and puts the hub back to one request.
+        experimentalMinChunkSize: 4000,
+      },
     },
     // Payload budget in docs/architecture.md §4 is 150 KB gzipped for the hub.
     // Warn well before we get there.
     chunkSizeWarningLimit: 200,
+
   },
   esbuild: {
     jsx: 'automatic',

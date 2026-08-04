@@ -128,6 +128,12 @@ dist/                   build output — generated, gitignored, deployed
 | `npm test` | Game-logic harness on plain Node ([testing.md](testing.md) §1.1) — every game's referee, plus Sling Puck's board physics |
 | `npm run worker:dev` | `wrangler dev` on :8787, fully local |
 
+`output.experimentalMinChunkSize` is set for a reason worth knowing: a `card.ts`
+imported by both the hub and its own game page is split into a ~700-byte shared
+chunk, and the hub imports all thirteen — four extra requests on the one page with a
+first-load target. Absorbing chunks that small into their importers duplicates a few
+hundred bytes and keeps the hub at one request.
+
 Each game page is its own Vite entry (`rollupOptions.input`) with a real
 `index.html`, so static hosting serves `/spill/` straight from disk and needs no
 SPA rewrite. Today: `hub`, `tap-duel`, `spill`, `goat-siege`, `sling-puck`.
@@ -160,7 +166,7 @@ type GameCard = {
 | Budget | Target |
 | --- | --- |
 | Hub first load (gzipped) | ≤ 150 KB, illustrations **excluded** — they ship as separate hashed `.svg` assets, never base64 inside a chunk. Proof: `grep -c 'data:image/svg' dist/assets/hub-*.js` is 0. Baseline for the chunk itself: 3,444 bytes on 2026-08-04 |
-| Per-game load (gzipped) | ≤ 150 KB on top of the shared core |
+| Per-game load (gzipped) | ≤ 150 KB on top of the shared core. A game page imports **its own card only**, never the registry, so it does not carry the other twelve |
 | Time to interactive on 4G mid-range Android | ≤ 2.5 s |
 | Realtime message size | ≤ 1 KB typical, ≤ 8 KB hard cap |
 | Sensor sample rate sent over the wire | ≤ 20 Hz, always throttled |
