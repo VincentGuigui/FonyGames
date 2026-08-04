@@ -16,10 +16,10 @@ export const CARD: GameCard = {
   slug: 'tap-duel',
   title: 'Tap Duel',
   pitch: 'The fastest thumb in the room takes the round',
-  concept: 'One signal, every screen at once. A target is waiting — hit it first.',
+  concept: 'One signal, every screen at once. A target is drifting — hit it first.',
   rules: [
-    'A target sits somewhere on your screen. Get a thumb ready.',
-    'The instant it lights up, tap the target.',
+    'A target drifts around your screen. Follow it with your thumb.',
+    'It stops and lights up on the signal. Tap it.',
     'Tap before it lights up and you lose the round.',
   ],
   art: { src: art, alt: 'A phone with an archery target on its screen' },
