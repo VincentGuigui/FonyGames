@@ -3,7 +3,6 @@ import { PLAYERS } from '../../../shared/players';
 // One per game. `?url&no-inline` is mandatory: without it Vite base64-inlines
 // anything under 4096 bytes straight into this chunk, which is the budget rule in
 // docs/architecture.md §4 broken silently. See docs/design/illustrations.md §2.
-import art_spill from './spill/art/card.svg?url&no-inline';
 import art_bump_relay from './bump-relay/art/card.svg?url&no-inline';
 import art_goat_siege from './goat-siege/art/card.svg?url&no-inline';
 import art_sling_puck from './sling-puck/art/card.svg?url&no-inline';
@@ -16,6 +15,7 @@ import art_zone_rush from './zone-rush/art/card.svg?url&no-inline';
 import art_compass_hunt from './compass-hunt/art/card.svg?url&no-inline';
 import art_scream_meter from './scream-meter/art/card.svg?url&no-inline';
 import { CARD as TAP_DUEL_CARD } from './tap-duel/card';
+import { CARD as SPILL_CARD } from './spill/card';
 import type { GameCard } from '../core/types';
 
 /**
@@ -31,28 +31,7 @@ import type { GameCard } from '../core/types';
  */
 export const GAMES: GameCard[] = [
   TAP_DUEL_CARD,
-  {
-    slug: 'spill',
-    title: 'Spill',
-    pitch: 'Fling your water at the neighbours before they flood you',
-    concept: 'The table is the board: flick towards someone and it lands on their phone.',
-    rules: [
-      'Phones flat, top edge towards the middle.',
-      'Flick your water at a neighbour.',
-      'Tap an incoming drop to catch it — it doubles.',
-    ],
-    art: { src: art_spill, alt: 'Four phones flat in a square with a drop of water arcing between them' },
-    accent: '#38BDF8',
-    players: PLAYERS['spill'],
-    duration: '1–3 min',
-    inputs: ['touch'],
-    modes: [
-      { id: 'ring', name: 'Ring', blurb: 'Phones flat on the table, aim across the room' },
-    ],
-    // `beta`: playable end to end, but the numbers in spec §12 are guesses
-    // until a real table test.
-    status: 'beta',
-  },
+  SPILL_CARD,
   {
     slug: 'bump-relay',
     title: 'Bump Relay',
