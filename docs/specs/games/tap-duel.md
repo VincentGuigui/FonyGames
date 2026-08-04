@@ -26,9 +26,11 @@ which is exactly why it goes first.
 2. A four-second rules panel holds every screen
    ([../../design/game-chrome.md](../../design/game-chrome.md) §4).
 3. An **archer's target appears at a random spot**, greyed out, in the same place
-   on every phone. Every screen shows **GET READY**: *thumb over the target, tap
-   it the moment it lights up*.
-4. After a random delay the server fires: the target **lights up**, in place.
+   on every phone, and starts **drifting** — the same path on every phone (§4).
+   Every screen shows **GET READY**: *stay with the target, tap it the moment it
+   lights up*.
+4. After a random delay the server fires: the target **stops and lights up**, on
+   the same pixel for everyone.
 5. First valid tap **on the target** wins. Tapping anywhere before the signal —
    the target included — is a **false start** and knocks you out of that duel.
 6. Results show everyone's reaction time, fastest first.
@@ -65,9 +67,13 @@ Standard flow ([../../multiplayer.md](../../multiplayer.md) §3). Specifics:
 - **Lobby** — as built. `Start round` is enabled for the host once ≥ 2 players
   are connected.
 - **Armed** — full-bleed dark, **GET READY** with the instruction line
-  *Tap the instant this screen changes*. "WAIT" was tried first and read as an
-  order to do nothing, which is the opposite of the intent. Nothing on this
-  screen may leak the fire time: no countdown, no progress bar.
+  *Stay with the target. Tap it the moment it lights up*. "WAIT" was tried first
+  and read as an order to do nothing, which is the opposite of the intent. Nothing
+  on this screen may leak the fire time: no countdown, no progress bar. The line
+  says *stay with* rather than *thumb over* because the target drifts (below), and
+  the lobby's `rules` say the same — a lobby and a game that disagree about how to
+  play means one of them is lying with no way to tell which
+  ([../../design/game-chrome.md](../../design/game-chrome.md) §1).
 - **Fire** — the viewport becomes the accent colour and the target **lights up**
   where it already was. Only a tap on the target counts.
 
@@ -76,18 +82,48 @@ Standard flow ([../../multiplayer.md](../../multiplayer.md) §3). Specifics:
   out to be a thin game: with a thumb flat on the glass there is nothing to do but
   twitch. A target makes the round **speed plus a little accuracy**.
 
-  Four properties it has to keep:
+  Five properties it has to keep:
 
   - **The server picks the position** and sends it on `arm`, so it is identical on
     every screen. Drawn per client, the round would go to whoever got the
     luckiest placement.
   - **It is on screen for the whole round**, greyed while armed and lit on the
-    signal, and it **does not move** when it lights up. An intermediate version
+    signal, and it **does not jump** when it lights up — wherever the drift below
+    left it is where the tap has to land. An intermediate version
     revealed it only on the signal; that made *finding* it most of the reaction
     time, which is a hunt rather than a duel — the player should be aiming at
     something they can see, not guessing. The reversal is the maintainer's call and
     it is the right one: it keeps the reflex intact and adds accuracy, instead of
     replacing the reflex with search.
+  - **It drifts while armed and freezes on the signal.** A target that is visible
+    *and* still can simply be covered by a thumb before the signal, which gives the
+    accuracy back for free. So through GET READY it wanders: a straight leg of about
+    150 px, then a new direction, bouncing off the `TARGET_*` box
+    (`www/src/games/tap-duel/drift.ts`).
+
+    It is **arithmetic, not `Math.random()`**, and that is the whole design. The
+    walk is a pure function of `(target, roundId, server time)`, all three of which
+    every phone already has, so every phone draws it in the same place at the same
+    instant — and the position it **freezes at is `fireAt`, never `now()`**. Both
+    halves are load-bearing: a per-client walk, or a freeze at each phone's own
+    clock, would hand the round to whoever's target happened to be nearest their
+    thumb, which is precisely what the server choosing the position prevents.
+
+    Consequences worth stating, because each was a bug first:
+
+    - Legs are a fraction of the **width**, with the vertical divided by a
+      *reference* aspect ratio rather than the real one. A real aspect makes the
+      path depend on the phone — the cross-phone agreement traded for a cosmetic
+      gain.
+    - A hidden tab is served **no animation frames**, so its target does not
+      wander; it is placed once when the round arms and again when the signal
+      fires. The frozen position still matches every other phone exactly, and a tab
+      brought back mid-window jumps to where the drift *is now* rather than
+      resuming from where it stopped — measured at one frame.
+    - `prefers-reduced-motion` does **not** switch it off, for the reason
+      [sling-puck.md](sling-puck.md) §13 gives: motion that *is* the game stays,
+      decoration goes. A still target is an easier game, and it would also put that
+      player's target where nobody else's is.
   - **It takes no taps until the signal.** While armed it is inert, so a tap on it
     falls through to the backdrop and is scored as the false start it is. Making it
     a live button early would have created a hole in the one rule the mode has.
@@ -123,7 +159,7 @@ The server is the referee ([../../multiplayer.md](../../multiplayer.md) §4).
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
 | `start` | client → server | `{ mode }` | Host begins a duel |
-| `arm` | server → clients | `{ fireAt, roundId }` | Duel begins; `fireAt` is **server time** |
+| `arm` | server → clients | `{ roundId, startsAt, fireAt, target }` | Duel begins. All times are **server time**: `startsAt` is when the rules panel clears, `fireAt` the signal. `target` and `roundId` are also the drift's inputs (§4), so it needs no message of its own |
 | `tap` | client → server | `{ at, roundId }` | Finger down at client-corrected server time |
 | `result` | server → clients | `{ roundId, ranking[], scores }` | Duel over |
 

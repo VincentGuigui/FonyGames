@@ -1,6 +1,8 @@
 import type { JSX } from 'preact';
+import { useEffect, useRef } from 'preact/hooks';
 import type { Player, PlayerId, RoundResult } from '../../../../shared/protocol';
 import { GameMenu } from '../../core/ui/GameMenu';
+import { driftAt } from './drift';
 
 /**
  * Tap Duel — `pistol` mode, presentational. Spec: docs/specs/games/tap-duel.md
@@ -44,8 +46,15 @@ export function Duel(props: {
   result: RoundResult | null;
   onTap: () => void;
   onAgain: () => void;
-  /** Where the target sits, as fractions of the viewport. From the server. */
+  /** Where the target starts, as fractions of the viewport. From the server. */
   target: { x: number; y: number } | null;
+  /**
+   * The round's timing, for the drift: it runs from `startsAt` and freezes at
+   * `fireAt`. Null outside a live round.
+   */
+  armed: { roundId: number; startsAt: number; fireAt: number } | null;
+  /** Server-corrected clock. The drift is a function of server time, not local time. */
+  now: () => number;
   /** Only the host may start the next duel. */
   isHost: boolean;
   title: string;
@@ -54,6 +63,79 @@ export function Duel(props: {
 }): JSX.Element | null {
   const { players, me, phase, result, onTap, onAgain, isHost, title, concept, rules, target } =
     props;
+  const { armed, now } = props;
+  /*
+   * The drift. Spec §4, maths in drift.ts.
+   *
+   * While the screen says GET READY the target wanders, so a thumb cannot be parked
+   * on it in advance. It **freezes the instant the signal fires**, at the position
+   * drift.ts gives for `fireAt` — which is the same position on every phone, because
+   * the walk is a pure function of the round id and server time. Letting it keep
+   * moving would hand the round to whoever's target happened to be nearest their
+   * thumb, which is exactly what the server choosing the position prevents.
+   *
+   * Written straight to `style` from a rAF rather than through state: this component
+   * renders the whole duel screen, and a 60 fps virtual-DOM diff for two numbers is
+   * the thing docs/conventions/code-style.md tells games not to do.
+   *
+   * These two hooks sit **above every early return** in this component, including the
+   * `phase === 'idle'` one. Placed lower they ran on an armed render and not on a
+   * result render, so the hook order changed between renders and Preact quietly
+   * stopped calling the effect at all — the target simply never moved, with no error.
+   *
+   * `prefers-reduced-motion` does **not** switch this off. The precedent is sling-puck
+   * §13: motion that *is* the game stays, and only decoration goes. A still target
+   * here is a different, easier game — and it would also put that player's target
+   * somewhere nobody else's is.
+   */
+  const dot = useRef<HTMLSpanElement>(null);
+  const start = target ?? { x: 0.5, y: 0.5 };
+  // Through a ref, and *not* in the effect's dependencies: `now` is a fresh closure
+  // on every render of the lobby, so as a dependency it tore the animation loop down
+  // and rebuilt it on each render instead of leaving it to run.
+  const clock = useRef(now);
+  clock.current = now;
+  useEffect(() => {
+    const el = dot.current;
+    if (!el || !armed) return;
+
+    // `transform`, not left/top: composited, so a per-frame move costs no layout.
+    // The -50% keeps the CSS's centring, which an inline transform would replace.
+    //
+    // The offset is in pixels but derived from a *fraction* difference, so the target
+    // still lands on the same relative spot on every phone — which is the whole point
+    // of drift.ts being deterministic.
+    const place = (at: number): void => {
+      const p = driftAt(start, armed.roundId, at - armed.startsAt);
+      const dx = (p.x - start.x) * window.innerWidth;
+      const dy = (p.y - start.y) * window.innerHeight;
+      el.style.transform = `translate(calc(-50% + ${dx.toFixed(1)}px), calc(-50% + ${dy.toFixed(1)}px))`;
+    };
+
+    if (phase !== 'armed') {
+      // Frozen where the signal caught it. Not `now()`: every phone must agree, and
+      // they only agree on `fireAt`.
+      place(armed.fireAt);
+      return;
+    }
+
+    let raf = 0;
+    const frame = (): void => {
+      raf = requestAnimationFrame(frame);
+      // Absolute server time, not an accumulated delta: a backgrounded tab stops
+      // getting frames, and on return this puts the target where it *should* be now
+      // rather than resuming from wherever it froze.
+      place(Math.min(clock.current(), armed.fireAt));
+    };
+    // Once now, outside the loop, because a hidden tab is served **no** animation
+    // frames at all — so without this its target sits at the origin for the whole
+    // armed window instead of where the drift has taken it, and snaps across the
+    // screen the moment the tab comes back. It also removes the one-frame flash at
+    // the origin on the way in.
+    frame();
+    return () => cancelAnimationFrame(raf);
+  }, [armed, phase, start.x, start.y]);
+
   if (phase === 'idle') return null;
 
   // Same gear, same corner, same contents as every other game. It sits outside
@@ -148,14 +230,15 @@ export function Duel(props: {
 
   const fire = phase === 'fire';
 
-  // The same target, in the same place, both before and after the signal — only
-  // its colour and whether it takes taps change.
+  // The same target both before and after the signal — only its colour, whether it
+  // takes taps, and whether it is still moving change.
   const bullseye = (
     <span
+      ref={dot}
       class={`duel__bullseye ${fire ? 'duel__bullseye--live' : 'duel__bullseye--waiting'}`}
       style={{
-        left: `${(target?.x ?? 0.5) * 100}%`,
-        top: `${(target?.y ?? 0.5) * 100}%`,
+        left: `${start.x * 100}%`,
+        top: `${start.y * 100}%`,
       }}
     >
       {fire ? (
@@ -201,10 +284,10 @@ export function Duel(props: {
         // target included — is a false start, and that rule is what stops a
         // player spamming their way in.
         onPointerDown={onTap}
-        aria-label="Get ready. Tap the target the moment it lights up"
+        aria-label="Get ready. Follow the target and tap it the moment it lights up"
       >
         <span class="duel__word">GET READY</span>
-        <span class="duel__sub">Thumb over the target. Tap it the moment it lights up</span>
+        <span class="duel__sub">Stay with the target. Tap it the moment it lights up</span>
       </button>
       {bullseye}
       {menu}

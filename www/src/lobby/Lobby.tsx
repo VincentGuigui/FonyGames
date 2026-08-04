@@ -40,7 +40,13 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
   const roundRef = useRef<number | null>(null);
   const fireTimer = useRef<number | null>(null);
   /** Server time the current duel's rules panel clears. */
-  const [armedAt, setArmedAt] = useState<{ roundId: number; startsAt: number } | null>(null);
+  // `fireAt` rides along because the drifting target needs it: the wander runs from
+  // startsAt and freezes at fireAt (games/tap-duel/drift.ts).
+  const [armedAt, setArmedAt] = useState<{
+    roundId: number;
+    startsAt: number;
+    fireAt: number;
+  } | null>(null);
   /** Where the target will appear. From the server, so it is the same for all. */
   const [target, setTarget] = useState<{ x: number; y: number } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -58,7 +64,7 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
       setTarget(where);
       // The server sends both times and guarantees fireAt > startsAt, so the
       // signal can never land behind the panel.
-      setArmedAt({ roundId, startsAt });
+      setArmedAt({ roundId, startsAt, fireAt });
       // Scheduled against SERVER time, so every screen flips at the same true
       // instant however different the pings are (tap-duel.md §6).
       const delay = Math.max(0, fireAt - client.now());
@@ -123,6 +129,8 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
           onTap={tap}
           onAgain={startDuel}
           target={target}
+          armed={armedAt}
+          now={() => client?.now() ?? Date.now()}
           isHost={room.isHost}
           title={game.title}
           concept={game.concept}

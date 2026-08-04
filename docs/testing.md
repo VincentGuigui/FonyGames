@@ -88,6 +88,19 @@ Two traps that have already cost time:
   behaviour (sling-puck.md §9), not a bug, and it looks exactly like broken
   physics. Bring the page you are driving back to the front first.
 
+  Worse, it also **delays Preact's effects**, so a background tab can be a whole
+  second behind on state that is written from a `useEffect` rather than a render:
+  `useEffect` callbacks are flushed on the next animation frame with a ~100 ms
+  `setTimeout` as the only fallback, and a hidden tab has no frames and throttles
+  that timer. Reading such a tab straight after a phase change returns the *previous*
+  phase's value. This produced a convincing false alarm — two tabs appearing to
+  disagree about where Tap Duel's target froze, which is the one property that
+  design rests on, when in fact the reading was simply early. Give a hidden tab a
+  second before believing it, and **decompose the measurement**: reading `left`,
+  `top`, `transform` and `innerWidth` separately says *which* part differs, where a
+  bare `getBoundingClientRect()` centre cannot tell a stale animation from a
+  different viewport.
+
 For browser-level checks, Chromium is preinstalled but Playwright is not, and
 headless Chrome **ignores `--window-size`** — it renders at 500px and crops,
 which looks exactly like a CSS overflow bug. Drive it over CDP and set

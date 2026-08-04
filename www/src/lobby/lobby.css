@@ -325,6 +325,14 @@
   z-index: 2;
   display: grid;
   box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 35%);
+  /*
+   * theme.css puts `transition-duration` on *every* element, and
+   * `transition-property` defaults to `all` — so without this the 180 ms transition
+   * would smear the per-frame drift into a laggy trail chasing the real position.
+   * Named properties only: the grey-to-live change still fades.
+   */
+  transition-property: filter, opacity;
+  will-change: transform;
 }
 
 /* Waiting: unmistakably not yet, and not in the way of a tap. */
