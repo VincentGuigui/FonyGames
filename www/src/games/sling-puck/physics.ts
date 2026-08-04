@@ -111,14 +111,6 @@ export const REST_SPEED = 0.03;
  */
 export const SUB_STEPS = 4;
 
-/**
- * Launch speed for the tap-to-launch fallback (spec §13).
- *
- * Comfortably under what a full pull produces, but enough to carry a puck to the
- * gap from anywhere on the rack — a fallback that cannot score is not a fallback.
- */
-export const TAP_SPEED = 1.7;
-
 export type Puck = {
   id: number;
   x: number;
@@ -343,28 +335,6 @@ export function inSling(py: number): boolean {
   return py >= BAND_REST_Y;
 }
 
-/**
- * Launch velocity for the tap-to-launch fallback (spec §13): straight at the
- * middle of the gap, at a fixed modest speed.
- *
- * It deliberately does **not** go through the sling. The obvious implementation —
- * pull the puck straight back a fixed distance and let the band fire it — cannot
- * work, and the reason is the band model itself: a puck near the left edge sits
- * in a lopsided V, so the long right-hand segment wins and the shot goes up and
- * hard to the right, into the wall. Three of the five pucks in the opening rack
- * could not reach the gap that way, which is a fallback that does not fall back.
- *
- * So the tap aims. What it gives up in exchange is everything else: it cannot
- * choose power, cannot bank off a side wall, and cannot line up on another puck
- * to knock it through. It only ever plays the plainest shot on the board.
- */
-export function tapVelocity(px: number, py: number): { vx: number; vy: number } {
-  const dx = 0.5 - px;
-  const dy = PUCK_RADIUS - py;
-  const len = Math.sqrt(dx * dx + dy * dy);
-  if (len === 0) return { vx: 0, vy: -TAP_SPEED };
-  return { vx: (dx / len) * TAP_SPEED, vy: (dy / len) * TAP_SPEED };
-}
 
 /** Resting positions for `n` pucks, tucked behind the band. */
 export function restingPucks(n: number, nextId = 0): Puck[] {

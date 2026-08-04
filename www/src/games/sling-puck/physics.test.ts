@@ -20,7 +20,6 @@ import {
   restingPucks,
   slingVelocity,
   step,
-  tapVelocity,
   type Puck,
 } from './physics';
 
@@ -227,23 +226,6 @@ function launchLandsIt(): void {
   const p = [puck({ x: mid, y: POST_LEFT.y, vx: v.vx, vy: v.vy })];
   check('a good shot goes through', run(p, 4).length === 1, { v });
 
-  // The accessibility fallback (spec §13) is only a fallback if it can score —
-  // and it has to score from EVERY puck in the rack, not just the middle one.
-  // The first implementation pulled straight back instead of aiming, and three of
-  // the five pucks fired themselves into a side wall. Hence one check per puck.
-  let crossed = 0;
-  for (const rest of restingPucks(SLING_PUCKS)) {
-    const tv = tapVelocity(rest.x, rest.y);
-    if (run([{ ...rest, vx: tv.vx, vy: tv.vy }], 4).length === 1) crossed++;
-  }
-  check('a tap crosses from every puck in the rack', crossed === SLING_PUCKS, crossed);
-
-  const tapped = tapVelocity(mid, POST_LEFT.y);
-  check('but a tap is weaker than a full drag', speedOf(tapped) < speedOf(v), { tapped, v });
-  // Aimed, not pulled: from the far left it must go up and RIGHT, towards the
-  // gap, which is the whole difference from a real sling shot (spec §13).
-  const fromLeft = tapVelocity(PUCK_RADIUS + 0.02, restingPucks(1)[0]!.y);
-  check('and it aims at the gap from either edge', fromLeft.vx > 0 && fromLeft.vy < 0, fromLeft);
 }
 
 function opening(): void {

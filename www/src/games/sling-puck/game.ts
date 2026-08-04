@@ -14,7 +14,6 @@ import {
   restingPucks,
   slingVelocity,
   step,
-  tapVelocity,
   type Puck,
 } from './physics';
 
@@ -50,6 +49,18 @@ export type Drag = {
    */
   ox: number;
   oy: number;
+  /** Where the puck lay when it was picked up, to measure the pull against. */
+  sx: number;
+  sy: number;
+  /**
+   * Has the puck actually been pulled, i.e. moved further than `PULL_SLOP` from
+   * where it was picked up?
+   *
+   * Only a pulled puck fires. Without this, touching a puck that is already
+   * resting against the band counts as a full stretch, so **spam-tapping the rack
+   * throws pucks** — no aim, no skill, and faster than anyone can drag.
+   */
+  pulled: boolean;
 };
 
 export type SlingView = {
@@ -79,6 +90,14 @@ export const CROSS_ACK_MS = 1500;
 
 /** Touch slop for grabbing a resting puck, in board widths. */
 const GRAB_SLOP = PUCK_RADIUS * 1.8;
+
+/**
+ * How far a puck must travel under the finger before a release will fire it.
+ *
+ * This is what separates a throw from a touch. A tap is not a shot: it picks the
+ * puck up and puts it straight back down.
+ */
+const PULL_SLOP = PUCK_RADIUS * 0.6;
 
 export class SlingGame {
   #me: PlayerId = '';
@@ -251,6 +270,9 @@ export class SlingGame {
       y: best.y,
       ox: best.x - x,
       oy: best.y - y,
+      sx: best.x,
+      sy: best.y,
+      pulled: false,
     };
     return true;
   }
@@ -259,8 +281,21 @@ export class SlingGame {
   drag(x: number, y: number): boolean {
     const held = this.#drag;
     if (!held) return false;
+
     const at = clampBoard(x + held.ox, y + held.oy);
-    this.#drag = { ...held, x: at.x, y: at.y };
+    // Carrying may not over-stretch the band. Above it a puck goes anywhere on the
+    // board; at it, the pull is limited to MAX_PULL exactly as a drag always was,
+    // or carrying a puck down to the bottom wall would be a free extra-strong shot.
+    const y2 = inSling(at.y) ? Math.min(at.y, BAND_REST_Y + MAX_PULL) : at.y;
+
+    this.#drag = {
+      ...held,
+      x: at.x,
+      y: y2,
+      // Measured from where the puck was picked up, not from the previous frame, so
+      // a slow careful pull counts and a jitter under a still finger does not.
+      pulled: held.pulled || Math.hypot(at.x - held.sx, y2 - held.sy) > PULL_SLOP,
+    };
     // Keep the puck itself under the finger, so a round that ends mid-carry
     // leaves it where you were holding it rather than where you picked it up.
     const p = this.#pucks.find((q) => q.id === held.puckId);
@@ -274,9 +309,13 @@ export class SlingGame {
   /**
    * Let go.
    *
-   * In the band's zone the puck takes the sling's launch velocity. Above it there
-   * is no band to push, so it is simply put down — which is what makes carrying a
-   * puck down to the sling a move rather than an accident.
+   * A release fires only when the puck was **pulled** and is **at the band**.
+   * Everything else puts it down where it lies:
+   *
+   * - Above the band there is nothing to push against.
+   * - A puck that never moved was not a shot but a touch. Rack pucks rest inside
+   *   the band's zone, so without this a tap counted as a stretch and spam-tapping
+   *   the rack threw pucks faster than any drag could.
    */
   release(): void {
     const held = this.#drag;
@@ -288,7 +327,7 @@ export class SlingGame {
 
     p.x = held.x;
     p.y = held.y;
-    if (inSling(held.y)) {
+    if (held.pulled && inSling(held.y)) {
       const v = slingVelocity(held.x, held.y);
       p.vx = v.vx;
       p.vy = v.vy;
@@ -301,27 +340,6 @@ export class SlingGame {
   /** Abandon a drag without firing — a cancelled pointer, or the round ending. */
   cancel(): void {
     this.#drag = null;
-  }
-
-  /**
-   * The tap-to-launch fallback (spec §13): fire the puck nearest the tap at the
-   * gap, at a fixed modest speed. Required in the first iteration, because a hard
-   * drag is exactly what some players cannot do.
-   *
-   * The aiming is in `tapVelocity`, along with why it aims rather than pulls.
-   */
-  tap(x: number, y: number): boolean {
-    if (!this.grab(x, y)) return false;
-    const held = this.#drag;
-    this.#drag = null;
-    if (!held) return false;
-
-    const p = this.#pucks.find((q) => q.id === held.puckId);
-    if (!p) return false;
-    const v = tapVelocity(p.x, p.y);
-    p.vx = v.vx;
-    p.vy = v.vy;
-    return true;
   }
 
   get dragging(): boolean {

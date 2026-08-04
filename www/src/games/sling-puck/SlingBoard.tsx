@@ -16,13 +16,11 @@ import { RulesPanel } from '../../core/ui/RulesPanel';
  * virtual-DOM diff never happens — but here the loop is also what advances the
  * simulation, so `onCross` is wired straight into it.
  *
- * A tap without a drag fires the puck at the gap instead, at a fixed speed: the
- * accessibility fallback from §13, required in the first iteration rather than
- * later.
+ * Pointer handling here is deliberately dumb: down grabs, move carries, up
+ * releases. Whether a release throws the puck is decided in `game.ts`, which knows
+ * whether it was actually pulled — so a tap cannot be turned into a shot by the
+ * component.
  */
-
-/** Movement under this many board units is a tap, not a drag. */
-const TAP_SLOP = PUCK_RADIUS * 0.6;
 
 export function SlingBoard({
   game,
@@ -39,9 +37,8 @@ export function SlingBoard({
 }): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
-  // The pointer that owns the current drag, and where it started, so a tap can
-  // be told from a drag on release.
-  const pointerRef = useRef<{ id: number; x: number; y: number; moved: boolean } | null>(null);
+  // The pointer that owns the current drag. One finger at a time on the band.
+  const pointerRef = useRef<{ id: number } | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -75,7 +72,7 @@ export function SlingBoard({
     const p = at(e);
     if (!p || !onBoard(p.x, p.y, PUCK_RADIUS)) return;
     if (!game.grab(p.x, p.y)) return;
-    pointerRef.current = { id: e.pointerId, x: p.x, y: p.y, moved: false };
+    pointerRef.current = { id: e.pointerId };
     canvasRef.current?.setPointerCapture(e.pointerId);
   }
 
@@ -84,7 +81,6 @@ export function SlingBoard({
     if (!owner || owner.id !== e.pointerId) return;
     const p = at(e);
     if (!p) return;
-    if (Math.hypot(p.x - owner.x, p.y - owner.y) > TAP_SLOP) owner.moved = true;
     game.drag(p.x, p.y);
   }
 
@@ -92,15 +88,10 @@ export function SlingBoard({
     const owner = pointerRef.current;
     if (!owner || owner.id !== e.pointerId) return;
     pointerRef.current = null;
-
-    if (owner.moved) {
-      game.release();
-    } else {
-      // A tap, not a drag: fire at the gap at a fixed speed (spec §13). The grab
-      // from pointerdown is released first so `tap` can make its own.
-      game.cancel();
-      game.tap(owner.x, owner.y);
-    }
+    // Always a release. Whether it *fires* is the game's call, not the component's:
+    // a puck that was never pulled is put back down, so a tap is not a shot and
+    // tapping repeatedly does nothing at all.
+    game.release();
   }
 
   function lost(e: PointerEvent): void {
@@ -144,7 +135,7 @@ export function SlingBoard({
       <p class="sling__hint">
         {view.spectating
           ? 'Watching this one out.'
-          : 'Drag a puck back and let go — or just tap one to fire it straight.'}
+          : 'Drag a puck down onto the elastic, pull back and let go.'}
       </p>
 
       {/* Keyed on the round so "Play again" always shows a fresh panel. */}

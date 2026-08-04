@@ -107,7 +107,7 @@ export const GAMES: GameCard[] = [
     pitch: 'Sling every puck onto their side before they sling them back',
     concept: 'One board, split across two phones. Empty your half.',
     rules: [
-      'Drag a puck back and let go — or tap it to fire straight.',
+      'Drag a puck onto the elastic, pull back, let go.',
       'Pucks bounce off every wall except the gap.',
       'No turns. You are both slinging at once.',
     ],

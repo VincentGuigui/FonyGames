@@ -130,6 +130,65 @@ function releasing(): void {
   check('releasing at the band fires it', shot.vy < 0, shot);
 }
 
+/**
+ * A tap is not a shot.
+ *
+ * Rack pucks rest *inside* the band's zone, so a release with no movement used to
+ * count as a stretch and fire. Spam-tapping the rack therefore threw pucks with no
+ * aim and faster than any drag — and there was a `tap()` that fired one straight at
+ * the gap on purpose, which made it worse.
+ */
+function tappingIsNotThrowing(): void {
+  const g = running();
+  const p = g.view().pucks[0]!;
+  const x0 = p.x;
+  const y0 = p.y;
+  check('a rack puck rests inside the band zone', y0 >= BAND_REST_Y, y0);
+
+  // Down and straight back up, exactly as a tap does.
+  g.grab(x0, y0);
+  g.release();
+  check('tapping it does not fire it', p.vx === 0 && p.vy === 0, p);
+  check('and does not move it', p.x === x0 && p.y === y0, p);
+
+  // Ten taps in a row, the reported case.
+  for (let i = 0; i < 10; i++) {
+    g.grab(x0, y0);
+    g.release();
+  }
+  check('spamming taps still fires nothing', p.vx === 0 && p.vy === 0, p);
+  let crossed = 0;
+  for (let i = 0; i < 120; i++) crossed += g.advance(1 / 60).length;
+  check('so nothing crosses the gap', crossed === 0, crossed);
+  check('and the rack is untouched', g.view().pucks.length === SLING_PUCKS);
+
+  // A jitter under a still finger is a tap too, not a feeble shot.
+  g.grab(x0, y0);
+  g.drag(x0 + PUCK_RADIUS * 0.2, y0);
+  g.release();
+  check('a wobble below the slop does not fire either', p.vx === 0 && p.vy === 0, p);
+
+  // A real pull still fires.
+  g.grab(p.x, p.y);
+  g.drag(p.x, BAND_REST_Y + MAX_PULL);
+  g.release();
+  check('a real pull does fire', p.vy < 0, p);
+}
+
+/** Carrying a puck past the pull limit must not buy a stronger shot. */
+function pullDepth(): void {
+  const g = running();
+  const p = g.view().pucks[0]!;
+  g.grab(p.x, p.y);
+  g.drag(p.x, BOARD_H);
+  const deep = g.view().drag!;
+  check(
+    'a carry cannot over-stretch the band',
+    deep.y <= BAND_REST_Y + MAX_PULL + 1e-9,
+    deep,
+  );
+}
+
 function oneAtATime(): void {
   const g = running();
   const a = g.view().pucks[0]!;
@@ -198,6 +257,10 @@ console.log('\nthe count and the board');
 healing();
 console.log('\nreleasing');
 releasing();
+console.log('\na tap is not a shot');
+tappingIsNotThrowing();
+console.log('\nthe pull limit');
+pullDepth();
 console.log('\none puck at a time');
 oneAtATime();
 
