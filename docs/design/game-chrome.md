@@ -138,3 +138,33 @@ These rows are also the accessibility path for anything whose primary input is a
 gesture (Spill's flick), per the fallback rule in
 [ui-guidelines.md](ui-guidelines.md) — so they are always present, never behind
 a setting.
+
+## 6. Everyone else's score
+
+Every game in the catalogue is a race against the other players, so every game
+needs the same glance: *how am I doing against them?* One component,
+`core/ui/OpponentScores.tsx`, along the top of the board.
+
+| | |
+| --- | --- |
+| Where | Top of the screen, directly under the player's own number, inside the game's HUD scrim |
+| Shows | Avatar, name, score — one entry per **other** player |
+| Hides | Itself entirely when there are no opponents, so a spectator gets no empty strip |
+| Out of the round | Dimmed **and** struck through, never colour alone (ui-guidelines §7) |
+| The unit | Named once for the row ("pucks", "cabbages"), not repeated per player |
+
+Shared rather than per-game for the same reason as the gear and the rules panel:
+the first attempt at this was written separately in each game and drifted into
+three different shapes. It also means the game's own number and the opponents'
+are laid out the same way everywhere — own score large on the left, gear on the
+right, opponents small underneath.
+
+The component takes plain data, not a game state, so nothing about it knows which
+game it is in. A game maps its own state into `OpponentScore[]` **during render**
+rather than mirroring it into component state on a timer — see
+[../conventions/code-style.md](../conventions/code-style.md), and Sling Puck's
+`view.theirs`, which was deleted when this shipped because two sources for one
+number is how they come to disagree.
+
+Enabled in **Sling Puck** and **Goat Siege**. Spill and Tap Duel still show their
+own shapes; they should move to this when next touched.

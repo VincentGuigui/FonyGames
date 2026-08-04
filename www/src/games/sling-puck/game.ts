@@ -68,8 +68,6 @@ export type SlingView = {
   drag: Drag | null;
   /** Pucks on my half, per the server. Shown as a number, never only as icons. */
   mine: number;
-  /** Pucks on their half. */
-  theirs: number;
   /** Freshly arrived pucks, for the drop-in flourish. */
   arrivals: { id: number; at: number }[];
   spectating: boolean;
@@ -220,13 +218,11 @@ export class SlingGame {
     const now = this.#now();
     this.#arrivals = this.#arrivals.filter((a) => now - a.at < ARRIVE_MS);
     const s = this.#state;
-    const them = s?.players.find((p) => p !== this.#me);
 
     return {
       pucks: this.#pucks,
       drag: this.#drag,
       mine: s?.pucks[this.#me] ?? SLING_START_PUCKS,
-      theirs: (them === undefined ? undefined : s?.pucks[them]) ?? SLING_START_PUCKS,
       arrivals: this.#arrivals,
       spectating: !s || !s.players.includes(this.#me),
     };

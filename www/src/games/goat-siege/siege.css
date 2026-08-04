@@ -56,8 +56,8 @@
   position: relative;
   isolation: isolate;
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.35rem;
   padding: max(0.75rem, env(safe-area-inset-top)) 1rem 0;
 }
 

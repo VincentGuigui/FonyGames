@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
+import type { Player } from '../../../../shared/protocol';
 import type { RoomClient } from '../../core/room/client';
 import type { SlingGame } from './game';
 import { startRenderer, type Renderer } from './render';
@@ -7,6 +8,7 @@ import { toBoard, onBoard } from './layout';
 import { PUCK_RADIUS } from './physics';
 import { GameMenu } from '../../core/ui/GameMenu';
 import { RulesPanel } from '../../core/ui/RulesPanel';
+import { OpponentScores } from '../../core/ui/OpponentScores';
 
 /**
  * Your half of the board. Spec: docs/specs/games/sling-puck.md §8, §13
@@ -28,12 +30,14 @@ export function SlingBoard({
   concept,
   rules,
   client,
+  players,
 }: {
   game: SlingGame;
   title: string;
   concept: string;
   rules: string[];
   client: RoomClient | null;
+  players: Player[];
 }): JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
@@ -109,6 +113,21 @@ export function SlingBoard({
   // score the server had already moved on from.
   const view = game.view();
 
+  // "Theirs" used to be a second big number in the corner of this board. It is the
+  // shared strip now, so the same glance works the same way in every game.
+  const state = game.state;
+  const opponents = (state?.players ?? [])
+    .filter((id) => id !== client?.playerId)
+    .map((id) => {
+      const p = players.find((q) => q.id === id);
+      return {
+        id,
+        avatar: p?.avatar ?? '?',
+        name: p?.name ?? 'them',
+        score: state?.pucks[id] ?? 0,
+      };
+    });
+
   return (
     <div class="sling">
       <canvas
@@ -121,15 +140,14 @@ export function SlingBoard({
       />
 
       <div class="sling__hud">
-        <p class="sling__count">
-          <strong>{view.mine}</strong>
-          <span>yours</span>
-        </p>
-        <p class="sling__count sling__count--them">
-          <strong>{view.theirs}</strong>
-          <span>theirs</span>
-        </p>
-        <GameMenu title={title} concept={concept} rules={rules} />
+        <div class="hud__row">
+          <p class="sling__count">
+            <strong>{view.mine}</strong>
+            <span>yours</span>
+          </p>
+          <GameMenu title={title} concept={concept} rules={rules} />
+        </div>
+        <OpponentScores unit="pucks" scores={opponents} />
       </div>
 
       <p class="sling__hint">

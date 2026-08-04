@@ -6,6 +6,7 @@ import type { SiegeGame } from './game';
 import { startRenderer, type Renderer } from './render';
 import { GameMenu } from '../../core/ui/GameMenu';
 import { RulesPanel } from '../../core/ui/RulesPanel';
+import { OpponentScores } from '../../core/ui/OpponentScores';
 
 /**
  * The patch. Spec: docs/specs/games/goat-siege.md §4
@@ -74,16 +75,35 @@ export function SiegeBoard({
 
   const out = game.view(1, 1).out;
 
+  // Straight off the state on every render. The state only changes when a message
+  // arrives, which is exactly when a score changes, so there is nothing to poll.
+  const state = game.state;
+  const opponents = (state?.players ?? [])
+    .filter((id) => id !== client?.playerId)
+    .map((id) => {
+      const p = players.find((q) => q.id === id);
+      return {
+        id,
+        avatar: p?.avatar ?? '?',
+        name: p?.name ?? 'neighbour',
+        score: state?.cabbages[id] ?? 0,
+        out: !!state?.out.includes(id),
+      };
+    });
+
   return (
     <div class="siege">
       <canvas ref={canvasRef} class="siege__canvas" onPointerDown={shoo} />
 
       <div class="siege__hud">
-        <p class="siege__count">
-          <strong>{cabbages}</strong>
-          <span>cabbages</span>
-        </p>
-        <GameMenu title={title} concept={concept} rules={rules} />
+        <div class="hud__row">
+          <p class="siege__count">
+            <strong>{cabbages}</strong>
+            <span>cabbages</span>
+          </p>
+          <GameMenu title={title} concept={concept} rules={rules} />
+        </div>
+        <OpponentScores unit="cabbages" scores={opponents} />
       </div>
 
       <div class="siege__lobbar">

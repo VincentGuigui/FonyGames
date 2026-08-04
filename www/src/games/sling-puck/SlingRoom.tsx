@@ -77,6 +77,7 @@ export function SlingRoom({ game: card }: { game: GameCard }): JSX.Element {
         concept={card.concept}
         rules={card.rules}
         client={client}
+        players={room.room?.players ?? []}
       />
     );
   }
