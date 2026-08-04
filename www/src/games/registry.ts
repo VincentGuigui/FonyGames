@@ -1,4 +1,21 @@
 import { PLAYERS } from '../../../shared/players';
+
+// One per game. `?url&no-inline` is mandatory: without it Vite base64-inlines
+// anything under 4096 bytes straight into this chunk, which is the budget rule in
+// docs/architecture.md §4 broken silently. See docs/design/illustrations.md §2.
+import art_tap_duel from './tap-duel/art/card.svg?url&no-inline';
+import art_spill from './spill/art/card.svg?url&no-inline';
+import art_bump_relay from './bump-relay/art/card.svg?url&no-inline';
+import art_goat_siege from './goat-siege/art/card.svg?url&no-inline';
+import art_sling_puck from './sling-puck/art/card.svg?url&no-inline';
+import art_cat_and_mouse from './cat-and-mouse/art/card.svg?url&no-inline';
+import art_shake_sprint from './shake-sprint/art/card.svg?url&no-inline';
+import art_tilt_arena from './tilt-arena/art/card.svg?url&no-inline';
+import art_steady_hand from './steady-hand/art/card.svg?url&no-inline';
+import art_ghost_tag from './ghost-tag/art/card.svg?url&no-inline';
+import art_zone_rush from './zone-rush/art/card.svg?url&no-inline';
+import art_compass_hunt from './compass-hunt/art/card.svg?url&no-inline';
+import art_scream_meter from './scream-meter/art/card.svg?url&no-inline';
 import type { GameCard } from '../core/types';
 
 /**
@@ -23,7 +40,7 @@ export const GAMES: GameCard[] = [
       'The instant it lights up, tap the target.',
       'Tap before it lights up and you lose the round.',
     ],
-    motif: 'tap',
+    art: { src: art_tap_duel, alt: 'A phone with an archery target on its screen' },
     accent: '#FFC93C',
     players: PLAYERS['tap-duel'],
     duration: '1 min',
@@ -46,7 +63,7 @@ export const GAMES: GameCard[] = [
       'Flick your water at a neighbour.',
       'Tap an incoming drop to catch it — it doubles.',
     ],
-    motif: 'spill',
+    art: { src: art_spill, alt: 'Four phones flat in a square with a drop of water arcing between them' },
     accent: '#38BDF8',
     players: PLAYERS['spill'],
     duration: '1–3 min',
@@ -68,7 +85,7 @@ export const GAMES: GameCard[] = [
       'Knock phones together to pass it on.',
       'Holding it when the fuse ends puts you out.',
     ],
-    motif: 'bump',
+    art: { src: art_bump_relay, alt: 'Two phones knocking together, a bomb jumping between them' },
     accent: '#FF5A36',
     players: PLAYERS['bump-relay'],
     duration: '1–2 min',
@@ -91,7 +108,7 @@ export const GAMES: GameCard[] = [
       'Tap incoming goats to shoo them.',
       'A shooed goat splits into two kids.',
     ],
-    motif: 'goat',
+    art: { src: art_goat_siege, alt: 'A goat sailing over a fence towards a row of cabbages' },
     accent: '#4ADE80',
     players: PLAYERS['goat-siege'],
     duration: '2–3 min',
@@ -112,7 +129,7 @@ export const GAMES: GameCard[] = [
       'Pucks bounce off every wall except the gap.',
       'No turns. You are both slinging at once.',
     ],
-    motif: 'sling',
+    art: { src: art_sling_puck, alt: 'Two halves of a board, an elastic pulled back and a puck in the gap' },
     accent: '#FB7185',
     players: PLAYERS['sling-puck'],
     duration: '30 s – 2 min',
@@ -134,7 +151,7 @@ export const GAMES: GameCard[] = [
       'The cat is faster, and only has to touch you.',
       'Three lives each. Outlast the clock and the mice win.',
     ],
-    motif: 'cat',
+    art: { src: art_cat_and_mouse, alt: 'A cat lunging after two mice running away' },
     accent: '#C084FC',
     players: PLAYERS['cat-and-mouse'],
     duration: '60–90 s',
@@ -155,7 +172,7 @@ export const GAMES: GameCard[] = [
       'Shake to move down the track.',
       'First over the finish line wins.',
     ],
-    motif: 'shake',
+    art: { src: art_shake_sprint, alt: 'A phone shaking, motion lines either side of it' },
     accent: '#4ADE80',
     players: PLAYERS['shake-sprint'],
     duration: '1 min',
@@ -172,7 +189,7 @@ export const GAMES: GameCard[] = [
       'Tilt your phone to steer.',
       'Shove everyone else off the board.',
     ],
-    motif: 'tilt',
+    art: { src: art_tilt_arena, alt: 'A phone tilted inside a dashed circle' },
     accent: '#38BDF8',
     players: PLAYERS['tilt-arena'],
     duration: '2 min',
@@ -189,7 +206,7 @@ export const GAMES: GameCard[] = [
       'Hold your phone as still as you can.',
       'The last one still steady wins.',
     ],
-    motif: 'steady',
+    art: { src: art_steady_hand, alt: 'A phone held perfectly level, a target centred on it' },
     accent: '#C084FC',
     players: PLAYERS['steady-hand'],
     duration: '1 min',
@@ -207,7 +224,7 @@ export const GAMES: GameCard[] = [
       'The map only hints where they are.',
       'Get caught and you join the ghost.',
     ],
-    motif: 'ghost',
+    art: { src: art_ghost_tag, alt: 'A ghost drifting upward on a dashed line' },
     accent: '#A3A3A3',
     players: PLAYERS['ghost-tag'],
     duration: '10 min',
@@ -224,7 +241,7 @@ export const GAMES: GameCard[] = [
       'Stand in a zone to start claiming it.',
       'Hold it longer than anyone else.',
     ],
-    motif: 'zone',
+    art: { src: art_zone_rush, alt: 'A grid of squares, half of them claimed' },
     accent: '#FB7185',
     players: PLAYERS['zone-rush'],
     duration: '10 min',
@@ -241,7 +258,7 @@ export const GAMES: GameCard[] = [
       'Follow the arrow to the treasure.',
       'Everyone else is following it too.',
     ],
-    motif: 'compass',
+    art: { src: art_compass_hunt, alt: 'A compass needle pointing north' },
     accent: '#FBBF24',
     players: PLAYERS['compass-hunt'],
     duration: '10 min',
@@ -258,7 +275,7 @@ export const GAMES: GameCard[] = [
       'Make as much noise as you can.',
       'Loudest reading wins the round.',
     ],
-    motif: 'scream',
+    art: { src: art_scream_meter, alt: 'A phone with sound waves rippling out of it' },
     accent: '#F472B6',
     players: PLAYERS['scream-meter'],
     duration: '1 min',

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" width="120" height="90">
+  <!--
+    Scream Meter — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <g transform="rotate(0 47 45)"><rect x="36" y="26" width="22" height="38" rx="5" fill="#10121a" stroke="#F472B6" stroke-width="3"/></g>
+  <g fill="none" stroke="#F472B6" stroke-width="4" stroke-linecap="round">
+    <path d="M70 36 a10 10 0 0 1 0 18"/>
+    <path d="M78 29 a20 20 0 0 1 0 32"/>
+    <path d="M86 22 a30 30 0 0 1 0 46"/>
+  </g>
+</svg>

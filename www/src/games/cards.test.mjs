@@ -12,7 +12,11 @@
  *   `<img>` is a separate document and cannot see the page's CSS;
  * - a `var(--…)` in an art file makes the shape **disappear**, same reason;
  * - a typo'd art path typechecks, because `*?url&no-inline` is a wildcard ambient
- *   module that accepts any string.
+ *   module that accepts any string;
+ * - and an **ill-formed** art file renders as nothing at all. An `<img>` parses SVG
+ *   as strict XML, so a doubled hyphen inside a comment — perfectly legal in the
+ *   inline JSX this art came from — blanks the whole card. That one cost a round
+ *   trip: all thirteen files shipped broken and the build was green.
  *
  * ## Why this one is `.mjs` when every other test is `.ts`
  *
@@ -59,6 +63,26 @@ const folders = readdirSync(GAMES_DIR)
   .sort();
 
 const withCard = folders.filter((n) => existsSync(join(GAMES_DIR, n, 'card.ts')));
+
+/**
+ * Cheap well-formedness: tags balance and the root is a single `<svg>`.
+ *
+ * Not a real XML parser — node has none built in and this repo carries no
+ * dependency for one. It catches the mistakes hand-edited SVG actually makes; the
+ * doubled-hyphen check beside it catches the one that already happened.
+ */
+function wellFormedEnough(svg) {
+  const tags = [...svg.replace(/<!--[\s\S]*?-->/g, '').matchAll(/<(\/?)([a-zA-Z]+)([^>]*)>/g)];
+  const stack = [];
+  for (const [, closing, name, attrs] of tags) {
+    if (closing) {
+      if (stack.pop() !== name) return false;
+    } else if (!attrs.trimEnd().endsWith('/')) {
+      stack.push(name);
+    }
+  }
+  return stack.length === 0 && tags[0]?.[2] === 'svg';
+}
 
 /** Every `import … from '<here>'` in a file. */
 function specifiers(src) {
@@ -124,11 +148,24 @@ function artIsSelfContained() {
   for (const { game, path } of cards) {
     const svg = readFileSync(path, 'utf8');
     const rel = `${game}/art/card.svg`;
+    // Markup only. The files carry a comment explaining *why* they use literal
+    // hexes, and that comment names both forbidden things — checking the raw text
+    // would fail every well-documented file.
+    const markup = svg.replace(/<!--[\s\S]*?-->/g, '');
 
     // Both of these fail silently: the first renders black, the second vanishes.
-    check(`${rel} has no currentColor`, !svg.includes('currentColor'));
-    check(`${rel} has no CSS variable`, !svg.includes('var(--'));
+    check(`${rel} has no currentColor`, !markup.includes('currentColor'));
+    check(`${rel} has no CSS variable`, !markup.includes('var(--'));
     check(`${rel} is 120x90`, svg.includes('viewBox="0 0 120 90"'));
+
+    // An <img> parses SVG as strict XML: any of these renders the card as nothing.
+    const comments = [...svg.matchAll(/<!--([\s\S]*?)-->/g)].map((m) => m[1]);
+    check(
+      `${rel} has no doubled hyphen inside a comment`,
+      comments.every((c) => !c.includes('--')),
+      'illegal in XML, and an <img> rejects the whole document for it',
+    );
+    check(`${rel} opens and closes as one <svg>`, wellFormedEnough(svg), 'unbalanced tags');
     const bytes = new TextEncoder().encode(svg).length;
     check(`${rel} is under 40 KB`, bytes <= 40 * 1024, bytes);
 
@@ -139,7 +176,7 @@ function artIsSelfContained() {
     if (accent) {
       check(
         `${rel} uses its card's accent ${accent[1]}`,
-        svg.toLowerCase().includes(accent[1].toLowerCase()),
+        markup.toLowerCase().includes(accent[1].toLowerCase()),
         'the accent lives in both card.ts and card.svg and they must match',
       );
     }

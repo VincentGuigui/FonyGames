@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" width="120" height="90">
+  <!--
+    Cat And Mouse — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <!-- A cat lunging left to right with mice scattering ahead of it. Filled
+       silhouettes rather than outlines, matching the goat (ui-guidelines §6). -->
+  <g fill="#C084FC">
+    <ellipse cx="34" cy="52" rx="22" ry="13"/>
+    <circle cx="52" cy="40" r="11"/>
+    <path d="M44 33 L45 21 L53 30 Z"/>
+    <path d="M56 30 L62 20 L63 32 Z"/>
+    <path d="M13 45 Q4 34 12 26 L16 30 Q11 36 18 43 Z"/>
+    <!-- Legs, mid-stride. -->
+    <rect x="22" y="60" width="5" height="13" rx="2.5"/>
+    <rect x="42" y="60" width="5" height="13" rx="2.5"/>
+  </g>
+  <circle cx="56" cy="38" r="2" fill="#10121a"/>
+  <!-- Two mice running for it, smaller and rounder: silhouette, not hue. -->
+  <g transform="translate(82 40) scale(1)" fill="#C084FC"><ellipse rx="9" ry="6.5"/><circle cx="8" cy="-3" r="4.5"/><circle cx="-1" cy="-6" r="3.5"/><path d="M-8 1 Q-17 3 -15 -4" fill="none" stroke="#C084FC" stroke-width="2"/></g>
+  <g transform="translate(100 60) scale(0.82)" fill="#C084FC"><ellipse rx="9" ry="6.5"/><circle cx="8" cy="-3" r="4.5"/><circle cx="-1" cy="-6" r="3.5"/><path d="M-8 1 Q-17 3 -15 -4" fill="none" stroke="#C084FC" stroke-width="2"/></g>
+</svg>

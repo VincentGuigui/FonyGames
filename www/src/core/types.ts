@@ -9,21 +9,23 @@ export type GameInput =
   | 'compass'
   | 'mic';
 
-/** Motif used by the placeholder illustrations until real art exists. */
-export type GameMotif =
-  | 'bump'
-  | 'shake'
-  | 'tilt'
-  | 'steady'
-  | 'tap'
-  | 'ghost'
-  | 'zone'
-  | 'compass'
-  | 'scream'
-  | 'spill'
-  | 'goat'
-  | 'sling'
-  | 'cat';
+/**
+ * The card illustration.
+ *
+ * Both halves or neither: an image without alt text breaks
+ * docs/design/ui-guidelines.md §6, so they are one field and the type makes the
+ * alt impossible to forget.
+ */
+export type GameArt = {
+  /**
+   * Always from a `?url&no-inline` import of the game's own `art/card.svg`, so it
+   * ships as a separate hashed file instead of base64 inside the hub chunk
+   * (docs/architecture.md §4, docs/design/illustrations.md §2).
+   */
+  src: string;
+  /** What the illustration SHOWS — the action, not the title. */
+  alt: string;
+};
 
 export type GameMode = {
   id: string;
@@ -61,7 +63,7 @@ export type GameCard = {
    * four seconds the pre-round panel is on screen.
    */
   rules: string[];
-  motif: GameMotif;
+  art: GameArt;
   /** Accent colour, from the game's spec. */
   accent: string;
   /**

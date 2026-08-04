@@ -151,7 +151,13 @@
   display: block;
   width: 100%;
   height: auto;
-  /* Fixed ratio so the grid never reflows while art loads. */
+  /*
+   * Fixed ratio so the grid never reflows while art loads — which is now a real
+   * guarantee rather than an aspiration: the illustration is a lazily-loaded file
+   * (specs/hub.md §2), and the <img> also carries intrinsic width/height in case
+   * this stylesheet arrives late. The accent tint behind it is set inline by
+   * GameIllustration.tsx, so the same paint is the placeholder and the backdrop.
+   */
   aspect-ratio: 4 / 3;
 }
 

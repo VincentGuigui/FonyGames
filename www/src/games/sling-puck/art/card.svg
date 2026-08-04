@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" width="120" height="90">
+  <!--
+    Sling Puck — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <!-- The two halves of one board, the join between them broken by the gap, your
+       band stretched into a V and a puck already through it.
+
+       Not drawn with the shared phone glyph: two portrait phones nose to nose is a
+       tall narrow arrangement, and at card size it came out as two flat bars with a
+       dot in one. These are the two HALVES OF THE BOARD, proportioned to fill the
+       box; the true phone geometry is taught by the lobby's diagram instead. -->
+  <g fill="#10121a" stroke="#FB7185" stroke-width="3">
+    <rect x="38" y="5" width="44" height="36" rx="6"/>
+    <rect x="38" y="49" width="44" height="36" rx="6"/>
+  </g>
+  <!-- The join, with the gap as a break in it. -->
+  <g stroke="#FB7185" stroke-width="4" stroke-linecap="round">
+    <path d="M36 45 L52 45"/><path d="M68 45 L84 45"/>
+  </g>
+  <!-- Both bands, each with its two posts. The posts matter: without them a plain
+       line at the top of a rounded rect reads as a speaker grille, and a bare V
+       reads as a downward arrow rather than as something under tension. -->
+  <g fill="#FB7185">
+    <circle cx="44" cy="14" r="2.5"/><circle cx="76" cy="14" r="2.5"/>
+    <circle cx="44" cy="66" r="2.5"/><circle cx="76" cy="66" r="2.5"/>
+  </g>
+  <path d="M44 14 L76 14" stroke="#FB7185" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Yours, pulled deep: the moment before a shot. -->
+  <path d="M44 66 L60 79 L76 66" fill="none" stroke="#FB7185" stroke-width="3.5"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- The puck caught IN the gap, mid-crossing, rather than past it with a trail:
+       a trail long enough to read had to start inside the V, and dashes-into-a-V is
+       a downward arrow, the opposite of what is happening. -->
+  <path d="M60 63 L60 54" fill="none" stroke="#FB7185" stroke-width="2.5"
+        stroke-dasharray="4 5" stroke-linecap="round"/>
+  <circle cx="60" cy="45" r="7" fill="#f4f1e8"/>
+  <circle cx="60" cy="45" r="3" fill="#10121a"/>
+</svg>

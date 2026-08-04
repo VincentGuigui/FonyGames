@@ -61,7 +61,7 @@ two of them specific to this project's deploy:
 
 It would also split every game across two trees, which is the one-folder rule undone.
 
-## 3. Two rules that fail silently
+## 3. Three rules that fail silently
 
 ### An `<img>` cannot see the page's CSS
 
@@ -87,6 +87,21 @@ why they are tested rather than trusted.
 `GameIllustration` paints the accent at 14% behind the image, which is also the
 placeholder that holds the space while the file loads (hub.md §2). Painting it in
 both places doubles it to 26% the moment the image arrives.
+
+### An `<img>` parses SVG as strict XML
+
+Inline JSX is forgiving; a standalone file loaded through `<img>` is not. **Any XML
+error renders the card as nothing at all** — no warning, no console message, and the
+build stays green.
+
+The one that actually happened: a **doubled hyphen inside a comment**. It is illegal
+in XML, and the explanatory comment written into all thirteen files to say *why* they
+use literal hexes contained `var(--…)`. Every card shipped blank, and only a
+screenshot showed it.
+
+So art files are checked for well-formedness in `cards.test.mjs`: no `--` inside a
+comment, and tags that balance under a single `<svg>` root. Write "a CSS variable" in
+prose rather than the literal syntax.
 
 ### A `card.ts` is a leaf
 

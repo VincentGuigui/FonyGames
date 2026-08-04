@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" width="120" height="90">
+  <!--
+    Goat Siege — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <!-- A goat sailing in over the fence towards a row of cabbages. The fence sits
+       behind and the cabbages in front on the ground, so the depth reads. -->
+  <g stroke="#4ADE80" stroke-width="4" stroke-linecap="round">
+    <path d="M10 54 L110 54"/>
+    <path d="M26 44 L26 60"/><path d="M60 44 L60 60"/><path d="M94 44 L94 60"/>
+  </g>
+  <!-- Cabbages, not dots: leaf lobes and a heart ring, matching the board in
+       games/goat-siege/render.ts. Plain circles read as tokens. -->
+  <g>
+    <g transform="translate(22 72)"><ellipse cx="1.330" cy="-3.439" rx="5.400" ry="3.780" transform="rotate(-72.811)" fill="#4ADE80" opacity="0.55"/><ellipse cx="4.500" cy="-0.051" rx="5.400" ry="3.780" transform="rotate(-0.811)" fill="#4ADE80" opacity="0.55"/><ellipse cx="1.451" cy="3.408" rx="5.400" ry="3.780" transform="rotate(71.189)" fill="#4ADE80" opacity="0.55"/><ellipse cx="-3.603" cy="2.157" rx="5.400" ry="3.780" transform="rotate(143.189)" fill="#4ADE80" opacity="0.55"/><ellipse cx="-3.678" cy="-2.075" rx="5.400" ry="3.780" transform="rotate(215.189)" fill="#4ADE80" opacity="0.55"/><ellipse rx="7.020" ry="6.480" fill="#4ADE80"/><circle r="2.700" fill="none" stroke="#10121a" stroke-width="1.6" opacity="0.4"/></g>
+    <g transform="translate(45 74)"><ellipse cx="1.478" cy="-3.821" rx="6.000" ry="4.200" transform="rotate(-72.811)" fill="#4ADE80" opacity="0.55"/><ellipse cx="4.999" cy="-0.057" rx="6.000" ry="4.200" transform="rotate(-0.811)" fill="#4ADE80" opacity="0.55"/><ellipse cx="1.612" cy="3.786" rx="6.000" ry="4.200" transform="rotate(71.189)" fill="#4ADE80" opacity="0.55"/><ellipse cx="-4.003" cy="2.397" rx="6.000" ry="4.200" transform="rotate(143.189)" fill="#4ADE80" opacity="0.55"/><ellipse cx="-4.086" cy="-2.305" rx="6.000" ry="4.200" transform="rotate(215.189)" fill="#4ADE80" opacity="0.55"/><ellipse rx="7.800" ry="7.200" fill="#4ADE80"/><circle r="3.000" fill="none" stroke="#10121a" stroke-width="1.6" opacity="0.4"/></g>
+    <g transform="translate(68 72)"><ellipse cx="1.330" cy="-3.439" rx="5.400" ry="3.780" transform="rotate(-72.811)" fill="#4ADE80" opacity="0.55"/><ellipse cx="4.500" cy="-0.051" rx="5.400" ry="3.780" transform="rotate(-0.811)" fill="#4ADE80" opacity="0.55"/><ellipse cx="1.451" cy="3.408" rx="5.400" ry="3.780" transform="rotate(71.189)" fill="#4ADE80" opacity="0.55"/><ellipse cx="-3.603" cy="2.157" rx="5.400" ry="3.780" transform="rotate(143.189)" fill="#4ADE80" opacity="0.55"/><ellipse cx="-3.678" cy="-2.075" rx="5.400" ry="3.780" transform="rotate(215.189)" fill="#4ADE80" opacity="0.55"/><ellipse rx="7.020" ry="6.480" fill="#4ADE80"/><circle r="2.700" fill="none" stroke="#10121a" stroke-width="1.6" opacity="0.4"/></g>
+    <g transform="translate(91 74)"><ellipse cx="1.478" cy="-3.821" rx="6.000" ry="4.200" transform="rotate(-72.811)" fill="#4ADE80" opacity="0.55"/><ellipse cx="4.999" cy="-0.057" rx="6.000" ry="4.200" transform="rotate(-0.811)" fill="#4ADE80" opacity="0.55"/><ellipse cx="1.612" cy="3.786" rx="6.000" ry="4.200" transform="rotate(71.189)" fill="#4ADE80" opacity="0.55"/><ellipse cx="-4.003" cy="2.397" rx="6.000" ry="4.200" transform="rotate(143.189)" fill="#4ADE80" opacity="0.55"/><ellipse cx="-4.086" cy="-2.305" rx="6.000" ry="4.200" transform="rotate(215.189)" fill="#4ADE80" opacity="0.55"/><ellipse rx="7.800" ry="7.200" fill="#4ADE80"/><circle r="3.000" fill="none" stroke="#10121a" stroke-width="1.6" opacity="0.4"/></g>
+  </g>
+  <!-- Goat in side profile as one bold silhouette rather than stick lines: at
+       160 px a stroked skeleton reads as a spider. -->
+  <g fill="#4ADE80">
+    <!-- Legs, tucked as if mid-jump. -->
+    <rect x="30" y="30" width="5" height="12" rx="2.5"/>
+    <rect x="39" y="32" width="5" height="11" rx="2.5"/>
+    <rect x="49" y="31" width="5" height="12" rx="2.5"/>
+    <rect x="57" y="30" width="5" height="11" rx="2.5"/>
+    <ellipse cx="45" cy="24" rx="19" ry="10"/>
+    <!-- Tail. -->
+    <path d="M27 18 L20 10 L28 22 Z"/>
+    <!-- Neck and head. -->
+    <path d="M56 20 L66 12 L72 18 L62 26 Z"/>
+    <ellipse cx="70" cy="15" rx="9" ry="6.5"/>
+    <!-- Beard: the one shape that says goat and not sheep. -->
+    <path d="M70 20 L67 30 L74 21 Z"/>
+  </g>
+  <!-- Horns sweep back over the neck. -->
+  <g fill="none" stroke="#4ADE80" stroke-width="3.5" stroke-linecap="round">
+    <path d="M67 9 Q62 2 55 4"/><path d="M74 9 Q70 1 62 2"/>
+  </g>
+  <circle cx="74" cy="13" r="2" fill="#10121a"/>
+</svg>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" width="120" height="90">
+  <!--
+    Tap Duel — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <!-- A phone with the target inside it and nothing else: the finger that was
+       here read as clutter at 160 px, and the target belongs on a screen. -->
+  <g transform="rotate(0 59.9 45.1)"><rect x="39" y="9" width="41.8" height="72.2" rx="9.5" fill="#10121a" stroke="#FFC93C" stroke-width="3"/></g>
+  <!-- Rings outside in, in the archery colours the board uses. -->
+  <circle cx="60" cy="45" r="15" fill="#f4f1e8"/>
+  <circle cx="60" cy="45" r="11.6" fill="#14161c"/>
+  <circle cx="60" cy="45" r="8.2" fill="#1f6feb"/>
+  <circle cx="60" cy="45" r="5" fill="#d92d20"/>
+  <circle cx="60" cy="45" r="2.3" fill="#f5c518"/>
+</svg>

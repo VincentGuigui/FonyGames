@@ -32,7 +32,7 @@ export function GameCardTile({ game }: { game: GameCard }): JSX.Element {
   const inner = (
     <>
       <div class="game-card__art">
-        <GameIllustration motif={game.motif} accent={game.accent} />
+        <GameIllustration art={game.art} accent={game.accent} />
         {game.status !== 'live' && (
           <span class={`game-card__badge game-card__badge--${game.status}`}>
             {game.status === 'soon' ? 'soon' : 'beta'}

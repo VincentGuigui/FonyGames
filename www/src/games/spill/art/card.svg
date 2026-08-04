@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" width="120" height="90">
+  <!--
+    Spill — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <!-- Four phones flat in a square, each top edge pointing at the middle: the
+       arrangement IS the game. Scaled down harder than the drop, so the water —
+       which is what the game is about — is the subject rather than a detail lost
+       among them. This group's scale(0.5) thins the stroke with it, which is the
+       one place the one-weight rule is deliberately broken, because the square
+       has to read as small. -->
+  <g transform="translate(46 53) scale(0.5) translate(-60 -45)">
+    <g transform="rotate(180 60 15)"><rect x="49" y="-4" width="22" height="38" rx="5" fill="#10121a" stroke="#38BDF8" stroke-width="3"/></g>
+    <g transform="rotate(0 60 75)"><rect x="49" y="56" width="22" height="38" rx="5" fill="#10121a" stroke="#38BDF8" stroke-width="3"/></g>
+    <g transform="rotate(90 15 45)"><rect x="4" y="26" width="22" height="38" rx="5" fill="#10121a" stroke="#38BDF8" stroke-width="3"/></g>
+    <g transform="rotate(-90 105 45)"><rect x="94" y="26" width="22" height="38" rx="5" fill="#10121a" stroke="#38BDF8" stroke-width="3"/></g>
+  </g>
+  <!-- The arc it travels, then the drop, at full size and clear of them. -->
+  <path d="M50 64 Q64 58 76 48" fill="none" stroke="#38BDF8" stroke-width="4"
+        stroke-dasharray="6 7" stroke-linecap="round" opacity="0.7"/>
+  <path d="M92 12 c10 14 16 21 16 28 a16 16 0 0 1-32 0 c0-7 6-14 16-28 Z" fill="#38BDF8"/>
+  <!-- A highlight, so a big flat teardrop still reads as liquid. -->
+  <ellipse cx="86" cy="38" rx="4" ry="5.5" fill="#10121a" opacity="0.32"/>
+</svg>
