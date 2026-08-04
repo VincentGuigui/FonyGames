@@ -30,7 +30,7 @@ export const CARD: GameCard = {
   modes: [
     { id: 'classic', name: 'Classic', blurb: 'Five pucks each, first side clear wins' },
   ],
-  // `beta`: playable, but §14 of the spec has the puck count and gap width
+  // `new`: playable, but §14 of the spec has the puck count and gap width
   // down as open questions, and only a play test settles either.
-  status: 'beta',
+  status: 'new',
 };

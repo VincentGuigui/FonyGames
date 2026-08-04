@@ -33,9 +33,15 @@ export function GameCardTile({ game }: { game: GameCard }): JSX.Element {
     <>
       <div class="game-card__art">
         <GameIllustration art={game.art} accent={game.accent} />
+        {/*
+          The label IS the status, rather than a mapping beside it — the pair could
+          disagree, and one of them did: the chip said "beta" for anything that was
+          not `soon`, so a fourth status would have been labelled wrong. CSS
+          uppercases it.
+        */}
         {game.status !== 'live' && (
           <span class={`game-card__badge game-card__badge--${game.status}`}>
-            {game.status === 'soon' ? 'soon' : 'beta'}
+            {game.status}
           </span>
         )}
       </div>

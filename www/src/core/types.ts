@@ -75,5 +75,23 @@ export type GameCard = {
   duration: string;
   inputs: GameInput[];
   modes: GameMode[];
-  status: 'live' | 'beta' | 'soon';
+  /**
+   * The one switch that decides how a game appears in the catalogue.
+   *
+   * | Value | Badge | Tappable | Order |
+   * | --- | --- | --- | --- |
+   * | `live` | none | yes | first |
+   * | `new` | **NEW**, in the accent | yes | after `live` |
+   * | `soon` | **SOON**, quiet | **no**, and dimmed | last |
+   *
+   * `new` replaced `beta`. Same switch, different promise: the hub's job is to sell a
+   * game, and "beta" reads as *might be broken* where "new" reads as *look at this*.
+   * A game's actual maturity is not lost — it stays in its spec's Status row, which is
+   * where an honest "playable but the balance numbers are guesses" belongs, and which
+   * nobody browsing the hub is reading.
+   *
+   * Adding a value means: this table, the badge in `GameCardTile`, an
+   * `ORDER` entry in `games/registry.ts`, and a `.game-card__badge--<value>` rule.
+   */
+  status: 'live' | 'new' | 'soon';
 };

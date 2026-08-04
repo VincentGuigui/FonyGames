@@ -51,7 +51,11 @@ Rules:
 - The sentence says what *you do*, in the second person or the imperative.
   "Shake like your life depends on it" ✅ — "A fun shaking game" ❌.
 - Illustrations share a single style (see §6) and a 4:3 ratio.
-- Cards show `soon` / `beta` badges honestly. A `soon` card is not tappable.
+- Cards show a `soon` or `new` badge; a `soon` card is not tappable. `new` is a
+  **sales** label, not a maturity claim — the hub's job is to make someone tap, and
+  "beta", which this replaced, reads as *might be broken*. Where a game actually
+  stands ("playable, but the balance numbers are guesses") belongs in its spec's
+  Status row, which is honest and which nobody browsing the hub reads.
 
 ## 4. Motion & feedback
 

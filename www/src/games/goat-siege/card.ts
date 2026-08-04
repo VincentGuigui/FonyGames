@@ -30,6 +30,6 @@ export const CARD: GameCard = {
   modes: [
     { id: 'patch', name: 'Patch', blurb: 'Six cabbages each, last garden standing' },
   ],
-  // `beta`: playable, but §11 of the spec lists real balance questions.
-  status: 'beta',
+  // `new`: playable, but §11 of the spec lists real balance questions.
+  status: 'new',
 };

@@ -157,7 +157,7 @@ type GameCard = {
   duration: string;        // "1–2 min"
   inputs: Array<'touch'|'motion'|'orientation'|'gps'|'compass'|'mic'>;
   modes: Array<{ id: string; name: string; blurb: string }>;
-  status: 'live' | 'beta' | 'soon';
+  status: 'live' | 'new' | 'soon';   // badge, order and tappability, in one switch
 };
 ```
 

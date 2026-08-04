@@ -30,7 +30,7 @@ export const CARD: GameCard = {
   modes: [
     { id: 'ring', name: 'Ring', blurb: 'Phones flat on the table, aim across the room' },
   ],
-  // `beta`: playable end to end, but the numbers in spec §12 are guesses
+  // `new`: playable end to end, but the numbers in spec §12 are guesses
   // until a real table test.
-  status: 'beta',
+  status: 'new',
 };

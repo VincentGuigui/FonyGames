@@ -36,8 +36,8 @@ play something in under ten seconds.
   [../design/ui-guidelines.md](../design/ui-guidelines.md) §3. One illustration,
   one catchy sentence, no exceptions.
 - Cards are ordered: `live` first (most-played-looking order is fine — a fixed
-  curated order for now), then `beta`, then `soon` (dimmed, not tappable, no
-  link).
+  curated order for now), then `new`, then `soon` (dimmed, not tappable, no
+  link). The order comes from `ORDER` in `games/registry.ts`, one entry per status.
 - **Runtime feature flags** can additionally grey out or hide a card; see
   [backoffice.md](backoffice.md) §2b. They are orthogonal to `status`, and the
   grid paints from the compiled registry first so the flag fetch never delays

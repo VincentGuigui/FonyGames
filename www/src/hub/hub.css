@@ -176,7 +176,8 @@
   letter-spacing: 0.06em;
 }
 
-.game-card__badge--beta {
+/* NEW is the one badge that shouts: it is the reason to look at this card. */
+.game-card__badge--new {
   color: var(--color-on-accent);
   background: var(--color-accent);
   border-color: transparent;

@@ -42,7 +42,8 @@ export const GAMES: GameCard[] = [
   SCREAM_METER_CARD,
 ];
 
-const ORDER = { live: 0, beta: 1, soon: 2 } as const;
+/** Display order by status. One entry per value of `GameCard['status']`. */
+const ORDER = { live: 0, new: 1, soon: 2 } as const;
 
 /** Catalogue in display order. */
 export function catalogue(): GameCard[] {
