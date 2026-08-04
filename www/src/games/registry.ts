@@ -4,7 +4,6 @@ import { PLAYERS } from '../../../shared/players';
 // anything under 4096 bytes straight into this chunk, which is the budget rule in
 // docs/architecture.md §4 broken silently. See docs/design/illustrations.md §2.
 import art_bump_relay from './bump-relay/art/card.svg?url&no-inline';
-import art_sling_puck from './sling-puck/art/card.svg?url&no-inline';
 import art_cat_and_mouse from './cat-and-mouse/art/card.svg?url&no-inline';
 import art_shake_sprint from './shake-sprint/art/card.svg?url&no-inline';
 import art_tilt_arena from './tilt-arena/art/card.svg?url&no-inline';
@@ -16,6 +15,7 @@ import art_scream_meter from './scream-meter/art/card.svg?url&no-inline';
 import { CARD as TAP_DUEL_CARD } from './tap-duel/card';
 import { CARD as SPILL_CARD } from './spill/card';
 import { CARD as GOAT_SIEGE_CARD } from './goat-siege/card';
+import { CARD as SLING_PUCK_CARD } from './sling-puck/card';
 import type { GameCard } from '../core/types';
 
 /**
@@ -56,28 +56,7 @@ export const GAMES: GameCard[] = [
     status: 'soon',
   },
   GOAT_SIEGE_CARD,
-  {
-    slug: 'sling-puck',
-    title: 'Sling Puck',
-    pitch: 'Sling every puck onto their side before they sling them back',
-    concept: 'One board, split across two phones. Empty your half.',
-    rules: [
-      'Drag a puck onto the elastic, pull back, let go.',
-      'Pucks bounce off every wall except the gap.',
-      'No turns. You are both slinging at once.',
-    ],
-    art: { src: art_sling_puck, alt: 'Two halves of a board, an elastic pulled back and a puck in the gap' },
-    accent: '#FB7185',
-    players: PLAYERS['sling-puck'],
-    duration: '30 s – 2 min',
-    inputs: ['touch'],
-    modes: [
-      { id: 'classic', name: 'Classic', blurb: 'Five pucks each, first side clear wins' },
-    ],
-    // `beta`: playable, but §14 of the spec has the puck count and gap width
-    // down as open questions, and only a play test settles either.
-    status: 'beta',
-  },
+  SLING_PUCK_CARD,
   {
     slug: 'cat-and-mouse',
     title: 'Cat and Mouse',
