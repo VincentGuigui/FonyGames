@@ -4,7 +4,6 @@ import { PLAYERS } from '../../../shared/players';
 // anything under 4096 bytes straight into this chunk, which is the budget rule in
 // docs/architecture.md §4 broken silently. See docs/design/illustrations.md §2.
 import art_bump_relay from './bump-relay/art/card.svg?url&no-inline';
-import art_goat_siege from './goat-siege/art/card.svg?url&no-inline';
 import art_sling_puck from './sling-puck/art/card.svg?url&no-inline';
 import art_cat_and_mouse from './cat-and-mouse/art/card.svg?url&no-inline';
 import art_shake_sprint from './shake-sprint/art/card.svg?url&no-inline';
@@ -16,6 +15,7 @@ import art_compass_hunt from './compass-hunt/art/card.svg?url&no-inline';
 import art_scream_meter from './scream-meter/art/card.svg?url&no-inline';
 import { CARD as TAP_DUEL_CARD } from './tap-duel/card';
 import { CARD as SPILL_CARD } from './spill/card';
+import { CARD as GOAT_SIEGE_CARD } from './goat-siege/card';
 import type { GameCard } from '../core/types';
 
 /**
@@ -55,27 +55,7 @@ export const GAMES: GameCard[] = [
     ],
     status: 'soon',
   },
-  {
-    slug: 'goat-siege',
-    title: 'Goat Siege',
-    pitch: "Shoo the neighbours' goats before they eat your cabbages",
-    concept: 'Shooing is not free — one tap becomes two problems.',
-    rules: [
-      'Tap a neighbour to lob a goat at them.',
-      'Tap incoming goats to shoo them.',
-      'A shooed goat splits into two kids.',
-    ],
-    art: { src: art_goat_siege, alt: 'A goat sailing over a fence towards a row of cabbages' },
-    accent: '#4ADE80',
-    players: PLAYERS['goat-siege'],
-    duration: '2–3 min',
-    inputs: ['touch'],
-    modes: [
-      { id: 'patch', name: 'Patch', blurb: 'Six cabbages each, last garden standing' },
-    ],
-    // `beta`: playable, but §11 of the spec lists real balance questions.
-    status: 'beta',
-  },
+  GOAT_SIEGE_CARD,
   {
     slug: 'sling-puck',
     title: 'Sling Puck',
