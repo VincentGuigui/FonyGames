@@ -145,10 +145,22 @@ The consequence is a rule about what may be *claimed*:
   observed. If it matters, a human loads the URL.
 - The same goes for anything only the live edge can show: real TLS, the CDN, the
   production `ALLOWED_ORIGINS`, and cold-start latency on a real Durable Object.
-- GitHub is reachable **only through the MCP tools** — a direct `curl` to
-  `api.github.com` is not authorised and returns nothing useful, which reads as "no
-  runs found" rather than as a permission error. Check CI with the tools, and treat
-  an empty result as unknown, not as green.
+- GitHub is reachable **only through the MCP tools.** `api.github.com` is *not*
+  blocked at `CONNECT` — the tunnel opens and `/rate_limit` answers `200`, which is
+  what makes this worth writing down. Every repo endpoint is then intercepted with a
+  **403** carrying `"GitHub access is not enabled for this session"`. So a raw
+  `curl` looks like it worked right up to the point where it matters, and a script
+  that only checks whether the request *completed* will report "no runs found"
+  instead of "not authorised". Check CI with the MCP tools, and treat an empty
+  result as unknown rather than as green.
+
+Measured 2026-08-04. The block is the **environment's network policy**, applied
+upstream of the container, so no permission granted inside a session lifts it — it
+takes a policy change on the environment
+([code.claude.com/docs/en/claude-code-on-the-web](https://code.claude.com/docs/en/claude-code-on-the-web)).
+`curl -sS "$HTTPS_PROXY/__agentproxy/status"` lists recent denials as
+`connect_rejected` and is the quickest way to tell a policy denial from a genuinely
+broken host.
 
 None of this blocks the workflow in §1: everything the harness and a local Worker
 can prove is still proved locally. It only bounds the last claim.
