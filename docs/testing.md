@@ -59,6 +59,11 @@ Two traps that have already cost time:
   servers with it. The aftermath looks like a broken lobby, not like a botched
   cleanup: Chromium shows its own "Reload / Details" error page and you spend the
   next twenty minutes debugging code that never ran.
+- **A room code is four characters, and the rest is thrown away.** `codeFromLocation`
+  sanitises against the code alphabet (no `O`, `0`, `I`, `1`) and truncates, so
+  `#SIEGRA`, `#SIEGRB` and `#SIEGRC` are all the room `SIEG`. Three "fresh" codes, one
+  room, and a test that quietly picks up the players and the live round from the run
+  before. Use four legal characters and nothing more.
 - **Use a fresh room code for every run.** Codes are just names —
   `idFromName(code)` resolves to the *same* Durable Object as last time, live round
   and all. Rejoin a code from an earlier run and `start` is **silently refused**

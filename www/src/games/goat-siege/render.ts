@@ -1,4 +1,7 @@
 import { SIEGE_CABBAGES } from '../../../../shared/protocol';
+import { art } from '../../core/art/sprites';
+import { goatSprite, SPRITE_SPAN } from './art/goats';
+import cabbageUrl from './art/cabbage.svg?url&no-inline';
 import { CHOMP_MS, type SiegeGame } from './game';
 import { CABBAGE_Y, GROUND_Y } from './layout';
 
@@ -27,6 +30,13 @@ const STUMP = '#6d7f5a';
 const GOAT = '#e8e2d4';
 const GOAT_SHADE = '#c9c1ad';
 const GOAT_HORN = '#8d8172';
+
+/**
+ * The cabbage art. Created at module scope so the fetch starts when this chunk
+ * executes, before a board mounts — `at()` returns null until it lands and the
+ * procedural drawing below covers the gap (docs/design/illustrations.md §4).
+ */
+const cabbageArt = art(cabbageUrl);
 
 export type Renderer = { stop(): void };
 
@@ -57,10 +67,10 @@ export function startRenderer(
     ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const view = game.view(w, h);
-    drawGarden(ctx!, w, h, view.cabbages);
+    drawGarden(ctx!, w, h, view.cabbages, dpr);
 
     for (const f of view.incoming) {
-      drawGoat(ctx!, f.x, f.y, f.goat.kind, f.progress, calm ? 0 : ts / 1000);
+      drawGoat(ctx!, f.x, f.y, f.goat.kind, f.progress, calm ? 0 : ts / 1000, f.goat.seed, dpr);
     }
 
     for (const c of view.chomps) {
@@ -79,6 +89,7 @@ function drawGarden(
   w: number,
   h: number,
   cabbages: number,
+  dpr: number,
 ): void {
   const sky = ctx.createLinearGradient(0, 0, 0, h * GROUND_Y);
   sky.addColorStop(0, SKY_TOP);
@@ -113,7 +124,7 @@ function drawGarden(
   for (let i = 0; i < SIEGE_CABBAGES; i++) {
     const x = slot * (i + 1);
     const y = h * CABBAGE_Y;
-    if (i < cabbages) drawCabbage(ctx, x, y, slot * 0.32);
+    if (i < cabbages) drawCabbage(ctx, x, y, slot * 0.32, dpr);
     else drawStump(ctx, x, y, slot * 0.32);
   }
 }
@@ -126,15 +137,32 @@ function drawGarden(
  * something a goat would want to eat. The silhouette does the work — the leaf
  * lobes break the outline, so it still reads as a cabbage in one colour.
  */
-function drawCabbage(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+function drawCabbage(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  dpr: number,
+): void {
   ctx.save();
   ctx.translate(x, y);
 
-  // Sitting shadow, so it belongs on the soil instead of floating over it.
+  // Sitting shadow, so it belongs on the soil instead of floating over it. Stays
+  // procedural: baking it into the sprite would put alpha in the file's bounding box.
   ctx.fillStyle = 'rgb(0 0 0 / 28%)';
   ctx.beginPath();
   ctx.ellipse(0, r * 0.8, r * 0.95, r * 0.26, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  // The plant itself is a file. `null` until it loads, or forever if it 404s, and the
+  // drawing below is what covers that — a missing asset must not empty the patch.
+  const px = r * 2.4;
+  const sprite = cabbageArt.at(px, dpr);
+  if (sprite) {
+    ctx.drawImage(sprite.source, -sprite.w / 2, -sprite.h / 2, sprite.w, sprite.h);
+    ctx.restore();
+    return;
+  }
 
   // Outer leaves: five lobes around the head, wider than they are tall.
   ctx.fillStyle = CABBAGE_LEAF;
@@ -203,6 +231,8 @@ function drawGoat(
   kind: 'adult' | 'kid',
   progress: number,
   t: number,
+  seed: number,
+  dpr: number,
 ): void {
   const base = kind === 'adult' ? 26 : 16;
   const r = base * (0.55 + progress * 0.65);
@@ -211,11 +241,22 @@ function drawGoat(
   ctx.save();
   ctx.translate(x, y + bob);
 
-  // Shadow on the ground gives the arc a readable height.
+  // Shadow on the ground gives the arc a readable height. Stays procedural: its size
+  // is driven by the arc, so it is not a fixed shape and could not be a sprite.
   ctx.fillStyle = 'rgb(0 0 0 / 25%)';
   ctx.beginPath();
   ctx.ellipse(0, r * 1.8, r * 0.7, r * 0.22, 0, 0, Math.PI * 2);
   ctx.fill();
+
+  // One of the designs in art/goats, chosen by the server's seed so both phones
+  // agree and it cannot flicker between frames. Null while loading or on a 404,
+  // and everything below is the fallback.
+  const sprite = goatSprite(kind, seed)?.at(r * SPRITE_SPAN, dpr) ?? null;
+  if (sprite) {
+    ctx.drawImage(sprite.source, -sprite.w / 2, -sprite.h / 2, sprite.w, sprite.h);
+    ctx.restore();
+    return;
+  }
 
   // Body: a rounded barrel with a rump, rather than a plain ellipse. The extra
   // bulk at the back and the dip behind the shoulder are what make a four-legged

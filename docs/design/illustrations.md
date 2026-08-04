@@ -172,11 +172,14 @@ node-run test loads it. It is **not** fine for discovering cards — see §6.
 **Which variant a thing gets must be derived from server-assigned state**, never from
 `Math.random()`:
 
-- a per-frame random flickers between designs;
-- a per-client random shows the same goat differently on two phones.
+- a per-frame random strobes between designs;
+- a per-client random shows one object two ways where two people can see it.
 
-Goat Siege uses the `seed` the server already puts on every `Goat`, so both problems
-vanish with no protocol change. Hash it — `((seed * 2654435761) >>> 0) % n` — rather
+Goat Siege uses the `seed` the server already puts on every `Goat`, so both vanish with
+no protocol change — and it survives a refresh mid-flight, because the seed is part of
+the round state rather than something the client made up. (In Goat Siege itself only
+the victim ever sees a given goat, so the cross-phone half is free rather than needed.
+Cat and Mouse, where everyone watches the same floor, is where it would earn its keep.) Hash it — `((seed * 2654435761) >>> 0) % n` — rather
 than `seed % n` (seed is a counter, so that cycles the designs in visible order) and
 rather than reusing `laneFrom`'s golden-ratio step (which would make a goat's design
 predict its lane).
