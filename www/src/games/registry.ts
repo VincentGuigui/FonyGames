@@ -3,7 +3,6 @@ import { PLAYERS } from '../../../shared/players';
 // One per game. `?url&no-inline` is mandatory: without it Vite base64-inlines
 // anything under 4096 bytes straight into this chunk, which is the budget rule in
 // docs/architecture.md §4 broken silently. See docs/design/illustrations.md §2.
-import art_tap_duel from './tap-duel/art/card.svg?url&no-inline';
 import art_spill from './spill/art/card.svg?url&no-inline';
 import art_bump_relay from './bump-relay/art/card.svg?url&no-inline';
 import art_goat_siege from './goat-siege/art/card.svg?url&no-inline';
@@ -16,6 +15,7 @@ import art_ghost_tag from './ghost-tag/art/card.svg?url&no-inline';
 import art_zone_rush from './zone-rush/art/card.svg?url&no-inline';
 import art_compass_hunt from './compass-hunt/art/card.svg?url&no-inline';
 import art_scream_meter from './scream-meter/art/card.svg?url&no-inline';
+import { CARD as TAP_DUEL_CARD } from './tap-duel/card';
 import type { GameCard } from '../core/types';
 
 /**
@@ -30,29 +30,7 @@ import type { GameCard } from '../core/types';
  * without changing the spec is a bug.
  */
 export const GAMES: GameCard[] = [
-  {
-    slug: 'tap-duel',
-    title: 'Tap Duel',
-    pitch: 'The fastest thumb in the room takes the round',
-    concept: 'One signal, every screen at once. A target is waiting — hit it first.',
-    rules: [
-      'A target sits somewhere on your screen. Get a thumb ready.',
-      'The instant it lights up, tap the target.',
-      'Tap before it lights up and you lose the round.',
-    ],
-    art: { src: art_tap_duel, alt: 'A phone with an archery target on its screen' },
-    accent: '#FFC93C',
-    players: PLAYERS['tap-duel'],
-    duration: '1 min',
-    inputs: ['touch'],
-    modes: [
-      { id: 'pistol', name: 'Pistol', blurb: 'Tap on the signal — false start loses' },
-      { id: 'sprint', name: 'Sprint', blurb: 'Most taps before the buzzer' },
-      { id: 'simon', name: 'Simon', blurb: 'Repeat the sequence, faster each round' },
-    ],
-    // `beta`: pistol mode is playable; sprint and simon are not built yet.
-    status: 'beta',
-  },
+  TAP_DUEL_CARD,
   {
     slug: 'spill',
     title: 'Spill',
