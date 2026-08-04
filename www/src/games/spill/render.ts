@@ -38,7 +38,7 @@ export function startRenderer(
   const started = performance.now();
   const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  function resize(): { w: number; h: number } {
+  function resize(): { w: number; h: number; dpr: number } {
     // Cap the backing store at 2× — a 3× phone gains nothing visible here and
     // pays for every pixel of a full-screen animation.
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -49,7 +49,9 @@ export function startRenderer(
       canvas.height = Math.round(h * dpr);
     }
     ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-    return { w, h };
+    // dpr rides along because a theme drawing a sprite needs it: draw coordinates
+    // are CSS pixels, and the sprite loader rasterises in device pixels.
+    return { w, h, dpr };
   }
 
   function frame(ts: number): void {
@@ -57,8 +59,8 @@ export function startRenderer(
     if (ts - last < 1000 / MAX_FPS) return;
     last = ts;
 
-    const { w, h } = resize();
-    const d: ThemeDraw = { ctx: ctx!, w, h, t: (ts - started) / 1000, calm };
+    const { w, h, dpr } = resize();
+    const d: ThemeDraw = { ctx: ctx!, w, h, t: (ts - started) / 1000, calm, dpr };
     const view = game.view(w, h);
 
     theme.drawBackdrop(d);

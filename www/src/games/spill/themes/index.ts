@@ -19,6 +19,13 @@ export type ThemeDraw = {
   t: number;
   /** True when the player asked for less motion — flatten, do not remove. */
   calm: boolean;
+  /**
+   * Device pixel ratio the canvas is scaled by, capped at 2.
+   *
+   * Every draw coordinate here is a CSS pixel, so a theme drawing a sprite has to
+   * pass this through to `SpriteSheet.at()` — that is the only thing it is for.
+   */
+  dpr: number;
 };
 
 export type Theme = {

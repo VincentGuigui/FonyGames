@@ -1,3 +1,5 @@
+import { art } from '../../../core/art/sprites';
+import dropUrl from '../art/drop.svg?url&no-inline';
 import type { Theme, ThemeDraw } from './index';
 
 /**
@@ -14,6 +16,15 @@ import type { Theme, ThemeDraw } from './index';
 const DEEP = '#0b3a5e';
 const BODY = '#1f7fc4';
 const CREST = '#7fd4ff';
+
+/**
+ * The drop art. Owned by this theme, not by the game: a second theme brings its own
+ * file rather than recolouring this one. Created at module scope so the fetch starts
+ * with the chunk, and `at()` returns null until it lands — the drawing below is the
+ * fallback (docs/design/illustrations.md §4).
+ */
+const dropArt = art(dropUrl);
+const DROP_SPAN = 2.2;
 
 function surfaceY(x: number, w: number, top: number, t: number, calm: boolean): number {
   if (calm) return top;
@@ -75,7 +86,7 @@ export const waterTheme: Theme = {
     ctx.restore();
   },
 
-  drawProjectile({ ctx, t, calm }: ThemeDraw, x: number, y: number, size: number): void {
+  drawProjectile({ ctx, t, calm, dpr }: ThemeDraw, x: number, y: number, size: number): void {
     // Big enough to be an obvious touch target: catching one is the game's
     // riskiest move and it must not be a game of hunting for a dot.
     const r = 18 * Math.sqrt(size);
@@ -84,7 +95,17 @@ export const waterTheme: Theme = {
 
     ctx.save();
     ctx.translate(x, y);
+    // The wobble stays here rather than in the file: it is time-driven, and a sprite
+    // may be scaled but cannot change shape by itself.
     ctx.scale(1 / wobble, wobble);
+
+    const sprite = dropArt.at(r * DROP_SPAN, dpr);
+    if (sprite) {
+      ctx.drawImage(sprite.source, -sprite.w / 2, -sprite.h / 2, sprite.w, sprite.h);
+      ctx.restore();
+      return;
+    }
+
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
     ctx.fillStyle = BODY;

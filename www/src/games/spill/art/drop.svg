@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 88 88" width="88" height="88">
+  <!--
+    Spill's drop, for the water theme.
+
+    Ported from waterTheme.drawProjectile: the body, the crest outline, and the
+    highlight that makes it read as wet rather than as a dot.
+
+    Deliberately big: catching one is the game's riskiest move and it must not be a
+    game of hunting for a dot.
+
+    NOT here, and still procedural: the wobble, which is a time-driven non-uniform
+    scale applied to this whole sprite, and the splash, whose shape changes with age.
+
+    One fidelity note. The crest was a flat 2 px at every size; as a sprite it scales
+    with the drop, so a doubled drop gets a proportionally heavier outline instead of
+    the same hairline. That reads better at size 4 and is the reason it was not
+    special-cased back to 2 px.
+
+    Square and centred on the drawing origin. Declares width, height AND viewBox
+    because the sprite loader reads naturalWidth (docs/design/illustrations.md §4).
+  -->
+  <circle cx="44" cy="44" r="40" fill="#1f7fc4" stroke="#7fd4ff" stroke-width="4.44"/>
+  <circle cx="32" cy="30" r="11.2" fill="#ffffff" opacity="0.65"/>
+</svg>
