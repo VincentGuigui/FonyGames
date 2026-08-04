@@ -95,16 +95,17 @@ function folderHygiene() {
   check('shared/players.ts parsed', known.size > 0, known.size);
   const orphans = folders.filter((f) => !known.has(f));
   check('no game folder without player limits', orphans.length === 0, orphans);
-  console.log(`  --   ${withCard.length}/${folders.length} folders have a card.ts`);
+
+  // Every game in the catalogue owns a folder, `soon` ones included: that is what
+  // makes removing a game one `git rm -r` plus one line of registry.ts.
+  const missingFolder = [...known].filter((s) => !folders.includes(s)).sort();
+  check('every game in players.ts has a folder', missingFolder.length === 0, missingFolder);
+  const missingCard = folders.filter((f) => !withCard.includes(f));
+  check('every folder has a card.ts', missingCard.length === 0, missingCard);
 }
 
 function cardsAreLeaves() {
   console.log('\ncards are leaves');
-  if (withCard.length === 0) {
-    console.log('  --   no cards moved yet; this starts biting on the first one');
-    return;
-  }
-
   for (const game of withCard) {
     const rel = `games/${game}/card.ts`;
     const src = readFileSync(join(GAMES_DIR, game, 'card.ts'), 'utf8');
