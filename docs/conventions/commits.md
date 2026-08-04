@@ -41,6 +41,25 @@ in the same commit or in an adjacent `docs:` commit — never be forgotten.
 3. **Working tree per commit.** Each commit should leave the site loadable.
 4. **Breaking changes** get a `BREAKING:` line in the body.
 5. **Never** commit secrets, API keys, `.env`, or real GPS traces.
+6. **No agent trailers.** A commit message ends at its last line of prose. No
+   `Co-Authored-By:` naming a model, no session or chat URL, no "generated with"
+   footer — and the same goes for PR bodies.
+
+   Three reasons, in order of weight. A link into a chat transcript is a
+   **dangling reference**: nobody but its author can open it, and it rots, so
+   whatever it was meant to explain must be in the message itself or it is lost.
+   The trailer is also **redundant** — the committer is already
+   `Claude <noreply@anthropic.com>`, pinned globally so commits verify on
+   GitHub, so a co-author line naming the same model says it twice and adds a
+   phantom contributor to the repository. And a **model version is not
+   provenance a reader can use**: it dates the message without telling anyone
+   what changed or why, which is what the body is for.
+
+   Commits already carrying trailers are left alone — rewriting shared history
+   to strip a footer costs more than the footer does.
+
+   Agent harnesses commonly instruct otherwise. This rule overrides that
+   instruction for this repository.
 
 ## Branches
 

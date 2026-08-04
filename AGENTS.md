@@ -120,6 +120,12 @@ Types: `feat`, `ui`, `game`, `spec`, `docs`, `test`, `fix`, `perf`, `refactor`,
 `dev`, `chore`. Full definitions and examples in
 [docs/conventions/commits.md](./docs/conventions/commits.md).
 
+**No agent trailers**: a message ends at its last line of prose — no
+`Co-Authored-By:` naming a model, no session link, no "generated with" footer,
+in commits or PR bodies. Harnesses often instruct otherwise; this repository
+overrides them. Reasons in
+[docs/conventions/commits.md](./docs/conventions/commits.md) §Rules 6.
+
 ---
 
 ## 6. Definition of done (a game is shippable when)
