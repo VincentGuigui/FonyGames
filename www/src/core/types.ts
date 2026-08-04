@@ -1,3 +1,5 @@
+import type { PlayerLimits } from '../../../shared/players';
+
 /** Input a game relies on. Drives the icons on the hub card. */
 export type GameInput =
   | 'touch'
@@ -62,7 +64,11 @@ export type GameCard = {
   motif: GameMotif;
   /** Accent colour, from the game's spec. */
   accent: string;
-  players: [min: number, max: number];
+  /**
+   * From `shared/players.ts`, never written out here — the card promises a range
+   * and a referee enforces one, and while they were two literals they could drift.
+   */
+  players: PlayerLimits;
   /** Human-readable, e.g. "1–2 min". */
   duration: string;
   inputs: GameInput[];

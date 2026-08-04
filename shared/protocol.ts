@@ -1,8 +1,13 @@
+import { PLAYERS } from './players';
+
 /**
  * The wire protocol, shared verbatim by the browser and the Durable Object.
  * Envelope shape is specified in docs/multiplayer.md §4.
  *
- * This file must stay dependency-free and DOM-free — the Worker has no DOM.
+ * DOM-free — the Worker has no DOM. Its only import is `./players`, which is itself
+ * a zero-import leaf: the per-game player limits live there rather than here so a
+ * game's `card.ts` can read them without dragging the whole wire protocol into the
+ * hub's bundle (docs/design/illustrations.md §3). Nothing else may be added.
  */
 
 export type PlayerId = string;
@@ -407,8 +412,16 @@ export const BUMP_QUOTA = 6;
 export const BUMP_QUOTA_WINDOW_MS = 10_000;
 export const BUMP_MUTE_MS = 3_000;
 
-/** Bump Relay needs three players to be a game rather than a duel. */
-export const BUMP_RELAY_MIN_PLAYERS = 3;
+/**
+ * Bump Relay needs three players to be a game rather than a duel.
+ *
+ * These per-game limits are **derived from `players.ts`**, which is the one place
+ * they are written, so a card and its referee cannot promise different numbers.
+ * Indexed reads rather than `export const [MIN, MAX] = …`: a destructured export
+ * makes Rollup conservative about tree-shaking.
+ */
+export const BUMP_RELAY_MIN_PLAYERS = PLAYERS['bump-relay'][0];
+export const BUMP_RELAY_MAX_PLAYERS = PLAYERS['bump-relay'][1];
 
 /** A round is hard-capped, per the safety rules in the spec. */
 export const BUMP_ROUND_CAP_MS = 5 * 60_000;
@@ -418,8 +431,8 @@ export const BUMP_ROUND_CAP_MS = 5 * 60_000;
 /* ------------------------------------------------------------------ */
 
 /** Two is a duel; above four the ring gets too crowded to aim (spec §12). */
-export const SPILL_MIN_PLAYERS = 2;
-export const SPILL_MAX_PLAYERS = 4;
+export const SPILL_MIN_PLAYERS = PLAYERS.spill[0];
+export const SPILL_MAX_PLAYERS = PLAYERS.spill[1];
 
 /** Start half full; reach the ceiling and you are out (spec §3). */
 export const SPILL_START_LEVEL = 20;
@@ -460,8 +473,8 @@ export const SPILL_ROUND_CAP_MS = 5 * 60_000;
 /* Goat Siege (docs/specs/games/goat-siege.md)                          */
 /* ------------------------------------------------------------------ */
 
-export const SIEGE_MIN_PLAYERS = 2;
-export const SIEGE_MAX_PLAYERS = 4;
+export const SIEGE_MIN_PLAYERS = PLAYERS['goat-siege'][0];
+export const SIEGE_MAX_PLAYERS = PLAYERS['goat-siege'][1];
 
 /** All provisional until a play test — spec §3. */
 export const SIEGE_CABBAGES = 6;
@@ -478,7 +491,7 @@ export const SIEGE_ROUND_CAP_MS = 5 * 60_000;
 /* ------------------------------------------------------------------ */
 
 /** Two phones nose to nose. Not a range — the board is the join between them. */
-export const SLING_PLAYERS = 2;
+export const SLING_PLAYERS = PLAYERS['sling-puck'][0];
 
 /** Starting pucks per side. Mirrors `SLING_PUCKS` in the client physics (spec §6). */
 export const SLING_START_PUCKS = 5;

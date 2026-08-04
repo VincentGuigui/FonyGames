@@ -1,3 +1,4 @@
+import { PLAYERS } from '../../../shared/players';
 import type { GameCard } from '../core/types';
 
 /**
@@ -24,7 +25,7 @@ export const GAMES: GameCard[] = [
     ],
     motif: 'tap',
     accent: '#FFC93C',
-    players: [2, 8],
+    players: PLAYERS['tap-duel'],
     duration: '1 min',
     inputs: ['touch'],
     modes: [
@@ -47,7 +48,7 @@ export const GAMES: GameCard[] = [
     ],
     motif: 'spill',
     accent: '#38BDF8',
-    players: [2, 4],
+    players: PLAYERS['spill'],
     duration: '1–3 min',
     inputs: ['touch'],
     modes: [
@@ -69,7 +70,7 @@ export const GAMES: GameCard[] = [
     ],
     motif: 'bump',
     accent: '#FF5A36',
-    players: [3, 8],
+    players: PLAYERS['bump-relay'],
     duration: '1–2 min',
     inputs: ['motion', 'touch'],
     modes: [
@@ -92,7 +93,7 @@ export const GAMES: GameCard[] = [
     ],
     motif: 'goat',
     accent: '#4ADE80',
-    players: [2, 4],
+    players: PLAYERS['goat-siege'],
     duration: '2–3 min',
     inputs: ['touch'],
     modes: [
@@ -113,7 +114,7 @@ export const GAMES: GameCard[] = [
     ],
     motif: 'sling',
     accent: '#FB7185',
-    players: [2, 2],
+    players: PLAYERS['sling-puck'],
     duration: '30 s – 2 min',
     inputs: ['touch'],
     modes: [
@@ -135,7 +136,7 @@ export const GAMES: GameCard[] = [
     ],
     motif: 'cat',
     accent: '#C084FC',
-    players: [2, 6],
+    players: PLAYERS['cat-and-mouse'],
     duration: '60–90 s',
     inputs: ['touch'],
     modes: [
@@ -156,7 +157,7 @@ export const GAMES: GameCard[] = [
     ],
     motif: 'shake',
     accent: '#4ADE80',
-    players: [2, 8],
+    players: PLAYERS['shake-sprint'],
     duration: '1 min',
     inputs: ['motion'],
     modes: [],
@@ -173,7 +174,7 @@ export const GAMES: GameCard[] = [
     ],
     motif: 'tilt',
     accent: '#38BDF8',
-    players: [2, 6],
+    players: PLAYERS['tilt-arena'],
     duration: '2 min',
     inputs: ['orientation'],
     modes: [],
@@ -190,7 +191,7 @@ export const GAMES: GameCard[] = [
     ],
     motif: 'steady',
     accent: '#C084FC',
-    players: [2, 8],
+    players: PLAYERS['steady-hand'],
     duration: '1 min',
     inputs: ['motion'],
     modes: [],
@@ -208,7 +209,7 @@ export const GAMES: GameCard[] = [
     ],
     motif: 'ghost',
     accent: '#A3A3A3',
-    players: [3, 10],
+    players: PLAYERS['ghost-tag'],
     duration: '10 min',
     inputs: ['gps', 'motion'],
     modes: [],
@@ -225,7 +226,7 @@ export const GAMES: GameCard[] = [
     ],
     motif: 'zone',
     accent: '#FB7185',
-    players: [2, 10],
+    players: PLAYERS['zone-rush'],
     duration: '10 min',
     inputs: ['gps'],
     modes: [],
@@ -242,7 +243,7 @@ export const GAMES: GameCard[] = [
     ],
     motif: 'compass',
     accent: '#FBBF24',
-    players: [2, 10],
+    players: PLAYERS['compass-hunt'],
     duration: '10 min',
     inputs: ['compass', 'gps'],
     modes: [],
@@ -259,7 +260,7 @@ export const GAMES: GameCard[] = [
     ],
     motif: 'scream',
     accent: '#F472B6',
-    players: [2, 8],
+    players: PLAYERS['scream-meter'],
     duration: '1 min',
     inputs: ['mic'],
     modes: [],
