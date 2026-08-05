@@ -1,18 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
   <!--
-    Cat and Mouse: a mouse, hollow. Same silhouette as mouse.svg, outlined.
+    GENERATED. Do not edit.
 
-    A second file rather than a fill swapped at the draw site, because an Image cannot
-    be recoloured: the sprite is pixels by the time canvas sees it. Two files is the
-    cost of the sprite, and the pair must stay in step — the shapes here are the same
-    numbers as mouse.svg.
+    The hollow variant of mouse.svg, derived by www/src/games/outlines.mjs: every solid
+    fill became a stroke of the same colour. Edit mouse.svg and run
+    "npm run art:outlines"; a stale copy fails "npm test".
 
-    Hollow means two different things in this game, which is why it is never the only
-    cue: "not one of yours" to a mouse player, "untouchable" to the cat. Grace adds a
-    dashed ring on top, drawn procedurally (spec section 7).
-
-    The ear stays a visible shape rather than vanishing, so a hollow mouse still reads
-    as a mouse and not as a plain circle.
+    Why a file at all, when this is only a fill change: canvas draws a sprite through
+    an Image, so by the time it is on screen it is pixels, and an outline is a
+    different shape rather than a different colour (docs/design/illustrations.md).
   -->
   <path d="M 70.5 52.5 Q 93 63 82.5 81" fill="none" stroke="#f4f1e8" stroke-width="4.2" stroke-linecap="round"/>
   <ellipse cx="48" cy="48" rx="30" ry="24.6" fill="none" stroke="#f4f1e8" stroke-width="6.6"/>
