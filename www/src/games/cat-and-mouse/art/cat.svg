@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 136 136" width="136" height="136">
+  <!--
+    Cat and Mouse: the cat. Always filled, on every screen (spec section 7).
+
+    Ported from drawCat at r = 30, so R = 37.5. The two ears are the whole trick: at
+    icon size a cat and a mouse are both a blob, so the silhouette has to carry it, and
+    two triangles on top survive being 18 px on a cheap screen.
+
+    Box is 4.5r wide — wider than the mouse's, because the tail reaches 1.7R and the
+    ears 1.32R up. Centred on the drawing origin like every other sprite here.
+
+    The eyes are painted in the floor's own colour rather than cut out, so the cat is
+    looking at you instead of being a purple lozenge. That ties this file to the floor
+    colour in render.ts; both are stated in illustrations.md.
+  -->
+  <path d="M 80 44.75 L 102.5 18.5 L 103.6 55.25 Z" fill="#C084FC"/>
+  <path d="M 56 44.75 L 33.5 18.5 L 32.4 55.25 Z" fill="#C084FC"/>
+  <path d="M 99.9 79.25 Q 131.75 90.5 118.6 51.1" fill="none" stroke="#C084FC" stroke-width="7.5" stroke-linecap="round"/>
+  <ellipse cx="68" cy="68" rx="37.5" ry="33.75" fill="#C084FC"/>
+  <circle cx="80.75" cy="63.5" r="6" fill="#151622"/>
+  <circle cx="55.25" cy="63.5" r="6" fill="#151622"/>
+</svg>

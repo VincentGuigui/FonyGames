@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96">
+  <!--
+    Cat and Mouse: a mouse, filled.
+
+    Ported from drawMouse at r = 30: body, one ear, and a tail. The tail and the ear
+    are what make it read as a mouse rather than a dot at 20 px, which is the size it
+    actually gets on a phone.
+
+    Square and centred on the drawing origin so render.ts blits it with no offset
+    arithmetic. The box is 3.2r wide because the tail reaches 1.57r to the right; the
+    slack on the left is deliberate, since the origin is the body centre and that is
+    what the game positions.
+
+    Declares width, height AND viewBox: the sprite loader reads naturalWidth to know
+    it decoded (docs/design/illustrations.md §4).
+
+    Literal hexes, no currentColor and no var(): canvas draws this through an Image,
+    which cannot see the page's CSS.
+
+    The rings are NOT here. The grace ring rotates on a clock and the own-icon ring
+    depends on who is looking, so both are state-driven and stay procedural.
+  -->
+  <path d="M 70.5 52.5 Q 93 63 82.5 81" fill="none" stroke="#f4f1e8" stroke-width="4.2" stroke-linecap="round"/>
+  <ellipse cx="48" cy="48" rx="30" ry="24.6" fill="#f4f1e8"/>
+  <circle cx="34.5" cy="30" r="12.6" fill="#f4f1e8"/>
+</svg>

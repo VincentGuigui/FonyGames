@@ -134,7 +134,20 @@ rasterises it to a `<canvas>` once per size bucket, and hands back something
 | goat-siege | goats, kids, cabbage, stump | sky, ground, fence, the chomp burst, the arc-driven shadow, the empty-slot ring |
 | sling-puck | the puck | felt, **the walls and the gap**, the band's V, the aim dashes, the arrival glow |
 | spill | the drop | the pool (two summed sines on level and tilt), the splash (age-driven) |
+| cat-and-mouse | the cat, the mouse (filled **and** hollow) | the floor and its grid, the grace ring (turns on a clock), the own-icon ring (depends who is looking) |
 | tap-duel | — | no canvas; the bullseye is CSS |
+
+**A fill variant is a second file, not a runtime recolour.** Cat and Mouse needs a
+mouse both filled and hollow (its §7), and by the time canvas sees a sprite it is
+pixels — pixels cannot be tinted the way a `fill` attribute can. So `mouse.svg` and
+`mouse-hollow.svg` are the same silhouette twice and **have to stay in step**; the
+numbers in one are the numbers in the other. That is the honest cost of the sprite,
+and it is the reason to keep variants few: one more state would be one more file.
+
+Where a sprite hardcodes a colour that also lives in a `render.ts` — Cat and Mouse's
+cat has eyes painted in the floor's own colour — **say so in both**. Neither file can
+see the other, and nothing will fail if they drift apart; the cat just stops looking
+at you.
 
 **The sling-puck walls and gap must never be sprites.** `layout.ts` has the wall's
 inner face landing exactly where the physics stops a puck, and `GAP_LEFT`/`GAP_RIGHT`

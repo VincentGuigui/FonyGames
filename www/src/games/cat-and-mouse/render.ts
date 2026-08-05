@@ -1,4 +1,8 @@
 import { CM_BOARD_H, CM_CATCH_RADIUS } from '../../../../shared/protocol';
+import { art } from '../../core/art/sprites';
+import catUrl from './art/cat.svg?url&no-inline';
+import mouseUrl from './art/mouse.svg?url&no-inline';
+import mouseHollowUrl from './art/mouse-hollow.svg?url&no-inline';
 import type { CatMouseGame, Drawable } from './game';
 import { fit, toScreen, type Floor } from './layout';
 
@@ -30,10 +34,39 @@ import { fit, toScreen, type Floor } from './layout';
  * Accessibility (§12): no strobing. A catch is not a flash — the ring around a
  * mouse in grace rotates slowly, and `prefers-reduced-motion` makes it static
  * dashes instead. Nothing here blinks.
+ *
+ * ## What is a file and what is not
+ *
+ * The cat and the mouse are `art/*.svg`, per the split rule in
+ * design/illustrations.md §4: an icon that is only ever *translated* is a sprite. The
+ * rings are not, and cannot be — the grace ring turns on a clock and the own-icon ring
+ * depends on who is looking, so both are state-driven and drawn here.
+ *
+ * Hollow is a **second file**, not a fill swapped at the draw site: by the time canvas
+ * sees a sprite it is pixels, and pixels cannot be recoloured. That is the real cost of
+ * the sprite, and the two files have to stay in step.
+ *
+ * The procedural cat and mouse below stay as the fallback. `at()` returns null while a
+ * file loads and forever if it 404s, so a missing sprite degrades to the drawn version
+ * instead of an empty floor (AGENTS.md §4) — and it makes the whole sprite step
+ * revertible in one commit.
  */
 
 const MAX_FPS = 60;
 
+/*
+ * Loaded at module scope, so the fetch starts when this chunk executes — before the
+ * board mounts. Spans are in units of the icon radius: the box each file draws inside,
+ * centred on the origin, so a blit needs no offset arithmetic. The cat's is wider
+ * because its tail reaches 1.7R and its ears 1.32R up.
+ */
+const catArt = art(catUrl);
+const mouseArt = art(mouseUrl);
+const mouseHollowArt = art(mouseHollowUrl);
+const CAT_SPAN = 4.5;
+const MOUSE_SPAN = 3.2;
+
+/** Also hardcoded in art/cat.svg, for the cat's eyes. The two must agree. */
 const FLOOR = '#151622';
 const FLOOR_EDGE = '#0c0d15';
 const GRID = 'rgb(192 132 252 / 7%)';
@@ -86,8 +119,8 @@ export function startRenderer(
 
     // The cat last, so it is never hidden under a mouse it is chasing. Which of
     // the two is on top matters: the cat is the thing you are watching.
-    for (const a of view) if (!a.isCat) drawActor(ctx!, floor, a, iAmCat, t, ts, calm);
-    for (const a of view) if (a.isCat) drawActor(ctx!, floor, a, iAmCat, t, ts, calm);
+    for (const a of view) if (!a.isCat) drawActor(ctx!, floor, a, iAmCat, t, ts, calm, dpr);
+    for (const a of view) if (a.isCat) drawActor(ctx!, floor, a, iAmCat, t, ts, calm, dpr);
   }
 
   raf = requestAnimationFrame(frame);
@@ -140,6 +173,7 @@ function drawActor(
   serverNow: number,
   ts: number,
   calm: boolean,
+  dpr: number,
 ): void {
   const p = toScreen(f, a.x, a.y);
   const r = ICON_R * f.scale;
@@ -148,7 +182,11 @@ function drawActor(
   // §7's table, in one expression. The cat is never hollow on any screen.
   const filled = a.isCat || a.isMe || (iAmCat && !inGrace);
 
-  if (a.isCat) drawCat(ctx, p.x, p.y, r);
+  const sheet = a.isCat ? catArt : filled ? mouseArt : mouseHollowArt;
+  const span = (a.isCat ? CAT_SPAN : MOUSE_SPAN) * r;
+  const sp = sheet.at(span, dpr);
+  if (sp) ctx.drawImage(sp.source, p.x - sp.w / 2, p.y - sp.h / 2, sp.w, sp.h);
+  else if (a.isCat) drawCat(ctx, p.x, p.y, r);
   else drawMouse(ctx, p.x, p.y, r, filled);
 
   // Grace: hollow plus a ring, because hollow alone already means "not yours" to
@@ -182,10 +220,10 @@ function drawActor(
 /**
  * A mouse: a body, a snout, a tail and one ear.
  *
- * Drawn rather than a sprite because the silhouette has to differ from the cat's
- * by **shape** at icon size, and that is a thing to tune with numbers. It is a
- * candidate for `art/` later — the split rule in design/illustrations.md §4 allows
- * it, since nothing about a mouse is state-driven except its position.
+ * **The fallback**, not the normal path: `art/mouse.svg` and `art/mouse-hollow.svg`
+ * are ports of these exact numbers and are what actually draws. This stays so a
+ * missing or slow file degrades to a playable floor rather than an empty one, and so
+ * the sprite step is revertible.
  */
 function drawMouse(
   ctx: CanvasRenderingContext2D,
@@ -229,6 +267,8 @@ function drawMouse(
  * Ears are the tell. At icon size a cat and a mouse are both a blob, so the
  * silhouette has to carry it — two triangles on top read as "cat" instantly and
  * survive being 18 px on a cheap screen.
+ *
+ * The fallback for `art/cat.svg`, same as `drawMouse` above.
  */
 function drawCat(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
   ctx.save();
