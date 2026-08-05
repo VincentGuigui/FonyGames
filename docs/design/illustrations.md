@@ -131,7 +131,7 @@ rasterises it to a `<canvas>` once per size bucket, and hands back something
 
 | Game | Sprite | Stays procedural |
 | --- | --- | --- |
-| goat-siege | goats, kids, cabbage, stump | sky, ground, fence, the chomp burst, the arc-driven shadow, the empty-slot ring |
+| goat-siege | goats (three designs, one set for adults and kids), cabbage, stump | sky, ground, fence, the chomp burst, the arc-driven shadow, the empty-slot ring |
 | sling-puck | the puck | felt, **the walls and the gap**, the band's V, the aim dashes, the arrival glow |
 | spill | the drop | the pool (two summed sines on level and tilt), the splash (age-driven) |
 | cat-and-mouse | the cat, the mouse (filled **and** hollow) | the floor and its grid, the grace ring (turns on a clock), the own-icon ring (depends who is looking) |
@@ -207,7 +207,7 @@ Requirements on a sprite file:
 ### Variants: several designs for one thing
 
 Where a thing has interchangeable designs (Goat Siege's goats), the folder is the
-list. `art/goats.ts` globs it, so **dropping in `goat-03.svg` is the whole job**:
+list. `art/goats.ts` globs it, so **dropping in `goat-04.svg` is the whole job**:
 
 ```ts
 const adults = import.meta.glob('./goats/*.svg', {
@@ -217,6 +217,13 @@ export const ADULT_URLS = Object.keys(adults).sort().map((k) => adults[k]!);
 ```
 
 Sorted, so a file's index is stable across builds.
+
+**One set can serve two sizes.** Goat Siege's kids share the adults' folder: a kid is an
+adult drawing blitted at `base` 16 against 26, so a second folder bought nothing but a
+second thing to maintain. A kid also derives its design from **its parent's** seed rather
+than its own — `parent.seed * 31 + i` divides back — so a split reads as one goat becoming
+two rather than three unrelated goats. The cost is on the record in goat-siege.md §12: the
+two roles are now told apart by size alone.
 
 `import.meta.glob` is fine here because only `render.ts` imports this module and no
 node-run test loads it. It is **not** fine for discovering cards — see §6.

@@ -1,30 +1,32 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" data-outline="6.6">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" data-outline="6.2">
   <!--
     Cat and Mouse: a mouse, filled.
 
-    Ported from drawMouse at r = 30: body, one ear, and a tail. The tail and the ear
-    are what make it read as a mouse rather than a dot at 20 px, which is the size it
-    actually gets on a phone.
+    Sitting up on its haunches, two big ears, tail curling behind. Vertical, so it can
+    never be taken for the cat's horizontal mass, and four shapes none of which overlaps
+    another.
 
-    Square and centred on the drawing origin so render.ts blits it with no offset
-    arithmetic. The box is 3.2r wide because the tail reaches 1.57r to the right; the
-    slack on the left is deliberate, since the origin is the body centre and that is
-    what the game positions.
+    The ears are **pointed leaves, not circles**, and that is a consequence of the hollow
+    variant rather than a taste. A stroked circle is a ring, so round ears hollowed into
+    two rings that read as goggle eyes and the whole mouse became a face. A stroked leaf
+    is still a leaf. Anything drawn here has to survive being outlined.
 
-    Declares width, height AND viewBox: the sprite loader reads naturalWidth to know
-    it decoded (docs/design/illustrations.md §4).
+    That last point is not tidiness. mouse-hollow.svg is GENERATED from this file by
+    www/src/games/outlines.mjs, which turns every solid fill into a stroke of the same
+    colour. Overlapping fills hollow into a tangle of rings; separate shapes stay
+    legible. Redraw here only, then run "npm run art:outlines".
 
-    Literal hexes, no currentColor and no var(): canvas draws this through an Image,
-    which cannot see the page's CSS.
+    The tail is already a stroke, so the generator leaves it exactly as it is in both
+    versions.
 
-    The rings are NOT here. The grace ring rotates on a clock and the own-icon ring
-    depends on who is looking, so both are state-driven and stay procedural.
+    It fills less of its box than the drawing it replaced (66 per cent wide against 74),
+    so MOUSE_SPAN in render.ts was raised to keep the mouse the same size on screen.
 
-    data-outline is the opt in for the hollow twin: mouse-hollow.svg is GENERATED from
-    this file by www/src/games/outlines.mjs, which turns every solid fill into a stroke
-    of that width. Redraw here only. The tail is already a stroke and is left alone.
+    The rings are NOT here. The grace ring turns on a clock and the own-icon ring depends
+    on who is looking, so both are state driven and stay procedural.
   -->
-  <path d="M 70.5 52.5 Q 93 63 82.5 81" fill="none" stroke="#f4f1e8" stroke-width="4.2" stroke-linecap="round"/>
-  <ellipse cx="48" cy="48" rx="30" ry="24.6" fill="#f4f1e8"/>
-  <circle cx="34.5" cy="30" r="12.6" fill="#f4f1e8"/>
+  <path d="M62 76 Q82 82 84 66" fill="none" stroke="#f4f1e8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M30 82 Q26 50 40 38 Q52 28 62 38 Q76 50 70 82 Z" fill="#f4f1e8"/>
+  <path d="M40 38 Q27 31 27 13 Q42 19 47 33 Z" fill="#f4f1e8"/>
+  <path d="M56 37 Q69 29 71 12 Q56 18 51 32 Z" fill="#f4f1e8"/>
 </svg>

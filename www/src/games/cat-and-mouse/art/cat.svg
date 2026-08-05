@@ -2,21 +2,26 @@
   <!--
     Cat and Mouse: the cat. Always filled, on every screen (spec section 7).
 
-    Ported from drawCat at r = 30, so R = 37.5. The two ears are the whole trick: at
-    icon size a cat and a mouse are both a blob, so the silhouette has to carry it, and
-    two triangles on top survive being 18 px on a cheap screen.
+    Upright and sitting, with tall thin ears, whiskers and an S tail. The ears and the
+    whiskers are the tell: at icon size a cat and a mouse are both a blob, so the
+    silhouette has to carry it, and this profile survives being small on a cheap screen.
 
-    Box is 4.5r wide — wider than the mouse's, because the tail reaches 1.7R and the
-    ears 1.32R up. Centred on the drawing origin like every other sprite here.
+    It fills more of its box than the drawing it replaced (76 per cent wide against 71),
+    so CAT_SPAN in render.ts was reduced to keep the cat the same size on screen. The
+    drawn size has to stay honest against CM_CATCH_RADIUS or players misjudge the reach.
 
     The eyes are painted in the floor's own colour rather than cut out, so the cat is
     looking at you instead of being a purple lozenge. That ties this file to the floor
-    colour in render.ts; both are stated in illustrations.md.
+    colour in render.ts, and both say so.
   -->
-  <path d="M 80 44.75 L 102.5 18.5 L 103.6 55.25 Z" fill="#C084FC"/>
-  <path d="M 56 44.75 L 33.5 18.5 L 32.4 55.25 Z" fill="#C084FC"/>
-  <path d="M 99.9 79.25 Q 131.75 90.5 118.6 51.1" fill="none" stroke="#C084FC" stroke-width="7.5" stroke-linecap="round"/>
-  <ellipse cx="68" cy="68" rx="37.5" ry="33.75" fill="#C084FC"/>
-  <circle cx="80.75" cy="63.5" r="6" fill="#151622"/>
-  <circle cx="55.25" cy="63.5" r="6" fill="#151622"/>
+  <path d="M46 44 L44 8 L62 36 Z" fill="#C084FC"/>
+  <path d="M92 44 L94 8 L76 36 Z" fill="#C084FC"/>
+  <path d="M44 106 Q38 70 54 54 Q68 42 84 54 Q100 70 94 106 Z" fill="#C084FC"/>
+  <ellipse cx="69" cy="52" rx="26" ry="22" fill="#C084FC"/>
+  <path d="M94 96 Q120 96 118 74 Q116 58 100 58" fill="none" stroke="#C084FC" stroke-width="9" stroke-linecap="round"/>
+  <g fill="#151622"><circle cx="58" cy="48" r="3.6"/><circle cx="80" cy="48" r="3.6"/></g>
+  <g fill="none" stroke="#C084FC" stroke-width="2.6" stroke-linecap="round">
+    <path d="M44 58 L22 54"/><path d="M44 62 L23 64"/>
+    <path d="M94 58 L116 54"/><path d="M94 62 L115 64"/>
+  </g>
 </svg>

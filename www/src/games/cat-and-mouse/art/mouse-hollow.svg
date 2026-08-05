@@ -10,7 +10,8 @@
     an Image, so by the time it is on screen it is pixels, and an outline is a
     different shape rather than a different colour (docs/design/illustrations.md).
   -->
-  <path d="M 70.5 52.5 Q 93 63 82.5 81" fill="none" stroke="#f4f1e8" stroke-width="4.2" stroke-linecap="round"/>
-  <ellipse cx="48" cy="48" rx="30" ry="24.6" fill="none" stroke="#f4f1e8" stroke-width="6.6"/>
-  <circle cx="34.5" cy="30" r="12.6" fill="none" stroke="#f4f1e8" stroke-width="6.6"/>
+  <path d="M62 76 Q82 82 84 66" fill="none" stroke="#f4f1e8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M30 82 Q26 50 40 38 Q52 28 62 38 Q76 50 70 82 Z" fill="none" stroke="#f4f1e8" stroke-width="6.2"/>
+  <path d="M40 38 Q27 31 27 13 Q42 19 47 33 Z" fill="none" stroke="#f4f1e8" stroke-width="6.2"/>
+  <path d="M56 37 Q69 29 71 12 Q56 18 51 32 Z" fill="none" stroke="#f4f1e8" stroke-width="6.2"/>
 </svg>

@@ -63,8 +63,15 @@ const MAX_FPS = 60;
 const catArt = art(catUrl);
 const mouseArt = art(mouseUrl);
 const mouseHollowArt = art(mouseHollowUrl);
-const CAT_SPAN = 4.5;
-const MOUSE_SPAN = 3.2;
+/*
+ * Tuned from the measured box fill of each file, not by eye: the blit maps the whole box
+ * to SPAN * r, so a drawing that fills more of its box comes out bigger on screen. The
+ * cat's art fills 76 per cent of its width and the mouse's 66, against 71 and 74 for the
+ * drawings they replaced — hence one span down and one up. Redraw either and re-measure,
+ * or the cat quietly grows against CM_CATCH_RADIUS and players misjudge its reach.
+ */
+const CAT_SPAN = 4.2;
+const MOUSE_SPAN = 3.55;
 
 /** Also hardcoded in art/cat.svg, for the cat's eyes. The two must agree. */
 const FLOOR = '#151622';

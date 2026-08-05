@@ -173,8 +173,13 @@ outlives the room ([../../database.md](../../database.md) §1).
 - Tapping small moving targets is the core skill, and that **excludes people**.
   A `calm` mode with slower flight and larger goats belongs in the first
   iteration, not a later one.
-- Goats must be distinguishable by **silhouette**, not colour — adult and kid
-  have clearly different shapes and sizes.
+- Goats must be distinguishable **by shape and size, never by colour.** Adult and kid
+  now share the same set of drawings (2026-08-05, maintainer's call) and are told apart
+  by **size alone**: `render.ts` blits a kid at `base` 16 against the adult's 26, a 1.6x
+  difference. That is legible and it is colour-independent, but it is a narrower promise
+  than the two cues this line used to make — worth watching in the play test, because a
+  kid is the one that does *not* split when you tap it, so mistaking one costs a tap.
+  A kid does inherit its parent's design, so a split reads as one goat becoming two.
 - Cabbage count is always a number, never only a row of icons.
 - No strobing. A chomp is one animation, not a flash.
 
