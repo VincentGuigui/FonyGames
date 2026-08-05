@@ -69,6 +69,13 @@ Two traps that have already cost time:
   characters, and no longer validates — so every tab lands on "This room doesn't
   exist" instead of a room. Nine tabs, nine failures, and it reads like a broken join
   gate. Both traps come from the same line of `normaliseRoomCode`.
+
+  **The worst version of this is a test that passes.** Checking that a disabled game
+  cannot open a room, with the code `GTA1`: the `1` is stripped, the code fails
+  `isRoomCode`, the Worker answers `400`, and the assertion "the socket was refused"
+  is satisfied by the wrong cause. The same run reported the in-flight rule *broken*
+  for the same reason. A negative assertion about a refusal has to pin the reason, or
+  a legal code has to be used — `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, four of them.
 - **Use a fresh room code for every run.** Codes are just names —
   `idFromName(code)` resolves to the *same* Durable Object as last time, live round
   and all. Rejoin a code from an earlier run and `start` is **silently refused**

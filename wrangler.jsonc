@@ -12,13 +12,22 @@
   // Durable Object bindings. `idFromName(roomCode)` routes every player with
   // the same code to the same object — see docs/realtime-server.md.
   "durable_objects": {
-    "bindings": [{ "name": "ROOM", "class_name": "Room" }]
+    "bindings": [
+      { "name": "ROOM", "class_name": "Room" },
+      { "name": "FLAGS", "class_name": "FlagsObject" }
+    ]
   },
 
   // IRREVERSIBLE. The Workers Free plan only supports SQLite-backed Durable
   // Objects, and Cloudflare rejects switching the backend on an already
   // deployed class. `new_sqlite_classes` must be right on the first deploy.
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
+  // Additive: a later tag may introduce a class, and only the BACKEND choice per
+  // class is irreversible. FlagsObject is SQLite-backed for the same reason Room is
+  // — it is the only kind the free plan offers.
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Room"] },
+    { "tag": "v2", "new_sqlite_classes": ["FlagsObject"] }
+  ],
 
   "vars": {
     // Overridden per environment below. Local dev only.
@@ -36,7 +45,10 @@
     "dev": {
       "name": "fonygames-worker-dev",
       "durable_objects": {
-        "bindings": [{ "name": "ROOM", "class_name": "Room" }]
+        "bindings": [
+      { "name": "ROOM", "class_name": "Room" },
+      { "name": "FLAGS", "class_name": "FlagsObject" }
+    ]
       },
       "vars": {
         // The dev Worker also serves local development, so localhost is
@@ -48,7 +60,10 @@
       // Reuses the Worker created in the dashboard, so nothing is orphaned.
       "name": "fonygames-worker",
       "durable_objects": {
-        "bindings": [{ "name": "ROOM", "class_name": "Room" }]
+        "bindings": [
+      { "name": "ROOM", "class_name": "Room" },
+      { "name": "FLAGS", "class_name": "FlagsObject" }
+    ]
       },
       "vars": {
         "ALLOWED_ORIGINS": "https://fonygames.guigui.fr"
