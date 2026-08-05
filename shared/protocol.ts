@@ -45,8 +45,14 @@ export type ClientMessage =
   | { t: 'set-profile'; d: { name?: string; avatar?: string } }
   /** Round-trip used to estimate the client's offset from server time. */
   | { t: 'ping'; d: { at: number } }
-  /** Host only. Begins a duel. */
-  | { t: 'start'; d: { mode: string } }
+  /**
+   * Host only. Begins a round. `mode` selects the game.
+   *
+   * `drag` is Cat and Mouse's drag mode and is **orthogonal to `mode`** — it is a
+   * host setting, not a game mode, and `hoard` or `blackout` would each want the
+   * same choice (cat-and-mouse.md §6). Ignored by every other game.
+   */
+  | { t: 'start'; d: { mode: string; drag?: 'direct' | 'capped' } }
   /** Finger down, at the client's clock-corrected server time. */
   | { t: 'tap'; d: { at: number; roundId: number } }
   /** This phone felt a knock. The SERVER pairs two of these into a contact. */
@@ -71,7 +77,20 @@ export type ClientMessage =
    * server rotates it for the receiver, so no client needs to know which way
    * round the other phone is lying (spec §5).
    */
-  | { t: 'cross'; d: { roundId: number; x: number; vx: number; vy: number } };
+  | { t: 'cross'; d: { roundId: number; x: number; vx: number; vy: number } }
+  /**
+   * Cat and Mouse: where my icon is **now**, in board units (spec §5).
+   *
+   * The only input this game has, and it is the same message in both drag modes:
+   * the client moves its own icon and reports the result, so `capped`'s walk and
+   * `direct`'s finger-tracking are one wire format. The server clamps to the
+   * floor and, in `capped`, truncates anything faster than the speed it knows
+   * about (spec §9).
+   *
+   * Sent only while a finger is down. A still icon sends nothing, which is what
+   * keeps the traffic near the floor rather than the worst case (spec §4).
+   */
+  | { t: 'move'; d: { roundId: number; x: number; y: number } };
 
 /* ------------------------------------------------------------------ */
 /* server -> client                                                     */
@@ -179,6 +198,42 @@ export type SlingState = {
   /** Exactly two, in seat order. */
   players: PlayerId[];
   pucks: Record<PlayerId, number>;
+  phase: 'running' | 'done';
+};
+
+/**
+ * Cat and Mouse: one player on the floor.
+ *
+ * Position is in the isotropic board units of spec §5 — `x` 0..1, `y`
+ * 0..`1 / CM_BOARD_ASPECT` — so every phone agrees where everyone is regardless
+ * of its own shape.
+ */
+export type CatMouseActor = {
+  playerId: PlayerId;
+  x: number;
+  y: number;
+  /** Mice only. The cat has no lives; it cannot be caught. */
+  lives: number;
+  /**
+   * Server time this mouse becomes catchable again, or 0.
+   *
+   * Sent rather than derived because the client draws the untouchable outline
+   * from it (spec §7) and the server is the only thing that knows the deadline.
+   */
+  graceUntil: number;
+  out: boolean;
+};
+
+export type CatMouseState = {
+  roundId: number;
+  /** Server time play begins. The rules panel owns the window before it. */
+  startsAt: number;
+  /** Whose turn it is to be the cat. Exactly one per round. */
+  catId: PlayerId;
+  /** Host's choice, echoed so every client renders and predicts the same game. */
+  drag: 'direct' | 'capped';
+  actors: CatMouseActor[];
+  endsAt: number;
   phase: 'running' | 'done';
 };
 
@@ -300,6 +355,53 @@ export type ServerMessage =
       t: 'sling-over';
       s: number;
       d: { roundId: number; winnerId: PlayerId | null; pucks: Record<PlayerId, number> };
+    }
+  /** Cat and Mouse: full state. Sent at round start and after any resync. */
+  | { t: 'cm'; s: number; d: CatMouseState }
+  /**
+   * Cat and Mouse: one tick of positions (spec §4).
+   *
+   * Deliberately not the whole state — this goes out `CM_TICK_HZ` times a second
+   * and lives and grace change only on a catch. `at` is the server time the tick
+   * was taken, so clients interpolate against a real instant rather than against
+   * their own arrival time.
+   *
+   * `pos` is keyed by player id, each `[x, y]` — a tuple rather than an object
+   * because this is the one message whose size is multiplied by the tick rate.
+   */
+  | {
+      t: 'cm-frame';
+      s: number;
+      d: { roundId: number; at: number; pos: Record<PlayerId, [number, number]> };
+    }
+  /** Cat and Mouse: the cat touched a mouse. Only the server decides this (spec §9). */
+  | {
+      t: 'cm-catch';
+      s: number;
+      d: {
+        roundId: number;
+        victim: PlayerId;
+        lives: number;
+        /** Server time the victim is catchable again. */
+        graceUntil: number;
+        out: boolean;
+        /** Where the victim reappears — the centre of the floor (spec §6). */
+        x: number;
+        y: number;
+      };
+    }
+  /** Cat and Mouse: round over. `catWins` when every mouse ran out of lives. */
+  | {
+      t: 'cm-over';
+      s: number;
+      d: {
+        roundId: number;
+        catWins: boolean;
+        /** Mice still alive at the end. Empty when the cat won. */
+        survivors: PlayerId[];
+        /** How long the mice lasted, in ms — what the result screen shows. */
+        lastedMs: number;
+      };
     }
   | { t: 'error'; d: { code: ErrorCode; message: string } };
 
@@ -522,6 +624,78 @@ export const SLING_SPEED_MAX = 2.5;
 /** A round is capped like every other, so a stalemate cannot run forever. */
 export const SLING_ROUND_CAP_MS = 3 * 60_000;
 
+/* ------------------------------------------------------------------ */
+/* Cat and Mouse (docs/specs/games/cat-and-mouse.md)                    */
+/* ------------------------------------------------------------------ */
+
+export const CM_MIN_PLAYERS = PLAYERS['cat-and-mouse'][0];
+export const CM_MAX_PLAYERS = PLAYERS['cat-and-mouse'][1];
+
+/**
+ * Floor width ÷ height. Portrait, because the phone is (spec §5).
+ *
+ * The floor is letterboxed into whatever screen it lands on, so this number —
+ * not the screen's own ratio — is what makes a diagonal run straight on every
+ * phone.
+ */
+export const CM_BOARD_ASPECT = 0.75;
+
+/** Bottom edge in board units. `x` is 0..1; `y` is 0..this. */
+export const CM_BOARD_H = 1 / CM_BOARD_ASPECT;
+
+/**
+ * Broadcast rate. One frame per tick regardless of how many fingers are moving,
+ * which is what bounds the cost of the catalogue's first position-streaming game
+ * (spec §4). Clients interpolate, so this is not the frame rate they see.
+ */
+export const CM_TICK_HZ = 15;
+export const CM_TICK_MS = Math.round(1000 / CM_TICK_HZ);
+
+/*
+ * The tunables below are all provisional until a play test — spec §13. The two
+ * that matter most are CM_CAT_COOLDOWN_MS (does it kill scribbling without making
+ * the cat feel broken?) and CM_LIVES against CM_ROUND_CAP_MS, which may want
+ * different values per drag mode.
+ */
+
+/** How near your own icon a touch counts as grabbing it, in board widths. */
+export const CM_GRAB_SLOP = 0.09;
+
+/** `capped` only. Board widths per second. */
+export const CM_MOUSE_SPEED = 0.55;
+
+/**
+ * The cat's speed as a multiple of a mouse's.
+ *
+ * One base speed and a factor, rather than an absolute per role: the asymmetry
+ * is the interesting number, and a single factor cannot drift out of step with
+ * itself the way two absolutes can (spec §6).
+ */
+export const CM_CAT_SPEED_FACTOR = 1.2;
+
+/** How close counts as a touch, in board widths. */
+export const CM_CATCH_RADIUS = 0.055;
+
+/** The anti-scribble lever. Applies to both drag modes (spec §6). */
+export const CM_CAT_COOLDOWN_MS = 1_200;
+
+/** A fresh mouse cannot be caught for this long, and can move the whole time. */
+export const CM_GRACE_MS = 2_000;
+
+export const CM_LIVES = 3;
+
+export const CM_ROUND_CAP_MS = 75_000;
+
+/**
+ * `direct` only, and it is not a fairness rule.
+ *
+ * `direct` has no speed to clamp to — a real flick crosses the board in about
+ * 150 ms, so a teleport and a fast thumb are indistinguishable (spec §9). This
+ * sits far above any human flick: it never touches real play, and it stops a
+ * client that simply writes coordinates.
+ */
+export const CM_SANITY_SPEED = 5;
+
 const CLIENT_TYPES = new Set([
   'join',
   'set-profile',
@@ -535,6 +709,7 @@ const CLIENT_TYPES = new Set([
   'lob',
   'shoo',
   'cross',
+  'move',
 ]);
 
 export function isClientMessage(value: unknown): value is ClientMessage {
