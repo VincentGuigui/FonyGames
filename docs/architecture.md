@@ -84,6 +84,9 @@ shared/                 wire protocol, imported by BOTH www/ and worker/
   protocol.ts           message envelope and types
   players.ts            per-game player limits — a leaf, imported by every card
   names.ts              silly player names + avatars
+  spillGeometry.ts      } game maths both sides must agree on
+  goatSplit.ts          }
+  catMouse.ts           }
 worker/                 the room server (docs/realtime-server.md)
   index.ts              router: origin check, code check, idFromName
   Room.ts               the Durable Object — one per room
@@ -91,6 +94,7 @@ worker/                 the room server (docs/realtime-server.md)
   spill.ts              } one referee per game, same Ctx shape, each with a
   goatSiege.ts          } .test.ts beside it (docs/testing.md §1.1)
   slingPuck.ts          }
+  catMouse.ts           }
 wrangler.jsonc          Worker config + the irreversible SQLite migration
 dist/                   build output — generated, gitignored, deployed
 ```
@@ -103,7 +107,11 @@ dist/                   build output — generated, gitignored, deployed
   shared because the server refereeing them has to compute the same answer. Sling
   Puck's physics is *not*, and deliberately: each phone simulates its own half of
   the board and nobody else can see it, so there is no second copy to agree with
-  ([specs/games/sling-puck.md](specs/games/sling-puck.md) §4).
+  ([specs/games/sling-puck.md](specs/games/sling-puck.md) §4). Cat and Mouse is the
+  in-between case and shows what the rule is really for: the client moves an icon
+  and the server rules on whether that move was legal, so the *speed limit* is
+  shared while the walking that obeys it is not
+  ([specs/games/cat-and-mouse.md](specs/games/cat-and-mouse.md) §9).
 - **Every game has a folder, built or not.** A `soon` game's folder holds only
   `card.ts` and `art/card.svg`, so removing a game is one `git rm -r` plus one
   line out of `registry.ts`.

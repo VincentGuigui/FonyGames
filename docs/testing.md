@@ -101,6 +101,20 @@ Two traps that have already cost time:
   bare `getBoundingClientRect()` centre cannot tell a stale animation from a
   different viewport.
 
+- **Dispatch the first `mouseMoved` a beat after `mousePressed`, not in the same
+  instant.** Sent together, the move can arrive before the page has handled
+  `pointerdown` — so nothing has grabbed yet and the move is dropped. With a single
+  move per gesture that is the whole gesture gone, and it reads as the feature being
+  broken: Cat and Mouse's `direct` drag measured **0 px of travel** this way while
+  working perfectly in a test that happened to send twenty small moves. 80 ms is
+  plenty.
+- **Locate canvas-drawn things by sampling pixels, and cluster carefully.** There is
+  no DOM to query, so `getImageData` plus a colour window is the only handle. Two
+  traps: an icon drawn from more than one shape yields **more blobs than there are
+  objects** (a mouse's body and its ear clustered as two mice), and anything on a
+  timer must be sampled *while it is on screen* — a 2 s grace ring probed after a 2.4 s
+  hold is long gone, which looks exactly like a ring that never drew.
+
 For browser-level checks, Chromium is preinstalled but Playwright is not, and
 headless Chrome **ignores `--window-size`** — it renders at 500px and crops,
 which looks exactly like a CSS overflow bug. Drive it over CDP and set

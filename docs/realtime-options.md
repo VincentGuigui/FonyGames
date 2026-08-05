@@ -20,13 +20,20 @@ Assume a 6-player room, a 2-minute round, and the transmit caps already set in
 
 | | **Profile A — event games** | **Profile B — streaming games** |
 | --- | --- | --- |
-| Examples | Bump Relay, Tap Duel, Scream Meter | Tilt Arena, Shake Sprint |
+| Examples | Bump Relay, Tap Duel, Scream Meter | **Cat and Mouse** (the first one built), Tilt Arena, Shake Sprint |
 | Client → server | ~0.5 msg/s/player → 3 msg/s | 20 Hz × 6 → 120 msg/s |
 | Server → clients | ~2 events/s × 6 → 12 msg/s | 20 Hz × 6 → 120 msg/s |
 | **Per 2-min round** | ~360 in + ~1,440 out = **~1,800** | ~14,400 in + ~14,400 out = **~28,800** |
 
 **Profile B is the one that decides the bill.** Any pricing below is quoted
 against it.
+
+Cat and Mouse is the first Profile B game actually built, and it comes in **under**
+this table: it broadcasts at `CM_TICK_HZ` (15) rather than 20, sends one frame per
+tick no matter how many fingers are moving, and a still icon sends nothing at all —
+input only exists while a finger is down
+([specs/games/cat-and-mouse.md](specs/games/cat-and-mouse.md) §4). The estimate
+above stands as the worst case.
 
 ### The counting rule that matters most
 

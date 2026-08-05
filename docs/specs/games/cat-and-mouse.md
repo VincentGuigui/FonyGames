@@ -9,7 +9,7 @@
 | **Round length** | 60–90 s |
 | **Inputs** | touch (drag) |
 | **Accent colour** | `#C084FC` |
-| **Status** | 📝 draft — **not built**, awaiting the maintainer's go-ahead (AGENTS.md §5) |
+| **Status** | `chase` **built** (M5e) · `hoard` and `blackout` still to build · beta until a play test |
 
 ## 1. Pitch
 
