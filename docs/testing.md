@@ -189,38 +189,37 @@ Write down what confused people — confusion is a `ui:` bug.
 
 ## 6. What an agent sandbox cannot check
 
-An agent working on this repo runs behind a proxy that does **not** allow egress to
-our own deployed hosts: both `guigui.fr` and `*.workers.dev` fail at `CONNECT` with
-a 403. So an agent can build the site, run the harness, and drive a local Chromium
-against `wrangler dev` — and cannot load the deployed site at all.
+The agent proxy blocks egress to our own hosts. `guigui.fr` and `*.workers.dev`
+both fail at `CONNECT` with a 403. So an agent can build the site, run the
+harness, and drive a local Chromium against `wrangler dev`. It cannot load the
+deployed site.
+
+**Do not test the deployed URLs, and do not retry them.** The block is the
+environment's network policy, applied upstream of the container, so no permission
+granted inside a session lifts it. A retry costs tokens and returns the same 403.
+State it once if it is load-bearing for a claim; do not restate it.
 
 The consequence is a rule about what may be *claimed*:
 
-- **"It works in production" is only ever second-hand.** It rests on the deploy
-  workflow's own output, and must be reported that way rather than as something
-  observed. If it matters, a human loads the URL.
-- The same goes for anything only the live edge can show: real TLS, the CDN, the
-  production `ALLOWED_ORIGINS`, and cold-start latency on a real Durable Object.
-- GitHub is reachable **only through the MCP tools.** `api.github.com` is *not*
-  blocked at `CONNECT` — the tunnel opens and `/rate_limit` answers `200`, which is
-  what makes this worth writing down. Every repo endpoint is then intercepted with a
-  **403** carrying `"GitHub access is not enabled for this session"`. So a raw
-  `curl` looks like it worked right up to the point where it matters, and a script
-  that only checks whether the request *completed* will report "no runs found"
-  instead of "not authorised". Check CI with the MCP tools, and treat an empty
-  result as unknown rather than as green.
+- **"It works in production" is second-hand.** It rests on the deploy workflow's
+  output. Report it that way. If it matters, a human loads the URL.
+- Same for anything only the live edge shows: real TLS, the CDN, the production
+  `ALLOWED_ORIGINS`, cold-start latency on a real Durable Object.
+- **GitHub is reachable only through the MCP tools.** `api.github.com` is *not*
+  blocked at `CONNECT` — the tunnel opens and `/rate_limit` answers `200`. Every
+  repo endpoint is then intercepted with a **403** carrying `"GitHub access is not
+  enabled for this session"`. A raw `curl` therefore looks like it worked right up
+  to the point where it matters, and a script that only checks whether the request
+  *completed* reports "no runs found" instead of "not authorised". Use the MCP
+  tools, and treat an empty result as unknown rather than green.
 
-Measured 2026-08-04. The block is the **environment's network policy**, applied
-upstream of the container, so no permission granted inside a session lifts it.
-`curl -sS "$HTTPS_PROXY/__agentproxy/status"` lists recent denials as
-`connect_rejected` and is the quickest way to tell a policy denial from a genuinely
-broken host.
+Measured 2026-08-04. `curl -sS "$HTTPS_PROXY/__agentproxy/status"` lists denials as
+`connect_rejected` — the quickest way to tell a policy denial from a broken host.
 
-**To lift it for our own hosts**, set the cloud environment's **Network access** to
-**Custom** and list them under **Allowed domains** (tick *also include the default
-package-manager list* to keep npm working). The setting lives behind the cloud icon
-above the message box at claude.ai/code — there is no settings URL for it — and it
-applies to **new sessions**, not a running one
+**To lift it**, set the cloud environment's **Network access** to **Custom** and
+list the four hosts under **Allowed domains** (tick *also include the default
+package-manager list* to keep npm working). Behind the cloud icon above the message
+box at claude.ai/code; applies to **new sessions**
 ([docs](https://code.claude.com/docs/en/cloud-environments#access-levels)):
 
 ```
@@ -230,10 +229,8 @@ fonygames-worker.vincent-f02.workers.dev
 fonygames-worker-dev.vincent-f02.workers.dev
 ```
 
-Listed in full rather than as `*.workers.dev`: the Worker hostnames are two labels
-deep and the documented wildcard examples only cover one. This buys exactly one
-thing — loading the deployed sites directly instead of trusting CI. It does **not**
-fix GitHub, whose proxy is independent of the access level.
+In full rather than `*.workers.dev`: the Worker hostnames are two labels deep and
+the documented wildcards cover one. It does **not** fix GitHub, whose proxy is
+independent of the access level.
 
-None of this blocks the workflow in §1: everything the harness and a local Worker
-can prove is still proved locally. It only bounds the last claim.
+None of this blocks §1. It only bounds the last claim.
