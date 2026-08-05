@@ -142,6 +142,11 @@ Three layers, and only the third is a real control:
 as if it were: a URL leaks through browser history, a shared screen, a Referer
 header. The link is what authenticates.
 
+**And this repository is public**, so the path cannot simply be a committed folder
+name — that would publish it. The build emits a placeholder directory and the deploy
+renames it to the `ADMIN_PATH` secret, so the real path exists only in the GitHub
+environment and on the host ([../deployment.md](../deployment.md) §3.4).
+
 ### The flow
 
 Everything privileged lives on the **Worker**, under `/admin/*`, because the Worker
@@ -183,9 +188,14 @@ which is where it is needed.
 | `ADMIN_EMAIL` | The one address a link may be sent to |
 | `ADMIN_SESSION_KEY` | HMAC key for signing session tokens |
 | `ADMIN_TOKEN` | Break-glass bearer for `curl` (§2b) |
+| `MAIL_SECRET` | Shared secret presented to the PHP mailer (§5) |
+| `CF_ANALYTICS_TOKEN` | Read-only analytics token, for the usage panel |
+| `CF_ACCOUNT_ID` | Account id for the same call |
 
 Set with `wrangler secret put <NAME> --env dev|prod`. Separate values per
-environment, so a dev link can never open prod.
+environment, so a dev link can never open prod. The complete list across all three
+systems, with the generation commands, is
+[../deployment.md](../deployment.md) §3.
 
 ### What is deliberately absent
 
@@ -212,10 +222,17 @@ which is the other reason it stays.
 MailChannels was not chosen: it was the free default for Workers and is believed to
 have ended that in 2024. Worth re-checking before anyone reaches for it.
 
-| Secret | Contents |
-| --- | --- |
-| `MAIL_ENDPOINT` | URL of the PHP sender |
-| `MAIL_SECRET` | Shared secret the Worker presents to it |
+`mail()` on the host is confirmed working (2026-08-05), so the endpoint is a few
+lines of PHP and needs no SMTP credentials.
+
+| Name | Where | Contents |
+| --- | --- | --- |
+| `MAIL_ENDPOINT` | `wrangler.jsonc` **var** — a URL, not a credential | URL of the PHP sender |
+| `MAIL_SECRET` | Wrangler secret **and** GitHub environment secret, identical | Shared secret the Worker presents to it |
+
+`MAIL_SECRET` living in two systems is inherent — two runtimes, one secret — and is
+therefore the one most likely to drift. The deploy writes the PHP side from the
+GitHub copy, so there is no manual step on the host.
 
 ### Availability and novelty are separate fields
 

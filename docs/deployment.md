@@ -64,31 +64,106 @@ Requiring a reviewer on the `prod` environment is recommended: the deploy job
 then waits for an approval before touching production, while `dev` keeps
 deploying instantly.
 
-## 3. Secrets
+## 3. Secrets and variables
 
-Each environment holds its own credentials — the two hosts are separate, with
-separate accounts.
+Three places hold credentials, and each holds different ones. **Nothing below is ever
+committed** — this table lists names and where they live, never values.
+
+Each environment holds its own: the two hosts are separate accounts, and a dev
+credential must never open prod.
+
+### 3.1 GitHub — environment secrets
+
+**Settings → Environments → `dev`, then again for `prod`.** Environment secrets, not
+repository secrets: a repository-level secret of the same name is visible to any job,
+including on branches that must not deploy.
 
 | Secret | Contents | Used by |
 | --- | --- | --- |
 | `FTPHOST` | Server hostname, e.g. `ftp.example.com` (no scheme, no port) | site |
 | `FTPUSER` | SSH/SFTP account login | site |
 | `FTPPWD` | SSH/SFTP account password | site |
-| `CLOUDFLARE_API_TOKEN` | "Edit Cloudflare Workers" token, scoped to the account | room server |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID | room server |
+| `CLOUDFLARE_API_TOKEN` | **Edit Cloudflare Workers** token | room server |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account id | room server |
+| `MAIL_SECRET` | Shared secret the Worker presents to the PHP mailer. **Must be byte-identical to the Wrangler secret of the same name** | site (baked into the PHP config at deploy) |
+| `ADMIN_PATH` | Folder name the admin page is deployed under, e.g. `ops-7f3a91` | site (§3.4) |
 
-The Cloudflare pair is **optional until set**: the `worker-deploy` job detects
-them missing and skips with a warning instead of failing, so the site keeps
-deploying either way.
+The Cloudflare pair is **optional until set**: `worker-deploy` detects them missing and
+skips with a warning rather than failing, so the site keeps deploying either way.
 
-Rules:
+### 3.2 Cloudflare — Wrangler secrets
 
-- These are **environment** secrets, not repository secrets. A repository-level
-  secret of the same name would be picked up by any job, including on branches
-  that must not deploy.
+Set per environment, so a dev link can never open prod:
+
+```bash
+wrangler secret put ADMIN_EMAIL --env dev      # then again with --env prod
+```
+
+| Secret | Contents | Generate with |
+| --- | --- | --- |
+| `ADMIN_EMAIL` | The one address a magic link may be sent to | — |
+| `ADMIN_SESSION_KEY` | HMAC key for signing admin sessions | `openssl rand -hex 32` |
+| `ADMIN_TOKEN` | Break-glass bearer for `curl` | `openssl rand -hex 32` |
+| `MAIL_SECRET` | Shared secret presented to the PHP mailer. **Same value as GitHub's** | `openssl rand -hex 32` |
+| `CF_ANALYTICS_TOKEN` | Read-only analytics token (§3.3) | — |
+| `CF_ACCOUNT_ID` | Cloudflare account id, for the analytics call | — |
+
+**`MAIL_SECRET` lives in two systems and must match.** That duplication is inherent —
+two runtimes share one secret — so it is the one most likely to drift. Rotating it means
+changing *both* and redeploying both, in that order, or mail stops.
+
+Rotating `ADMIN_SESSION_KEY` is how you **sign out everywhere**: sessions carry their own
+signature and there is no session table to clear.
+
+### 3.3 Cloudflare — one new API token to mint
+
+**Dashboard → My Profile → API Tokens → Create Token → Custom.**
+
+| Permission | Scope |
+| --- | --- |
+| Account → **Account Analytics** → **Read** | The FonyGames account |
+
+Nothing else. Its value goes into `CF_ANALYTICS_TOKEN`.
+
+**Do not widen the deploy token instead.** `CLOUDFLARE_API_TOKEN` is *Edit Cloudflare
+Workers* and deliberately cannot read analytics; a token that can both deploy and read
+everything is a bigger blast radius for no gain
+([specs/backoffice.md](specs/backoffice.md) §2).
+
+### 3.4 Why the admin path is a secret at all
+
+**This repository is public.** So a hidden path committed as `www/ops/` is not hidden:
+the folder name is readable by anyone, and the layer is gone before it does anything.
+
+The build therefore emits the admin page to a placeholder directory and the deploy
+**renames it to `ADMIN_PATH`** on the way to the host. The real path exists only in the
+GitHub environment secret and on the host.
+
+Two things this is not:
+
+- **Not the security.** The magic link is ([specs/backoffice.md](specs/backoffice.md)
+  §4). This only stops casual discovery and crawlers, which is worth one `mv`.
+- **Not a reason to relax anything else.** Assume the path is known; the Worker still
+  checks every write.
+
+### 3.5 Not secrets — committed variables
+
+These live in `wrangler.jsonc` under each environment's `vars`, because they are not
+credentials and reading them buys an attacker nothing:
+
+| Var | Contents |
+| --- | --- |
+| `ALLOWED_ORIGINS` | Comma-separated origins the room server accepts sockets from |
+| `MAIL_ENDPOINT` | URL of the PHP mailer on the web host |
+
+### 3.6 Rules
+
 - Credentials never appear in the repository, in logs, or in this doc.
-- Rotating one: change it in the environment, then re-run the workflow from the
-  Actions tab (`Run workflow` on the matching branch).
+- Rotating one: change it where it lives, then re-run the workflow from the Actions tab
+  (`Run workflow` on the matching branch). For a Wrangler secret, redeploy the Worker.
+- The PHP mailer needs **no manual step on the host**: its config is written from
+  `MAIL_SECRET` at deploy time, so a rebuilt host is reproducible from CI alone. That is
+  the same reasoning as "no manual upload, ever" in §1.
 
 ## 4. Protocol
 
