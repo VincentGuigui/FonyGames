@@ -115,6 +115,43 @@ changing *both* and redeploying both, in that order, or mail stops.
 Rotating `ADMIN_SESSION_KEY` is how you **sign out everywhere**: sessions carry their own
 signature and there is no session table to clear.
 
+### 3.2a No terminal? Two other ways to set a Wrangler secret
+
+`wrangler secret put` is the documented route, not the only one.
+
+**The Cloudflare dashboard.** Workers & Pages → the Worker → Settings → *Variables and
+Secrets* → Add, type **Secret**. Do it on `fonygames-worker-dev` and again on
+`fonygames-worker` — the dashboard has no notion of `--env`, so you pick the Worker by
+name instead of by flag, which sidesteps the `--env` trap below. Works from a phone.
+
+A deploy **inherits** existing secrets rather than replacing them, so a later
+`wrangler deploy` does not wipe what the dashboard set. Worth confirming once with
+`wrangler secret list` after the next deploy rather than taking it on trust — plain-text
+`vars` behave differently from secrets, and the two are easy to conflate.
+
+**Or simply wait.** Nothing reads these until the admin endpoints exist. An unset
+`ADMIN_EMAIL` matches nobody and an unset `ADMIN_TOKEN` authorises nobody, both by
+design, so the deployed Worker is not in a half-configured state in the meantime — it
+just has no admin.
+
+### 3.2b Local development — `.dev.vars`, not Cloudflare
+
+`wrangler dev` does **not** read the secrets above: it reads `.dev.vars` in the repo
+root. So the whole admin flow can be built and driven locally with no Cloudflare access
+at all.
+
+```bash
+cp .dev.vars.example .dev.vars   # then fill in
+```
+
+`.dev.vars` is gitignored and must stay that way — **this repository is public**, so a
+committed copy publishes every value in it. `.dev.vars.example` is committed on purpose
+and holds placeholders only; the ignore rules are asserted by `git add --dry-run` on
+both files.
+
+Local values only have to be self-consistent. Nothing local talks to the real mailer, so
+`MAIL_SECRET` just needs to exist.
+
 ### 3.3 Cloudflare — one new API token to mint
 
 **Dashboard → My Profile → API Tokens → Create Token → Custom.**

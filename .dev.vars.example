@@ -1,0 +1,28 @@
+# Local secrets for `wrangler dev`. Copy to `.dev.vars` and fill in.
+#
+#   cp .dev.vars.example .dev.vars
+#
+# `.dev.vars` is gitignored and MUST stay that way: this repository is public, so a
+# committed copy publishes every value. Nothing real belongs in this .example file.
+#
+# These are the same names the deployed Worker gets from Wrangler secrets
+# (docs/deployment.md §3.2). Local values can be anything — they only have to be
+# self-consistent, because nothing here talks to the real mailer.
+
+# The one address a magic link may be sent to.
+ADMIN_EMAIL=you@example.com
+
+# HMAC key for admin sessions. Any string locally; `openssl rand -hex 32` in production.
+ADMIN_SESSION_KEY=local-development-only-not-a-real-key
+
+# Break-glass bearer, handy for driving /admin/* with curl while developing.
+ADMIN_TOKEN=local-dev-token
+
+# Shared secret the Worker presents to the PHP mailer. Locally the mailer is usually
+# not running at all, so this only needs to exist.
+MAIL_SECRET=local-dev-mail-secret
+
+# Cloudflare analytics, for the usage panel. Leave blank locally: the panel is
+# expected to say "unavailable" rather than to show fake numbers.
+CF_ANALYTICS_TOKEN=
+CF_ACCOUNT_ID=

@@ -10,3 +10,10 @@ coverage/
 
 # wrangler local state (persisted Durable Object storage)
 .wrangler/
+
+# Local secrets for `wrangler dev`. THIS REPO IS PUBLIC — a committed .dev.vars
+# publishes every value in it. The .example is committed on purpose: placeholders
+# only, so a fresh clone knows what to create.
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
