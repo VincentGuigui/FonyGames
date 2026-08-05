@@ -64,6 +64,16 @@ import {
   type Sling,
 } from './slingPuck';
 import {
+  nextDeadline as cmDeadline,
+  onMove as cmMove,
+  onPlayerGone as cmPlayerGone,
+  startCatMouse,
+  tick as cmTick,
+  toState as cmToState,
+  type CatMouse,
+  type Ctx as CatMouseCtx,
+} from './catMouse';
+import {
   randomAvatar,
   randomName,
   sanitiseAvatar,
@@ -177,7 +187,7 @@ export class Room extends DurableObject {
         });
         return;
       case 'start':
-        await this.#onStart(ws, msg.d.mode);
+        await this.#onStart(ws, msg.d.mode, msg.d.drag);
         return;
       case 'tap':
         await this.#onTap(ws, msg.d);
@@ -229,6 +239,13 @@ export class Room extends DurableObject {
             vx: msg.d.vx,
             vy: msg.d.vy,
           });
+        }
+        return;
+      }
+      case 'move': {
+        const id = this.#idOf(ws);
+        if (id) {
+          await cmMove(this.#cmCtx(), id, msg.d.roundId, { x: msg.d.x, y: msg.d.y });
         }
         return;
       }
@@ -288,6 +305,13 @@ export class Room extends DurableObject {
       return;
     }
 
+    const chase = await this.#catMouse();
+    if (chase && chase.phase === 'running' && Date.now() >= cmDeadline(chase)) {
+      await cmTick(this.#cmCtx());
+      await this.#rearm();
+      return;
+    }
+
     const players = await this.#players();
     const now = Date.now();
     let changed = false;
@@ -303,6 +327,7 @@ export class Room extends DurableObject {
         await spillPlayerGone(this.#spillCtx(), id);
         await siegePlayerGone(this.#siegeCtx(), id);
         await slingPlayerGone(this.#slingCtx(), id);
+        await cmPlayerGone(this.#cmCtx(), id);
       }
     }
     if (changed) await this.#savePlayers(players);
@@ -331,8 +356,17 @@ export class Room extends DurableObject {
   /* ----------------------- Tap Duel: pistol ------------------------ */
   /* Spec: docs/specs/games/tap-duel.md                                 */
 
-  /** Host begins a round. `mode` selects the game. */
-  async #onStart(ws: WebSocket, mode: string): Promise<void> {
+  /**
+   * Host begins a round. `mode` selects the game.
+   *
+   * `drag` is Cat and Mouse's only host setting and is orthogonal to `mode`
+   * (cat-and-mouse.md §6); every other game ignores it.
+   */
+  async #onStart(
+    ws: WebSocket,
+    mode: string,
+    drag?: 'direct' | 'capped',
+  ): Promise<void> {
     const id = this.#idOf(ws);
     const hostId = (await this.ctx.storage.get<PlayerId>('hostId')) ?? null;
     if (!id || id !== hostId) return; // only the host starts rounds
@@ -347,18 +381,29 @@ export class Room extends DurableObject {
     if (besieged && besieged.phase !== 'done') return;
     const slinging = await this.#sling();
     if (slinging && slinging.phase !== 'done') return;
+    const chasing = await this.#catMouse();
+    if (chasing && chasing.phase !== 'done') return;
 
     const players = await this.#players();
     const ready = [...players.values()].filter((p) => p.connected);
 
-    if (mode === 'relay' || mode === 'spill' || mode === 'siege' || mode === 'sling') {
+    if (
+      mode === 'relay' ||
+      mode === 'spill' ||
+      mode === 'siege' ||
+      mode === 'sling' ||
+      mode === 'chase'
+    ) {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
       const ids = ready.map((p) => p.id);
       if (mode === 'relay') await startRelay(this.#relayCtx(), roundId, ids);
       else if (mode === 'spill') await startSpill(this.#spillCtx(), roundId, ids);
       else if (mode === 'siege') await startSiege(this.#siegeCtx(), roundId, ids);
-      else await startSling(this.#slingCtx(), roundId, ids);
+      else if (mode === 'sling') await startSling(this.#slingCtx(), roundId, ids);
+      // `direct` is the default because it needs no explanation: grab your icon
+      // and it follows your finger. `capped` is the deliberate choice.
+      else await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct');
       await this.#rearm(players);
       return;
     }
@@ -546,6 +591,21 @@ export class Room extends DurableObject {
     return (await this.ctx.storage.get<Sling>('sling')) ?? null;
   }
 
+  async #catMouse(): Promise<CatMouse | null> {
+    return (await this.ctx.storage.get<CatMouse>('catMouse')) ?? null;
+  }
+
+  #cmCtx(): CatMouseCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => ++this.#seq,
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#catMouse(),
+      save: (state) => this.ctx.storage.put('catMouse', state),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
   #slingCtx(): SlingCtx {
     return {
       now: () => Date.now(),
@@ -645,6 +705,13 @@ export class Room extends DurableObject {
     const sling = await this.#sling();
     if (sling && sling.phase === 'running') {
       this.#send(ws, { t: 'sling', s: ++this.#seq, d: slingToState(sling) });
+    }
+    // Cat and Mouse resyncs the full state, then the next tick puts everyone
+    // where they are — a refresher comes back at their last reported position,
+    // which is what spec §8 promises.
+    const chase = await this.#catMouse();
+    if (chase && chase.phase === 'running') {
+      this.#send(ws, { t: 'cm', s: ++this.#seq, d: cmToState(chase) });
     }
 
     await this.#broadcastPresence(ws);
@@ -762,6 +829,9 @@ export class Room extends DurableObject {
 
     const sling = await this.#sling();
     if (sling?.phase === 'running') return slingDeadline(sling);
+
+    const chase = await this.#catMouse();
+    if (chase?.phase === 'running') return cmDeadline(chase);
 
     return Infinity;
   }
