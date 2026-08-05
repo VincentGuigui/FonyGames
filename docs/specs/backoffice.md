@@ -195,39 +195,42 @@ person would be the tail wagging the dog — the same reasoning the earlier
 basic-auth answer had, kept, with the mechanism upgraded because basic auth over a
 shared host means a password in a config file somewhere.
 
-## 5. Decisions still open — these block the build
+## 5. The two decisions, settled 2026-08-05
 
-### D-A. How does the link actually get sent?
+### The link leaves through the PHP host
 
-The Worker cannot open an SMTP connection, so an email needs a route out. Three,
-with the trade named:
+The Worker cannot open SMTP, so it `POST`s to a small endpoint on the web host with
+a shared secret and PHP sends the mail. Chosen over a transactional API because the
+Worker→PHP hop **has to exist anyway** for the counters in §3 — this adds a route,
+not a dependency, and there is no new account to own.
 
-| Route | Cost | Risk |
-| --- | --- | --- |
-| **The PHP host** — Worker POSTs to a small PHP endpoint with a shared secret, PHP sends | No new vendor, no new account. Reuses the **exact seam §3 already needs** for counters | Shared-host deliverability is unpredictable. For one known recipient, usually fine |
-| A transactional API (Resend, Postmark, Brevo) | One HTTP call, one more secret, free tier covers this by orders of magnitude | A new third-party account and a new dependency — AGENTS §3.3 territory |
-| MailChannels | Was the free default for Workers | **Believed no longer free for Workers** since 2024. Would need checking before counting on it |
+The cost is named: shared-host deliverability is unpredictable. For one known
+recipient it is usually fine, and if it disappoints, swapping in Resend or Postmark
+is one function plus one secret. `ADMIN_TOKEN` is the break-glass in the meantime,
+which is the other reason it stays.
 
-**Recommendation: the PHP host.** The Worker→PHP hop has to exist anyway for the
-counters, so this adds a route rather than a dependency, and nothing new to sign up
-for. If deliverability disappoints in practice, swapping in a transactional API is
-one function.
+MailChannels was not chosen: it was the free default for Workers and is believed to
+have ended that in 2024. Worth re-checking before anyone reaches for it.
 
-### D-B. Is "new" a fourth state, or a separate field?
+| Secret | Contents |
+| --- | --- |
+| `MAIL_ENDPOINT` | URL of the PHP sender |
+| `MAIL_SECRET` | Shared secret the Worker presents to it |
 
-The maintainer asked for **enable / disable / new**. Two readings, and they are
-different data models:
+### Availability and novelty are separate fields
 
-| Reading | Shape | Consequence |
-| --- | --- | --- |
-| One enum | `active` \| `disabled` \| `hidden` \| `new` | Simple, one control. But a game cannot be *new and disabled*, and `new` would silently mean "playable" |
-| Two fields | availability `active`/`disabled`/`hidden`, plus a separate `new` flag | Says what is true: novelty and availability are unrelated. Two controls per game |
+`availability` is `active` / `disabled` / `hidden` and is what the **Worker
+enforces**. `isNew` is its own runtime flag and only drives the NEW badge.
 
-**Recommendation: two fields**, for the same reason §2b already separates the flag
-from build-time `status` — a `beta` game can be `active`. Novelty is presentation,
-availability is enforcement, and the Worker only cares about the second. It also
-makes `new` runtime-settable, which is the point: today `status: 'new'` is compiled
-into `card.ts` and needs a deploy to clear.
+Two fields rather than a four-value enum, for the same reason §2b already separates
+the flag from build-time `status`: a game can be **new and disabled** at once, and
+folding novelty into the enum would make `new` silently mean "playable" — mixing
+presentation into the one thing that is a control.
+
+It also makes novelty settable without a deploy, which is the point. Today
+`status: 'new'` is compiled into `card.ts`, so clearing a badge needs a release.
+Build-time `status` stays as intent; the runtime flag wins where they disagree, on
+the stricter reading.
 
 ### Still genuinely open, not blocking
 
