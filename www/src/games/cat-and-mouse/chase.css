@@ -1,0 +1,190 @@
+/*
+ * Cat and Mouse. Spec: docs/specs/games/cat-and-mouse.md
+ *
+ * Layout only — the floor, the cat and the mice are all drawn in render.ts.
+ * Mirrors sling.css, siege.css and spill.css deliberately: four boards that
+ * behave the same way should not be laid out four different ways.
+ *
+ * Like Sling Puck's, this board is letterboxed to a fixed aspect ratio (spec §5),
+ * so the canvas fills the screen and the margin the floor leaves at top and bottom
+ * is exactly where the HUD and the hint sit. Nothing has to be reserved for them.
+ */
+
+.chase {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: var(--color-bg);
+  --game-accent: #c084fc;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.chase__canvas {
+  grid-row: 1 / -1;
+  grid-column: 1;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+.chase__hud,
+.chase__hint,
+.chase__clock {
+  grid-column: 1;
+  /* The canvas is the input surface: a drag that starts under the chrome must not
+     be swallowed by it. Buttons opt back in. */
+  pointer-events: none;
+}
+
+/* Scrim via `isolation: isolate` plus a negative-z pseudo-element rather than
+   lifting every child with `position: relative` — see the note in siege.css for
+   the bug that pattern caused. */
+.chase__hud {
+  grid-row: 1;
+  z-index: 3;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: max(0.6rem, env(safe-area-inset-top)) 1rem 0;
+}
+
+.chase__hud::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 7rem;
+  background: linear-gradient(to bottom, rgb(13 15 20 / 88%), rgb(13 15 20 / 0%));
+  pointer-events: none;
+  z-index: -1;
+}
+
+.chase__lives,
+.chase__role {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.chase__lives strong,
+.chase__role strong {
+  font-size: 2.2rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+/* The cat has no number, so its label carries the size instead. */
+.chase__role strong {
+  font-size: 1.35rem;
+}
+
+.chase__lives span,
+.chase__role span {
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Pips beside the number, never instead of it (spec §12). */
+.chase__lives span[aria-hidden] {
+  font-size: 0.7rem;
+  letter-spacing: 0.15em;
+  color: var(--game-accent);
+  text-transform: none;
+}
+
+.chase__clock {
+  grid-row: 1;
+  z-index: 4;
+  margin: 0;
+  justify-self: end;
+  align-self: start;
+  /* Clear of the gear, which sits in the same corner in every game. */
+  padding: max(0.6rem, env(safe-area-inset-top)) 1rem 0 0;
+  margin-inline-end: 3.4rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-dim);
+  line-height: 1;
+}
+
+.chase__clock span {
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+.chase__hint {
+  grid-row: 3;
+  position: relative;
+  margin: 0;
+  padding: 0.7rem 1rem max(0.7rem, env(safe-area-inset-bottom));
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text-dim);
+  background: rgb(13 15 20 / 92%);
+}
+
+/* ------------------- the lobby's drag-mode picker ------------------- */
+
+.dragpick {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.dragpick__opt {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: 'radio label' 'radio blurb';
+  gap: 0 var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  /* The whole row is the target, not the 20px radio — this is a phone. */
+  min-height: var(--tap-target);
+  cursor: pointer;
+}
+
+/*
+ * Selected reads by border *and* background, never by colour alone.
+ *
+ * `--color-surface-2` rather than a tint of the accent: `color-mix()` wants
+ * Safari 16.2 and the older mid-range phone in the testing checklist is the point
+ * of this project. An eight-digit hex is not available either, because the accent
+ * arrives as a custom property and cannot be concatenated.
+ */
+.dragpick__opt--on {
+  border-color: var(--game-accent);
+  background: var(--color-surface-2);
+}
+
+.dragpick__opt input {
+  grid-area: radio;
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--game-accent);
+}
+
+.dragpick__label {
+  grid-area: label;
+  font-weight: 700;
+}
+
+.dragpick__blurb {
+  grid-area: blurb;
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}

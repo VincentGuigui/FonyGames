@@ -22,6 +22,7 @@ export default defineConfig({
         spill: 'www/spill/index.html',
         'goat-siege': 'www/goat-siege/index.html',
         'sling-puck': 'www/sling-puck/index.html',
+        'cat-and-mouse': 'www/cat-and-mouse/index.html',
       },
       output: {
         // A card imported by BOTH the hub and its own game page would otherwise be

@@ -19,7 +19,7 @@ export const CARD: GameCard = {
   concept: 'One shared floor. Your mouse moves only while you are moving it.',
   rules: [
     'Drag your own icon. Let go and it stops dead.',
-    'The cat is faster, and only has to touch you.',
+    'The cat only has to touch you once.',
     'Three lives each. Outlast the clock and the mice win.',
   ],
   art: { src: art, alt: 'A cat lunging after two mice running away' },
@@ -30,7 +30,8 @@ export const CARD: GameCard = {
   modes: [
     { id: 'chase', name: 'Chase', blurb: 'One cat, three lives each, beat the clock' },
   ],
-  // Specced, not built: docs/specs/games/cat-and-mouse.md is a draft awaiting
-  // the maintainer's go-ahead, and it needs an accessible fallback first (§12).
-  status: 'soon',
+  // Built, and new enough to shout about. It ships with no tap-only fallback and
+  // says so in the lobby rather than in a doc — a deliberate decision, not a gap
+  // (spec §12).
+  status: 'new',
 };
