@@ -234,6 +234,14 @@ lines of PHP and needs no SMTP credentials.
 therefore the one most likely to drift. The deploy writes the PHP side from the
 GitHub copy, so there is no manual step on the host.
 
+**The admin centre owes a "test the mail path" action**, because nothing else can
+prove the pair. The deploy's pre-flight checks that `MAIL_SECRET` is *present*
+([../deployment.md](../deployment.md) §3.6) and cannot check that it *matches* — CI
+reads the GitHub copy and has no access to the Wrangler one. So the operator gets a
+button that makes the Worker call the mailer with a no-op payload and reports match or
+mismatch. Without it, a mismatch is discovered as a link that never arrives, which
+looks identical to a mail that went to spam.
+
 ### Availability and novelty are separate fields
 
 `availability` is `active` / `disabled` / `hidden` and is what the **Worker

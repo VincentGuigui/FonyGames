@@ -37,15 +37,48 @@ jobs:
         FTPHOST: ${{ secrets.FTPHOST }}
         FTPUSER: ${{ secrets.FTPUSER }}
         FTPPWD: ${{ secrets.FTPPWD }}
+        MAIL_SECRET: ${{ secrets.MAIL_SECRET }}
+        ADMIN_PATH: ${{ secrets.ADMIN_PATH }}
       run: |
         missing=""
         [ -n "$FTPHOST" ] || missing="$missing FTPHOST"
         [ -n "$FTPUSER" ] || missing="$missing FTPUSER"
         [ -n "$FTPPWD" ]  || missing="$missing FTPPWD"
+
+        # The admin centre's two secrets are required only once the page exists in the
+        # tree. Gating on the directory rather than on a hand-flipped flag means this
+        # starts enforcing itself the moment the feature lands, and cannot be forgotten
+        # — and it does not break today's deploys before the secrets have been set.
+        if [ -d www/ops-placeholder ]; then
+          [ -n "$MAIL_SECRET" ] || missing="$missing MAIL_SECRET"
+          [ -n "$ADMIN_PATH" ]  || missing="$missing ADMIN_PATH"
+        elif [ -z "$MAIL_SECRET" ] || [ -z "$ADMIN_PATH" ]; then
+          echo "::notice::MAIL_SECRET / ADMIN_PATH not set yet. Not required until the"\
+               "admin page is in the tree, and then required automatically."
+        fi
+
         if [ -n "$missing" ]; then
           echo "::error::Missing secret(s) in environment '${{ github.ref_name }}':$missing"
           exit 1
         fi
+
+        # A bad ADMIN_PATH would put the admin page somewhere unintended, or break the
+        # rename outright. Checked here because the value is only ever seen by CI.
+        if [ -n "$ADMIN_PATH" ]; then
+          case "$ADMIN_PATH" in
+            */*|*\ *|.*)
+              echo "::error::ADMIN_PATH must be a single directory name — no slashes,"\
+                   "no spaces, no leading dot."
+              exit 1
+              ;;
+          esac
+        fi
+
+        # What this step CANNOT check, stated so nobody trusts it further than it goes:
+        # whether MAIL_SECRET matches the Wrangler secret of the same name. CI can read
+        # this copy and has no access to the other. Only a live call proves the pair, so
+        # that lives in the admin centre as "test the mail path"
+        # (docs/specs/backoffice.md §5).
 
     - name: 🟢 Set up Node
       uses: actions/setup-node@v6

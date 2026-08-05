@@ -156,7 +156,26 @@ credentials and reading them buys an attacker nothing:
 | `ALLOWED_ORIGINS` | Comma-separated origins the room server accepts sockets from |
 | `MAIL_ENDPOINT` | URL of the PHP mailer on the web host |
 
-### 3.6 Rules
+### 3.6 What the deploy checks, and what it cannot
+
+The `🔐 Check deployment secrets` step fails the deploy when `FTPHOST`, `FTPUSER` or
+`FTPPWD` is missing, and additionally when `MAIL_SECRET` or `ADMIN_PATH` is missing —
+but **only once `www/ops-placeholder/` exists in the tree.**
+
+Gating on the directory rather than a hand-flipped flag means the check starts enforcing
+itself the moment the admin centre lands and cannot be forgotten, while today's deploys
+keep working before the secrets have been set. Until then it prints a notice.
+
+It also rejects an `ADMIN_PATH` containing a slash or a space, or starting with a dot: a
+bad value would put the admin page somewhere unintended or break the rename outright, and
+CI is the only thing that ever sees the value.
+
+**What it cannot check: whether the two `MAIL_SECRET` copies match.** CI can read the
+GitHub one and has no access to the Wrangler one, so presence is the whole of what a
+pre-flight can prove. Only a live call proves the pair, which is why the admin centre
+carries a **test the mail path** action. Do not read a green pre-flight as "mail works".
+
+### 3.7 Rules
 
 - Credentials never appear in the repository, in logs, or in this doc.
 - Rotating one: change it where it lives, then re-run the workflow from the Actions tab
@@ -234,6 +253,9 @@ re-uploads everything.
 | --- | --- |
 | `Error: Input required and not supplied: server` | The job is not attached to an environment, or the secret lives at repository level instead of on the environment. Check `environment:` is present on the job and that `FTPHOST`/`FTPUSER`/`FTPPWD` are set on `dev` **and** `prod`. |
 | `Missing secret(s) in environment 'dev': FTPPWD` | The pre-flight check naming exactly what is absent. Add it to that environment. |
+| `Missing secret(s) … MAIL_SECRET ADMIN_PATH` | The admin centre is in the tree now, so both are required (§3.6). Set them on **both** `dev` and `prod`. |
+| `ADMIN_PATH must be a single directory name` | It has a slash, a space, or a leading dot. It is one folder name, e.g. `ops-7f3a91`, not a path. |
+| Pre-flight green but the magic link never arrives | Presence is all CI can check. The two `MAIL_SECRET` copies are probably out of step — compare the Wrangler one against the GitHub one and redeploy both (§3.2). |
 | `500 'AUTH': command unrecognized` | An FTP action is being pointed at port 21, which this host serves without TLS. Use SFTP on 22 (§4). |
 | Connect timeout / `ECONNREFUSED` | Wrong port. SFTP is 22 here. |
 | `Permission denied (password)` | Bad `FTPUSER`/`FTPPWD`, or the host expects the full email-style login, or SSH access is not enabled on the account. |
