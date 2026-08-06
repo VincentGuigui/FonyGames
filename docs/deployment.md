@@ -66,8 +66,15 @@ deploying instantly.
 
 ## 3. Secrets and variables
 
-Three places hold credentials, and each holds different ones. **Nothing below is ever
-committed** — this table lists names and where they live, never values.
+**Every credential lives in a GitHub environment secret.** There is exactly one place
+to look, and **the room server has no secrets at all** — it reads a public
+`flags.json` and nothing else ([specs/backoffice.md](specs/backoffice.md) §2b). That
+is deliberate and recent: the admin centre used to run inside the Worker and needed
+six Wrangler secrets, one of which had to be kept byte-identical to a GitHub copy with
+no way to check it. Moving the admin to PHP deleted all six.
+
+**Nothing below is ever committed** — this table lists names and where they live, never
+values.
 
 Each environment holds its own: the two hosts are separate accounts, and a dev
 credential must never open prod.
@@ -85,72 +92,35 @@ including on branches that must not deploy.
 | `FTPPWD` | SSH/SFTP account password | site |
 | `CLOUDFLARE_API_TOKEN` | **Edit Cloudflare Workers** token | room server |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account id | room server |
-| `MAIL_SECRET` | Shared secret the Worker presents to the PHP mailer. **Must be byte-identical to the Wrangler secret of the same name** | site (baked into the PHP config at deploy) |
 | `ADMIN_PATH` | Folder name the admin page is deployed under, e.g. `ops-7f3a91` | site (§3.4) |
+| `ADMIN_EMAIL` | The one address a magic link may be sent to | site (admin config) |
+| `ADMIN_TOKEN` | Break-glass bearer for `curl`. `openssl rand -hex 32` | site (admin config) |
+| `CF_ANALYTICS_TOKEN` | Read-only analytics token for the usage panel (§3.3) | site (admin config) |
+| `CF_ACCOUNT_ID` | Cloudflare account id, for the same call | site (admin config) |
 
 The Cloudflare pair is **optional until set**: `worker-deploy` detects them missing and
 skips with a warning rather than failing, so the site keeps deploying either way.
 
-### 3.2 Cloudflare — Wrangler secrets
+The four admin values are written by the deploy into a PHP config file **outside the web
+root**, so a rebuilt host is reproducible from CI alone and there is no manual step on
+the server. Outside the web root because a mis-set handler would otherwise serve the file
+as plain text.
 
-Set per environment, so a dev link can never open prod:
+There is no `ADMIN_SESSION_KEY` and no `MAIL_SECRET`: PHP's own sessions replace the
+first, and `mail()` runs in the same process that mints the link, so there is nothing to
+authenticate ([specs/backoffice.md](specs/backoffice.md) §4, §5).
 
-```bash
-wrangler secret put ADMIN_EMAIL --env dev      # then again with --env prod
-```
+### 3.2 The room server needs no secrets
 
-| Secret | Contents | Generate with |
-| --- | --- | --- |
-| `ADMIN_EMAIL` | The one address a magic link may be sent to | — |
-| `ADMIN_SESSION_KEY` | HMAC key for signing admin sessions | `openssl rand -hex 32` |
-| `ADMIN_TOKEN` | Break-glass bearer for `curl` | `openssl rand -hex 32` |
-| `MAIL_SECRET` | Shared secret presented to the PHP mailer. **Same value as GitHub's** | `openssl rand -hex 32` |
-| `CF_ANALYTICS_TOKEN` | Read-only analytics token (§3.3) | — |
-| `CF_ACCOUNT_ID` | Cloudflare account id, for the analytics call | — |
+`worker-deploy` uses `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` to *publish*,
+and the deployed Worker itself reads nothing secret. Its only configuration is
+`ALLOWED_ORIGINS` and `FLAGS_URL`, both committed `vars` (§3.5).
 
-**`MAIL_SECRET` lives in two systems and must match.** That duplication is inherent —
-two runtimes share one secret — so it is the one most likely to drift. Rotating it means
-changing *both* and redeploying both, in that order, or mail stops.
-
-Rotating `ADMIN_SESSION_KEY` is how you **sign out everywhere**: sessions carry their own
-signature and there is no session table to clear.
-
-### 3.2a No terminal? Two other ways to set a Wrangler secret
-
-`wrangler secret put` is the documented route, not the only one.
-
-**The Cloudflare dashboard.** Workers & Pages → the Worker → Settings → *Variables and
-Secrets* → Add, type **Secret**. Do it on `fonygames-worker-dev` and again on
-`fonygames-worker` — the dashboard has no notion of `--env`, so you pick the Worker by
-name instead of by flag, which sidesteps the `--env` trap below. Works from a phone.
-
-A deploy **inherits** existing secrets rather than replacing them, so a later
-`wrangler deploy` does not wipe what the dashboard set. Worth confirming once with
-`wrangler secret list` after the next deploy rather than taking it on trust — plain-text
-`vars` behave differently from secrets, and the two are easy to conflate.
-
-**Or simply wait.** Nothing reads these until the admin endpoints exist. An unset
-`ADMIN_EMAIL` matches nobody and an unset `ADMIN_TOKEN` authorises nobody, both by
-design, so the deployed Worker is not in a half-configured state in the meantime — it
-just has no admin.
-
-### 3.2b Local development — `.dev.vars`, not Cloudflare
-
-`wrangler dev` does **not** read the secrets above: it reads `.dev.vars` in the repo
-root. So the whole admin flow can be built and driven locally with no Cloudflare access
-at all.
-
-```bash
-cp .dev.vars.example .dev.vars   # then fill in
-```
-
-`.dev.vars` is gitignored and must stay that way — **this repository is public**, so a
-committed copy publishes every value in it. `.dev.vars.example` is committed on purpose
-and holds placeholders only; the ignore rules are asserted by `git add --dry-run` on
-both files.
-
-Local values only have to be self-consistent. Nothing local talks to the real mailer, so
-`MAIL_SECRET` just needs to exist.
+So there is no `wrangler secret put` step, and no `.dev.vars` file: `wrangler dev` needs
+nothing that is not already in `wrangler.jsonc`. That is worth stating because it used
+not to be true — six Wrangler secrets existed for the admin centre before it moved to
+PHP, and one of them (`MAIL_SECRET`) had to match a GitHub copy exactly with no
+automated way to verify it ([specs/backoffice.md](specs/backoffice.md) §5).
 
 ### 3.3 Cloudflare — one new API token to mint
 
@@ -180,8 +150,10 @@ Two things this is not:
 
 - **Not the security.** The magic link is ([specs/backoffice.md](specs/backoffice.md)
   §4). This only stops casual discovery and crawlers, which is worth one `mv`.
-- **Not a reason to relax anything else.** Assume the path is known; the Worker still
-  checks every write.
+- **Not a reason to relax anything else.** Assume the path is known; the session check
+  still runs on every write.
+- **Not listed in `robots.txt`.** A `Disallow:` line naming it would publish it to
+  anyone who reads the file ([specs/seo.md](specs/seo.md) §3).
 
 ### 3.5 Not secrets — committed variables
 
@@ -191,13 +163,17 @@ credentials and reading them buys an attacker nothing:
 | Var | Contents |
 | --- | --- |
 | `ALLOWED_ORIGINS` | Comma-separated origins the room server accepts sockets from |
-| `MAIL_ENDPOINT` | URL of the PHP mailer on the web host |
+| `FLAGS_URL` | URL of `flags.json` on the web host, which the Worker reads to enforce a flag |
+
+`FLAGS_URL` is per environment, so the dev Worker reads the dev host's flags. It is a
+plain URL to a public file — reading it buys an attacker nothing, and the Worker
+fails open if it is wrong ([specs/backoffice.md](specs/backoffice.md) §2b).
 
 ### 3.6 What the deploy checks, and what it cannot
 
 The `🔐 Check deployment secrets` step fails the deploy when `FTPHOST`, `FTPUSER` or
-`FTPPWD` is missing, and additionally when `MAIL_SECRET` or `ADMIN_PATH` is missing —
-but **only once `www/ops-placeholder/` exists in the tree.**
+`FTPPWD` is missing, and additionally when `ADMIN_PATH`, `ADMIN_EMAIL` or `ADMIN_TOKEN`
+is missing — but **only once `www/ops-placeholder/` exists in the tree.**
 
 Gating on the directory rather than a hand-flipped flag means the check starts enforcing
 itself the moment the admin centre lands and cannot be forgotten, while today's deploys
@@ -207,19 +183,24 @@ It also rejects an `ADMIN_PATH` containing a slash or a space, or starting with 
 bad value would put the admin page somewhere unintended or break the rename outright, and
 CI is the only thing that ever sees the value.
 
-**What it cannot check: whether the two `MAIL_SECRET` copies match.** CI can read the
-GitHub one and has no access to the Wrangler one, so presence is the whole of what a
-pre-flight can prove. Only a live call proves the pair, which is why the admin centre
-carries a **test the mail path** action. Do not read a green pre-flight as "mail works".
+**What it cannot check: whether `mail()` actually delivers.** Presence of an address is
+not deliverability, and shared-host mail can be accepted and then dropped by the
+recipient's spam filter. Do not read a green pre-flight as "the magic link works" — send
+one and look. `ADMIN_TOKEN` exists precisely so a silent mailbox cannot lock the operator
+out ([specs/backoffice.md](specs/backoffice.md) §5).
+
+There used to be a second unprovable thing here — whether the GitHub and Wrangler copies
+of `MAIL_SECRET` matched. That secret no longer exists, so neither does the gap.
 
 ### 3.7 Rules
 
 - Credentials never appear in the repository, in logs, or in this doc.
-- Rotating one: change it where it lives, then re-run the workflow from the Actions tab
-  (`Run workflow` on the matching branch). For a Wrangler secret, redeploy the Worker.
-- The PHP mailer needs **no manual step on the host**: its config is written from
-  `MAIL_SECRET` at deploy time, so a rebuilt host is reproducible from CI alone. That is
-  the same reasoning as "no manual upload, ever" in §1.
+- Rotating one: change it in the GitHub environment, then re-run the workflow from the
+  Actions tab (`Run workflow` on the matching branch). One place, one re-run — there is
+  no second copy anywhere to keep in step.
+- The admin needs **no manual step on the host**: its config is written from the GitHub
+  secrets at deploy time, so a rebuilt host is reproducible from CI alone. Same reasoning
+  as "no manual upload, ever" in §1.
 
 ## 4. Protocol
 
@@ -290,9 +271,11 @@ re-uploads everything.
 | --- | --- |
 | `Error: Input required and not supplied: server` | The job is not attached to an environment, or the secret lives at repository level instead of on the environment. Check `environment:` is present on the job and that `FTPHOST`/`FTPUSER`/`FTPPWD` are set on `dev` **and** `prod`. |
 | `Missing secret(s) in environment 'dev': FTPPWD` | The pre-flight check naming exactly what is absent. Add it to that environment. |
-| `Missing secret(s) … MAIL_SECRET ADMIN_PATH` | The admin centre is in the tree now, so both are required (§3.6). Set them on **both** `dev` and `prod`. |
+| `Missing secret(s) … ADMIN_PATH ADMIN_EMAIL` | The admin centre is in the tree now, so these are required (§3.6). Set them on **both** `dev` and `prod`. |
 | `ADMIN_PATH must be a single directory name` | It has a slash, a space, or a leading dot. It is one folder name, e.g. `ops-7f3a91`, not a path. |
-| Pre-flight green but the magic link never arrives | Presence is all CI can check. The two `MAIL_SECRET` copies are probably out of step — compare the Wrangler one against the GitHub one and redeploy both (§3.2). |
+| Pre-flight green but the magic link never arrives | Presence is all CI can check, and shared-host `mail()` can be accepted then dropped. Check the host's mail log and the recipient's spam folder; use `ADMIN_TOKEN` in the meantime (§3.6). |
+| The hub greys or hides the wrong games | The Worker fails open, so this is a `flags.json` problem rather than an outage. Check `FLAGS_URL` for the environment and that the file is readable over HTTPS (§3.5). |
+| Flag changes never show on the hub | Almost always one of two things, both in [specs/seo.md](specs/seo.md) §4: an `index.html` left by an earlier deploy is still being served instead of `index.php` — the sync deletes nothing, so **delete it on the host once by hand** — or the page is being cached. `curl -I` should show `Cache-Control: no-cache`. |
 | `500 'AUTH': command unrecognized` | An FTP action is being pointed at port 21, which this host serves without TLS. Use SFTP on 22 (§4). |
 | Connect timeout / `ECONNREFUSED` | Wrong port. SFTP is 22 here. |
 | `Permission denied (password)` | Bad `FTPUSER`/`FTPPWD`, or the host expects the full email-style login, or SSH access is not enabled on the account. |

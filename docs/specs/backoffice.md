@@ -2,9 +2,15 @@
 
 A private operator view: is it up, what is it costing, and is anyone playing.
 
-> Status: **specced, not built.** Roadmap M8. The privacy boundary in §1 is agreed
-> *before* anything starts collecting; §4's access model was settled on 2026-08-05.
-> Two decisions are still open and block the build — see §5.
+> Status: **specced, being built.** Roadmap M8. The privacy boundary in §1 is agreed
+> *before* anything starts collecting.
+>
+> **This lives in PHP on the web host, not in the Worker.** A first implementation
+> put the flags in a Durable Object and hand-rolled sessions, magic links and a
+> mailer hop inside it; on 2026-08-06 that was judged over-built and moved to PHP,
+> where the platform supplies all three. §2b, §4 and §5 record what changed and why,
+> and [../roadmap.md](../roadmap.md) carries the decision row. The Worker keeps
+> exactly one job here: **enforcing** a flag when a room is opened.
 
 ## 1. The privacy boundary — read this first
 
@@ -83,30 +89,46 @@ be `disabled` for maintenance. The card renders on the stricter of the two.
 
 ### Where the flags live
 
-A **singleton Durable Object** (`idFromName('flags')`) inside the room Worker.
-Per-environment separation then costs nothing: `dev` and `prod` are already
-separate Workers with separate namespaces, so their flags are separate by
-construction.
+**MySQL is the source of truth, and PHP is the only writer.** Every admin write
+also regenerates a flat `flags.json` in the web root, which is what everything
+reads:
 
-MySQL is **not** the source of truth here — the Worker cannot reach it
-([../database.md](../database.md) §3), and two sources would drift. MySQL keeps
-only the audit trail: who changed what, when.
+```
+admin (PHP) ──write──> MySQL ──regenerate──> web-root/flags.json
+                                                 │
+                     index.php, per request  <───┤   (inlined into the page — spec seo.md §4)
+                     the Worker, HTTPS + 60 s in-memory cache  <┘
+```
 
-| Endpoint | Auth | Purpose |
+| Reader | How | Why that way |
 | --- | --- | --- |
-| `GET /flags` | public, cacheable ~60 s | The hub reads this |
-| `POST /admin/flags` | bearer token (`ADMIN_TOKEN`, a Wrangler secret) | The backoffice writes this |
+| The hub | PHP reads the file on the same disk and **inlines the flags into the page** | No request, no CORS, and no paint-then-reconcile flicker |
+| The Worker | `fetch` of `flags.json`, cached ~60 s in memory, last good copy served on error | It is the only thing that can enforce (below), and it is cross-origin |
+
+**A flat file rather than a PHP endpoint on the read path**, because the Worker's
+read sits on room-open, which shares the ±250 ms budget. A shared-host
+PHP + MySQL round trip per room open is the one place that latency would show. The
+file is served by the web server and cached in the Worker anyway.
+
+**This reverses an earlier decision.** Until 2026-08-06 the flags lived in a
+singleton Durable Object, and this document argued MySQL *could not* be the source
+of truth because the Worker cannot reach it ([../database.md](../database.md) §3).
+That was true and is now beside the point: once the writer is PHP, the constraint
+applies to the writer's neighbour rather than to the writer. The Worker never
+touches MySQL — it reads a file over HTTPS, which is the topology database.md §3
+already sanctions. See [../roadmap.md](../roadmap.md) for the full decision row.
 
 ### Behaviour details
 
 - **In-flight games finish.** Disabling blocks *new* rooms; a duel already
   running is never interrupted. Concretely the Worker refuses a connection for a
   non-active game **unless that room already has a connected player**.
-- **The hub renders before the flags arrive.** The compiled registry paints the
-  grid immediately (the ≤ 2.5 s budget in
-  [../architecture.md](../architecture.md) §4 comes first), then the flag fetch
-  reconciles. Changing a flag is rare, so this is almost always a no-op.
-- **Unknown slug, or `/flags` unreachable → treated as `active`.** Fail-open, on
+- **The hub never waits for the flags, and never reconciles them.** They arrive
+  inlined in the server-rendered page ([seo.md](seo.md) §4), so the first paint is
+  already correct and there is no second render. This replaces the earlier
+  paint-then-fetch-then-reconcile design, which briefly showed a disabled game as
+  playable.
+- **Unknown slug, or the flags unreadable → treated as `active`.** Fail-open, on
   purpose: a Worker hiccup must not blank the whole catalogue. The consequence
   is that a flag is **not** a security control — for something genuinely
   dangerous, remove the game and deploy. Written here so nobody later mistakes
@@ -136,7 +158,7 @@ Three layers, and only the third is a real control:
 | --- | --- | --- |
 | An unguessable path | Casual discovery, crawlers | Anyone who has ever seen the URL |
 | A magic link to **one** address | Everyone who is not the operator | Someone with access to that mailbox |
-| The Worker checking every write | A forged request | — |
+| A session check on every write | A forged request | — |
 
 **The path is not the security.** It is written down here so nobody later treats it
 as if it were: a URL leaks through browser history, a shared screen, a Referer
@@ -147,55 +169,64 @@ name — that would publish it. The build emits a placeholder directory and the 
 renames it to the `ADMIN_PATH` secret, so the real path exists only in the GitHub
 environment and on the host ([../deployment.md](../deployment.md) §3.4).
 
+**And the path must not leak through `robots.txt` either.** A `Disallow:` line
+naming it publishes it to everyone who reads the file, so the admin path is
+deliberately absent from `robots.txt` ([seo.md](seo.md) §3).
+
 ### The flow
 
-Everything privileged lives on the **Worker**, under `/admin/*`, because the Worker
-already owns the flags and is the only thing that can enforce them. The page itself
-is static and can sit on the web host at the hidden path.
+Everything privileged lives in **PHP on the web host**, under the hidden path,
+because that is where the flags are written ([§2b](#2b-feature-flags--turning-games-on-and-off))
+and it is same-origin with the page.
 
-1. `POST /admin/link { email }` — the Worker compares against the `ADMIN_EMAIL`
-   secret **in constant time** and replies `204` either way. Identical response for
-   a wrong address, so the endpoint cannot be used to discover who the operator is.
-2. On a match it mints 32 random bytes, stores only their **SHA-256** with a
-   10-minute expiry, and emails a link. One outstanding token at a time: a new
+1. `POST link.php { email }` — compares against the configured address with
+   `hash_equals` and replies `204` either way. Identical response for a wrong
+   address, so the endpoint cannot be used to discover who the operator is.
+2. On a match it mints `random_bytes(32)`, stores only their **SHA-256** with a
+   10-minute expiry, and `mail()`s a link. One outstanding token at a time: a new
    request replaces the old.
 3. The token travels in the URL **fragment**, never the query string — a fragment
    is not sent to the server, so it cannot land in an access log or a `Referer`.
-   The page reads it and posts it to `POST /admin/session`.
-4. The Worker hashes, compares, **deletes** (single use), and returns a signed
-   session token valid 12 hours. The page keeps it in `sessionStorage`.
-5. Every later call carries `Authorization: Bearer <session>`.
+   The page reads it and posts it to `session.php`.
+4. PHP hashes, compares, **deletes** (single use), and calls `session_start()`.
+   The cookie is `HttpOnly; Secure; SameSite=Lax`, valid 12 hours.
+5. Every later call is same-origin and carries the cookie automatically.
 
-A **bearer session, not a cookie**, and that is forced rather than chosen: the
-Worker is on `*.workers.dev` and the site is on `guigui.fr`, so a cookie would be
-cross-site and need `SameSite=None` plus credentialed CORS. A bearer header avoids
-all of it and matches the `ADMIN_TOKEN` pattern already in §2b.
+**A session cookie, not a bearer token.** The earlier design was forced into a
+bearer header because the admin lived on the Worker at `*.workers.dev` while the
+page was on `guigui.fr` — cross-site, so a cookie would have needed
+`SameSite=None` plus credentialed CORS. Once the admin is PHP on the same origin,
+that constraint disappears along with the hand-written HMAC session tokens, the
+constant-time compare and the CORS preflight that existed only to serve it.
 
-`POST /admin/link` is **rate limited** — a handful an hour per IP. Without it the
-endpoint is a way to spam the operator's inbox from anywhere.
+`link.php` is **rate limited** — a handful an hour per IP — and **the limit is
+checked before the address is**, so a rate-limited response cannot be read as
+"you guessed the right address, try later".
 
 `ADMIN_TOKEN` stays as break-glass for `curl`, so a broken mailbox cannot lock the
 operator out of their own flags.
 
 ### Secrets
 
-Wrangler secrets, **not a file in the repo.** A committed file leaks the address; a
-gitignored one breaks a fresh clone and cannot be read by a deployed Worker at all,
-which is where it is needed.
+A PHP config file **outside the web root**, written by the deploy from GitHub
+environment secrets ([../deployment.md](../deployment.md) §3). Not committed — the
+repository is public — and not in the web root, where a mis-set handler would serve
+it as text.
 
 | Secret | Contents |
 | --- | --- |
 | `ADMIN_EMAIL` | The one address a link may be sent to |
-| `ADMIN_SESSION_KEY` | HMAC key for signing session tokens |
-| `ADMIN_TOKEN` | Break-glass bearer for `curl` (§2b) |
-| `MAIL_SECRET` | Shared secret presented to the PHP mailer (§5) |
+| `ADMIN_TOKEN` | Break-glass bearer for `curl`, above |
 | `CF_ANALYTICS_TOKEN` | Read-only analytics token, for the usage panel |
 | `CF_ACCOUNT_ID` | Account id for the same call |
 
-Set with `wrangler secret put <NAME> --env dev|prod`. Separate values per
-environment, so a dev link can never open prod. The complete list across all three
-systems, with the generation commands, is
-[../deployment.md](../deployment.md) §3.
+**No `ADMIN_SESSION_KEY`** — PHP's own session handling replaces the tokens it
+signed. **No `MAIL_SECRET`** — see §5. And **no Wrangler secrets at all**: the
+Worker's only remaining interest in any of this is reading `flags.json`, which is
+public.
+
+`CF_ANALYTICS_TOKEN` moving to the server side is a straight improvement: it is
+read by PHP and never reaches a browser.
 
 ### What is deliberately absent
 
@@ -205,42 +236,31 @@ person would be the tail wagging the dog — the same reasoning the earlier
 basic-auth answer had, kept, with the mechanism upgraded because basic auth over a
 shared host means a password in a config file somewhere.
 
-## 5. The two decisions, settled 2026-08-05
+## 5. How the mail and the flag fields were settled
 
-### The link leaves through the PHP host
+### The mail goes out with `mail()`, from the code that wants it
 
-The Worker cannot open SMTP, so it `POST`s to a small endpoint on the web host with
-a shared secret and PHP sends the mail. Chosen over a transactional API because the
-Worker→PHP hop **has to exist anyway** for the counters in §3 — this adds a route,
-not a dependency, and there is no new account to own.
+`mail()` on the host is confirmed working (2026-08-05), and the code that mints the
+link is now PHP on that same host, so sending it is one function call with no
+credential, no endpoint and no shared secret.
 
-The cost is named: shared-host deliverability is unpredictable. For one known
-recipient it is usually fine, and if it disappoints, swapping in Resend or Postmark
-is one function plus one secret. `ADMIN_TOKEN` is the break-glass in the meantime,
-which is the other reason it stays.
+**This supersedes the 2026-08-05 decision** that had the Worker `POST` to a PHP
+mailer behind a `MAIL_SECRET`. That design was correct while the admin lived in the
+Worker, and it carried a cost this document named at the time: `MAIL_SECRET` had to
+exist in two systems, byte-identical, with **no automated check that the two copies
+matched** — CI can read the GitHub copy and has no access to the Wrangler one. It
+therefore also owed a manual "test the mail path" button whose only job was to
+detect that drift. Moving the admin to PHP deletes the secret, the endpoint, the
+drift, the pre-flight check and the button together.
+
+The remaining cost is unchanged and still worth naming: **shared-host
+deliverability is unpredictable**. For one known recipient it is usually fine, and
+if it disappoints, swapping in Resend or Postmark is one function plus one
+credential. `ADMIN_TOKEN` is the break-glass in the meantime, which is the other
+reason it stays.
 
 MailChannels was not chosen: it was the free default for Workers and is believed to
-have ended that in 2024. Worth re-checking before anyone reaches for it.
-
-`mail()` on the host is confirmed working (2026-08-05), so the endpoint is a few
-lines of PHP and needs no SMTP credentials.
-
-| Name | Where | Contents |
-| --- | --- | --- |
-| `MAIL_ENDPOINT` | `wrangler.jsonc` **var** — a URL, not a credential | URL of the PHP sender |
-| `MAIL_SECRET` | Wrangler secret **and** GitHub environment secret, identical | Shared secret the Worker presents to it |
-
-`MAIL_SECRET` living in two systems is inherent — two runtimes, one secret — and is
-therefore the one most likely to drift. The deploy writes the PHP side from the
-GitHub copy, so there is no manual step on the host.
-
-**The admin centre owes a "test the mail path" action**, because nothing else can
-prove the pair. The deploy's pre-flight checks that `MAIL_SECRET` is *present*
-([../deployment.md](../deployment.md) §3.6) and cannot check that it *matches* — CI
-reads the GitHub copy and has no access to the Wrangler one. So the operator gets a
-button that makes the Worker call the mailer with a no-op payload and reports match or
-mismatch. Without it, a mismatch is discovered as a link that never arrives, which
-looks identical to a mail that went to spam.
+have ended that in 2024. Now moot, since nothing sends from a Worker.
 
 ### Availability and novelty are separate fields
 

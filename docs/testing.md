@@ -11,6 +11,7 @@ what is deterministic, and keep a short, ruthless manual pass for the rest.
 | Layer | Scope | Tool |
 | --- | --- | --- |
 | Unit | Pure logic: bump detection on recorded sample data, scoring, timers, room-code generation, geo maths | **`npm test`** today; Vitest proposed |
+| Unit (server) | The admin centre's auth rules and the flag store | **`npm run test:php`** on plain `php` (§1.1a) |
 | Contract | Client/server message schemas, round state machine | Drive the real module through a fake `Ctx` (§1.1) |
 | End-to-end | Simulated players joining a room and playing a round | Real WebSockets against `wrangler dev` (§1.2) |
 | Manual | Real phones, real permissions, real network | The checklist in §3 |
@@ -42,6 +43,35 @@ bounce behaviour and the sling are *stated requirements* rather than looks. Two 
 the bugs it caught could not have been seen on a screenshot: an equal-mass
 collision impulse missing its `(1 + e)` factor, and an accessibility fallback that
 could not reach the gap from three of the five starting positions.
+
+### 1.1a `npm run test:php` — the same harness shape, in PHP
+
+The backoffice lives in PHP ([specs/backoffice.md](specs/backoffice.md)), and the
+rules it enforces are the kind that must be tested rather than eyeballed: a
+magic-link flow has a replay hole, an expiry hole, a rate-limit-as-oracle hole and a
+single-use hole, and none of them is visible in a browser.
+
+So `api/tests/run.php` is deliberately the same shape as the Node harness — no
+framework, a `check()` counter, a non-zero exit — and it runs on the plain `php`
+binary, which is present locally and preinstalled on GitHub's `ubuntu-latest`
+runners. `npm test` runs both halves; CI therefore does too.
+
+The storage sits behind a small interface so the tests drive an in-memory
+implementation with a clock they control. Real schema changes still follow
+[database.md](database.md) §4 — `init.sql`, idempotent migrations, local MariaDB.
+
+**Deliberately not covered**, so nobody reads a green suite as more than it is:
+whether `mail()` actually delivers, and whether the live MySQL schema matches the
+migrations. Both are manual.
+
+### 1.1b The rules live in TypeScript, and only once
+
+`shared/flags.ts` decides everything about a flag — `mayOpenRoom`, `cardState`,
+`flagFor` — and it is covered by the Node harness. **PHP re-implements none of it.**
+The server-rendered page picks between markup variants the *build* produced by
+calling `cardState()` for each combination ([specs/seo.md](specs/seo.md) §4), so
+there is no second copy of the rules to keep in step and no PHP test that could
+disagree with a TypeScript one.
 
 ### 1.2 End-to-end against a real Worker
 
@@ -173,6 +203,15 @@ of samples captured on a real phone) — never random noise. Traces live in
 - The room lifecycle: join, rejoin after drop, host promotion, last-player-out.
 - Any bug that reaches a phone gets a regression test in the same `fix:` commit
   series.
+- Any auth rule in the admin centre, stated as the hole it closes rather than the
+  happy path: a replayed link, an expired one, a rate limit used as an oracle, a
+  forged or extended session, an unset secret matching everybody.
+
+**One trap specific to the flag gate**, because it has already produced a test that
+passed for the wrong reason: a room code containing `O`, `0`, `I` or `1` is not in
+the code alphabet, so it sanitises down and the Worker answers `400`. That satisfies
+an assertion of "the room was refused" while proving nothing about the flag. **Use
+legal codes** when testing a refusal.
 
 ## 3. Manual device checklist (run before declaring a game done)
 
@@ -181,6 +220,11 @@ mid-range phone if available.
 
 - [ ] Hub loads over 4G in ≤ 2.5 s; illustrations readable at a glance, **and the
       grid does not shift as they arrive**.
+- [ ] **No hydration warning in the console** on the hub. One means a
+      server-rendered card variant disagrees with the component, and it will not
+      show up any other way ([specs/seo.md](specs/seo.md) §4).
+- [ ] **Share the link into a real chat app** (iMessage or WhatsApp) and check the
+      preview shows the title, the sentence and the picture — not a bare URL.
 - [ ] Join by link, by QR, and by typed code — all three work.
 - [ ] Permission primer appears before the OS prompt; **denying** it lands on
       the declared fallback, not an error.

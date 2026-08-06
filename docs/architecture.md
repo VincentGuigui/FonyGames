@@ -8,8 +8,9 @@
 
 ```
                     ┌──────────────────────────┐
-   phone browser →  │  Hub + games (static)    │  deployed by SFTP to the
-                    │  served by the PHP host  │  host's /www
+   phone browser →  │  Hub + games             │  deployed by SFTP to the
+                    │  on the PHP host: assets │  host's /www
+                    │  static, HTML per request│
                     └─────┬──────────────┬─────┘
                           │              │
            WebSocket ─────┘              └───── HTTPS (rare, non-gameplay)
@@ -21,13 +22,18 @@
         └──────────────────────────┘      └───────────────────────┘
 ```
 
-- The **hub and the games are static assets**, deployed to the PHP host
-  ([deployment.md](deployment.md)).
+- **The assets are static; the HTML is rendered per request by PHP.** Everything a
+  browser downloads — JS, CSS, SVG, PNG — is a content-hashed build artefact. The
+  page around it is assembled by PHP from markup the build generated, so the
+  operator can disable a game and the served HTML changes with no rebuild
+  ([specs/seo.md](specs/seo.md) §4). PHP authors no markup of its own; that would
+  be a second copy of the components, and it would drift.
 - **Gameplay has no database.** A Durable Object holds one room's state in
   memory and is the referee; the room's state dies with the room, by design.
-- A **MySQL** database exists on the host but is **not part of the game loop**,
-  and is unused today. It is reachable only from PHP, never from the Durable
-  Object — see [database.md](database.md) for why, and for the migration rules.
+- A **MySQL** database exists on the host and is **not part of the game loop**. It
+  is reachable only from PHP, never from the Durable Object — see
+  [database.md](database.md) for why, and for the migration rules. Its first real
+  use is the backoffice: feature flags and aggregate counters.
 - A game that needs no other player state (e.g. a pure local warm-up mode) must
   still work with the server unreachable.
 
@@ -43,6 +49,8 @@
 | Server | **Cloudflare Durable Objects** — one object per room ✅ **decided** | Room affinity is a platform primitive; free at our scale ([realtime-options.md](realtime-options.md)) |
 | Hosting | Static `www/` on the PHP host via SFTP ✅ **decided** | [deployment.md](deployment.md) |
 | Persistence | MySQL on the host, via PHP, **outside the game loop** | [database.md](database.md) |
+| Page HTML | **PHP on the host**, from build-generated markup | Flags without a rebuild, and a crawler sees the catalogue ([specs/seo.md](specs/seo.md)) |
+| Backoffice | **PHP + MySQL**, same origin as the hub | Sessions, `hash_equals` and `mail()` come with the platform ([specs/backoffice.md](specs/backoffice.md)) |
 | PWA | Manifest + offline shell later, **never** an install requirement | Zero friction rule |
 
 WebRTC data channels were evaluated and **rejected** as the transport
@@ -60,8 +68,8 @@ vite.config.ts          root: www/ · outDir: dist/
 www/
   index.html            hub entry            } multi-page: one real index.html
   tap-duel/index.html   game entry           } per route, no SPA rewrite needed
-  public/               copied verbatim (favicon only — NOT illustrations, see
-                        design/illustrations.md §2 for why)
+  public/               copied verbatim: favicon, .htaccess, robots.txt, og/*.png
+                        (NOT illustrations — design/illustrations.md §2 says why)
   src/
     main.tsx            mounts the hub
     tap-duel.tsx        mounts the Tap Duel lobby
@@ -95,8 +103,14 @@ worker/                 the room server (docs/realtime-server.md)
   goatSiege.ts          } .test.ts beside it (docs/testing.md §1.1)
   slingPuck.ts          }
   catMouse.ts           }
+api/                    PHP: flags, the admin centre, counters. The only thing that
+  lib/                  can reach MySQL (database.md §3). Tested by api/tests/run.php
+  tests/                on plain `php`, wired into `npm test`
+db/                     init.sql + idempotent migrations (database.md §4)
 wrangler.jsonc          Worker config + the irreversible SQLite migration
 dist/                   build output — generated, gitignored, deployed
+  _hub/                 shell + one rendered <li> per card variant, read by index.php
+  index.php             the hub, assembled per request (specs/seo.md §4)
 ```
 
 **Rules:**
@@ -133,7 +147,8 @@ dist/                   build output — generated, gitignored, deployed
 | `npm run dev` | Vite dev server, bound to `0.0.0.0` so a phone on the LAN can open it |
 | `npm run build` | `tsc --noEmit` then `vite build` → `dist/` |
 | `npm run typecheck` | Types only — site **and** worker (two tsconfigs) |
-| `npm test` | Game-logic harness on plain Node ([testing.md](testing.md) §1.1) — every game's referee, plus Sling Puck's board physics |
+| `npm test` | Game-logic harness on plain Node ([testing.md](testing.md) §1.1) — every game's referee, plus Sling Puck's board physics — **and** the PHP suite |
+| `npm run test:php` | The PHP half alone, on plain `php`. No framework, same shape as the Node harness |
 | `npm run worker:dev` | `wrangler dev` on :8787, fully local |
 
 `output.experimentalMinChunkSize` is set for a reason worth knowing: a `card.ts`
@@ -174,6 +189,7 @@ type GameCard = {
 | Budget | Target |
 | --- | --- |
 | Hub first load (gzipped) | ≤ 150 KB, illustrations **excluded** — they ship as separate hashed `.svg` assets, never base64 inside a chunk. Proof: `grep -c 'data:image/svg' dist/assets/hub-*.js` is 0. Baseline for the chunk itself: 3,444 bytes on 2026-08-04 |
+| Server-rendered HTML | Counts toward the hub budget. The grid markup moves from the JS chunk into the document, so **both numbers are recorded** on any change — a smaller chunk is not a win if the HTML grew more |
 | Per-game load (gzipped) | ≤ 150 KB on top of the shared core. A game page imports **its own card only**, never the registry, so it does not carry the other twelve |
 | Time to interactive on 4G mid-range Android | ≤ 2.5 s |
 | Realtime message size | ≤ 1 KB typical, ≤ 8 KB hard cap |
@@ -186,4 +202,6 @@ Exceeding a budget is a `perf:` bug, not a fact of life.
 - No native app, no store distribution, no push notifications.
 - No user accounts, no persistent profiles, no leaderboards across rooms (for
   now — would need storage and a privacy review).
-- No server-side rendering.
+- **No client-side routing.** Each game is a real page ([§3](#3-source-layout)).
+- No framework on the server. PHP concatenates strings the build produced; it does
+  not render components ([specs/seo.md](specs/seo.md) §4).
