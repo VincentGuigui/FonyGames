@@ -200,7 +200,7 @@ switch ($action) {
         reply(200, [
             'flags' => $service->all() ?: new stdClass(),
             'history' => $service->history(20),
-            'revision' => deployedRevision(),
+            'revision' => Health::revision(dirname(__DIR__)),
         ]);
 
         // no break
@@ -241,6 +241,23 @@ switch ($action) {
         reply(200, ['published' => $app->flags()->republish()]);
 
         // no break
+
+    /*
+     * Health and Cloudflare usage, on their OWN action rather than folded into `state`.
+     *
+     * Both make outbound HTTP calls with their own timeouts, and the flag switches must
+     * stay usable while they are slow or down — which is exactly when the operator has
+     * come to look at them. Loading them separately means a hung Worker delays one panel
+     * instead of the whole page.
+     */
+    case 'usage':
+        reply(200, [
+            'flagsFile' => $app->flagsState(),
+            'health' => $app->health()->check($app->healthTargets()),
+            'cloudflare' => $app->usage()->daily(7),
+        ]);
+
+        // no break
 }
 
 reply(404, ['error' => 'no such action']);
@@ -258,10 +275,3 @@ function clientIp(): string
     return is_string($_SERVER['REMOTE_ADDR'] ?? null) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
 }
 
-/** What is actually live, from the marker the deploy already writes. */
-function deployedRevision(): ?string
-{
-    $file = dirname(__DIR__) . '/.deploy-revision';
-
-    return is_readable($file) ? trim((string) file_get_contents($file)) : null;
-}

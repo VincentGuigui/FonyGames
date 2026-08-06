@@ -147,6 +147,31 @@ was failing on an unused import while its output went to `/dev/null`, so the old
 were still being served and the mutation "passed". **Check the emitted asset hash changes
 before believing a mutation was tested.**
 
+### 1.1e The health and usage panels
+
+`api/tests/usage_test.php` is almost entirely failure cases, because the panel exists to
+be looked at when something is wrong. The one behaviour worth naming: **it must never show
+a number it does not have.** A row of zeroes against the free-tier ceiling reads as
+"plenty of headroom" on the day the analytics token expires, so every failure path returns
+`ok: false` with a reason and the raw body, and `pressure()` returns `null` — not 0 — for
+unknown usage.
+
+Two traps in there that are easy to get wrong:
+
+- **Cloudflare's GraphQL API reports its own errors with HTTP 200.** Treating 200 as
+  success would report an authentication failure as "0 requests today".
+- **A self-check against your own origin deadlocks on `php -S`**, which is
+  single-threaded, so a request made from inside a request never completes. There is no
+  self-check for that reason and because it is near-worthless anyway — if the code is
+  answering, the site is up. What *is* reported about the host is whether `flags.json`
+  exists, which is a disk read.
+
+⚠️ **What these tests do not prove.** Every Cloudflare response body in them is
+hand-written from the documented schema, not recorded: this sandbox cannot reach
+`api.cloudflare.com` and the analytics token does not exist yet. They prove the parser
+degrades honestly on anything unexpected. They do **not** prove the field names are right —
+that needs one look at a real response, and `api/lib/Usage.php` says so at the top.
+
 ### 1.1b The rules live in TypeScript, and only once
 
 `shared/flags.ts` decides everything about a flag — `mayOpenRoom`, `cardState`,

@@ -186,6 +186,12 @@ body {
   opacity: 0.5;
 }
 
+/* The one state that contradicts every switch on the page, so it is not dim. */
+.ops__warn {
+  color: #ffd08a;
+  font-weight: 600;
+}
+
 .ops__log {
   font-size: 0.8rem;
   color: var(--color-text-dim);

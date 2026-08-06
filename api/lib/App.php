@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/Auth.php';
 require_once __DIR__ . '/Clock.php';
+require_once __DIR__ . '/Health.php';
 require_once __DIR__ . '/FlagService.php';
 require_once __DIR__ . '/Flags.php';
 require_once __DIR__ . '/Mailer.php';
 require_once __DIR__ . '/PdoAuthStore.php';
 require_once __DIR__ . '/PdoFlagStore.php';
+require_once __DIR__ . '/Usage.php';
 
 /**
  * Wiring: config in, working objects out.
@@ -101,6 +103,88 @@ final class App
             new PdoFlagStore($this->db(), new SystemClock()),
             (string) $this->config['flags_path'],
         );
+    }
+
+    public function usage(): Usage
+    {
+        return new Usage(
+            (string) $this->config['cf_account_id'],
+            (string) $this->config['cf_analytics_token'],
+        );
+    }
+
+    public function health(): Health
+    {
+        return new Health();
+    }
+
+    /**
+     * What to check, and where.
+     *
+     * The Worker URLs are derived from the room-server naming in
+     * docs/realtime-server.md §6 rather than configured, because they are public and
+     * fixed; a config key for them would be one more thing to get wrong on a fresh host.
+     *
+     * @return array<string, string>
+     */
+    public function healthTargets(): array
+    {
+        // NO self-check, and the first reason only showed up by running one: fetching your
+        // own origin from inside a request DEADLOCKS on PHP's built-in server, which is
+        // single-threaded — a guaranteed 4-second timeout in local development. It would
+        // also be near-worthless: if this code is answering, the site is up. What is worth
+        // knowing about this host is whether `flags.json` is there, and that is a disk
+        // read (`flagsState()`).
+        return [
+            'room server (dev)' => 'https://fonygames-worker-dev.vincent-f02.workers.dev/health',
+            'room server (prod)' => 'https://fonygames-worker.vincent-f02.workers.dev/health',
+        ];
+    }
+
+    /**
+     * Is the file the Worker depends on actually there?
+     *
+     * The one thing about this host worth reporting, and it is a disk read rather than an
+     * HTTP call. If `flags.json` is missing, the Worker fails open and every game is
+     * playable regardless of what the switches above say — which is the single most
+     * confusing state this system can be in, so it gets said out loud.
+     *
+     * @return array{ok: bool, detail: string}
+     */
+    public function flagsState(): array
+    {
+        $path = (string) $this->config['flags_path'];
+
+        if (!is_readable($path)) {
+            return [
+                'ok' => false,
+                'detail' => 'flags.json is missing — the Worker is failing open, so every'
+                    . ' game is playable whatever the switches above say. Use republish.',
+            ];
+        }
+
+        $age = time() - (int) filemtime($path);
+        $count = count(Flags::read($path));
+
+        return [
+            'ok' => true,
+            'detail' => "flags.json holds {$count} flag(s), written " . self::ago($age) . ' ago',
+        ];
+    }
+
+    private static function ago(int $seconds): string
+    {
+        if ($seconds < 90) {
+            return "{$seconds}s";
+        }
+        if ($seconds < 5400) {
+            return (int) round($seconds / 60) . 'min';
+        }
+        if ($seconds < 172800) {
+            return (int) round($seconds / 3600) . 'h';
+        }
+
+        return (int) round($seconds / 86400) . 'd';
     }
 
     public function auth(): Auth

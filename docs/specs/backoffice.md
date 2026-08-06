@@ -47,10 +47,33 @@ warning before the free tier runs out, not pretty graphs.
 > is scoped to *Edit Cloudflare Workers* and deliberately cannot read analytics —
 > do not widen it; mint a separate read-only token.
 
-### Games & activity
+### Games & activity — ⏸ **blocked on one decision, not on work**
 Per game: rounds started, rounds finished, completion rate, peak concurrent
 rooms. Useful for ordering the hub and for spotting a game nobody finishes,
 which is a design bug worth knowing about.
+
+**Not built, and deliberately not built quietly.** The counters can only come from
+the Durable Object, which means a `Room → PHP` write endpoint — and that endpoint
+has to be authenticated, or anyone on the internet can inflate the numbers the hub
+is ordered by. Authenticating it means a shared secret in **two** systems, a
+Wrangler secret and a GitHub secret that must be byte-identical with no automated
+way to check.
+
+That is exactly `MAIL_SECRET`, which was deleted on 2026-08-06 for exactly that
+reason (§5). Rebuilding it three commits later, for anonymous play counts, is a
+trade the maintainer should make rather than one that should appear in a diff.
+
+The options, with what each actually costs:
+
+| Option | Cost |
+| --- | --- |
+| **Shared secret** (`STATS_SECRET`) | Reintroduces the two-copy drift this design just removed. It is the only option that authenticates the write |
+| **Unauthenticated endpoint** | No secret; anyone can inflate the counters. They are anonymous aggregates, so this is vandalism rather than a breach — but the hub's ordering would be built on numbers a stranger can move |
+| **Cloudflare analytics only** | Already built, no new anything. Gives request volume per Worker, so "is anyone playing" is answerable; per-game granularity is not |
+| **Skip it** | The completion rate is the one metric worth having, and it is a design signal rather than an operational one. It can wait for a play test |
+
+**Health and Cloudflare usage are built and need none of this** — both are read-only
+outbound calls from PHP, with no new credential and nothing to keep in step.
 
 ## 2b. Feature flags — turning games on and off
 
@@ -136,15 +159,19 @@ already sanctions. See [../roadmap.md](../roadmap.md) for the full decision row.
 
 ## 3. Where the data lives
 
-This is the **first real use of MySQL**, and it follows the topology already
-fixed in [database.md](../database.md) §3 — the Durable Object cannot reach the
-database, so counters go:
+MySQL's **first real use is the feature flags** (§2b), not the counters. The flags
+need no new wire path: PHP is both the writer and the publisher.
+
+If the counters in §2 are ever built, they follow the topology already fixed in
+[database.md](../database.md) §3 — the Durable Object cannot reach the database:
 
 ```
 Room DO ──end of round, HTTPS──> PHP endpoint ──> MySQL
 ```
 
-Off the gameplay path, so a slow database can never affect a round.
+Off the gameplay path, so a slow database can never affect a round. The open
+question is not the topology; it is how that endpoint is authenticated, and §2
+lays out what each answer costs.
 
 Building it therefore triggers the rules in [database.md](../database.md) §4: an
 `init.sql`, idempotent migrations under `db/migrations/`, and local MariaDB as

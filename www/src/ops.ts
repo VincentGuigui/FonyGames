@@ -232,6 +232,85 @@ function render(state: State): void {
   const notice = el('p', 'ops__note');
   notice.id = 'ops-notice';
   root!.append(notice);
+
+  // Its own section, loaded separately. Health and Cloudflare both make outbound calls
+  // with their own timeouts, and the flag switches above must stay usable while those are
+  // slow — which is precisely when somebody has come here to look at them.
+  const panel = el('section', 'ops__log');
+  panel.id = 'ops-usage';
+  panel.append(el('h2', 'ops__subtitle', 'health and usage'));
+  panel.append(el('p', 'ops__note', 'checking…'));
+  root!.append(panel);
+  void loadUsage(panel);
+}
+
+type Usage = {
+  flagsFile: { ok: boolean; detail: string };
+  health: Array<{ label: string; url: string; ok: boolean; status: number; detail: string }>;
+  cloudflare: {
+    ok: boolean;
+    reason?: string;
+    days?: Array<{ date: string; requests: number | null; gbSeconds: number | null }>;
+    ceilings: { requests: number; gbSeconds: number };
+  };
+};
+
+async function loadUsage(panel: HTMLElement): Promise<void> {
+  const { status, data } = await api('usage');
+  panel.replaceChildren(el('h2', 'ops__subtitle', 'health and usage'));
+
+  if (status !== 200) {
+    panel.append(el('p', 'ops__note', `Could not read it (${status}).`));
+    return;
+  }
+
+  const usage = data as unknown as Usage;
+
+  // First, because a missing flags.json makes every switch above this panel a lie.
+  if (usage.flagsFile) {
+    const line = el('p', 'ops__note', usage.flagsFile.detail);
+    if (!usage.flagsFile.ok) line.className = 'ops__note ops__warn';
+    panel.append(line);
+  }
+
+  const list = el('ul');
+  for (const row of usage.health) {
+    // The status number is included even when it is fine: "up (200)" and "up" cost the
+    // same to read, and the number is what you quote to somebody else.
+    const state = row.ok ? `up (${row.status})` : row.status === 0 ? 'unreachable' : `down (${row.status})`;
+    const line = el('li', undefined, `${row.label}: ${state}`);
+    if (!row.ok && row.detail) line.append(el('span', 'ops__slug', ` ${row.detail}`));
+    list.append(line);
+  }
+  panel.append(list);
+
+  const cf = usage.cloudflare;
+  if (!cf.ok) {
+    // Says WHY, and never shows a zero. A row of zeroes against the free-tier ceiling
+    // would read as "plenty of headroom" on the day the token expired.
+    panel.append(el('p', 'ops__note', `Cloudflare usage unavailable — ${cf.reason ?? 'no reason given'}`));
+    return;
+  }
+
+  const usageList = el('ul');
+  for (const day of cf.days ?? []) {
+    const pct =
+      day.requests === null ? null : Math.round((day.requests / cf.ceilings.requests) * 100);
+    usageList.append(
+      el(
+        'li',
+        undefined,
+        `${day.date}: ${day.requests ?? '?'} DO requests` +
+          (pct === null ? '' : ` — ${pct}% of the ${cf.ceilings.requests.toLocaleString()}/day free tier`),
+      ),
+    );
+  }
+  panel.append(usageList);
+  // Stated rather than left as a blank column: the query deliberately does not ask for
+  // GB-seconds, because one unknown field name would fail the whole query.
+  panel.append(
+    el('p', 'ops__note', `GB-seconds are not fetched yet — see api/lib/Usage.php. Ceiling is ${cf.ceilings.gbSeconds.toLocaleString()}/day.`),
+  );
 }
 
 function say(text: string): void {
