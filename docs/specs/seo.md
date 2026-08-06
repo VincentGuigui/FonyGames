@@ -2,9 +2,10 @@
 
 How a FonyGames page is discovered, and how it looks when somebody shares it.
 
-> Status: **specced, not built.** The decisions below were settled on 2026-08-06,
-> when the backoffice moved from the Worker to PHP
+> Status: **built**, on 2026-08-06, when the backoffice moved from the Worker to PHP
 > ([backoffice.md](backoffice.md)) and a server-rendered page became possible.
+> Not yet verified on a deployed host — the two `.htaccess` traps in §4 are the ones
+> to check there first, because both look exactly like "the rendering did not happen".
 
 ## 1. The problem, stated plainly
 
@@ -80,8 +81,9 @@ Rules, each of which exists because getting it wrong is silent:
   `url`, `image`, `playMode: "MultiPlayer"`, `applicationCategory: "Game"` and
   `operatingSystem: "Any (web browser)"`.
 
-`robots.txt` allows everything except the admin path, and points at
-`/sitemap.php`. It cannot *hide* the admin path — a `Disallow` line publishes it
+`robots.txt` allows everything and points at `/sitemap.xml`, which is the name every
+crawler looks for; the root `.htaccess` rewrites that to `sitemap.php`, because a
+sitemap has to be generated per request for a hidden game to drop out of it. It cannot *hide* the admin path — a `Disallow` line publishes it
 to anyone who reads the file — so the admin path is **not** listed there. See
 [backoffice.md](backoffice.md) §4: the path is not the security, and `robots.txt`
 is a place it must not leak.
@@ -95,22 +97,41 @@ because the only reader of the server-rendered copy is a crawler.
 So the build generates the markup and PHP only chooses between finished strings:
 
 ```
-build   preact-render-to-string over the REAL <Hub/> and <GameCardTile/>
-          ├── dist/_hub/shell.html   the page, with <!--GRID--> where the <li>s go
-          └── dist/_hub/cards.php    slug → variant → the rendered <li> string
+build   preact-render-to-string over the REAL <Hub/>, <HubGrid/> and <GameCardTile/>
+          ├── dist/_hub/page.html    Vite's index.html, MOVED here (see trap 1)
+          ├── dist/_hub/shell.html   the hub, with <fony-grid></fony-grid> where the cards go
+          ├── dist/_hub/cards.php    order + grid wrapper + slug → variant → <li> string
+          └── dist/_hub/.htaccess    none of the above is a page
 
 request dist/index.php
-          = shell
-          + for each game, the variant its current flag selects
-          + <script type="application/json" id="flags">…</script>
+          = page.html, with #app filled by
+              shell, with the marker replaced by
+                the variant each game's current flag selects
+          + <script type="application/json" id="fony-flags">…</script> in the head
 ```
 
+`scripts/ssr.mjs` builds it, with an esbuild plugin that resolves the Vite-only
+`?url&no-inline` art imports to their **content-hashed** URLs from
+`dist/.vite/manifest.json` — so the markup is byte-identical to the client's and
+hydration has nothing to correct.
+
 - **The variants are enumerated mechanically.** For each card, for each
-  `availability` × `isNew` pair, call `cardState()` from
-  [`shared/flags.ts`](../../shared/flags.ts) and render the real component with
-  the result. `soon` games have one variant; `hidden` is the empty string. **No
-  decision logic is duplicated** — `shared/flags.ts` stays the only place the
-  rules live, and it is already covered by the node harness.
+  `availability` × `isNew` × `showAll` combination — twelve — call `cardState()` from
+  [`shared/flags.ts`](../../shared/flags.ts) and render the real component with the
+  result. A `hidden` game on prod is the empty string, so it is **absent from the
+  document** rather than dimmed with CSS, which would still put its title and its link
+  in the source for a crawler to read. **No decision logic is duplicated** —
+  `shared/flags.ts` stays the only place the rules live, and the node harness already
+  covers it.
+- `showAll` is the dev-vs-prod dimension, and it comes from `show_all` in
+  `api/config.php`, which the deploy sets from the branch. Not from sniffing
+  `$_SERVER['HTTP_HOST']`, which is one string away from showing prod's hidden games to
+  the world.
+- **The grid's `<ul>` comes from `HubGrid`'s own output**, extracted at build time, so
+  the class name `hub.css` depends on is authored in exactly one place.
+- **The order comes from the build**, recorded alongside the variants. `hub.md` §2
+  requires a curated order, and iterating the flags map instead would quietly replace it
+  with whatever order the JSON happened to be written in.
 - A `disabled` card's reason is the one runtime string, injected with a single
   `str_replace` into a placeholder the build left behind. It is
   HTML-escaped on the way in; it is operator-supplied text landing in a page.
@@ -127,7 +148,9 @@ request dist/index.php
 - `main.tsx` picks its mount mode from the DOM:
   `(root.firstElementChild ? hydrate : render)(<Hub />, root)`. One line, because
   `vite dev` serves the plain `index.html` with an empty `#app` and must keep
-  working.
+  working. **This branch is intent, not a workaround**: both directions were measured
+  in a real browser and both work on the Preact this project ships
+  ([../testing.md](../testing.md) §1.1d).
 
 ### The two traps that make SSR live but invisible
 
@@ -141,6 +164,11 @@ happen", which is why they are written down rather than remembered.
    `www/public/.htaccess` carries `DirectoryIndex index.php index.html`, *and*
    the old `index.html` is deleted once by hand on each host. Either alone is a
    single point of silence.
+
+   The build helps by not emitting one at all: `scripts/ssr.mjs` **moves** Vite's
+   `index.html` to `_hub/page.html`. That protects every future deploy; it cannot
+   remove the file an earlier deploy already put there, which is why the manual delete
+   is still owed.
 2. **A cached page defeats the point.** The same `.htaccess` sets
    `Cache-Control: no-cache, must-revalidate` for `.php`, while content-hashed
    assets keep their long cache. Without it a flag change waits on a CDN edge or
@@ -192,9 +220,10 @@ state must change in the response.
 
 The rest, in [../testing.md](../testing.md):
 
-- zero Preact hydration warnings in a real browser at 360 px, and no visible
-  re-layout as the JS boots — a warning here means a card variant disagrees with
-  the component;
+- hydration **adopts** the server's grid rather than replacing it, proved with a
+  MutationObserver installed before the page's own scripts — a console warning cannot
+  tell you, because Preact's production build is silent on a mismatch
+  ([../testing.md](../testing.md) §1.1d);
 - the grid is present and its links work with JavaScript disabled;
 - a build-time assertion that every page carries `og:title`, `og:description` and
   `og:image`, and that the PNG exists and is ≤ 300 KB;

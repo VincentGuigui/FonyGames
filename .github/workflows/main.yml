@@ -174,8 +174,13 @@ jobs:
         # the operator a link to somebody else's site carrying a valid token.
         if [ "${{ github.ref_name }}" = "prod" ]; then
           SITE_ORIGIN="https://fonygames.guigui.fr"
+          SHOW_ALL="false"
         else
           SITE_ORIGIN="https://fonygames-dev.guigui.fr"
+          # dev shows every game with a badge stating what prod would do, so it is a
+          # preview of the catalogue rather than a copy of prod's restrictions
+          # (docs/specs/backoffice.md §2b).
+          SHOW_ALL="true"
         fi
 
         # A command group redirected once, with each value escaped for a PHP
@@ -197,6 +202,8 @@ jobs:
             value="${pair#*:}"
             printf "  '%s' => '%s',\n" "$key" "$(printf '%s' "$value" | sed "s/\\\\/\\\\\\\\/g; s/'/\\\\'/g")"
           done
+          # A boolean, so it is written unquoted rather than through the string loop.
+          echo "  'show_all' => $SHOW_ALL,"
           echo "];"
         } > dist/api/config.php
 

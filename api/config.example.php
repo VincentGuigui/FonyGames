@@ -43,6 +43,11 @@ return [
     // Where the published flags land. The web root, one level above api/.
     'flags_path' => __DIR__ . '/../flags.json',
 
+    // True on the DEV host only: show every game with a badge stating what prod would do,
+    // so dev is a preview of the catalogue rather than a copy of prod's restrictions
+    // (docs/specs/backoffice.md §2b). The deploy sets this from the branch.
+    'show_all' => false,
+
     // Envelope sender for the magic link.
     'mail_from' => 'noreply@guigui.fr',
 

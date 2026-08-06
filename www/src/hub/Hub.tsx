@@ -1,7 +1,8 @@
 import { useState } from 'preact/hooks';
-import type { JSX } from 'preact';
+import type { JSX, VNode } from 'preact';
 import { catalogue } from '../games/registry';
-import { GameCardTile } from './GameCardTile';
+import { HubGrid } from './HubGrid';
+import { cardState, flagFor, type GameFlag } from '../../../shared/flags';
 import { isRoomCode, normaliseRoomCode } from '../core/room/code';
 import { lookupRoom } from '../core/room/lookup';
 
@@ -12,13 +13,28 @@ import { lookupRoom } from '../core/room/lookup';
  * The hub is inert — no permission request, no sensor listener, no socket.
  * Those only ever happen inside a game lobby.
  */
-export function Hub(): JSX.Element {
+export function Hub({
+  flags = {},
+  showAll = false,
+  grid,
+}: {
+  /** From the server-rendered page, inlined — never fetched (docs/specs/seo.md §4). */
+  flags?: Record<string, GameFlag>;
+  showAll?: boolean;
+  /**
+   * Replaces the grid. Used **only** by the build's shell render, which needs a page
+   * with a marker where the cards go so `index.php` can splice them in per request.
+   */
+  grid?: VNode;
+} = {}): JSX.Element {
   const games = catalogue();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
 
-  const anyPlayable = games.some((g) => g.status !== 'soon');
+  // "Nothing is playable yet" has to account for the flags, not just build-time status:
+  // with every built game disabled, the shell notice is the honest thing to show.
+  const anyPlayable = games.some((g) => cardState(g.status, flagFor(flags, g.slug), showAll).playable);
 
   /**
    * Route a typed code to the right lobby (hub spec §4).
@@ -109,11 +125,7 @@ export function Hub(): JSX.Element {
         </p>
       )}
 
-      <ul class="hub__grid">
-        {games.map((game) => (
-          <GameCardTile key={game.slug} game={game} />
-        ))}
-      </ul>
+      {grid ?? <HubGrid flags={flags} showAll={showAll} />}
 
       <footer class="hub__footer">
         <p>

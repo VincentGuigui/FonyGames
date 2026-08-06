@@ -102,6 +102,51 @@ so it kills the shell and leaves the server running, and then the next assertion
 the *old* process. Write the PID to a file when you start it and kill that. This wasted
 two debugging rounds and produced one convincing false failure.
 
+### 1.1c Checking the server-rendered hub
+
+`api/tests/page_test.php` covers the assembly, including the one coupling worth naming:
+`scripts/ssr.mjs` invents the variant-key format and `Page::variantKey()` reconstructs it,
+so the test reads the **real generated `dist/_hub/cards.php`** and asserts every key PHP
+would ask for exists and no key exists that it would not. If those drift, every card
+resolves to `''` and the hub renders an empty grid with no error anywhere.
+
+What the harness cannot see needs a server and a browser:
+
+```bash
+npm run build && cd dist && php -S 127.0.0.1:8100     # with an api/config.php, as §1.1a-bis
+curl -s http://127.0.0.1:8100/ | grep -c '<li class="game-card'   # 13, no JS involved
+```
+
+Then **the check that is the whole justification for rendering per request**: disable a
+game in the admin and `curl` again *without rebuilding*. The card must change state in the
+response. Also worth confirming, because each has its own failure mode: a `hidden` game's
+title is **absent** rather than dimmed with CSS (a crawler reads the source), a `disabled`
+game's badge carries the operator's reason **escaped**, and `sitemap.php` drops the hidden
+game while keeping the disabled one.
+
+### 1.1d Hydration: what can and cannot be proved
+
+**"No console errors" does not prove hydration worked.** Preact's production build is
+silent on a mismatch, so a full replacement looks exactly like a clean adoption.
+
+The way to actually see it is a `MutationObserver` installed via CDP's
+`Page.addScriptToEvaluateOnNewDocument`, which runs *before* the page's own scripts: count
+`li.game-card` nodes removed and added during boot, and compare the object identity of the
+first card before and after. A correct hydration removes none, adds none, and keeps the
+same node.
+
+⚠️ **And a finding that corrects an earlier assumption in this repo.** That test does *not*
+distinguish `hydrate()` from `render()`. Both were run in a real browser on the Preact this
+project ships: `render()` over server markup adopts the existing children rather than
+replacing them, and `hydrate()` into an empty container renders fine. So the branch in
+`main.tsx` is a statement of intent and a small saving, **not** a fix for a crash — and
+anyone told otherwise will go looking for a bug that is not there.
+
+The mutation that exposed that also exposed a trap in *how* to run one: `npm run build`
+was failing on an unused import while its output went to `/dev/null`, so the old assets
+were still being served and the mutation "passed". **Check the emitted asset hash changes
+before believing a mutation was tested.**
+
 ### 1.1b The rules live in TypeScript, and only once
 
 `shared/flags.ts` decides everything about a flag — `mayOpenRoom`, `cardState`,
@@ -258,9 +303,9 @@ mid-range phone if available.
 
 - [ ] Hub loads over 4G in ≤ 2.5 s; illustrations readable at a glance, **and the
       grid does not shift as they arrive**.
-- [ ] **No hydration warning in the console** on the hub. One means a
-      server-rendered card variant disagrees with the component, and it will not
-      show up any other way ([specs/seo.md](specs/seo.md) §4).
+- [ ] The hub grid appears **with JavaScript disabled**, and the same cards appear
+      with it enabled. A console warning is *not* the signal here — see §1.1d for why,
+      and for the observer-based check that is.
 - [ ] **Share the link into a real chat app** (iMessage or WhatsApp) and check the
       preview shows the title, the sentence and the picture — not a bare URL.
 - [ ] Join by link, by QR, and by typed code — all three work.

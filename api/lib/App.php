@@ -62,6 +62,11 @@ final class App
             // not be exercised anywhere but production. NEVER set on the host — the sink
             // would be a file full of valid links.
             'mail_sink' => (string) ($loaded['mail_sink'] ?? ''),
+            // Does this host show every game, badged, whatever the flag says? True on
+            // dev, false on prod (docs/specs/backoffice.md §2b). From config rather than
+            // from sniffing $_SERVER['HTTP_HOST'] — a hostname test is one string away
+            // from showing prod's hidden games to the world.
+            'show_all' => ($loaded['show_all'] ?? false) === true,
         ]);
     }
 

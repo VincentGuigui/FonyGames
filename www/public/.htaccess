@@ -1,0 +1,61 @@
+# FonyGames web root.
+# Rules: docs/specs/seo.md §4
+#
+# TWO OF THESE RULES ARE LOAD-BEARING, and both failures look identical to "the
+# server-side rendering simply did not happen" — which is why they are written down here
+# rather than remembered.
+
+# ── 1. index.php must win ────────────────────────────────────────────────────
+#
+# The deploy's SFTP sync uploads everything and DELETES NOTHING (docs/deployment.md §5),
+# so an `index.html` left by any earlier deploy stays in the web root forever — and
+# Apache's default DirectoryIndex prefers it. The hub would then be a stale static shell
+# with an empty grid, indefinitely, while every local check passed.
+#
+# The build no longer emits an index.html at all (it becomes _hub/page.html), so this
+# only matters for hosts that were deployed before that change. It is still both halves:
+# this line, AND deleting the old file on each host once by hand.
+<IfModule mod_dir.c>
+  DirectoryIndex index.php index.html
+</IfModule>
+
+# ── 2. The HTML must not be cached ───────────────────────────────────────────
+#
+# The whole point of rendering per request is that disabling a game changes what the
+# server serves with no rebuild. A cached page makes that wait on an edge or on a phone,
+# which reads as "the flag did not work".
+#
+# The content-hashed assets are the opposite: their name changes when they do, so they
+# can be cached forever.
+<IfModule mod_headers.c>
+  <FilesMatch "\.php$">
+    Header always set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.(json)$">
+    # flags.json is read by the Worker, which does its own 60s caching and needs to be
+    # able to see a change (docs/specs/backoffice.md §2b).
+    Header always set Cache-Control "public, max-age=30"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+  # Vite content-hashes everything under /assets, so a changed file has a changed name.
+  <FilesMatch "^.*\.(js|css|svg|png|woff2)$">
+    ExpiresDefault "access plus 1 year"
+  </FilesMatch>
+</IfModule>
+
+# ── The conventional sitemap name, served by the runtime generator ───────────
+#
+# robots.txt points at /sitemap.xml because that is what crawlers look for, and the
+# generator has to run per request so a hidden game drops out of it (specs/seo.md §2).
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^sitemap\.xml$ /sitemap.php [L]
+</IfModule>
+
+# Compression, for the one document that is not already hashed and immutable.
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html application/json application/xml text/css application/javascript
+</IfModule>

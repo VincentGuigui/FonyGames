@@ -189,7 +189,7 @@ type GameCard = {
 | Budget | Target |
 | --- | --- |
 | Hub first load (gzipped) | ≤ 150 KB, illustrations **excluded** — they ship as separate hashed `.svg` assets, never base64 inside a chunk. Proof: `grep -c 'data:image/svg' dist/assets/hub-*.js` is 0. Baseline for the chunk itself: 3,444 bytes on 2026-08-04 |
-| Server-rendered HTML | Counts toward the hub budget. The grid markup moves from the JS chunk into the document, so **both numbers are recorded** on any change — a smaller chunk is not a win if the HTML grew more |
+| Server-rendered HTML | Counts toward the hub budget. The grid markup is in the document as well as in the JS (the client needs the component to hydrate), so **both numbers are recorded** on any change — a smaller chunk is not a win if the HTML grew more. Measured 2026-08-06: 2,851 bytes of gzipped HTML, 2,074 for the hub chunk, **17,110 bytes for the whole first load** including CSS and the shared chunks |
 | Per-game load (gzipped) | ≤ 150 KB on top of the shared core. A game page imports **its own card only**, never the registry, so it does not carry the other twelve |
 | Time to interactive on 4G mid-range Android | ≤ 2.5 s |
 | Realtime message size | ≤ 1 KB typical, ≤ 8 KB hard cap |

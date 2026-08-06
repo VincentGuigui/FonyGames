@@ -9,6 +9,12 @@ export default defineConfig({
     outDir: '../dist',
     emptyOutDir: true,
     target: 'es2022',
+    // The SSR step needs to know each art file's CONTENT-HASHED url, so the markup it
+    // renders is byte-identical to what the client renders and hydration is exact
+    // (docs/specs/seo.md §4). The manifest is the only place Vite publishes that
+    // mapping. Emitted to dist/.vite/manifest.json and not deployed — it is a build
+    // artefact, and `scripts/ssr.mjs` deletes it once it has read it.
+    manifest: true,
     // Multi-page, one real index.html per route. Static hosting serves
     // /tap-duel/ straight from disk — no SPA rewrite rule needed, which we
     // could not rely on having on the shared host.
