@@ -31,7 +31,21 @@ $r = Harness::capture(static function (): void {
 });
 check('mixed results are tallied, not short-circuited', $r['checks'] === 3 && $r['failures'] === 1, $r);
 
-check('capture leaves the outer counters alone', Harness::$failures === 0, Harness::$failures);
+// Asserted as "unchanged", not as "zero". An earlier version compared against 0,
+// which made this check fail spuriously whenever anything *else* in the suite failed
+// — adding a bogus third failure to a report at exactly the moment the report needs
+// to be readable.
+$outerChecks = Harness::$checks;
+$outerFailures = Harness::$failures;
+Harness::capture(static function (): void {
+    check('inner pass', true);
+    check('inner fail', false);
+});
+check(
+    'capture leaves the outer counters alone',
+    Harness::$checks === $outerChecks && Harness::$failures === $outerFailures,
+    ['checks' => [$outerChecks, Harness::$checks], 'failures' => [$outerFailures, Harness::$failures]],
+);
 
 group('the exit code');
 
