@@ -37,24 +37,30 @@ jobs:
         FTPHOST: ${{ secrets.FTPHOST }}
         FTPUSER: ${{ secrets.FTPUSER }}
         FTPPWD: ${{ secrets.FTPPWD }}
-        MAIL_SECRET: ${{ secrets.MAIL_SECRET }}
         ADMIN_PATH: ${{ secrets.ADMIN_PATH }}
+        ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+        ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
       run: |
         missing=""
         [ -n "$FTPHOST" ] || missing="$missing FTPHOST"
         [ -n "$FTPUSER" ] || missing="$missing FTPUSER"
         [ -n "$FTPPWD" ]  || missing="$missing FTPPWD"
 
-        # The admin centre's two secrets are required only once the page exists in the
+        # The admin centre's secrets are required only once the page exists in the
         # tree. Gating on the directory rather than on a hand-flipped flag means this
         # starts enforcing itself the moment the feature lands, and cannot be forgotten
         # — and it does not break today's deploys before the secrets have been set.
+        #
+        # MAIL_SECRET used to be in this list. It no longer exists: the admin centre
+        # moved to PHP, so the code that mints a magic link calls mail() directly and
+        # there is no Worker->PHP hop to authenticate (docs/specs/backoffice.md §5).
         if [ -d www/ops-placeholder ]; then
-          [ -n "$MAIL_SECRET" ] || missing="$missing MAIL_SECRET"
           [ -n "$ADMIN_PATH" ]  || missing="$missing ADMIN_PATH"
-        elif [ -z "$MAIL_SECRET" ] || [ -z "$ADMIN_PATH" ]; then
-          echo "::notice::MAIL_SECRET / ADMIN_PATH not set yet. Not required until the"\
-               "admin page is in the tree, and then required automatically."
+          [ -n "$ADMIN_EMAIL" ] || missing="$missing ADMIN_EMAIL"
+          [ -n "$ADMIN_TOKEN" ] || missing="$missing ADMIN_TOKEN"
+        elif [ -z "$ADMIN_PATH" ] || [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_TOKEN" ]; then
+          echo "::notice::ADMIN_PATH / ADMIN_EMAIL / ADMIN_TOKEN not set yet. Not required"\
+               "until the admin page is in the tree, and then required automatically."
         fi
 
         if [ -n "$missing" ]; then
@@ -75,10 +81,13 @@ jobs:
         fi
 
         # What this step CANNOT check, stated so nobody trusts it further than it goes:
-        # whether MAIL_SECRET matches the Wrangler secret of the same name. CI can read
-        # this copy and has no access to the other. Only a live call proves the pair, so
-        # that lives in the admin centre as "test the mail path"
+        # whether mail() actually delivers. An address being present is not
+        # deliverability, and shared-host mail can be accepted and then dropped by the
+        # recipient's filter. ADMIN_TOKEN is the break-glass for exactly that
         # (docs/specs/backoffice.md §5).
+        #
+        # It also cannot check that ADMIN_EMAIL is an address the operator can read.
+        # A typo here means a link nobody receives, and it looks identical to spam.
 
     - name: 🟢 Set up Node
       uses: actions/setup-node@v6

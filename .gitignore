@@ -11,9 +11,9 @@ coverage/
 # wrangler local state (persisted Durable Object storage)
 .wrangler/
 
-# Local secrets for `wrangler dev`. THIS REPO IS PUBLIC — a committed .dev.vars
-# publishes every value in it. The .example is committed on purpose: placeholders
-# only, so a fresh clone knows what to create.
+# `wrangler dev` reads secrets from .dev.vars. The Worker has no secrets any more
+# (docs/deployment.md §3.2), so there is nothing to put in one — but the ignore stays,
+# because THIS REPO IS PUBLIC and a file created later would otherwise be committed
+# by the next `git add -A`.
 .dev.vars
 .dev.vars.*
-!.dev.vars.example

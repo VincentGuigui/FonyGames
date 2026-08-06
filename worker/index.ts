@@ -1,39 +1,49 @@
 import { isRoomCode, normaliseRoomCode } from '../www/src/core/room/code';
 import { gameSlug, originAllowed } from './router';
 import { Room } from './Room';
-import { FlagsObject } from './FlagsObject';
+import { makeFlagsReader, timedFetch, type FlagsReader } from './flags';
 import type { FlagState } from '../shared/flags';
 
-export { Room, FlagsObject };
+export { Room };
 
 export type Env = {
   ROOM: DurableObjectNamespace<Room>;
-  /**
-   * The singleton that holds feature flags and admin sessions
-   * (docs/specs/backoffice.md §2b). One per Worker, so dev and prod are separate
-   * by construction.
-   */
-  FLAGS: DurableObjectNamespace<FlagsObject>;
   /**
    * Comma-separated origins allowed to open a socket. The hub is served from
    * the PHP host, so every game connection is cross-origin and we allow-list
    * rather than accept anything.
    */
   ALLOWED_ORIGINS: string;
-  /* Admin secrets. All optional: unset means "no admin", never "open admin". */
-  ADMIN_EMAIL?: string;
-  ADMIN_SESSION_KEY?: string;
-  ADMIN_TOKEN?: string;
-  MAIL_SECRET?: string;
-  MAIL_ENDPOINT?: string;
-  ADMIN_LINK_BASE?: string;
+  /**
+   * URL of `flags.json` on the web host — a plain var, not a secret: the file is
+   * public and the Worker fails open if this is wrong
+   * (docs/specs/backoffice.md §2b). Per environment, so the dev Worker reads dev's
+   * flags.
+   *
+   * **This Worker has no secrets at all.** It used to hold six, for an admin centre
+   * that now lives in PHP.
+   */
+  FLAGS_URL?: string;
 };
 
-/** The singleton's name. One object, one Worker, one environment. */
-const FLAGS_NAME = 'flags';
+/**
+ * One reader per isolate, built lazily and kept — the whole point is a cache that
+ * outlives a request. Keyed by URL so a config change cannot be served by a reader
+ * holding the old host's answers.
+ */
+let reader: FlagsReader | null = null;
+let readerUrl: string | undefined;
 
-function flagsStub(env: Env) {
-  return env.FLAGS.get(env.FLAGS.idFromName(FLAGS_NAME));
+function flags(env: Env): FlagsReader {
+  if (reader === null || readerUrl !== env.FLAGS_URL) {
+    readerUrl = env.FLAGS_URL;
+    reader = makeFlagsReader({
+      url: env.FLAGS_URL,
+      now: () => Date.now(),
+      fetcher: timedFetch,
+    });
+  }
+  return reader;
 }
 
 export default {
@@ -42,37 +52,6 @@ export default {
 
     if (url.pathname === '/health') {
       return Response.json({ ok: true });
-    }
-
-    const origin0 = request.headers.get('Origin');
-
-    /*
-     * The admin surface. Every one of these is origin-checked like a socket is, and
-     * every write is bearer-checked inside the object — the hidden path is not the
-     * control (docs/specs/backoffice.md §4).
-     *
-     * A preflight is genuinely required here, unlike for `/room/game`: these carry an
-     * `Authorization` header, which makes them non-simple requests, so the browser asks
-     * first. Without this branch every admin call fails CORS before it is sent.
-     */
-    if (url.pathname === '/flags' || url.pathname.startsWith('/admin/')) {
-      if (request.method === 'OPTIONS') {
-        return cors(
-          new Response(null, {
-            status: 204,
-            headers: {
-              'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-              'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-              'Access-Control-Max-Age': '86400',
-            },
-          }),
-          origin0,
-        );
-      }
-      if (!originAllowed(origin0, env.ALLOWED_ORIGINS)) {
-        return new Response('Forbidden origin', { status: 403 });
-      }
-      return cors(await admin(url, request, env), origin0);
     }
 
     /**
@@ -130,17 +109,11 @@ export default {
      * round, so a room that still has a connected player keeps accepting them. The Room
      * is the only thing that knows whether it is occupied.
      *
-     * Fail open. A hiccup reading the flags must not blank the catalogue, and a flag is
-     * documented as not being a security control precisely so this line can exist.
+     * Fail open, and no `try` around it: `availabilityOf` answers `active` for a dead
+     * host, a 404, a truncated body or an unset URL, and `worker/flags.test.ts` asserts
+     * each of those. A `catch` here would suggest the contract is weaker than it is.
      */
-    let availability: FlagState = 'active';
-    if (game) {
-      try {
-        availability = await flagsStub(env).availabilityOf(game);
-      } catch {
-        availability = 'active';
-      }
-    }
+    const availability: FlagState = game ? await flags(env).availabilityOf(game) : 'active';
 
     // The whole reason for Durable Objects: this name always resolves to the
     // same object, anywhere in the world, with no routing table of our own.
@@ -155,98 +128,6 @@ export default {
     return stub.fetch(new Request(forwarded, request));
   },
 };
-
-/**
- * `/flags` and `/admin/*`.
- *
- * Kept out of `fetch` so the socket path stays readable. Reads are `GET`, writes are
- * `POST`, and everything except `/flags` needs a bearer.
- */
-async function admin(url: URL, request: Request, env: Env): Promise<Response> {
-  const stub = flagsStub(env);
-
-  if (url.pathname === '/flags') {
-    if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });
-    // Cacheable: the hub fetches this on every load and a flag changes rarely. 60 s is
-    // the spec's number, and the hub paints before this arrives either way.
-    return Response.json(await stub.flags(), {
-      headers: { 'Cache-Control': 'public, max-age=60' },
-    });
-  }
-
-  if (request.method !== 'POST' && url.pathname !== '/admin/state') {
-    return new Response('Method not allowed', { status: 405 });
-  }
-
-  /*
-   * Ask for a magic link. **Always 204**, whatever happened — wrong address, rate
-   * limited, or sent. A different answer for a wrong address would turn this into a way
-   * to discover who the operator is (spec §4), and a different answer when rate limited
-   * would say "you guessed right, try later".
-   *
-   * The one thing that does surface is a broken mailer, as a 502: that is a fault on our
-   * side and hiding it would leave the operator staring at a link that never arrives.
-   */
-  if (url.pathname === '/admin/link') {
-    const body = (await readJson(request)) as { email?: unknown };
-    const email = typeof body.email === 'string' ? body.email : '';
-    try {
-      await stub.requestLink(email);
-    } catch {
-      return new Response('Mailer unavailable', { status: 502 });
-    }
-    return new Response(null, { status: 204 });
-  }
-
-  if (url.pathname === '/admin/session') {
-    const body = (await readJson(request)) as { token?: unknown };
-    const token = typeof body.token === 'string' ? body.token : '';
-    const session = await stub.redeem(token);
-    if (!session) return new Response('No', { status: 401 });
-    return Response.json({ session });
-  }
-
-  // Everything below is privileged.
-  if (!(await stub.check(request.headers.get('Authorization')))) {
-    return new Response('No', { status: 401 });
-  }
-
-  if (url.pathname === '/admin/state') {
-    return Response.json(await stub.fullState());
-  }
-
-  if (url.pathname === '/admin/flags') {
-    const body = (await readJson(request)) as Record<string, unknown>;
-    const slug = gameSlug(typeof body['slug'] === 'string' ? body['slug'] : null);
-    // Sanitised with the same guard the socket path uses: this string is stored and
-    // handed back to the hub, which turns it into a URL.
-    if (!slug) return new Response('Bad slug', { status: 400 });
-
-    const patch: { availability?: FlagState; isNew?: boolean; reason?: string } = {};
-    const a = body['availability'];
-    if (a === 'active' || a === 'disabled' || a === 'hidden') patch.availability = a;
-    if (typeof body['isNew'] === 'boolean') patch.isNew = body['isNew'];
-    if (typeof body['reason'] === 'string') patch.reason = body['reason'].slice(0, 120);
-
-    return Response.json(await stub.set(slug, patch));
-  }
-
-  if (url.pathname === '/admin/mail-check') {
-    return Response.json(await stub.mailCheck());
-  }
-
-  return new Response('Not found', { status: 404 });
-}
-
-/** A malformed body is an empty object, not a 500. */
-async function readJson(request: Request): Promise<Record<string, unknown>> {
-  try {
-    const v = await request.json();
-    return typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {};
-  } catch {
-    return {};
-  }
-}
 
 /**
  * The hub is served from the PHP host, so a lookup from it is cross-origin and

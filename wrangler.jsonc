@@ -12,26 +12,30 @@
   // Durable Object bindings. `idFromName(roomCode)` routes every player with
   // the same code to the same object — see docs/realtime-server.md.
   "durable_objects": {
-    "bindings": [
-      { "name": "ROOM", "class_name": "Room" },
-      { "name": "FLAGS", "class_name": "FlagsObject" }
-    ]
+    "bindings": [{ "name": "ROOM", "class_name": "Room" }]
   },
 
   // IRREVERSIBLE. The Workers Free plan only supports SQLite-backed Durable
   // Objects, and Cloudflare rejects switching the backend on an already
   // deployed class. `new_sqlite_classes` must be right on the first deploy.
   // Additive: a later tag may introduce a class, and only the BACKEND choice per
-  // class is irreversible. FlagsObject is SQLite-backed for the same reason Room is
-  // — it is the only kind the free plan offers.
-  "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["Room"] },
-    { "tag": "v2", "new_sqlite_classes": ["FlagsObject"] }
-  ],
+  // class is irreversible.
+  //
+  // A `v2` tag briefly existed here for a `FlagsObject` holding the feature flags.
+  // It was never deployed — `dev` and `prod` were both behind it — so the tag could
+  // simply be removed when the flags moved to PHP (docs/specs/backoffice.md §2b).
+  // Had it shipped, removing the tag would have been rejected and the correct move
+  // would have been a `v3` with `deleted_classes`. Checked before deleting, not
+  // assumed.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Room"] }],
 
   "vars": {
     // Overridden per environment below. Local dev only.
-    "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173"
+    "ALLOWED_ORIGINS": "http://localhost:5173,http://127.0.0.1:5173",
+    // Where the published flags live (docs/specs/backoffice.md §2b). A plain var,
+    // not a secret: the file is public, and an unreachable one means every game is
+    // active rather than an error. Locally this usually 404s, which is fine.
+    "FLAGS_URL": "http://localhost:5173/flags.json"
   },
 
   "observability": { "enabled": true },
@@ -45,28 +49,24 @@
     "dev": {
       "name": "fonygames-worker-dev",
       "durable_objects": {
-        "bindings": [
-      { "name": "ROOM", "class_name": "Room" },
-      { "name": "FLAGS", "class_name": "FlagsObject" }
-    ]
+        "bindings": [{ "name": "ROOM", "class_name": "Room" }]
       },
       "vars": {
         // The dev Worker also serves local development, so localhost is
         // allowed here and nowhere else.
-        "ALLOWED_ORIGINS": "https://fonygames-dev.guigui.fr,http://localhost:5173,http://127.0.0.1:5173"
+        "ALLOWED_ORIGINS": "https://fonygames-dev.guigui.fr,http://localhost:5173,http://127.0.0.1:5173",
+        "FLAGS_URL": "https://fonygames-dev.guigui.fr/flags.json"
       }
     },
     "prod": {
       // Reuses the Worker created in the dashboard, so nothing is orphaned.
       "name": "fonygames-worker",
       "durable_objects": {
-        "bindings": [
-      { "name": "ROOM", "class_name": "Room" },
-      { "name": "FLAGS", "class_name": "FlagsObject" }
-    ]
+        "bindings": [{ "name": "ROOM", "class_name": "Room" }]
       },
       "vars": {
-        "ALLOWED_ORIGINS": "https://fonygames.guigui.fr"
+        "ALLOWED_ORIGINS": "https://fonygames.guigui.fr",
+        "FLAGS_URL": "https://fonygames.guigui.fr/flags.json"
       }
     }
   }
