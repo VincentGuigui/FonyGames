@@ -89,9 +89,21 @@ jobs:
     - name: 📦 Install
       run: npm ci
 
+    # `npm test` now includes the PHP suite (docs/testing.md §1.1a), so prove the
+    # binary is there and say which version, rather than letting the failure show up
+    # as an opaque `php: not found` inside an npm script.
+    #
+    # No `shivammathur/setup-php`: `ubuntu-latest` ships a PHP CLI already, and the
+    # suite is plain PHP 8.1 syntax with no extensions beyond the defaults. A
+    # third-party action for something already installed is a dependency and a
+    # supply-chain surface for nothing.
+    - name: 🐘 PHP available
+      run: php --version
+
     # The logic harness, before the build. It is the only thing that checks the
-    # referees, the board physics and the card import rules, and it costs seconds
-    # — leaving it out meant a guard that only ever ran on someone's laptop.
+    # referees, the board physics, the card import rules and the backoffice's auth
+    # rules, and it costs seconds — leaving it out meant a guard that only ever ran
+    # on someone's laptop.
     - name: 🧪 Test
       run: npm test
 
