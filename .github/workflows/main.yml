@@ -26,6 +26,32 @@ jobs:
     # Branch name == environment name, so `dev` and `prod` each pull their own
     # secrets. Without this key, environment secrets resolve to "".
     environment: ${{ github.ref_name }}
+
+    # A THROWAWAY MariaDB for the tests, and nothing else — it is never the deploy
+    # target, which is the host's own database reachable only from PHP
+    # (docs/database.md §3).
+    #
+    # It exists because docs/database.md §4 rule 3 makes MariaDB the test target: the
+    # shipped DDL is MariaDB, and `api/tests/schema.php` builds the test schema from the
+    # real `db/init.sql`. That file used to be hand-translated to SQLite, so a
+    # MariaDB-only DDL error passed CI and failed on the host. There is deliberately no
+    # SQLite fallback, so without this service the tests cannot run at all — which is the
+    # point: a suite that skips silently proves nothing.
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: ci
+        ports:
+          - 3306:3306
+        # Without a health check the tests start before the server accepts connections,
+        # which reads as "no MariaDB reachable" on a cold runner.
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=12
+
     steps:
     # Shallow is fine: the deployer's `delta` mode would need full history, but
     # delta diffs git and we deploy build output, so we stay on `full` sync.
@@ -120,6 +146,13 @@ jobs:
     # rules, and it costs seconds — leaving it out meant a guard that only ever ran
     # on someone's laptop.
     - name: 🧪 Test
+      env:
+        # The service container, over TCP. Named `_test` because the suite REFUSES to run
+        # against a database whose name does not end that way — it truncates every table
+        # it knows about, and that guard is the one mistake here that would destroy data.
+        FONY_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=fonygames_test;charset=utf8mb4
+        FONY_TEST_USER: root
+        FONY_TEST_PASS: ci
       run: npm test
 
     # Typechecks first (`npm run build` runs tsc --noEmit), so a type error

@@ -75,16 +75,57 @@ Mandatory, from the maintainer:
    MariaDB instance before it goes near the host. MariaDB is the test target;
    avoid MySQL-only syntax so the two stay interchangeable.
 
-### Layout (when first needed)
+   ✅ **This is now enforced by the suite rather than promised.**
+   `api/tests/schema.php` builds its test schema by applying the **shipped
+   `db/init.sql`** to a real MariaDB, and CI runs a `mariadb:11` service container
+   for it. There is deliberately **no SQLite fallback**: the tests were written
+   against a hand-translated SQLite schema for a while, which meant a
+   MariaDB-only DDL error passed CI and would have failed on the host. A suite
+   that skips silently proves nothing, so no server is a hard failure with the
+   command to fix it.
+
+   Two guards worth knowing about: the suite **refuses any database whose name
+   does not end in `_test`**, because it truncates every table it knows about;
+   and `FONY_TEST_DSN`, when set, is the **only** candidate tried — an earlier
+   version fell through to a different server when the explicit one was
+   unreachable, and passed.
+
+### Layout
 
 ```
 db/
   init.sql                     full schema from empty, idempotent
   migrations/
-    0001_<description>.sql     applied in filename order, each idempotent
-    0002_<description>.sql
-  migrate.php                  runner: applies pending migrations, records them
+    0001_flags.sql             applied in filename order, each idempotent
+    0002_admin_link.sql
+  migrate.php                  CLI runner
+api/lib/Migrator.php           the runner itself, also driven from the admin page
 ```
+
+**`init.sql` and the migrations must agree**, and that is now a test rather than a
+comment: `api/tests/migrator_test.php` applies every migration to an empty database,
+runs `init.sql` into a second one, and compares `information_schema`. If they diverge
+one of the two is lying and there is no way to tell which — so the test says which
+columns differ.
+
+### The runner's three deliberate limits
+
+1. **No transaction around DDL.** MariaDB implicitly commits on `CREATE`/`ALTER`, so
+   wrapping a migration would be *false safety* — a rollback would not undo the DDL
+   while the code read as though it had. Instead the first failing statement stops the
+   run and is reported with its file and 1-based index, and a file is recorded in the
+   ledger **only when all of its statements succeeded**. Recovery is "fix the file and
+   run it again", which is exactly what rule 2 exists to make safe. Proven against a
+   real server: a migration whose second statement is broken leaves the first one
+   applied, the third unrun, and the file still pending.
+2. **`DELIMITER`, triggers and stored routines are refused, not attempted.** Their
+   bodies contain semicolons that are not statement ends, and there is no honest way
+   to split one without implementing `DELIMITER`. A loud "unsupported, apply it by
+   hand" beats a confident wrong split.
+3. **The statement splitter is not `explode(';')`.** It skips `--`, `#` and `/* */`
+   comments and quoted strings and identifiers, including backslash-escaped and
+   doubled quotes — because a semicolon inside any of those would split a statement in
+   half and produce an error pointing at something that is not the problem.
 
 ### Writing an idempotent migration
 
@@ -133,17 +174,25 @@ correct if run twice against a database whose ledger was lost.
 
 ## 5. Local testing
 
+`npm test` needs a MariaDB and will tell you so if it cannot find one. With a server
+installed locally and root reachable over the Unix socket, it needs no configuration
+at all. Otherwise:
+
 ```bash
-docker run --rm -d --name fony-db \
-  -e MARIADB_ROOT_PASSWORD=dev \
-  -e MARIADB_DATABASE=fonygames \
+docker run --rm -d --name fony-db -e MARIADB_ROOT_PASSWORD=dev \
   -p 3306:3306 mariadb:11
 
-mysql -h 127.0.0.1 -u root -pdev fonygames < db/init.sql
-php db/migrate.php                 # apply
-php db/migrate.php                 # MUST be a clean no-op — this is the test
+FONY_TEST_PASS=dev npm test
 ```
 
-Running the runner twice and getting no changes the second time is the
-idempotency check, and belongs in CI once the directory exists
-([testing.md](testing.md)).
+Or point it anywhere with `FONY_TEST_DSN` / `FONY_TEST_USER` / `FONY_TEST_PASS`. The
+database name **must end in `_test`** — the suite truncates every table it knows about
+and refuses anything else.
+
+The suite creates `fonygames_test` from `db/init.sql`, plus throwaway
+`fonygames_*_test` databases for the migration comparisons. It never touches
+`fonygames`.
+
+Applying the migrations twice and getting no changes the second time is the
+idempotency check from rule 2, and it runs on the **shipped** files, not on fixtures
+([testing.md](testing.md) §1.1a).

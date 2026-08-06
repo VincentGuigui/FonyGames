@@ -56,13 +56,21 @@ framework, a `check()` counter, a non-zero exit — and it runs on the plain `ph
 binary, which is present locally and preinstalled on GitHub's `ubuntu-latest`
 runners. `npm test` runs both halves; CI therefore does too.
 
-The storage sits behind a small interface so the tests drive an in-memory
-implementation with a clock they control. Real schema changes still follow
-[database.md](database.md) §4 — `init.sql`, idempotent migrations, local MariaDB.
+**The suite runs against real MariaDB, built from the shipped `db/init.sql`.** It used
+to build a hand-translated SQLite schema, which was a real hole: the DDL that shipped
+was never the DDL the tests ran, so a MariaDB-only error passed CI and would have
+failed on the host. `api/tests/schema.php` now applies the real file to a real server,
+and CI runs a `mariadb:11` service container. There is **no SQLite fallback** — a
+suite that skips silently proves nothing, so a missing server is a hard failure with
+the command to fix it. Details and the two safety guards: [database.md](database.md)
+§4 rule 3, §5.
+
+The clock stays injected, so timing rules are still tested rather than raced against.
 
 **Deliberately not covered**, so nobody reads a green suite as more than it is:
-whether `mail()` actually delivers, and whether the live MySQL schema matches the
-migrations. Both are manual.
+whether `mail()` actually delivers, and whether the *host's* database has actually had
+the migrations applied. The first is manual; the second is what the admin centre's
+schema panel is for.
 
 ### 1.1a-bis Driving the admin centre locally
 
