@@ -3,9 +3,10 @@
 A **MySQL** database is available on the hosting. This document records what it
 may and may not be used for, and the rules any schema change must follow.
 
-> **Current status: not used.** Nothing in FonyGames writes to MySQL today. This
-> document exists so the rules are already agreed the day something needs to.
-> Do not create tables speculatively.
+> **Current status: first use under way.** The backoffice is the first thing to
+> write here — feature flags and aggregate counters
+> ([specs/backoffice.md](specs/backoffice.md)). Everything else in §2 is still
+> unscheduled. Do not create tables speculatively.
 
 ## 1. What it is *not* for
 
@@ -27,6 +28,7 @@ Only things that must **outlive a room**, and none are scheduled yet:
 
 | Candidate | Notes |
 | --- | --- |
+| **Feature flags** ✅ **being built** | The source of truth for which games are playable, written only by the admin centre. Everything *reads* a `flags.json` the writer regenerates, so no reader touches MySQL ([specs/backoffice.md](specs/backoffice.md) §2b) |
 | All-time leaderboards | Needs a privacy decision first (what name is stored, for how long) |
 | Aggregate play counts per game | Anonymous counters, useful for ordering the hub |
 | Feedback / bug reports from the about sheet | Low volume |
@@ -49,9 +51,17 @@ browser ──WebSocket──> Durable Object        (live gameplay, no DB)
 ```
 
 This is where the **PHP backend earns its place**: it is the only component that
-can talk to MySQL. A DB-backed feature means a small PHP API under `www/api/`,
-called by the browser (or by the Durable Object over HTTPS at end of round),
-never a direct database connection from the game loop.
+can talk to MySQL. A DB-backed feature means a small PHP API under `api/`, called
+by the browser (or by the Durable Object over HTTPS at end of round), never a
+direct database connection from the game loop.
+
+**A corollary worth stating, because it looked like a contradiction once.** The
+Worker being unable to reach MySQL does *not* stop MySQL being the source of truth
+for something the Worker reads. Feature flags work exactly this way: PHP owns the
+table and regenerates a flat `flags.json`, and the Worker reads that file over
+HTTPS. The constraint binds the *writer's* neighbour, not the data
+([specs/backoffice.md](specs/backoffice.md) §2b). What is forbidden is a database
+connection from the game loop, and there still isn't one.
 
 ## 4. Schema change rules
 

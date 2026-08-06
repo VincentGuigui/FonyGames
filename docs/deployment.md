@@ -64,31 +64,157 @@ Requiring a reviewer on the `prod` environment is recommended: the deploy job
 then waits for an approval before touching production, while `dev` keeps
 deploying instantly.
 
-## 3. Secrets
+## 3. Secrets and variables
 
-Each environment holds its own credentials — the two hosts are separate, with
-separate accounts.
+**Every credential lives in a GitHub environment secret.** There is exactly one place
+to look, and **the room server has no secrets at all** — it reads a public
+`flags.json` and nothing else ([specs/backoffice.md](specs/backoffice.md) §2b). That
+is deliberate and recent: the admin centre used to run inside the Worker and needed
+six Wrangler secrets, one of which had to be kept byte-identical to a GitHub copy with
+no way to check it. Moving the admin to PHP deleted all six.
+
+**Nothing below is ever committed** — this table lists names and where they live, never
+values.
+
+Each environment holds its own: the two hosts are separate accounts, and a dev
+credential must never open prod.
+
+### 3.1 GitHub — environment secrets
+
+**Settings → Environments → `dev`, then again for `prod`.** Environment secrets, not
+repository secrets: a repository-level secret of the same name is visible to any job,
+including on branches that must not deploy.
 
 | Secret | Contents | Used by |
 | --- | --- | --- |
 | `FTPHOST` | Server hostname, e.g. `ftp.example.com` (no scheme, no port) | site |
 | `FTPUSER` | SSH/SFTP account login | site |
 | `FTPPWD` | SSH/SFTP account password | site |
-| `CLOUDFLARE_API_TOKEN` | "Edit Cloudflare Workers" token, scoped to the account | room server |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account ID | room server |
+| `CLOUDFLARE_API_TOKEN` | **Edit Cloudflare Workers** token | room server |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account id | room server |
+| `ADMIN_PATH` | Folder name the admin page is deployed under, e.g. `ops-7f3a91` | site (§3.4) |
+| `ADMIN_EMAIL` | The one address a magic link may be sent to | site (admin config) |
+| `ADMIN_TOKEN` | Break-glass bearer for `curl`. `openssl rand -hex 32` | site (admin config) |
+| `CF_ANALYTICS_TOKEN` | Read-only analytics token for the usage panel (§3.3) | site (admin config) |
+| `CF_ACCOUNT_ID` | Cloudflare account id, for the same call | site (admin config) |
+| `DB_DSN` | PDO DSN, e.g. `mysql:host=localhost;dbname=fonygames;charset=utf8mb4` | site (admin config) |
+| `DB_USER` | MySQL account for that database | site (admin config) |
+| `DB_PASS` | Its password | site (admin config) |
+| `MAIL_FROM` | Envelope sender for the magic link. Optional — defaults to `noreply@guigui.fr` | site (admin config) |
 
-The Cloudflare pair is **optional until set**: the `worker-deploy` job detects
-them missing and skips with a warning instead of failing, so the site keeps
-deploying either way.
+The Cloudflare pair is **optional until set**: `worker-deploy` detects them missing and
+skips with a warning rather than failing, so the site keeps deploying either way.
 
-Rules:
+The admin values are written by the deploy into `api/config.php` on the host, so a
+rebuilt host is reproducible from CI alone and there is no manual step on the server.
 
-- These are **environment** secrets, not repository secrets. A repository-level
-  secret of the same name would be picked up by any job, including on branches
-  that must not deploy.
+**Where that file sits, honestly.** It is inside the web root, in `api/`, because the
+SFTP account is chrooted to `/www` and the deploy cannot write above it. Three things
+stand between it and a reader, and none of them is "it is unreachable":
+
+1. It is a `.php` file that only `return`s an array, so executing it emits nothing.
+2. `api/lib/.htaccess` denies the directory outright, and the deploy `chmod 600`s the
+   config.
+3. The residual risk is named rather than hidden: if the PHP handler is ever
+   misconfigured so `.php` is served as text, this file is a published credential.
+   That failure would break the whole site at the same moment, so it is loud — but
+   rotate `DB_PASS` and `ADMIN_TOKEN` if it ever happens.
+
+There is no `ADMIN_SESSION_KEY` and no `MAIL_SECRET`: PHP's own sessions replace the
+first, and `mail()` runs in the same process that mints the link, so there is nothing to
+authenticate ([specs/backoffice.md](specs/backoffice.md) §4, §5).
+
+### 3.2 The room server needs no secrets
+
+`worker-deploy` uses `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` to *publish*,
+and the deployed Worker itself reads nothing secret. Its only configuration is
+`ALLOWED_ORIGINS` and `FLAGS_URL`, both committed `vars` (§3.5).
+
+So there is no `wrangler secret put` step, and no `.dev.vars` file: `wrangler dev` needs
+nothing that is not already in `wrangler.jsonc`. That is worth stating because it used
+not to be true — six Wrangler secrets existed for the admin centre before it moved to
+PHP, and one of them (`MAIL_SECRET`) had to match a GitHub copy exactly with no
+automated way to verify it ([specs/backoffice.md](specs/backoffice.md) §5).
+
+### 3.3 Cloudflare — one new API token to mint
+
+**Dashboard → My Profile → API Tokens → Create Token → Custom.**
+
+| Permission | Scope |
+| --- | --- |
+| Account → **Account Analytics** → **Read** | The FonyGames account |
+
+Nothing else. Its value goes into `CF_ANALYTICS_TOKEN`.
+
+**Do not widen the deploy token instead.** `CLOUDFLARE_API_TOKEN` is *Edit Cloudflare
+Workers* and deliberately cannot read analytics; a token that can both deploy and read
+everything is a bigger blast radius for no gain
+([specs/backoffice.md](specs/backoffice.md) §2).
+
+### 3.4 Why the admin path is a secret at all
+
+**This repository is public.** So a hidden path committed as `www/ops/` is not hidden:
+the folder name is readable by anyone, and the layer is gone before it does anything.
+
+The build therefore emits the admin page to a placeholder directory and the deploy
+**renames it to `ADMIN_PATH`** on the way to the host. The real path exists only in the
+GitHub environment secret and on the host.
+
+Two things this is not:
+
+- **Not the security.** The magic link is ([specs/backoffice.md](specs/backoffice.md)
+  §4). This only stops casual discovery and crawlers, which is worth one `mv`.
+- **Not a reason to relax anything else.** Assume the path is known; the session check
+  still runs on every write.
+- **Not listed in `robots.txt`.** A `Disallow:` line naming it would publish it to
+  anyone who reads the file ([specs/seo.md](specs/seo.md) §3).
+
+### 3.5 Not secrets — committed variables
+
+These live in `wrangler.jsonc` under each environment's `vars`, because they are not
+credentials and reading them buys an attacker nothing:
+
+| Var | Contents |
+| --- | --- |
+| `ALLOWED_ORIGINS` | Comma-separated origins the room server accepts sockets from |
+| `FLAGS_URL` | URL of `flags.json` on the web host, which the Worker reads to enforce a flag |
+
+`FLAGS_URL` is per environment, so the dev Worker reads the dev host's flags. It is a
+plain URL to a public file — reading it buys an attacker nothing, and the Worker
+fails open if it is wrong ([specs/backoffice.md](specs/backoffice.md) §2b).
+
+### 3.6 What the deploy checks, and what it cannot
+
+The `🔐 Check deployment secrets` step fails the deploy when `FTPHOST`, `FTPUSER` or
+`FTPPWD` is missing, and additionally when `ADMIN_PATH`, `ADMIN_EMAIL` or `ADMIN_TOKEN`
+is missing — but **only once `www/ops-placeholder/` exists in the tree.**
+
+Gating on the directory rather than a hand-flipped flag means the check starts enforcing
+itself the moment the admin centre lands and cannot be forgotten, while today's deploys
+keep working before the secrets have been set. Until then it prints a notice.
+
+It also rejects an `ADMIN_PATH` containing a slash or a space, or starting with a dot: a
+bad value would put the admin page somewhere unintended or break the rename outright, and
+CI is the only thing that ever sees the value.
+
+**What it cannot check: whether `mail()` actually delivers.** Presence of an address is
+not deliverability, and shared-host mail can be accepted and then dropped by the
+recipient's spam filter. Do not read a green pre-flight as "the magic link works" — send
+one and look. `ADMIN_TOKEN` exists precisely so a silent mailbox cannot lock the operator
+out ([specs/backoffice.md](specs/backoffice.md) §5).
+
+There used to be a second unprovable thing here — whether the GitHub and Wrangler copies
+of `MAIL_SECRET` matched. That secret no longer exists, so neither does the gap.
+
+### 3.7 Rules
+
 - Credentials never appear in the repository, in logs, or in this doc.
-- Rotating one: change it in the environment, then re-run the workflow from the
-  Actions tab (`Run workflow` on the matching branch).
+- Rotating one: change it in the GitHub environment, then re-run the workflow from the
+  Actions tab (`Run workflow` on the matching branch). One place, one re-run — there is
+  no second copy anywhere to keep in step.
+- The admin needs **no manual step on the host**: its config is written from the GitHub
+  secrets at deploy time, so a rebuilt host is reproducible from CI alone. Same reasoning
+  as "no manual upload, ever" in §1.
 
 ## 4. Protocol
 
@@ -159,6 +285,14 @@ re-uploads everything.
 | --- | --- |
 | `Error: Input required and not supplied: server` | The job is not attached to an environment, or the secret lives at repository level instead of on the environment. Check `environment:` is present on the job and that `FTPHOST`/`FTPUSER`/`FTPPWD` are set on `dev` **and** `prod`. |
 | `Missing secret(s) in environment 'dev': FTPPWD` | The pre-flight check naming exactly what is absent. Add it to that environment. |
+| `Missing secret(s) … ADMIN_PATH ADMIN_EMAIL` | The admin centre is in the tree now, so these are required (§3.6). Set them on **both** `dev` and `prod`. |
+| `ADMIN_PATH must be a single directory name` | It has a slash, a space, or a leading dot. It is one folder name, e.g. `ops-7f3a91`, not a path. |
+| `dist/<path> already exists; ADMIN_PATH collides with a real route` | The value is the name of a game folder or another route. Pick something that is not a slug — the whole point is that it is unguessable. |
+| The admin page is 404 after a deploy | `ADMIN_PATH` was unset, so the deploy **removed** the placeholder rather than publishing it under a guessable name. Set the admin secrets and re-run. |
+| The admin page loads but every call answers 503 | `config.php` has no `db_dsn` or no `admin_email`. An unconfigured host has no admin by design; check the six admin secrets are on **this** environment. |
+| Pre-flight green but the magic link never arrives | Presence is all CI can check, and shared-host `mail()` can be accepted then dropped. Check the host's mail log and the recipient's spam folder; use `ADMIN_TOKEN` in the meantime (§3.6). |
+| The hub greys or hides the wrong games | The Worker fails open, so this is a `flags.json` problem rather than an outage. Check `FLAGS_URL` for the environment and that the file is readable over HTTPS (§3.5). |
+| Flag changes never show on the hub | Almost always one of two things, both in [specs/seo.md](specs/seo.md) §4: an `index.html` left by an earlier deploy is still being served instead of `index.php` — the sync deletes nothing, so **delete it on the host once by hand** — or the page is being cached. `curl -I` should show `Cache-Control: no-cache`. |
 | `500 'AUTH': command unrecognized` | An FTP action is being pointed at port 21, which this host serves without TLS. Use SFTP on 22 (§4). |
 | Connect timeout / `ECONNREFUSED` | Wrong port. SFTP is 22 here. |
 | `Permission denied (password)` | Bad `FTPUSER`/`FTPPWD`, or the host expects the full email-style login, or SSH access is not enabled on the account. |

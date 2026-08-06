@@ -136,6 +136,25 @@ export class Room extends DurableObject {
 
     const code = url.searchParams.get('code') ?? '';
     const game = url.searchParams.get('game');
+
+    /*
+     * The flag gate's second half. `index.ts` decides whether the game is `active` and
+     * forwards the verdict as `open`; the **in-flight rule is decided here**, because
+     * only this object knows whether anyone is still in the room.
+     *
+     * Disabling a game blocks *new* rooms and never interrupts a round
+     * (docs/specs/backoffice.md §2b). So a closed game is refused only when nobody is
+     * connected — a duel already running keeps accepting the player who just dropped
+     * their wifi, which is the difference between "no new rooms" and "kick everyone out".
+     *
+     * `getWebSockets()` rather than the stored player list: a stored player inside the
+     * reconnect grace is not evidence that the round is live, and using it would keep a
+     * disabled game openable for RECONNECT_GRACE_MS after the last person really left.
+     */
+    if (url.searchParams.get('open') === '0' && this.ctx.getWebSockets().length === 0) {
+      return new Response('Game unavailable', { status: 403 });
+    }
+
     const pair = new WebSocketPair();
     const [client, server] = [pair[0], pair[1]];
 

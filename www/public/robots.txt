@@ -1,0 +1,17 @@
+# FonyGames — https://fonygames.guigui.fr
+# Rules: docs/specs/seo.md §3
+
+# Everything is public and worth indexing. The games are the product.
+User-agent: *
+Allow: /
+
+# NOTHING about the admin path appears here, deliberately. A `Disallow:` line naming it
+# would publish the one thing it is supposed to be hard to guess, to everyone who reads
+# this file — and robots.txt is the first thing anyone reads. The admin page carries its
+# own `noindex` in a meta tag and in an X-Robots-Tag header, which is what actually keeps
+# it out of an index (docs/specs/backoffice.md §4).
+
+# Room URLs are fragments (`/tap-duel/#AB2C`), which are never sent to a server and so
+# can never be crawled. There is nothing to exclude.
+
+Sitemap: https://fonygames.guigui.fr/sitemap.xml

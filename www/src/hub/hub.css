@@ -176,6 +176,25 @@
   letter-spacing: 0.06em;
 }
 
+/*
+ * A paused game's badge carries the OPERATOR'S OWN SENTENCE — "back Friday", not a
+ * state word — so this is the one badge that must not be uppercased or letter-spaced.
+ * Amber rather than dim, because "you cannot play this right now" is information the
+ * player needs before they tap, not a footnote.
+ */
+.game-card__badge--paused {
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 600;
+  color: #ffd08a;
+  background: #4a3410;
+  border-color: transparent;
+  /* A reason can be a whole clause. Let it wrap rather than run off the card. */
+  max-width: calc(100% - var(--space-4));
+  white-space: normal;
+  text-align: right;
+}
+
 /* NEW is the one badge that shouts: it is the reason to look at this card. */
 .game-card__badge--new {
   color: var(--color-on-accent);

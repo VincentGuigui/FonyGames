@@ -1,0 +1,26 @@
+# Dropped into the admin directory by the deploy, after it renames the placeholder to
+# ADMIN_PATH. Kept as a committed file rather than a heredoc in the workflow so it is
+# reviewable here, where the rules it enforces are documented.
+# Docs: docs/specs/backoffice.md §4
+
+# The admin page must never be framed. With a live session, a hidden iframe on another
+# site could drive it — and `frame-ancestors` only applies to documents, which is why
+# this lives beside the page rather than on the JSON API.
+<IfModule mod_headers.c>
+  Header always set Content-Security-Policy "frame-ancestors 'none'"
+  Header always set X-Frame-Options "DENY"
+  # The magic-link token is in the fragment, which is never sent anywhere — but the
+  # admin PATH is in the URL, and a Referer would hand it to any site the page links
+  # to. The path is not the security (spec §4); it is still not something to publish.
+  Header always set Referrer-Policy "no-referrer"
+  # No caching. An operator on a shared machine should not find the admin in the
+  # back button, and a cached page would show stale flags.
+  Header always set Cache-Control "no-store, must-revalidate"
+</IfModule>
+
+# Keep it out of search results even if the URL leaks. This is a hint to crawlers, not
+# a control — robots.txt deliberately does NOT name this path, because a Disallow line
+# would publish it to everyone who reads the file (docs/specs/seo.md §3).
+<IfModule mod_headers.c>
+  Header always set X-Robots-Tag "noindex, nofollow, noarchive"
+</IfModule>

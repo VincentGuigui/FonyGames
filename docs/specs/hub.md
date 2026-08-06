@@ -40,8 +40,10 @@ play something in under ten seconds.
   link). The order comes from `ORDER` in `games/registry.ts`, one entry per status.
 - **Runtime feature flags** can additionally grey out or hide a card; see
   [backoffice.md](backoffice.md) §2b. They are orthogonal to `status`, and the
-  grid paints from the compiled registry first so the flag fetch never delays
-  first render.
+  first paint is **already correct**: PHP applies them while rendering the page and
+  inlines them for the client, so there is no fetch to wait for and no second
+  render ([seo.md](seo.md) §4). An earlier design painted the compiled registry and
+  reconciled afterwards, which briefly showed a disabled game as playable.
 - Illustrations are lazy-loaded: `loading="lazy"` on an `<img>` with intrinsic
   `width`/`height`, so the box is reserved even if the stylesheet is late. The
   placeholder is the game's accent at 14%, painted by the element — it stays
@@ -73,8 +75,13 @@ the catalogue is small enough to scan.
 ## 5. Data source
 
 The catalogue is a **static list** built at compile time from each game's
-`card.ts`. No API call on first load. A game is added to the hub by adding its
-folder — the hub imports the registry, it does not maintain its own copy.
+`card.ts`. No API call on first load, and none afterwards either: the page arrives
+with the flags in it. A game is added to the hub by adding its folder — the hub
+imports the registry, it does not maintain its own copy.
+
+*Which* of those cards the server puts in the HTML is decided per request from the
+current flags, so hiding a game takes effect without a rebuild
+([seo.md](seo.md) §4). The list is compile-time; the selection is not.
 
 The order in `registry.ts` is the curated order from §2 and is **written out as
 explicit imports**, not discovered by `import.meta.glob`: a glob is a Vite-only
