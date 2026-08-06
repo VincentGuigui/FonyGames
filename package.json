@@ -12,7 +12,7 @@
     "build:api": "node scripts/stage-api.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json",
-    "test": "npm run test:php && npm run test:flags && npm run test:outlines && npm run test:og && npm run test:cards && npm run test:cm && npm run test:drift && npm run test:relay && npm run test:sprites && npm run test:router && npm run test:spill && npm run test:siege && npm run test:sling && npm run test:sling-game && npm run test:sling-room",
+    "test": "npm run test:php && npm run test:flags && npm run test:outlines && npm run test:og && npm run test:cards && npm run test:seo && npm run test:cm && npm run test:drift && npm run test:relay && npm run test:sprites && npm run test:router && npm run test:spill && npm run test:siege && npm run test:sling && npm run test:sling-game && npm run test:sling-room",
     "test:php": "php api/tests/run.php",
     "test:spill": "esbuild worker/spill.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/spill.test.mjs --log-level=warning && node node_modules/.cache/spill.test.mjs",
     "test:siege": "esbuild worker/goatSiege.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/siege.test.mjs --log-level=warning && node node_modules/.cache/siege.test.mjs",
@@ -33,7 +33,8 @@
     "test:router": "esbuild worker/router.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/router.test.mjs --log-level=warning && node node_modules/.cache/router.test.mjs",
     "test:flags": "esbuild worker/flags.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/flags.test.mjs --log-level=warning && node node_modules/.cache/flags.test.mjs",
     "art:og": "node www/src/games/og.mjs",
-    "test:og": "node www/src/games/og.mjs --check"
+    "test:og": "node www/src/games/og.mjs --check",
+    "test:seo": "node www/seo.test.mjs"
   },
   "dependencies": {
     "preact": "^10.27.2",
