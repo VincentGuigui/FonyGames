@@ -48,6 +48,22 @@ function testDb(): PDO
         )',
     );
 
+    $db->exec(
+        'CREATE TABLE admin_link (
+            id         INTEGER NOT NULL PRIMARY KEY,
+            token_hash TEXT    NOT NULL,
+            expires_at INTEGER NOT NULL
+        )',
+    );
+
+    $db->exec(
+        'CREATE TABLE admin_link_attempt (
+            id      INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+            ip_hash TEXT    NOT NULL,
+            at      INTEGER NOT NULL
+        )',
+    );
+
     return $db;
 }
 
