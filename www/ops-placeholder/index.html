@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0d0f14" />
+    <!--
+      Not indexable, and not because this is secret — the path is not the security
+      (docs/specs/backoffice.md §4). The directory's .htaccess sends the same thing as a
+      header, which is what a crawler that never parses the HTML will see.
+    -->
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+    <title>Ops — FonyGames</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <div id="ops"></div>
+    <noscript>The admin centre needs JavaScript.</noscript>
+    <script type="module" src="/src/ops.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,267 @@
+<?php
+
+declare(strict_types=1);
+
+/**
+ * The admin API. One entry point, one action per request.
+ * Spec: docs/specs/backoffice.md §2b, §4
+ *
+ * A single file rather than one per endpoint, because the session bootstrap, the
+ * method check, the CSRF header and the JSON envelope are the same for all of them —
+ * and four copies of a security check is three chances to forget one.
+ *
+ * ## The layers, and which one is real
+ *
+ * The hidden path stops crawlers. The magic link authenticates. **The session check
+ * below is the only real control**, and it runs on every action that is not itself
+ * part of getting a session (spec §4).
+ */
+
+require_once __DIR__ . '/lib/App.php';
+
+$app = App::boot(__DIR__);
+
+/** JSON out, and nothing cached — a flag change must never be served from a cache. */
+function reply(int $status, mixed $body = null): never
+{
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    // The admin URL must not leak through a Referer when the page links out.
+    header('Referrer-Policy: no-referrer');
+    // Framing protection belongs on the *page*, not on a JSON response —
+    // `frame-ancestors` applies to documents. It is set in the admin directory's
+    // .htaccess, which travels with the directory when the deploy renames it.
+
+    echo $body === null ? '{}' : json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+/**
+ * The JSON body, or an empty array. A malformed body is not a 500.
+ *
+ * **Read once and cached.** `php://input` is re-readable on most SAPIs but not all, and
+ * calling this twice in one action silently gave the second caller an empty body — a
+ * bug that reads as "the form sent nothing".
+ */
+function body(): array
+{
+    static $parsed = null;
+
+    if ($parsed === null) {
+        $raw = file_get_contents('php://input');
+        $decoded = ($raw === false || $raw === '') ? null : json_decode($raw, true);
+        $parsed = is_array($decoded) ? $decoded : [];
+    }
+
+    return $parsed;
+}
+
+/**
+ * Start the session with a cookie that cannot be read by script or sent cross-site.
+ *
+ * `SameSite=Lax` is the CSRF defence: browsers do not attach a Lax cookie to a
+ * cross-site POST, so another site cannot make an authenticated write on the
+ * operator's behalf. The `X-Admin` header requirement below is the second lock —
+ * a cross-origin request carrying a custom header needs a CORS preflight, and there is
+ * no CORS here to succeed at.
+ */
+function beginSession(): void
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        return;
+    }
+
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'httponly' => true,
+        // Only over HTTPS in production. Computed rather than hardcoded true, or the
+        // whole flow is untestable over plain http on a laptop; the deployed host is
+        // HTTPS-only, so in practice this is always on where it matters.
+        'secure' => (($_SERVER['HTTPS'] ?? '') !== '') || (($_SERVER['REQUEST_SCHEME'] ?? '') === 'https'),
+        'samesite' => 'Lax',
+    ]);
+    session_name('fonyops');
+    session_start();
+}
+
+/** 12 hours from the redeem, checked here rather than trusted to the cookie. */
+const SESSION_TTL_MS = 43_200_000;
+
+function signedIn(): bool
+{
+    beginSession();
+    $since = $_SESSION['admin_since'] ?? null;
+
+    if (!is_int($since)) {
+        return false;
+    }
+
+    // The age is checked server-side against our own timestamp. A session cookie's own
+    // lifetime is a hint the browser may ignore; this is not.
+    if ((int) round(microtime(true) * 1000) - $since > SESSION_TTL_MS) {
+        $_SESSION = [];
+        session_destroy();
+
+        return false;
+    }
+
+    return true;
+}
+
+$action = is_string($_GET['a'] ?? null) ? $_GET['a'] : '';
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+// Reads are GET, writes are POST. Stated once, here, so no action has to remember.
+$writes = ['link', 'session', 'flags', 'logout'];
+if (in_array($action, $writes, true) && $method !== 'POST') {
+    reply(405, ['error' => 'POST only']);
+}
+
+/*
+ * Every write needs `X-Admin: 1`.
+ *
+ * Not authentication — anyone can set a header. It is a CSRF lock: a cross-origin
+ * request with a custom header triggers a preflight, this endpoint answers no CORS
+ * headers, so the browser never sends the real request. Together with SameSite=Lax
+ * that is two independent reasons another site cannot drive the admin.
+ */
+if (in_array($action, $writes, true) && ($_SERVER['HTTP_X_ADMIN'] ?? '') !== '1') {
+    reply(400, ['error' => 'missing X-Admin header']);
+}
+
+if (!$app->configured()) {
+    // No database and no admin address means the host was never set up. Said plainly,
+    // because the alternative is an operator debugging a magic link that was never
+    // going to be sent (docs/deployment.md §3.1).
+    reply(503, ['error' => 'the admin centre is not configured on this host']);
+}
+
+$auth = $app->auth();
+
+switch ($action) {
+    /*
+     * Ask for a link. **Always 204**, whatever happened — wrong address, rate limited,
+     * or sent. A different answer for a wrong address would turn this into a way to
+     * discover who the operator is (spec §4), and a different answer when rate limited
+     * would say "you guessed right, try later".
+     *
+     * The one thing that does surface is a broken mailer, as a 502: that is a fault on
+     * our side, and hiding it leaves the operator staring at a link that never arrives
+     * with no way to tell it from a spam folder.
+     */
+    case 'link':
+        $in = body();
+        $email = is_string($in['email'] ?? null) ? $in['email'] : '';
+        try {
+            $auth->requestLink($email, clientIp());
+        } catch (RuntimeException) {
+            reply(502, ['error' => 'the mailer refused the message']);
+        } catch (Throwable) {
+            reply(500, ['error' => 'unavailable']);
+        }
+        reply(204);
+
+        // no break — reply() exits
+
+    case 'session':
+        $token = is_string(body()['token'] ?? null) ? body()['token'] : '';
+        if (!$auth->redeem($token)) {
+            reply(401, ['error' => 'no']);
+        }
+        beginSession();
+        // A brand-new session id for the authenticated session, so a fixated one handed
+        // to the operator beforehand cannot be the one that ends up signed in.
+        session_regenerate_id(true);
+        $_SESSION['admin_since'] = (int) round(microtime(true) * 1000);
+        reply(200, ['ok' => true]);
+
+        // no break
+
+    case 'logout':
+        beginSession();
+        $_SESSION = [];
+        session_destroy();
+        reply(204);
+
+        // no break
+}
+
+/* ── Everything below is privileged ───────────────────────────────────────── */
+
+if (!signedIn() && !$auth->authorisedByToken($_SERVER['HTTP_AUTHORIZATION'] ?? null)) {
+    reply(401, ['error' => 'no']);
+}
+
+switch ($action) {
+    case 'state':
+        $service = $app->flags();
+        reply(200, [
+            'flags' => $service->all() ?: new stdClass(),
+            'history' => $service->history(20),
+            'revision' => deployedRevision(),
+        ]);
+
+        // no break
+
+    case 'flags':
+        $in = body();
+        $patch = [];
+        // Only the three fields, only the right types. Everything else is dropped
+        // rather than rejected: the caller is a form, and Flags::apply() treats a
+        // partial patch as a merge (spec §5).
+        if (isset($in['availability']) && is_string($in['availability'])) {
+            $patch['availability'] = $in['availability'];
+        }
+        if (isset($in['isNew']) && is_bool($in['isNew'])) {
+            $patch['isNew'] = $in['isNew'];
+        }
+        if (array_key_exists('reason', $in)) {
+            $patch['reason'] = is_string($in['reason']) ? $in['reason'] : null;
+        }
+
+        $result = $app->flags()->update(
+            is_string($in['slug'] ?? null) ? $in['slug'] : null,
+            $patch,
+        );
+        if ($result === null) {
+            reply(400, ['error' => 'bad slug']);
+        }
+
+        // `published` is reported rather than assumed. The database write has already
+        // committed, so "saved but not published" is a real state and the operator has
+        // to be able to see it — otherwise the Worker keeps enforcing the old answer
+        // while this page shows the new one.
+        reply(200, ['flags' => $result['flags'] ?: new stdClass(), 'published' => $result['published']]);
+
+        // no break
+
+    case 'republish':
+        reply(200, ['published' => $app->flags()->republish()]);
+
+        // no break
+}
+
+reply(404, ['error' => 'no such action']);
+
+/**
+ * The caller's address, for the rate limit only.
+ *
+ * `REMOTE_ADDR` and nothing else. `X-Forwarded-For` is caller-supplied and would let
+ * anyone reset their own rate limit by inventing a new value per request — which is
+ * the same as having no rate limit. If this host is ever put behind a proxy, the
+ * proxy's real header goes here explicitly, after checking the proxy sets it.
+ */
+function clientIp(): string
+{
+    return is_string($_SERVER['REMOTE_ADDR'] ?? null) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
+}
+
+/** What is actually live, from the marker the deploy already writes. */
+function deployedRevision(): ?string
+{
+    $file = dirname(__DIR__) . '/.deploy-revision';
+
+    return is_readable($file) ? trim((string) file_get_contents($file)) : null;
+}

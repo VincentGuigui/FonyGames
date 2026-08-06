@@ -64,6 +64,44 @@ implementation with a clock they control. Real schema changes still follow
 whether `mail()` actually delivers, and whether the live MySQL schema matches the
 migrations. Both are manual.
 
+### 1.1a-bis Driving the admin centre locally
+
+The PHP suite covers the rules; it does not cover PHP's own session handling, the
+routing, or the page. Those need a real server, and they can have one without touching
+the host:
+
+```bash
+npm run build                       # also stages api/ into dist/api
+# a SQLite database with the same columns db/init.sql declares
+# a dist/api/config.php with:
+#   'db_dsn'    => 'sqlite:/path/to/fony.sqlite'
+#   'mail_sink' => '/path/to/mail.log'   ← writes the magic link to a FILE
+mv dist/ops-placeholder dist/ops-local
+cd dist && php -S 127.0.0.1:8099
+```
+
+`mail_sink` exists for exactly this: a laptop has no working `mail()`, and without it the
+magic-link flow could only ever be exercised in production. **Never set it on the host** —
+the sink would be a file full of valid links.
+
+Then `curl` the flow and read the token out of the sink, or open
+`http://127.0.0.1:8099/ops-local/#<token>` in a browser to walk in through the front
+door. What that is worth checking for, beyond the happy path: an unauthenticated `state`
+is 401, a write without `X-Admin` is 400, a wrong address and the right one both answer
+204, a replayed token is 401, the break-glass bearer works with no cookie, and
+`flags.json` appears in the web root and is readable anonymously — because that last one
+is what the Worker fetches.
+
+⚠️ **Reset the database between runs.** The rate limit and the outstanding link both
+persist, so a second run starts throttled and everything after the first link request
+fails. A suite that passes exactly once is not a suite.
+
+⚠️ **Do not kill background servers with `pkill -f "php -S …"`.** The pattern matches the
+shell's own command line — the script that starts the server contains the string too —
+so it kills the shell and leaves the server running, and then the next assertions test
+the *old* process. Write the PID to a file when you start it and kill that. This wasted
+two debugging rounds and produced one convincing false failure.
+
 ### 1.1b The rules live in TypeScript, and only once
 
 `shared/flags.ts` decides everything about a flag — `mayOpenRoom`, `cardState`,

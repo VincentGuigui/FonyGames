@@ -97,14 +97,28 @@ including on branches that must not deploy.
 | `ADMIN_TOKEN` | Break-glass bearer for `curl`. `openssl rand -hex 32` | site (admin config) |
 | `CF_ANALYTICS_TOKEN` | Read-only analytics token for the usage panel (§3.3) | site (admin config) |
 | `CF_ACCOUNT_ID` | Cloudflare account id, for the same call | site (admin config) |
+| `DB_DSN` | PDO DSN, e.g. `mysql:host=localhost;dbname=fonygames;charset=utf8mb4` | site (admin config) |
+| `DB_USER` | MySQL account for that database | site (admin config) |
+| `DB_PASS` | Its password | site (admin config) |
+| `MAIL_FROM` | Envelope sender for the magic link. Optional — defaults to `noreply@guigui.fr` | site (admin config) |
 
 The Cloudflare pair is **optional until set**: `worker-deploy` detects them missing and
 skips with a warning rather than failing, so the site keeps deploying either way.
 
-The four admin values are written by the deploy into a PHP config file **outside the web
-root**, so a rebuilt host is reproducible from CI alone and there is no manual step on
-the server. Outside the web root because a mis-set handler would otherwise serve the file
-as plain text.
+The admin values are written by the deploy into `api/config.php` on the host, so a
+rebuilt host is reproducible from CI alone and there is no manual step on the server.
+
+**Where that file sits, honestly.** It is inside the web root, in `api/`, because the
+SFTP account is chrooted to `/www` and the deploy cannot write above it. Three things
+stand between it and a reader, and none of them is "it is unreachable":
+
+1. It is a `.php` file that only `return`s an array, so executing it emits nothing.
+2. `api/lib/.htaccess` denies the directory outright, and the deploy `chmod 600`s the
+   config.
+3. The residual risk is named rather than hidden: if the PHP handler is ever
+   misconfigured so `.php` is served as text, this file is a published credential.
+   That failure would break the whole site at the same moment, so it is loud — but
+   rotate `DB_PASS` and `ADMIN_TOKEN` if it ever happens.
 
 There is no `ADMIN_SESSION_KEY` and no `MAIL_SECRET`: PHP's own sessions replace the
 first, and `mail()` runs in the same process that mints the link, so there is nothing to
@@ -273,6 +287,9 @@ re-uploads everything.
 | `Missing secret(s) in environment 'dev': FTPPWD` | The pre-flight check naming exactly what is absent. Add it to that environment. |
 | `Missing secret(s) … ADMIN_PATH ADMIN_EMAIL` | The admin centre is in the tree now, so these are required (§3.6). Set them on **both** `dev` and `prod`. |
 | `ADMIN_PATH must be a single directory name` | It has a slash, a space, or a leading dot. It is one folder name, e.g. `ops-7f3a91`, not a path. |
+| `dist/<path> already exists; ADMIN_PATH collides with a real route` | The value is the name of a game folder or another route. Pick something that is not a slug — the whole point is that it is unguessable. |
+| The admin page is 404 after a deploy | `ADMIN_PATH` was unset, so the deploy **removed** the placeholder rather than publishing it under a guessable name. Set the admin secrets and re-run. |
+| The admin page loads but every call answers 503 | `config.php` has no `db_dsn` or no `admin_email`. An unconfigured host has no admin by design; check the six admin secrets are on **this** environment. |
 | Pre-flight green but the magic link never arrives | Presence is all CI can check, and shared-host `mail()` can be accepted then dropped. Check the host's mail log and the recipient's spam folder; use `ADMIN_TOKEN` in the meantime (§3.6). |
 | The hub greys or hides the wrong games | The Worker fails open, so this is a `flags.json` problem rather than an outage. Check `FLAGS_URL` for the environment and that the file is readable over HTTPS (§3.5). |
 | Flag changes never show on the hub | Almost always one of two things, both in [specs/seo.md](specs/seo.md) §4: an `index.html` left by an earlier deploy is still being served instead of `index.php` — the sync deletes nothing, so **delete it on the host once by hand** — or the page is being cached. `curl -I` should show `Cache-Control: no-cache`. |

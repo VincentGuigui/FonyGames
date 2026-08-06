@@ -8,7 +8,8 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "npm run typecheck && vite build",
+    "build": "npm run typecheck && vite build && npm run build:api",
+    "build:api": "node scripts/stage-api.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json",
     "test": "npm run test:php && npm run test:flags && npm run test:outlines && npm run test:cards && npm run test:cm && npm run test:drift && npm run test:relay && npm run test:sprites && npm run test:router && npm run test:spill && npm run test:siege && npm run test:sling && npm run test:sling-game && npm run test:sling-room",

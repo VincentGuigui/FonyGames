@@ -52,6 +52,32 @@ final class PhpMailer implements Mailer
     }
 }
 
+/**
+ * Appends to a file instead of sending.
+ *
+ * For **local development**, selected by setting `mail_sink` in `api/config.php`. A
+ * laptop has no working `mail()`, and without this the magic-link flow cannot be
+ * exercised outside production at all — which is how a flow ends up only ever tested by
+ * the person who wrote it.
+ *
+ * Never set on the host: the sink would be a file full of valid magic links.
+ */
+final class FileMailer implements Mailer
+{
+    public function __construct(private string $path)
+    {
+    }
+
+    public function send(string $to, string $subject, string $body): bool
+    {
+        return file_put_contents(
+            $this->path,
+            "--- to: {$to}\n--- subject: {$subject}\n{$body}\n",
+            FILE_APPEND,
+        ) !== false;
+    }
+}
+
 /** Records instead of sending, so a test can read the link and try to reuse it. */
 final class FakeMailer implements Mailer
 {

@@ -23,6 +23,10 @@ export default defineConfig({
         'goat-siege': 'www/goat-siege/index.html',
         'sling-puck': 'www/sling-puck/index.html',
         'cat-and-mouse': 'www/cat-and-mouse/index.html',
+        // The admin centre. Built to a PLACEHOLDER directory name and renamed to the
+        // ADMIN_PATH secret by the deploy — this repository is public, so the real
+        // path cannot be committed (docs/deployment.md §3.4).
+        ops: 'www/ops-placeholder/index.html',
       },
       output: {
         // A card imported by BOTH the hub and its own game page would otherwise be

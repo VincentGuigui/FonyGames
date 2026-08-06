@@ -60,6 +60,19 @@ final class FlagService
     }
 
     /**
+     * The change log, for the admin page.
+     *
+     * Exposed here rather than letting a caller build its own store: two stores over one
+     * connection is two chances to disagree about which database this is.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function history(int $limit = 50): array
+    {
+        return $this->store->history($limit);
+    }
+
+    /**
      * Rewrite `flags.json` from whatever the store currently holds.
      *
      * Public because it is also the repair action: if a publish once failed, the
