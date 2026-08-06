@@ -90,6 +90,31 @@ function testDbName(string $dsn): string
     return $name;
 }
 
+/**
+ * The candidate that actually connected.
+ *
+ * Tests that build their own `App` need the WORKING connection, not
+ * `testDbCandidates()[0]` — on a Debian box root authenticates by unix_socket, so the TCP
+ * candidate fails and the suite falls through to the socket. A fixture that hardcoded [0]
+ * connected to nothing and reported "the schema is not installed", which looks like a bug
+ * in the code under test.
+ *
+ * @return array{dsn: string, user: string, pass: string}
+ */
+function testDbUsed(): array
+{
+    testDbConnection();
+
+    /** @var array{dsn: string, user: string, pass: string}|null $used */
+    $used = $GLOBALS['__fony_test_conn'] ?? null;
+    if ($used === null) {
+        fwrite(STDERR, "no working connection recorded\n");
+        exit(1);
+    }
+
+    return $used;
+}
+
 /** Connect once per process, creating the database and schema on first use. */
 function testDbConnection(): PDO
 {
@@ -122,6 +147,7 @@ function testDbConnection(): PDO
             ]);
 
             applyInitSql($db);
+            $GLOBALS['__fony_test_conn'] = $candidate;
 
             return $db;
         } catch (Throwable $e) {

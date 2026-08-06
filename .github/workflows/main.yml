@@ -267,6 +267,78 @@ jobs:
         # dist/ committed. Staying on `full` is the correct choice here.
         sync: full
 
+    # Apply pending migrations, by ASKING THE HOST.
+    #
+    # This runner cannot reach the database: MariaDB is bound to localhost on the web
+    # host and port 3306 is not exposed (docs/database.md §3). So the deploy cannot run
+    # DDL itself — it POSTs to the endpoint that can, which is why this step is after
+    # the sync rather than before it. The new migration file has to be on the host
+    # before we ask for it.
+    #
+    # ADMIN_TOKEN authenticates it. That makes the token load-bearing for deploys and
+    # not only break-glass, which docs/deployment.md §3.1 now says.
+    - name: 🗄️ Apply database migrations
+      env:
+        ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+      run: |
+        if [ -z "$ADMIN_TOKEN" ]; then
+          echo "::notice::ADMIN_TOKEN not set — skipping migrations. Set it to have the"\
+               "deploy apply them (docs/database.md §5)."
+          exit 0
+        fi
+
+        if [ "${{ github.ref_name }}" = "prod" ]; then
+          ORIGIN="https://fonygames.guigui.fr"
+        else
+          ORIGIN="https://fonygames-dev.guigui.fr"
+        fi
+
+        # `-sS` so a transport failure prints something; the body is captured because the
+        # failure detail — which file, which statement — is in it and is the whole point.
+        BODY=$(curl -sS -X POST \
+          -H "Authorization: Bearer $ADMIN_TOKEN" \
+          -H 'X-Admin: 1' \
+          -H 'Content-Type: application/json' \
+          -d '{}' \
+          -w '\n%{http_code}' \
+          "$ORIGIN/api/index.php?a=migrate") || {
+            echo "::error::Could not reach $ORIGIN to apply migrations."
+            exit 1
+          }
+
+        STATUS=$(printf '%s' "$BODY" | tail -n1)
+        JSON=$(printf '%s' "$BODY" | sed '$d')
+
+        echo "$JSON"
+
+        if [ "$STATUS" != "200" ]; then
+          # A silent migration failure is worse than a red build: the site is already
+          # live against a schema that does not match it.
+          echo "::error::Migration endpoint answered $STATUS. The site is deployed but the"\
+               "schema may not match it."
+          exit 1
+        fi
+
+        # `ok` can be false inside a 200 only if the endpoint changes shape; check it
+        # anyway rather than trusting the status alone.
+        case "$JSON" in
+          *'"ok":false'*)
+            echo "::error::A migration failed. Nothing was rolled back — MariaDB commits"\
+                 "DDL as it goes — and the file is not recorded as applied, so fix it and"\
+                 "re-run this workflow."
+            exit 1
+            ;;
+        esac
+
+        case "$JSON" in
+          *'"published":false'*)
+            # Not fatal: the schema is correct and the flags default to active. But the
+            # Worker is reading a stale or absent file, so it must not pass silently.
+            echo "::warning::Migrations applied but flags.json could not be written — the"\
+                 "Worker is failing open. Use the admin centre's republish."
+            ;;
+        esac
+
   # The room server (Cloudflare Durable Objects). Independent of the site
   # deploy: a Worker problem must not stop the hub from shipping, and vice
   # versa. Docs: docs/realtime-server.md

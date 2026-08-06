@@ -141,6 +141,27 @@ applies to the writer's neighbour rather than to the writer. The Worker never
 touches MySQL — it reads a file over HTTPS, which is the topology database.md §3
 already sanctions. See [../roadmap.md](../roadmap.md) for the full decision row.
 
+### Nothing populates `game_flags`, and that is the design
+
+An **absent row means the default** — `active`, not new. A row appears the first time
+you change that game, and disappears from nobody's concern if you never do. So a
+**working, untouched install has an empty table**, which is worth stating because it
+looks broken: you go and look in phpMyAdmin after a migration and there is nothing
+there.
+
+Sparse rather than seeded, for two reasons. Nothing drifts when a game is added or
+removed — no seed row to remember, no orphan left behind — and the default exists in
+exactly one place, `Flags::default()`, rather than in both the schema and the code.
+
+The admin centre says as much, and distinguishes the one state that *is* a fault:
+
+| State | What it means |
+| --- | --- |
+| no rows, no `flags.json` | Untouched install. Every game active, which is the default |
+| `flags.json` published and empty | Same, and the Worker has a file to read |
+| rows, and a `flags.json` holding them | Normal operation |
+| **rows but NO `flags.json`** | **A failed publish.** The Worker enforces the old answer while this page shows the new one — the only one of these that is loud |
+
 ### Behaviour details
 
 - **In-flight games finish.** Disabling blocks *new* rooms; a duel already
@@ -156,6 +177,43 @@ already sanctions. See [../roadmap.md](../roadmap.md) for the full decision row.
   is that a flag is **not** a security control — for something genuinely
   dangerous, remove the game and deploy. Written here so nobody later mistakes
   it for one.
+
+## 2c. Schema management
+
+The admin centre runs the migrations, so a schema change does not need a shell on the
+host. `api/lib/Migrator.php` is the runner; `db/migrate.php` is the same runner from a
+command line ([../database.md](../database.md) §5), and the deploy calls the same
+endpoint after it uploads.
+
+| Action | Auth | Purpose |
+| --- | --- | --- |
+| `GET ?a=schema` | session or `ADMIN_TOKEN` | Applied and pending migrations |
+| `POST ?a=migrate` | session or `ADMIN_TOKEN` | Apply pending, then republish `flags.json` |
+
+### The bootstrap problem, and the one deliberate pre-auth answer
+
+**On an empty database you cannot sign in to run the migration that lets you sign in.**
+Requesting a magic link writes a rate-limit attempt to `admin_link_attempt`, a table the
+migrations create. `Auth::authorisedByToken()` touches no table, so `ADMIN_TOKEN` is the
+way in, and the page offers a field for it.
+
+For the page to *know* to offer that field, `?a=schema` answers **one question without
+credentials: whether the schema is installed.** It carries no applied list and stops
+answering the moment the schema exists. What it gives away is one bit, to somebody who
+already has the secret admin path and can therefore already see a login form — and
+without it the first run is a dead end.
+
+After a successful run the page hands off to the normal sign-in, because the magic link
+works from that moment on.
+
+### What the runner will not do
+
+- **No transaction around DDL.** MariaDB commits as it goes, so wrapping a migration
+  would be false safety. The first failing statement stops the run and is reported with
+  its file and 1-based index; the file is **not** recorded as applied, so the recovery is
+  "fix it and run again" — which is what the idempotency rule exists to make safe.
+- **No stored routines.** `DELIMITER`, triggers, procedures and functions are refused
+  rather than mis-split ([../database.md](../database.md) §4).
 
 ## 3. Where the data lives
 

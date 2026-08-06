@@ -94,7 +94,7 @@ including on branches that must not deploy.
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account id | room server |
 | `ADMIN_PATH` | Folder name the admin page is deployed under, e.g. `ops-7f3a91` | site (§3.4) |
 | `ADMIN_EMAIL` | The one address a magic link may be sent to | site (admin config) |
-| `ADMIN_TOKEN` | Break-glass bearer for `curl`. `openssl rand -hex 32` | site (admin config) |
+| `ADMIN_TOKEN` | Break-glass bearer, **and what the deploy uses to apply migrations** (§3.7). `openssl rand -hex 32` | site (admin config) |
 | `CF_ANALYTICS_TOKEN` | Read-only analytics token for the usage panel (§3.3) | site (admin config) |
 | `CF_ACCOUNT_ID` | Cloudflare account id, for the same call | site (admin config) |
 | `DB_DSN` | PDO DSN, e.g. `mysql:host=localhost;dbname=fonygames;charset=utf8mb4` | site (admin config) |
@@ -205,6 +205,28 @@ out ([specs/backoffice.md](specs/backoffice.md) §5).
 
 There used to be a second unprovable thing here — whether the GitHub and Wrangler copies
 of `MAIL_SECRET` matched. That secret no longer exists, so neither does the gap.
+
+### 3.6b Migrations run at the end of the deploy, by asking the host
+
+The runner **cannot reach the database** — MariaDB is bound to localhost on the web host
+and 3306 is not exposed ([database.md](database.md) §3). So the deploy cannot apply DDL
+itself. After the sync it `POST`s to `api/index.php?a=migrate` with `ADMIN_TOKEN`, and the
+host does it.
+
+After the sync, not before: the new migration file has to be on the host before we ask
+for it.
+
+- **No `ADMIN_TOKEN` ⇒ skipped with a notice**, so this cannot break a deploy on a host
+  with no admin configured.
+- **A failed migration fails the deploy**, quoting the file and statement. The site is
+  already live by then, so a silent failure would leave it running against a schema that
+  does not match it.
+- **A failed `flags.json` publish is a warning, not an error.** The schema is correct and
+  flags default to active, but the Worker is reading a stale or absent file — so it must
+  not pass in silence.
+
+`prod` gets the same treatment. A required reviewer on the `prod` environment (§2) is what
+gates automatic production DDL, and is now worth having for that reason as well.
 
 ### 3.7 Rules
 
