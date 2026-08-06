@@ -1,6 +1,8 @@
 import { isRoomCode, normaliseRoomCode } from '../www/src/core/room/code';
 import { gameSlug, originAllowed } from './router';
 import { Room } from './Room';
+import { makeFlagsReader, timedFetch, type FlagsReader } from './flags';
+import type { FlagState } from '../shared/flags';
 
 export { Room };
 
@@ -12,7 +14,37 @@ export type Env = {
    * rather than accept anything.
    */
   ALLOWED_ORIGINS: string;
+  /**
+   * URL of `flags.json` on the web host — a plain var, not a secret: the file is
+   * public and the Worker fails open if this is wrong
+   * (docs/specs/backoffice.md §2b). Per environment, so the dev Worker reads dev's
+   * flags.
+   *
+   * **This Worker has no secrets at all.** It used to hold six, for an admin centre
+   * that now lives in PHP.
+   */
+  FLAGS_URL?: string;
 };
+
+/**
+ * One reader per isolate, built lazily and kept — the whole point is a cache that
+ * outlives a request. Keyed by URL so a config change cannot be served by a reader
+ * holding the old host's answers.
+ */
+let reader: FlagsReader | null = null;
+let readerUrl: string | undefined;
+
+function flags(env: Env): FlagsReader {
+  if (reader === null || readerUrl !== env.FLAGS_URL) {
+    readerUrl = env.FLAGS_URL;
+    reader = makeFlagsReader({
+      url: env.FLAGS_URL,
+      now: () => Date.now(),
+      fetcher: timedFetch,
+    });
+  }
+  return reader;
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -68,6 +100,21 @@ export default {
     }
     const game = gameSlug(url.searchParams.get('game'));
 
+    /*
+     * The flag gate. **Enforcement lives here, not on the hub**: hiding a card is
+     * cosmetic and a bookmarked `/tap-duel/#AB2C` never consults the grid (spec §2b).
+     *
+     * The verdict is forwarded rather than acted on, because the in-flight rule needs
+     * knowledge only the room has: disabling blocks *new* rooms and never interrupts a
+     * round, so a room that still has a connected player keeps accepting them. The Room
+     * is the only thing that knows whether it is occupied.
+     *
+     * Fail open, and no `try` around it: `availabilityOf` answers `active` for a dead
+     * host, a 404, a truncated body or an unset URL, and `worker/flags.test.ts` asserts
+     * each of those. A `catch` here would suggest the contract is weaker than it is.
+     */
+    const availability: FlagState = game ? await flags(env).availabilityOf(game) : 'active';
+
     // The whole reason for Durable Objects: this name always resolves to the
     // same object, anywhere in the world, with no routing table of our own.
     const id = env.ROOM.idFromName(code);
@@ -77,6 +124,7 @@ export default {
     forwarded.searchParams.set('code', code);
     if (game) forwarded.searchParams.set('game', game);
     else forwarded.searchParams.delete('game');
+    forwarded.searchParams.set('open', availability === 'active' ? '1' : '0');
     return stub.fetch(new Request(forwarded, request));
   },
 };

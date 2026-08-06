@@ -9,6 +9,12 @@ export default defineConfig({
     outDir: '../dist',
     emptyOutDir: true,
     target: 'es2022',
+    // The SSR step needs to know each art file's CONTENT-HASHED url, so the markup it
+    // renders is byte-identical to what the client renders and hydration is exact
+    // (docs/specs/seo.md §4). The manifest is the only place Vite publishes that
+    // mapping. Emitted to dist/.vite/manifest.json and not deployed — it is a build
+    // artefact, and `scripts/ssr.mjs` deletes it once it has read it.
+    manifest: true,
     // Multi-page, one real index.html per route. Static hosting serves
     // /tap-duel/ straight from disk — no SPA rewrite rule needed, which we
     // could not rely on having on the shared host.
@@ -23,6 +29,10 @@ export default defineConfig({
         'goat-siege': 'www/goat-siege/index.html',
         'sling-puck': 'www/sling-puck/index.html',
         'cat-and-mouse': 'www/cat-and-mouse/index.html',
+        // The admin centre. Built to a PLACEHOLDER directory name and renamed to the
+        // ADMIN_PATH secret by the deploy — this repository is public, so the real
+        // path cannot be committed (docs/deployment.md §3.4).
+        ops: 'www/ops-placeholder/index.html',
       },
       output: {
         // A card imported by BOTH the hub and its own game page would otherwise be

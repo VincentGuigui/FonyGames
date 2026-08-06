@@ -2,8 +2,15 @@
 
 A private operator view: is it up, what is it costing, and is anyone playing.
 
-> Status: **stub, not built.** Roadmap M8. This file exists so the privacy
-> boundary is agreed *before* anything starts collecting.
+> Status: **specced, being built.** Roadmap M8. The privacy boundary in §1 is agreed
+> *before* anything starts collecting.
+>
+> **This lives in PHP on the web host, not in the Worker.** A first implementation
+> put the flags in a Durable Object and hand-rolled sessions, magic links and a
+> mailer hop inside it; on 2026-08-06 that was judged over-built and moved to PHP,
+> where the platform supplies all three. §2b, §4 and §5 record what changed and why,
+> and [../roadmap.md](../roadmap.md) carries the decision row. The Worker keeps
+> exactly one job here: **enforcing** a flag when a room is opened.
 
 ## 1. The privacy boundary — read this first
 
@@ -40,10 +47,33 @@ warning before the free tier runs out, not pretty graphs.
 > is scoped to *Edit Cloudflare Workers* and deliberately cannot read analytics —
 > do not widen it; mint a separate read-only token.
 
-### Games & activity
+### Games & activity — ⏸ **blocked on one decision, not on work**
 Per game: rounds started, rounds finished, completion rate, peak concurrent
 rooms. Useful for ordering the hub and for spotting a game nobody finishes,
 which is a design bug worth knowing about.
+
+**Not built, and deliberately not built quietly.** The counters can only come from
+the Durable Object, which means a `Room → PHP` write endpoint — and that endpoint
+has to be authenticated, or anyone on the internet can inflate the numbers the hub
+is ordered by. Authenticating it means a shared secret in **two** systems, a
+Wrangler secret and a GitHub secret that must be byte-identical with no automated
+way to check.
+
+That is exactly `MAIL_SECRET`, which was deleted on 2026-08-06 for exactly that
+reason (§5). Rebuilding it three commits later, for anonymous play counts, is a
+trade the maintainer should make rather than one that should appear in a diff.
+
+The options, with what each actually costs:
+
+| Option | Cost |
+| --- | --- |
+| **Shared secret** (`STATS_SECRET`) | Reintroduces the two-copy drift this design just removed. It is the only option that authenticates the write |
+| **Unauthenticated endpoint** | No secret; anyone can inflate the counters. They are anonymous aggregates, so this is vandalism rather than a breach — but the hub's ordering would be built on numbers a stranger can move |
+| **Cloudflare analytics only** | Already built, no new anything. Gives request volume per Worker, so "is anyone playing" is answerable; per-game granularity is not |
+| **Skip it** | The completion rate is the one metric worth having, and it is a design signal rather than an operational one. It can wait for a play test |
+
+**Health and Cloudflare usage are built and need none of this** — both are read-only
+outbound calls from PHP, with no new credential and nothing to keep in step.
 
 ## 2b. Feature flags — turning games on and off
 
@@ -82,30 +112,46 @@ be `disabled` for maintenance. The card renders on the stricter of the two.
 
 ### Where the flags live
 
-A **singleton Durable Object** (`idFromName('flags')`) inside the room Worker.
-Per-environment separation then costs nothing: `dev` and `prod` are already
-separate Workers with separate namespaces, so their flags are separate by
-construction.
+**MySQL is the source of truth, and PHP is the only writer.** Every admin write
+also regenerates a flat `flags.json` in the web root, which is what everything
+reads:
 
-MySQL is **not** the source of truth here — the Worker cannot reach it
-([../database.md](../database.md) §3), and two sources would drift. MySQL keeps
-only the audit trail: who changed what, when.
+```
+admin (PHP) ──write──> MySQL ──regenerate──> web-root/flags.json
+                                                 │
+                     index.php, per request  <───┤   (inlined into the page — spec seo.md §4)
+                     the Worker, HTTPS + 60 s in-memory cache  <┘
+```
 
-| Endpoint | Auth | Purpose |
+| Reader | How | Why that way |
 | --- | --- | --- |
-| `GET /flags` | public, cacheable ~60 s | The hub reads this |
-| `POST /admin/flags` | bearer token (`ADMIN_TOKEN`, a Wrangler secret) | The backoffice writes this |
+| The hub | PHP reads the file on the same disk and **inlines the flags into the page** | No request, no CORS, and no paint-then-reconcile flicker |
+| The Worker | `fetch` of `flags.json`, cached ~60 s in memory, last good copy served on error | It is the only thing that can enforce (below), and it is cross-origin |
+
+**A flat file rather than a PHP endpoint on the read path**, because the Worker's
+read sits on room-open, which shares the ±250 ms budget. A shared-host
+PHP + MySQL round trip per room open is the one place that latency would show. The
+file is served by the web server and cached in the Worker anyway.
+
+**This reverses an earlier decision.** Until 2026-08-06 the flags lived in a
+singleton Durable Object, and this document argued MySQL *could not* be the source
+of truth because the Worker cannot reach it ([../database.md](../database.md) §3).
+That was true and is now beside the point: once the writer is PHP, the constraint
+applies to the writer's neighbour rather than to the writer. The Worker never
+touches MySQL — it reads a file over HTTPS, which is the topology database.md §3
+already sanctions. See [../roadmap.md](../roadmap.md) for the full decision row.
 
 ### Behaviour details
 
 - **In-flight games finish.** Disabling blocks *new* rooms; a duel already
   running is never interrupted. Concretely the Worker refuses a connection for a
   non-active game **unless that room already has a connected player**.
-- **The hub renders before the flags arrive.** The compiled registry paints the
-  grid immediately (the ≤ 2.5 s budget in
-  [../architecture.md](../architecture.md) §4 comes first), then the flag fetch
-  reconciles. Changing a flag is rare, so this is almost always a no-op.
-- **Unknown slug, or `/flags` unreachable → treated as `active`.** Fail-open, on
+- **The hub never waits for the flags, and never reconciles them.** They arrive
+  inlined in the server-rendered page ([seo.md](seo.md) §4), so the first paint is
+  already correct and there is no second render. This replaces the earlier
+  paint-then-fetch-then-reconcile design, which briefly showed a disabled game as
+  playable.
+- **Unknown slug, or the flags unreadable → treated as `active`.** Fail-open, on
   purpose: a Worker hiccup must not blank the whole catalogue. The consequence
   is that a flag is **not** a security control — for something genuinely
   dangerous, remove the game and deploy. Written here so nobody later mistakes
@@ -113,29 +159,155 @@ only the audit trail: who changed what, when.
 
 ## 3. Where the data lives
 
-This is the **first real use of MySQL**, and it follows the topology already
-fixed in [database.md](../database.md) §3 — the Durable Object cannot reach the
-database, so counters go:
+MySQL's **first real use is the feature flags** (§2b), not the counters. The flags
+need no new wire path: PHP is both the writer and the publisher.
+
+If the counters in §2 are ever built, they follow the topology already fixed in
+[database.md](../database.md) §3 — the Durable Object cannot reach the database:
 
 ```
 Room DO ──end of round, HTTPS──> PHP endpoint ──> MySQL
 ```
 
-Off the gameplay path, so a slow database can never affect a round.
+Off the gameplay path, so a slow database can never affect a round. The open
+question is not the topology; it is how that endpoint is authenticated, and §2
+lays out what each answer costs.
 
 Building it therefore triggers the rules in [database.md](../database.md) §4: an
 `init.sql`, idempotent migrations under `db/migrations/`, and local MariaDB as
 the test target.
 
-## 4. Access
+## 4. Access — a hidden URL and a magic link
 
-It is not public. Simplest workable answer for a one-maintainer project: HTTP
-basic auth via the host, over HTTPS, on an unguessable path. **No user accounts**
-— adding an auth system for a single operator would be the tail wagging the dog.
+Three layers, and only the third is a real control:
 
-## 5. Open questions
+| Layer | What it stops | What it does not |
+| --- | --- | --- |
+| An unguessable path | Casual discovery, crawlers | Anyone who has ever seen the URL |
+| A magic link to **one** address | Everyone who is not the operator | Someone with access to that mailbox |
+| A session check on every write | A forged request | — |
 
-- Is a UI needed at all, or is a single JSON endpoint plus the Cloudflare
-  dashboard enough for v1? (Cheapest honest answer: probably the latter.)
+**The path is not the security.** It is written down here so nobody later treats it
+as if it were: a URL leaks through browser history, a shared screen, a Referer
+header. The link is what authenticates.
+
+**And this repository is public**, so the path cannot simply be a committed folder
+name — that would publish it. The build emits a placeholder directory and the deploy
+renames it to the `ADMIN_PATH` secret, so the real path exists only in the GitHub
+environment and on the host ([../deployment.md](../deployment.md) §3.4).
+
+**And the path must not leak through `robots.txt` either.** A `Disallow:` line
+naming it publishes it to everyone who reads the file, so the admin path is
+deliberately absent from `robots.txt` ([seo.md](seo.md) §3).
+
+### The flow
+
+Everything privileged lives in **PHP on the web host**, under the hidden path,
+because that is where the flags are written ([§2b](#2b-feature-flags--turning-games-on-and-off))
+and it is same-origin with the page.
+
+1. `POST link.php { email }` — compares against the configured address with
+   `hash_equals` and replies `204` either way. Identical response for a wrong
+   address, so the endpoint cannot be used to discover who the operator is.
+2. On a match it mints `random_bytes(32)`, stores only their **SHA-256** with a
+   10-minute expiry, and `mail()`s a link. One outstanding token at a time: a new
+   request replaces the old.
+3. The token travels in the URL **fragment**, never the query string — a fragment
+   is not sent to the server, so it cannot land in an access log or a `Referer`.
+   The page reads it and posts it to `session.php`.
+4. PHP hashes, compares, **deletes** (single use), and calls `session_start()`.
+   The cookie is `HttpOnly; Secure; SameSite=Lax`, valid 12 hours.
+5. Every later call is same-origin and carries the cookie automatically.
+
+**A session cookie, not a bearer token.** The earlier design was forced into a
+bearer header because the admin lived on the Worker at `*.workers.dev` while the
+page was on `guigui.fr` — cross-site, so a cookie would have needed
+`SameSite=None` plus credentialed CORS. Once the admin is PHP on the same origin,
+that constraint disappears along with the hand-written HMAC session tokens, the
+constant-time compare and the CORS preflight that existed only to serve it.
+
+`link.php` is **rate limited** — a handful an hour per IP — and **the limit is
+checked before the address is**, so a rate-limited response cannot be read as
+"you guessed the right address, try later".
+
+`ADMIN_TOKEN` stays as break-glass for `curl`, so a broken mailbox cannot lock the
+operator out of their own flags.
+
+### Secrets
+
+A PHP config file **outside the web root**, written by the deploy from GitHub
+environment secrets ([../deployment.md](../deployment.md) §3). Not committed — the
+repository is public — and not in the web root, where a mis-set handler would serve
+it as text.
+
+| Secret | Contents |
+| --- | --- |
+| `ADMIN_EMAIL` | The one address a link may be sent to |
+| `ADMIN_TOKEN` | Break-glass bearer for `curl`, above |
+| `CF_ANALYTICS_TOKEN` | Read-only analytics token, for the usage panel |
+| `CF_ACCOUNT_ID` | Account id for the same call |
+
+**No `ADMIN_SESSION_KEY`** — PHP's own session handling replaces the tokens it
+signed. **No `MAIL_SECRET`** — see §5. And **no Wrangler secrets at all**: the
+Worker's only remaining interest in any of this is reading `flags.json`, which is
+public.
+
+`CF_ANALYTICS_TOKEN` moving to the server side is a straight improvement: it is
+read by PHP and never reaches a browser.
+
+### What is deliberately absent
+
+No accounts, no password, no reset flow, no second factor. There is exactly one
+operator and the mailbox *is* the second factor. Adding an auth system for one
+person would be the tail wagging the dog — the same reasoning the earlier
+basic-auth answer had, kept, with the mechanism upgraded because basic auth over a
+shared host means a password in a config file somewhere.
+
+## 5. How the mail and the flag fields were settled
+
+### The mail goes out with `mail()`, from the code that wants it
+
+`mail()` on the host is confirmed working (2026-08-05), and the code that mints the
+link is now PHP on that same host, so sending it is one function call with no
+credential, no endpoint and no shared secret.
+
+**This supersedes the 2026-08-05 decision** that had the Worker `POST` to a PHP
+mailer behind a `MAIL_SECRET`. That design was correct while the admin lived in the
+Worker, and it carried a cost this document named at the time: `MAIL_SECRET` had to
+exist in two systems, byte-identical, with **no automated check that the two copies
+matched** — CI can read the GitHub copy and has no access to the Wrangler one. It
+therefore also owed a manual "test the mail path" button whose only job was to
+detect that drift. Moving the admin to PHP deletes the secret, the endpoint, the
+drift, the pre-flight check and the button together.
+
+The remaining cost is unchanged and still worth naming: **shared-host
+deliverability is unpredictable**. For one known recipient it is usually fine, and
+if it disappoints, swapping in Resend or Postmark is one function plus one
+credential. `ADMIN_TOKEN` is the break-glass in the meantime, which is the other
+reason it stays.
+
+MailChannels was not chosen: it was the free default for Workers and is believed to
+have ended that in 2024. Now moot, since nothing sends from a Worker.
+
+### Availability and novelty are separate fields
+
+`availability` is `active` / `disabled` / `hidden` and is what the **Worker
+enforces**. `isNew` is its own runtime flag and only drives the NEW badge.
+
+Two fields rather than a four-value enum, for the same reason §2b already separates
+the flag from build-time `status`: a game can be **new and disabled** at once, and
+folding novelty into the enum would make `new` silently mean "playable" — mixing
+presentation into the one thing that is a control.
+
+It also makes novelty settable without a deploy, which is the point. Today
+`status: 'new'` is compiled into `card.ts`, so clearing a badge needs a release.
+Build-time `status` stays as intent; the runtime flag wins where they disagree, on
+the stricter reading.
+
+### Still genuinely open, not blocking
+
 - Retention for the aggregate counters — forever, or rolled up monthly?
 - Should health checks alert (email/push), or only display?
+- Is a UI needed at all for v1, or a JSON endpoint plus the Cloudflare dashboard?
+  Now that there is a session mechanism, a small UI is cheap — but the honest
+  answer for *health and usage* alone was always the dashboard.

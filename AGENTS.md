@@ -32,7 +32,8 @@ file under 200 lines** — put detail in `docs/`, not here.
 | Specs index (hub + games) | [docs/specs/README.md](./docs/specs/README.md) |
 | Hub spec | [docs/specs/hub.md](./docs/specs/hub.md) |
 | Join methods (link, code, QR, smart join) | [docs/specs/join.md](./docs/specs/join.md) |
-| Backoffice spec | [docs/specs/backoffice.md](./docs/specs/backoffice.md) |
+| Backoffice spec (flags, admin — in PHP) | [docs/specs/backoffice.md](./docs/specs/backoffice.md) |
+| SEO, link previews & server-rendered HTML | [docs/specs/seo.md](./docs/specs/seo.md) |
 | Game spec template | [docs/specs/game-spec-template.md](./docs/specs/game-spec-template.md) |
 
 ---
@@ -47,12 +48,15 @@ file under 200 lines** — put detail in `docs/`, not here.
 /docs/specs           hub spec + one file per game under /docs/specs/games
 /www                  source of the site (hub + games) — compiled, not served
 /worker               the room server: Cloudflare Durable Objects
+/api                  PHP: flags, admin centre, counters — the only thing that
+                      can reach MySQL. Tested by `npm run test:php`
+/db                   init.sql + idempotent migrations
 /shared               wire protocol *and game maths* shared by www/ and worker/
 /dist                 build output — generated, gitignored, deployed
 ```
 
 Two deploy targets, both driven from `dev`/`prod`:
-`dist/` → the web host, `worker/` → Cloudflare.
+`dist/` + `api/` → the web host, `worker/` → Cloudflare.
 Nothing outside those ships. Nothing outside `docs/` documents.
 
 ---

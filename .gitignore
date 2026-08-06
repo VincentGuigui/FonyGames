@@ -10,3 +10,10 @@ coverage/
 
 # wrangler local state (persisted Durable Object storage)
 .wrangler/
+
+# `wrangler dev` reads secrets from .dev.vars. The Worker has no secrets any more
+# (docs/deployment.md §3.2), so there is nothing to put in one — but the ignore stays,
+# because THIS REPO IS PUBLIC and a file created later would otherwise be committed
+# by the next `git add -A`.
+.dev.vars
+.dev.vars.*

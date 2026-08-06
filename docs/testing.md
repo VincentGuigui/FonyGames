@@ -11,6 +11,7 @@ what is deterministic, and keep a short, ruthless manual pass for the rest.
 | Layer | Scope | Tool |
 | --- | --- | --- |
 | Unit | Pure logic: bump detection on recorded sample data, scoring, timers, room-code generation, geo maths | **`npm test`** today; Vitest proposed |
+| Unit (server) | The admin centre's auth rules and the flag store | **`npm run test:php`** on plain `php` (§1.1a) |
 | Contract | Client/server message schemas, round state machine | Drive the real module through a fake `Ctx` (§1.1) |
 | End-to-end | Simulated players joining a room and playing a round | Real WebSockets against `wrangler dev` (§1.2) |
 | Manual | Real phones, real permissions, real network | The checklist in §3 |
@@ -43,6 +44,143 @@ the bugs it caught could not have been seen on a screenshot: an equal-mass
 collision impulse missing its `(1 + e)` factor, and an accessibility fallback that
 could not reach the gap from three of the five starting positions.
 
+### 1.1a `npm run test:php` — the same harness shape, in PHP
+
+The backoffice lives in PHP ([specs/backoffice.md](specs/backoffice.md)), and the
+rules it enforces are the kind that must be tested rather than eyeballed: a
+magic-link flow has a replay hole, an expiry hole, a rate-limit-as-oracle hole and a
+single-use hole, and none of them is visible in a browser.
+
+So `api/tests/run.php` is deliberately the same shape as the Node harness — no
+framework, a `check()` counter, a non-zero exit — and it runs on the plain `php`
+binary, which is present locally and preinstalled on GitHub's `ubuntu-latest`
+runners. `npm test` runs both halves; CI therefore does too.
+
+The storage sits behind a small interface so the tests drive an in-memory
+implementation with a clock they control. Real schema changes still follow
+[database.md](database.md) §4 — `init.sql`, idempotent migrations, local MariaDB.
+
+**Deliberately not covered**, so nobody reads a green suite as more than it is:
+whether `mail()` actually delivers, and whether the live MySQL schema matches the
+migrations. Both are manual.
+
+### 1.1a-bis Driving the admin centre locally
+
+The PHP suite covers the rules; it does not cover PHP's own session handling, the
+routing, or the page. Those need a real server, and they can have one without touching
+the host:
+
+```bash
+npm run build                       # also stages api/ into dist/api
+# a SQLite database with the same columns db/init.sql declares
+# a dist/api/config.php with:
+#   'db_dsn'    => 'sqlite:/path/to/fony.sqlite'
+#   'mail_sink' => '/path/to/mail.log'   ← writes the magic link to a FILE
+mv dist/ops-placeholder dist/ops-local
+cd dist && php -S 127.0.0.1:8099
+```
+
+`mail_sink` exists for exactly this: a laptop has no working `mail()`, and without it the
+magic-link flow could only ever be exercised in production. **Never set it on the host** —
+the sink would be a file full of valid links.
+
+Then `curl` the flow and read the token out of the sink, or open
+`http://127.0.0.1:8099/ops-local/#<token>` in a browser to walk in through the front
+door. What that is worth checking for, beyond the happy path: an unauthenticated `state`
+is 401, a write without `X-Admin` is 400, a wrong address and the right one both answer
+204, a replayed token is 401, the break-glass bearer works with no cookie, and
+`flags.json` appears in the web root and is readable anonymously — because that last one
+is what the Worker fetches.
+
+⚠️ **Reset the database between runs.** The rate limit and the outstanding link both
+persist, so a second run starts throttled and everything after the first link request
+fails. A suite that passes exactly once is not a suite.
+
+⚠️ **Do not kill background servers with `pkill -f "php -S …"`.** The pattern matches the
+shell's own command line — the script that starts the server contains the string too —
+so it kills the shell and leaves the server running, and then the next assertions test
+the *old* process. Write the PID to a file when you start it and kill that. This wasted
+two debugging rounds and produced one convincing false failure.
+
+### 1.1c Checking the server-rendered hub
+
+`api/tests/page_test.php` covers the assembly, including the one coupling worth naming:
+`scripts/ssr.mjs` invents the variant-key format and `Page::variantKey()` reconstructs it,
+so the test reads the **real generated `dist/_hub/cards.php`** and asserts every key PHP
+would ask for exists and no key exists that it would not. If those drift, every card
+resolves to `''` and the hub renders an empty grid with no error anywhere.
+
+What the harness cannot see needs a server and a browser:
+
+```bash
+npm run build && cd dist && php -S 127.0.0.1:8100     # with an api/config.php, as §1.1a-bis
+curl -s http://127.0.0.1:8100/ | grep -c '<li class="game-card'   # 13, no JS involved
+```
+
+Then **the check that is the whole justification for rendering per request**: disable a
+game in the admin and `curl` again *without rebuilding*. The card must change state in the
+response. Also worth confirming, because each has its own failure mode: a `hidden` game's
+title is **absent** rather than dimmed with CSS (a crawler reads the source), a `disabled`
+game's badge carries the operator's reason **escaped**, and `sitemap.php` drops the hidden
+game while keeping the disabled one.
+
+### 1.1d Hydration: what can and cannot be proved
+
+**"No console errors" does not prove hydration worked.** Preact's production build is
+silent on a mismatch, so a full replacement looks exactly like a clean adoption.
+
+The way to actually see it is a `MutationObserver` installed via CDP's
+`Page.addScriptToEvaluateOnNewDocument`, which runs *before* the page's own scripts: count
+`li.game-card` nodes removed and added during boot, and compare the object identity of the
+first card before and after. A correct hydration removes none, adds none, and keeps the
+same node.
+
+⚠️ **And a finding that corrects an earlier assumption in this repo.** That test does *not*
+distinguish `hydrate()` from `render()`. Both were run in a real browser on the Preact this
+project ships: `render()` over server markup adopts the existing children rather than
+replacing them, and `hydrate()` into an empty container renders fine. So the branch in
+`main.tsx` is a statement of intent and a small saving, **not** a fix for a crash — and
+anyone told otherwise will go looking for a bug that is not there.
+
+The mutation that exposed that also exposed a trap in *how* to run one: `npm run build`
+was failing on an unused import while its output went to `/dev/null`, so the old assets
+were still being served and the mutation "passed". **Check the emitted asset hash changes
+before believing a mutation was tested.**
+
+### 1.1e The health and usage panels
+
+`api/tests/usage_test.php` is almost entirely failure cases, because the panel exists to
+be looked at when something is wrong. The one behaviour worth naming: **it must never show
+a number it does not have.** A row of zeroes against the free-tier ceiling reads as
+"plenty of headroom" on the day the analytics token expires, so every failure path returns
+`ok: false` with a reason and the raw body, and `pressure()` returns `null` — not 0 — for
+unknown usage.
+
+Two traps in there that are easy to get wrong:
+
+- **Cloudflare's GraphQL API reports its own errors with HTTP 200.** Treating 200 as
+  success would report an authentication failure as "0 requests today".
+- **A self-check against your own origin deadlocks on `php -S`**, which is
+  single-threaded, so a request made from inside a request never completes. There is no
+  self-check for that reason and because it is near-worthless anyway — if the code is
+  answering, the site is up. What *is* reported about the host is whether `flags.json`
+  exists, which is a disk read.
+
+⚠️ **What these tests do not prove.** Every Cloudflare response body in them is
+hand-written from the documented schema, not recorded: this sandbox cannot reach
+`api.cloudflare.com` and the analytics token does not exist yet. They prove the parser
+degrades honestly on anything unexpected. They do **not** prove the field names are right —
+that needs one look at a real response, and `api/lib/Usage.php` says so at the top.
+
+### 1.1b The rules live in TypeScript, and only once
+
+`shared/flags.ts` decides everything about a flag — `mayOpenRoom`, `cardState`,
+`flagFor` — and it is covered by the Node harness. **PHP re-implements none of it.**
+The server-rendered page picks between markup variants the *build* produced by
+calling `cardState()` for each combination ([specs/seo.md](specs/seo.md) §4), so
+there is no second copy of the rules to keep in step and no PHP test that could
+disagree with a TypeScript one.
+
 ### 1.2 End-to-end against a real Worker
 
 The harness proves the referee. It cannot prove that `Room.ts` routes to it, that
@@ -69,6 +207,13 @@ Two traps that have already cost time:
   characters, and no longer validates — so every tab lands on "This room doesn't
   exist" instead of a room. Nine tabs, nine failures, and it reads like a broken join
   gate. Both traps come from the same line of `normaliseRoomCode`.
+
+  **The worst version of this is a test that passes.** Checking that a disabled game
+  cannot open a room, with the code `GTA1`: the `1` is stripped, the code fails
+  `isRoomCode`, the Worker answers `400`, and the assertion "the socket was refused"
+  is satisfied by the wrong cause. The same run reported the in-flight rule *broken*
+  for the same reason. A negative assertion about a refusal has to pin the reason, or
+  a legal code has to be used — `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, four of them.
 - **Use a fresh room code for every run.** Codes are just names —
   `idFromName(code)` resolves to the *same* Durable Object as last time, live round
   and all. Rejoin a code from an earlier run and `start` is **silently refused**
@@ -166,6 +311,15 @@ of samples captured on a real phone) — never random noise. Traces live in
 - The room lifecycle: join, rejoin after drop, host promotion, last-player-out.
 - Any bug that reaches a phone gets a regression test in the same `fix:` commit
   series.
+- Any auth rule in the admin centre, stated as the hole it closes rather than the
+  happy path: a replayed link, an expired one, a rate limit used as an oracle, a
+  forged or extended session, an unset secret matching everybody.
+
+**One trap specific to the flag gate**, because it has already produced a test that
+passed for the wrong reason: a room code containing `O`, `0`, `I` or `1` is not in
+the code alphabet, so it sanitises down and the Worker answers `400`. That satisfies
+an assertion of "the room was refused" while proving nothing about the flag. **Use
+legal codes** when testing a refusal.
 
 ## 3. Manual device checklist (run before declaring a game done)
 
@@ -174,6 +328,11 @@ mid-range phone if available.
 
 - [ ] Hub loads over 4G in ≤ 2.5 s; illustrations readable at a glance, **and the
       grid does not shift as they arrive**.
+- [ ] The hub grid appears **with JavaScript disabled**, and the same cards appear
+      with it enabled. A console warning is *not* the signal here — see §1.1d for why,
+      and for the observer-based check that is.
+- [ ] **Share the link into a real chat app** (iMessage or WhatsApp) and check the
+      preview shows the title, the sentence and the picture — not a bare URL.
 - [ ] Join by link, by QR, and by typed code — all three work.
 - [ ] Permission primer appears before the OS prompt; **denying** it lands on
       the declared fallback, not an error.

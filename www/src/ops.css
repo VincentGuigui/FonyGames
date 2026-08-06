@@ -1,0 +1,210 @@
+/*
+ * The admin centre. Design tokens from core/ui/theme.css, and nothing else.
+ *
+ * Deliberately plain: this page has one user and no marketing job. Every rule here
+ * exists so the controls are unambiguous on a phone, because the operator is as likely
+ * to disable a game from a train as from a desk.
+ */
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-stack);
+}
+
+#ops {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 4rem;
+}
+
+.ops__title {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.ops__subtitle {
+  font-size: 0.9rem;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--color-text-dim);
+}
+
+.ops__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ops__note {
+  color: var(--color-text-dim);
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+  /* A failed publish prints a long sentence here; it must wrap, not clip. */
+  overflow-wrap: break-word;
+}
+
+.ops__link {
+  background: none;
+  border: 0;
+  color: var(--color-text-dim);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0;
+  margin-left: auto;
+}
+
+.ops__games {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ops__game {
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.ops__name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ops__slug {
+  color: var(--color-text-dim);
+  font-size: 0.8rem;
+}
+
+.ops__badge {
+  font-size: 0.7rem;
+  /* NOT uppercased. The badge carries the operator's own `reason` prose for a disabled
+     game — "BALANCE PASS IN PROGRESS" shouts, and a long reason shouts wider. */
+  letter-spacing: 0.02em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+  background: var(--color-surface-2);
+}
+
+/* Colour carries meaning here, so the label always says it too — the badge text is the
+ * state, not a decoration beside it. */
+.ops__badge--disabled {
+  background: #4a3410;
+  color: #ffd08a;
+}
+
+.ops__badge--hidden {
+  background: #3a1420;
+  color: #ffa8bf;
+}
+
+.ops__controls {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.6rem;
+}
+
+.ops__choice {
+  font: inherit;
+  font-size: 0.8rem;
+  /* 44px tall including padding: this gets tapped with a thumb. */
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-dim);
+  cursor: pointer;
+}
+
+.ops__choice:disabled {
+  /* Visibly inert. A `soon` game's availability cannot be changed by a flag, and a
+     button that looks live but does nothing is worse than one that looks dead. */
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ops__choice.is-on {
+  border-color: var(--color-accent);
+  color: var(--color-text);
+  background: var(--color-surface-2);
+}
+
+.ops__reason {
+  flex: 1 1 14rem;
+  min-width: 0;
+  font: inherit;
+  /* NOT smaller than 16px: theme.css records that iOS zooms an input on focus below
+     that, and a zoomed admin page on a train is a worse bug than a wide field. */
+  font-size: var(--font-body);
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.ops__gate {
+  padding-top: 15vh;
+}
+
+.ops__form {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.ops__input {
+  flex: 1 1 14rem;
+  min-width: 0;
+  font: inherit;
+  padding: 0.7rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.ops__button {
+  font: inherit;
+  padding: 0.7rem 1rem;
+  border-radius: 0.4rem;
+  border: 0;
+  background: var(--color-text);
+  color: var(--color-bg);
+  cursor: pointer;
+}
+
+.ops__button:disabled {
+  opacity: 0.5;
+}
+
+/* The one state that contradicts every switch on the page, so it is not dim. */
+.ops__warn {
+  color: #ffd08a;
+  font-weight: 600;
+}
+
+.ops__log {
+  font-size: 0.8rem;
+  color: var(--color-text-dim);
+}
+
+.ops__log ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.ops__log li {
+  padding: 0.2rem 0;
+  /* A timestamp column that jumps around is unreadable at a glance. */
+  font-variant-numeric: tabular-nums;
+}

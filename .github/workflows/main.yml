@@ -37,15 +37,63 @@ jobs:
         FTPHOST: ${{ secrets.FTPHOST }}
         FTPUSER: ${{ secrets.FTPUSER }}
         FTPPWD: ${{ secrets.FTPPWD }}
+        ADMIN_PATH: ${{ secrets.ADMIN_PATH }}
+        ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+        ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        DB_DSN: ${{ secrets.DB_DSN }}
+        DB_USER: ${{ secrets.DB_USER }}
+        DB_PASS: ${{ secrets.DB_PASS }}
       run: |
         missing=""
         [ -n "$FTPHOST" ] || missing="$missing FTPHOST"
         [ -n "$FTPUSER" ] || missing="$missing FTPUSER"
         [ -n "$FTPPWD" ]  || missing="$missing FTPPWD"
+
+        # The admin centre's secrets are required only once the page exists in the
+        # tree. Gating on the directory rather than on a hand-flipped flag means this
+        # starts enforcing itself the moment the feature lands, and cannot be forgotten
+        # — and it does not break today's deploys before the secrets have been set.
+        #
+        # MAIL_SECRET used to be in this list. It no longer exists: the admin centre
+        # moved to PHP, so the code that mints a magic link calls mail() directly and
+        # there is no Worker->PHP hop to authenticate (docs/specs/backoffice.md §5).
+        if [ -d www/ops-placeholder ]; then
+          [ -n "$ADMIN_PATH" ]  || missing="$missing ADMIN_PATH"
+          [ -n "$ADMIN_EMAIL" ] || missing="$missing ADMIN_EMAIL"
+          [ -n "$ADMIN_TOKEN" ] || missing="$missing ADMIN_TOKEN"
+          [ -n "$DB_DSN" ]      || missing="$missing DB_DSN"
+          [ -n "$DB_USER" ]     || missing="$missing DB_USER"
+          [ -n "$DB_PASS" ]     || missing="$missing DB_PASS"
+        elif [ -z "$ADMIN_PATH" ] || [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_TOKEN" ]; then
+          echo "::notice::ADMIN_PATH / ADMIN_EMAIL / ADMIN_TOKEN not set yet. Not required"\
+               "until the admin page is in the tree, and then required automatically."
+        fi
+
         if [ -n "$missing" ]; then
           echo "::error::Missing secret(s) in environment '${{ github.ref_name }}':$missing"
           exit 1
         fi
+
+        # A bad ADMIN_PATH would put the admin page somewhere unintended, or break the
+        # rename outright. Checked here because the value is only ever seen by CI.
+        if [ -n "$ADMIN_PATH" ]; then
+          case "$ADMIN_PATH" in
+            */*|*\ *|.*)
+              echo "::error::ADMIN_PATH must be a single directory name — no slashes,"\
+                   "no spaces, no leading dot."
+              exit 1
+              ;;
+          esac
+        fi
+
+        # What this step CANNOT check, stated so nobody trusts it further than it goes:
+        # whether mail() actually delivers. An address being present is not
+        # deliverability, and shared-host mail can be accepted and then dropped by the
+        # recipient's filter. ADMIN_TOKEN is the break-glass for exactly that
+        # (docs/specs/backoffice.md §5).
+        #
+        # It also cannot check that ADMIN_EMAIL is an address the operator can read.
+        # A typo here means a link nobody receives, and it looks identical to spam.
 
     - name: 🟢 Set up Node
       uses: actions/setup-node@v6
@@ -56,16 +104,112 @@ jobs:
     - name: 📦 Install
       run: npm ci
 
+    # `npm test` now includes the PHP suite (docs/testing.md §1.1a), so prove the
+    # binary is there and say which version, rather than letting the failure show up
+    # as an opaque `php: not found` inside an npm script.
+    #
+    # No `shivammathur/setup-php`: `ubuntu-latest` ships a PHP CLI already, and the
+    # suite is plain PHP 8.1 syntax with no extensions beyond the defaults. A
+    # third-party action for something already installed is a dependency and a
+    # supply-chain surface for nothing.
+    - name: 🐘 PHP available
+      run: php --version
+
     # The logic harness, before the build. It is the only thing that checks the
-    # referees, the board physics and the card import rules, and it costs seconds
-    # — leaving it out meant a guard that only ever ran on someone's laptop.
+    # referees, the board physics, the card import rules and the backoffice's auth
+    # rules, and it costs seconds — leaving it out meant a guard that only ever ran
+    # on someone's laptop.
     - name: 🧪 Test
       run: npm test
 
     # Typechecks first (`npm run build` runs tsc --noEmit), so a type error
-    # fails the deploy instead of shipping.
+    # fails the deploy instead of shipping. It also stages api/ into dist/api,
+    # so one build produces one uploadable tree (docs/deployment.md §5).
     - name: 🔨 Build
       run: npm run build
+
+    # The admin centre: give it its real path, and its config.
+    #
+    # THE REPOSITORY IS PUBLIC, so the path cannot be committed — the build emits
+    # `ops-placeholder/` and this step renames it to the ADMIN_PATH secret
+    # (docs/deployment.md §3.4). Skipped entirely when the secrets are absent, which is
+    # what lets the site keep deploying before the admin is configured; the pre-flight
+    # above is what makes them required once the page is in the tree.
+    - name: 🔒 Place the admin centre
+      env:
+        ADMIN_PATH: ${{ secrets.ADMIN_PATH }}
+        ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+        ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        DB_DSN: ${{ secrets.DB_DSN }}
+        DB_USER: ${{ secrets.DB_USER }}
+        DB_PASS: ${{ secrets.DB_PASS }}
+        CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+        CF_ANALYTICS_TOKEN: ${{ secrets.CF_ANALYTICS_TOKEN }}
+        MAIL_FROM: ${{ secrets.MAIL_FROM }}
+      run: |
+        # Masked FIRST, before the value is used anywhere: ::add-mask:: only redacts
+        # lines written after it, so masking at the end of the step would leave every
+        # earlier `set -x` line and error message carrying the real path.
+        [ -n "$ADMIN_PATH" ] && echo "::add-mask::$ADMIN_PATH"
+
+        if [ -z "$ADMIN_PATH" ]; then
+          echo "::notice::ADMIN_PATH not set — removing the admin placeholder rather than"\
+               "publishing it under a guessable name."
+          rm -rf dist/ops-placeholder dist/api
+          exit 0
+        fi
+
+        # Refuse rather than overwrite. `mv` onto an existing directory would nest it,
+        # and the deploy would then publish the admin one level deeper than the link
+        # points — a broken admin that looks like a wrong ADMIN_PATH.
+        if [ -e "dist/$ADMIN_PATH" ]; then
+          echo "::error::dist/$ADMIN_PATH already exists; ADMIN_PATH collides with a real route."
+          exit 1
+        fi
+        mv dist/ops-placeholder "dist/$ADMIN_PATH"
+        cp api/htaccess-admin "dist/$ADMIN_PATH/.htaccess"
+
+        # The origin the magic link points at. From the branch, NOT from
+        # $_SERVER['HTTP_HOST'] at runtime: a poisoned Host header would otherwise mail
+        # the operator a link to somebody else's site carrying a valid token.
+        if [ "${{ github.ref_name }}" = "prod" ]; then
+          SITE_ORIGIN="https://fonygames.guigui.fr"
+          SHOW_ALL="false"
+        else
+          SITE_ORIGIN="https://fonygames-dev.guigui.fr"
+          # dev shows every game with a badge stating what prod would do, so it is a
+          # preview of the catalogue rather than a copy of prod's restrictions
+          # (docs/specs/backoffice.md §2b).
+          SHOW_ALL="true"
+        fi
+
+        # A command group redirected once, with each value escaped for a PHP
+        # single-quoted string: a backslash becomes two, then a quote becomes \'. Order
+        # matters — escaping quotes first would then double the backslash it added.
+        # Verified against values containing both.
+        {
+          echo "<?php"
+          echo "// Generated by the deploy. Not committed — this repository is public."
+          echo "return ["
+          for pair in \
+            "db_dsn:$DB_DSN" "db_user:$DB_USER" "db_pass:$DB_PASS" \
+            "admin_email:$ADMIN_EMAIL" "admin_token:$ADMIN_TOKEN" \
+            "admin_path:$ADMIN_PATH" "site_origin:$SITE_ORIGIN" \
+            "cf_account_id:$CF_ACCOUNT_ID" "cf_analytics_token:$CF_ANALYTICS_TOKEN" \
+            "mail_from:${MAIL_FROM:-noreply@guigui.fr}"
+          do
+            key="${pair%%:*}"
+            value="${pair#*:}"
+            printf "  '%s' => '%s',\n" "$key" "$(printf '%s' "$value" | sed "s/\\\\/\\\\\\\\/g; s/'/\\\\'/g")"
+          done
+          # A boolean, so it is written unquoted rather than through the string loop.
+          echo "  'show_all' => $SHOW_ALL,"
+          echo "];"
+        } > dist/api/config.php
+
+        # Never in the log, and never readable by another account on a shared host.
+        chmod 600 dist/api/config.php
+        echo "Admin staged. config.php written with $(grep -c '=>' dist/api/config.php) keys."
 
     # SFTP over SSH on port 22, with username + password. The host's port 21
     # answers FTP but rejects AUTH TLS ("500 'AUTH': command unrecognized"), so

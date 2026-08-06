@@ -45,6 +45,8 @@ is made in a discussion, it belongs in one of these files.
 | --- | --- |
 | [specs/README.md](specs/README.md) | Spec index and game catalogue status |
 | [specs/hub.md](specs/hub.md) | The hub (entry point) specification |
+| [specs/backoffice.md](specs/backoffice.md) | Flags, the admin centre, stats — in PHP on the web host |
+| [specs/seo.md](specs/seo.md) | Link previews, `og:` tags, and the hub's HTML rendered per request |
 | [specs/game-spec-template.md](specs/game-spec-template.md) | Template for a new game spec |
 | `specs/games/*.md` | One file per game |
 
