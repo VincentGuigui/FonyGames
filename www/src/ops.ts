@@ -36,10 +36,23 @@ if (!root) throw new Error('#ops missing');
 async function api(
   action: string,
   body?: unknown,
+  /**
+   * Break-glass bearer, for the one case a session cannot cover: on an empty database the
+   * magic link CANNOT work, because signing in writes to `admin_link_attempt` — a table the
+   * migrations create. Never stored; it lives as long as the keystroke.
+   */
+  bearer?: string,
 ): Promise<{ status: number; data: Record<string, unknown> }> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    headers['X-Admin'] = '1';
+  }
+  if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
+
   const res = await fetch(`${API}?a=${action}`, {
     method: body === undefined ? 'GET' : 'POST',
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json', 'X-Admin': '1' },
+    headers,
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 
@@ -233,6 +246,11 @@ function render(state: State): void {
   notice.id = 'ops-notice';
   root!.append(notice);
 
+  const schema = el('section', 'ops__log');
+  schema.id = 'ops-schema';
+  root!.append(schema);
+  void loadSchema(schema);
+
   // Its own section, loaded separately. Health and Cloudflare both make outbound calls
   // with their own timeouts, and the flag switches above must stay usable while those are
   // slow — which is precisely when somebody has come here to look at them.
@@ -242,6 +260,155 @@ function render(state: State): void {
   panel.append(el('p', 'ops__note', 'checking…'));
   root!.append(panel);
   void loadUsage(panel);
+}
+
+type Schema = {
+  installed: boolean;
+  applied: Record<string, number>;
+  pending: string[];
+  files: string[];
+};
+
+/**
+ * The schema panel.
+ *
+ * Lists every migration file as applied or pending, and runs the pending ones. Also the
+ * only screen that works on an empty database, which is why it is loaded separately from
+ * `state`.
+ */
+async function loadSchema(panel: HTMLElement, bearer?: string): Promise<void> {
+  const { status, data } = await api('schema', undefined, bearer);
+  panel.replaceChildren(el('h2', 'ops__subtitle', 'database schema'));
+
+  if (status !== 200) {
+    panel.append(el('p', 'ops__note ops__warn', `Could not read the schema (${status}).`));
+    return;
+  }
+
+  const schema = data as unknown as Schema;
+
+  // No "not installed" line here. This panel only ever sees an uninstalled schema from
+  // the bootstrap screen, whose heading already says it — the signed-in path cannot reach
+  // render() without a schema. Saying it twice reads as two different problems.
+
+  const list = el('ul');
+  for (const file of schema.files) {
+    const at = schema.applied[file];
+    const when = at === undefined ? 'pending' : new Date(at).toISOString().slice(0, 16).replace('T', ' ');
+    const line = el('li', undefined, `${at === undefined ? '○' : '●'} ${file} — ${when}`);
+    if (at === undefined) line.className = 'ops__warn';
+    list.append(line);
+  }
+  panel.append(list);
+
+  if (schema.files.length === 0) {
+    panel.append(el('p', 'ops__note', 'No migration files reached this host — check the deploy staged db/.'));
+    return;
+  }
+
+  if (schema.pending.length === 0) {
+    panel.append(el('p', 'ops__note', 'Nothing pending.'));
+    return;
+  }
+
+  const run = el('button', 'ops__button', `Run ${schema.pending.length} pending`);
+  const said = el('p', 'ops__note');
+  run.addEventListener('click', () => {
+    run.disabled = true;
+    said.textContent = 'running…';
+    void api('migrate', {}, bearer).then(({ status: st, data: d }) => {
+      run.disabled = false;
+      const applied = (d['applied'] as string[] | undefined) ?? [];
+      const failed = d['failed'] as { file: string; statement: number; error: string } | undefined;
+
+      if (st === 200 && !failed) {
+        // `published` matters as much as the migration: a migrated host with no flags.json
+        // leaves the Worker failing open, so it is reported either way.
+        const note =
+          `Applied ${applied.length} migration(s).` +
+          (d['published'] === true
+            ? ' flags.json published.'
+            : ' But flags.json could NOT be written — the Worker is failing open.');
+
+        if (bearer) {
+          /*
+           * We came in through the bootstrap screen, whose heading says the schema is not
+           * installed. It is now, so that heading is stale and false — and re-rendering only
+           * the panel would leave it there while ALSO wiping this message, which is how the
+           * operator ends up never learning whether flags.json was written.
+           *
+           * So hand off to the normal flow: the schema exists, a magic link works now.
+           */
+          signIn(`${note} You can sign in with a magic link now.`);
+          return;
+        }
+
+        said.textContent = note;
+        said.className = d['published'] === true ? 'ops__note' : 'ops__note ops__warn';
+        void loadSchema(panel, bearer);
+        return;
+      }
+
+      // The file and the statement, because "migration failed" sends you opening files by
+      // hand at the moment you are most likely to make it worse.
+      said.className = 'ops__note ops__warn';
+      said.textContent = failed
+        ? `FAILED in ${failed.file}, statement ${failed.statement}: ${failed.error}` +
+          ` — nothing was rolled back (MariaDB commits DDL as it goes). The file is not` +
+          ` recorded as applied, so fix it and run again.`
+        : `Could not migrate (${st}).`;
+    });
+  });
+  panel.append(run, said);
+}
+
+/**
+ * The one screen a fresh database can show.
+ *
+ * On an empty database `?a=state` answers 503 and the magic link cannot work at all —
+ * `requestLink` writes to `admin_link_attempt`. So this asks for `ADMIN_TOKEN`, which
+ * authenticates against config alone and touches no table.
+ */
+function bootstrap(pending: string[]): void {
+  root!.replaceChildren();
+  const box = el('div', 'ops__gate');
+  box.append(el('h1', 'ops__title', 'FonyGames ops'));
+  box.append(
+    el(
+      'p',
+      'ops__note ops__warn',
+      `The database schema is not installed — ${pending.length} migration(s) pending.`,
+    ),
+  );
+  box.append(
+    el(
+      'p',
+      'ops__note',
+      'A magic link cannot work yet: signing in writes to a table the migrations create.' +
+        ' Paste ADMIN_TOKEN to run them. It is sent once and never stored.',
+    ),
+  );
+
+  const form = el('form', 'ops__form');
+  const input = el('input', 'ops__input');
+  input.type = 'password';
+  input.placeholder = 'ADMIN_TOKEN';
+  input.autocomplete = 'off';
+  input.required = true;
+  const button = el('button', 'ops__button', 'Run migrations');
+  button.type = 'submit';
+  form.append(input, button);
+
+  const panel = el('section', 'ops__log');
+  panel.id = 'ops-schema';
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void loadSchema(panel, input.value);
+  });
+
+  box.append(form, panel);
+  root!.append(box);
 }
 
 type Usage = {
@@ -354,10 +521,24 @@ async function write(patch: Record<string, unknown>): Promise<void> {
 async function load(): Promise<void> {
   const { status, data } = await api('state');
   if (status === 401) {
+    // A 401 means "not signed in" — but it says that on an empty database too, where a
+    // magic link CANNOT work. So ask the one question that is answerable without
+    // credentials before offering a form that would go nowhere.
+    const probe = await api('schema');
+    if (probe.status === 200 && probe.data['installed'] === false) {
+      bootstrap((probe.data['pending'] as string[] | undefined) ?? []);
+      return;
+    }
     signIn();
     return;
   }
   if (status === 503) {
+    // Two different 503s: an unconfigured host, and a configured one whose schema is not
+    // installed. Only the second has something the operator can do from here.
+    if (data['schemaMissing'] === true) {
+      bootstrap((data['pending'] as string[] | undefined) ?? []);
+      return;
+    }
     signIn('This host has no admin configured.');
     return;
   }

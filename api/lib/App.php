@@ -8,6 +8,7 @@ require_once __DIR__ . '/Health.php';
 require_once __DIR__ . '/FlagService.php';
 require_once __DIR__ . '/Flags.php';
 require_once __DIR__ . '/Mailer.php';
+require_once __DIR__ . '/Migrator.php';
 require_once __DIR__ . '/PdoAuthStore.php';
 require_once __DIR__ . '/PdoFlagStore.php';
 require_once __DIR__ . '/Usage.php';
@@ -22,6 +23,16 @@ require_once __DIR__ . '/Usage.php';
  */
 final class App
 {
+    /**
+     * The one connection this App uses.
+     *
+     * An instance property, not a `static` local inside `db()`. A static local in a
+     * non-static method is shared by **every** instance, so two Apps with different
+     * configs would silently share one connection — harmless in production, where there
+     * is one App per request, and wrong the moment a test builds a second one.
+     */
+    private ?PDO $pdo = null;
+
     /** @param array<string, mixed> $config */
     private function __construct(public readonly array $config)
     {
@@ -79,9 +90,8 @@ final class App
 
     public function db(): PDO
     {
-        static $db = null;
-        if ($db === null) {
-            $db = new PDO(
+        if ($this->pdo === null) {
+            $this->pdo = new PDO(
                 (string) $this->config['db_dsn'],
                 (string) $this->config['db_user'],
                 (string) $this->config['db_pass'],
@@ -94,7 +104,7 @@ final class App
             );
         }
 
-        return $db;
+        return $this->pdo;
     }
 
     public function flags(): FlagService
@@ -103,6 +113,17 @@ final class App
             new PdoFlagStore($this->db(), new SystemClock()),
             (string) $this->config['flags_path'],
         );
+    }
+
+    /**
+     * The migration runner.
+     *
+     * `dist/db/migrations` on the host, `db/migrations` in the repo — `api/` sits beside
+     * `db/` in both, so one relative path covers both without a config key.
+     */
+    public function migrator(): Migrator
+    {
+        return new Migrator($this->db(), dirname(__DIR__, 2) . '/db/migrations');
     }
 
     public function usage(): Usage
@@ -156,10 +177,41 @@ final class App
         $path = (string) $this->config['flags_path'];
 
         if (!is_readable($path)) {
+            /*
+             * Two very different situations, and conflating them was misleading.
+             *
+             * NOTHING POPULATES `game_flags` — an absent row *means* the default, `active`
+             * and not new, so a row only appears the first time a game is changed. An empty
+             * table with no file is therefore a **working, untouched install**, and the
+             * old wording called that a failure.
+             *
+             * Rows but no file is the real problem: the operator has set something and the
+             * file everything READS does not reflect it, so the Worker is enforcing the old
+             * answer while this page shows the new one.
+             */
+            $rows = 0;
+            try {
+                $rows = count((new PdoFlagStore($this->db(), new SystemClock()))->load());
+            } catch (Throwable) {
+                // No schema yet. The schema panel is what says so; this line does not
+                // need to guess.
+                return ['ok' => true, 'detail' => 'no flags yet — the schema is not installed'];
+            }
+
+            if ($rows === 0) {
+                return [
+                    'ok' => true,
+                    'detail' => 'no flags set yet, so every game is active — that is the'
+                        . ' default, and why the table is empty. A row appears the first time'
+                        . ' you change a game.',
+                ];
+            }
+
             return [
                 'ok' => false,
-                'detail' => 'flags.json is missing — the Worker is failing open, so every'
-                    . ' game is playable whatever the switches above say. Use republish.',
+                'detail' => "{$rows} flag(s) are set but flags.json is MISSING — the Worker is"
+                    . ' failing open, so every game is playable whatever the switches above'
+                    . ' say. Use republish.',
             ];
         }
 
@@ -168,7 +220,11 @@ final class App
 
         return [
             'ok' => true,
-            'detail' => "flags.json holds {$count} flag(s), written " . self::ago($age) . ' ago',
+            'detail' => $count === 0
+                // Published and empty is the steady state of an install nobody has touched.
+                ? 'flags.json is published and empty — every game is active, which is the'
+                    . ' default. Written ' . self::ago($age) . ' ago.'
+                : "flags.json holds {$count} flag(s), written " . self::ago($age) . ' ago',
         ];
     }
 

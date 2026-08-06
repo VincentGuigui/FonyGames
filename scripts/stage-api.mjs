@@ -23,7 +23,7 @@
  * that would otherwise only fail on the host.
  */
 
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 // `process.cwd()`, not `import.meta.url`: npm scripts run from the repo root, and this
@@ -31,6 +31,15 @@ import { join, resolve } from 'node:path';
 const ROOT = resolve(process.cwd());
 const SRC = join(ROOT, 'api');
 const OUT = join(ROOT, 'dist', 'api');
+
+/**
+ * `db/` ships too, because the migration runner has to find the files.
+ *
+ * Only `migrations/` and `init.sql` — `migrate.php` is the CLI entry point and has no
+ * business on a web host, where `?a=migrate` is the interface.
+ */
+const DB_SRC = join(ROOT, 'db');
+const DB_OUT = join(ROOT, 'dist', 'db');
 
 /** Left behind on purpose — see the header. */
 const SKIP = new Set(['tests', 'config.example.php', 'config.php']);
@@ -43,6 +52,19 @@ function fail(message) {
 }
 
 if (!existsSync(SRC)) fail('api/ does not exist');
+if (!existsSync(join(DB_SRC, 'migrations'))) fail('db/migrations/ does not exist');
+
+/** The SQL the host needs, relative to db/. */
+function dbFiles() {
+  const migrations = readdirSync(join(DB_SRC, 'migrations'))
+    .filter((f) => f.endsWith('.sql'))
+    .sort()
+    .map((f) => `migrations/${f}`);
+
+  if (migrations.length === 0) fail('db/migrations/ has no .sql files');
+
+  return ['init.sql', ...migrations];
+}
 
 /** Every file that should end up in dist/api, as a path relative to api/. */
 function wanted(dir = '') {
@@ -66,6 +88,8 @@ if (!files.includes('lib/.htaccess')) {
   fail('api/lib/.htaccess is missing — that is the guard on lib/, not an optional extra');
 }
 
+const sql = dbFiles();
+
 if (check) {
   if (!existsSync(OUT)) fail('dist/api/ does not exist — run the build');
   const missing = files.filter((f) => !existsSync(join(OUT, f)));
@@ -73,7 +97,13 @@ if (check) {
   for (const skipped of ['tests', 'config.example.php']) {
     if (existsSync(join(OUT, skipped))) fail(`dist/api/${skipped} should not have been staged`);
   }
-  console.log(`stage-api: dist/api/ has all ${files.length} files, and none of the skipped ones`);
+
+  const missingSql = sql.filter((f) => !existsSync(join(DB_OUT, f)));
+  if (missingSql.length > 0) fail(`dist/db/ is stale, missing: ${missingSql.join(', ')}`);
+  if (!existsSync(join(DB_OUT, '.htaccess'))) fail('dist/db/.htaccess is missing');
+  if (existsSync(join(DB_OUT, 'migrate.php'))) fail('db/migrate.php is a CLI tool and must not ship');
+
+  console.log(`stage-api: dist/api/ has all ${files.length} files and dist/db/ all ${sql.length}`);
   process.exit(0);
 }
 
@@ -87,5 +117,35 @@ for (const rel of files) {
   cpSync(join(SRC, rel), to);
 }
 
+rmSync(DB_OUT, { recursive: true, force: true });
+
+for (const rel of sql) {
+  const to = join(DB_OUT, rel);
+  mkdirSync(join(to, '..'), { recursive: true });
+  cpSync(join(DB_SRC, rel), to);
+}
+
+/*
+ * The schema is not a secret, but a downloadable `.sql` is an invitation to read for
+ * column names and nothing is gained by serving it. Same shape as api/lib/.htaccess, and
+ * both spellings because a shared host may run either Apache version.
+ */
+writeFileSync(
+  join(DB_OUT, '.htaccess'),
+  `# The migration files, read by api/index.php?a=migrate. None of these is a page.
+# Docs: docs/database.md §5
+<IfModule mod_authz_core.c>
+  Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+  Order deny,allow
+  Deny from all
+</IfModule>
+`,
+);
+
 const bytes = files.reduce((n, f) => n + statSync(join(SRC, f)).size, 0);
-console.log(`stage-api: ${files.length} files, ${(bytes / 1024).toFixed(1)} KB → dist/api/`);
+console.log(
+  `stage-api: ${files.length} files, ${(bytes / 1024).toFixed(1)} KB → dist/api/` +
+    ` · ${sql.length} sql → dist/db/`,
+);
