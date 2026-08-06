@@ -14,10 +14,9 @@ require_once __DIR__ . '/../lib/Page.php';
  * that is a genuine injection: a `reason` is operator-supplied text and it lands both in
  * the HTML and in a JSON payload in the same document.
  *
- * There is also a coupling to keep honest. `scripts/ssr.mjs` invents the variant key
- * format and `Page::variantKey()` reconstructs it; if the two drift, every card silently
- * resolves to '' and the hub renders an empty grid. The last group reads the REAL
- * generated `dist/_hub/cards.php` when there is one and asserts they still agree.
+ * Everything here runs against a hand-built fixture and needs **no build output**, which
+ * is deliberate: `npm test` runs before `npm run build`. The one check that does need the
+ * real generated `dist/_hub/cards.php` lives in `ssr_check.php` and runs as `postbuild`.
  */
 
 /** A stand-in for what ssr.mjs emits, so the pure logic is testable with no build. */
@@ -144,61 +143,3 @@ check('the grid replaced the marker', str_contains($html, '<ul class="hub__grid"
 check('and the marker is gone', !str_contains($html, Page::GRID_MARKER));
 check('the flags payload is in the head', str_contains($html, 'id="fony-flags"') && strpos($html, 'fony-flags') < strpos($html, '<body>'));
 check('the template head survived untouched', str_contains($html, '<title>x</title>'));
-
-group('PHP and the renderer still agree on the variant keys');
-
-// The one coupling between scripts/ssr.mjs and this file. If it drifts, every lookup
-// returns '' and the hub renders an empty grid — with no error anywhere.
-$generated = __DIR__ . '/../../dist/_hub/cards.php';
-if (!is_readable($generated)) {
-    check('dist/_hub/cards.php exists to check against (run npm run build)', false, $generated);
-} else {
-    $built = require $generated;
-    check('the build recorded an order', is_array($built['order'] ?? null) && count($built['order']) > 0);
-    check('and a grid wrapper', str_starts_with((string) ($built['grid']['open'] ?? ''), '<ul'), $built['grid'] ?? null);
-
-    $wanted = [];
-    foreach (Flags::STATES as $availability) {
-        foreach ([false, true] as $isNew) {
-            foreach ([false, true] as $showAll) {
-                $wanted[] = Page::variantKey($availability, $isNew, $showAll);
-            }
-        }
-    }
-
-    $missing = [];
-    foreach ($built['cards'] as $slug => $variants) {
-        foreach ($wanted as $key) {
-            if (!array_key_exists($key, $variants)) {
-                $missing[] = "{$slug}/{$key}";
-            }
-        }
-    }
-    check('every key PHP asks for exists in the generated file', $missing === [], array_slice($missing, 0, 5));
-
-    // And nothing extra, so a key format change fails here rather than half-working.
-    $extra = [];
-    foreach ($built['cards'] as $slug => $variants) {
-        foreach (array_keys($variants) as $key) {
-            if (!in_array($key, $wanted, true)) {
-                $extra[] = "{$slug}/{$key}";
-            }
-        }
-    }
-    check('and no keys PHP would never ask for', $extra === [], array_slice($extra, 0, 5));
-
-    // The sentinel has to survive into the generated markup, or the reason substitution
-    // is a no-op and every disabled card says nothing.
-    $firstSlug = $built['order'][0];
-    check(
-        'a disabled variant still carries the reason sentinel',
-        str_contains((string) ($built['cards'][$firstSlug]['disabled:0:0'] ?? ''), Page::REASON_SENTINEL)
-            || ($built['cards'][$firstSlug]['disabled:0:0'] ?? '') === '',
-        $built['cards'][$firstSlug]['disabled:0:0'] ?? null,
-    );
-
-    // And a real end-to-end assembly against the real strings.
-    $real = Page::grid($built['order'], $built['cards'], [], false);
-    check('the real cards assemble into a non-empty grid', strlen($real) > 1000, strlen($real));
-    check('and every one of them rendered', substr_count($real, '<li ') === count($built['order']), substr_count($real, '<li '));
-}

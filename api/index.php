@@ -114,7 +114,7 @@ $action = is_string($_GET['a'] ?? null) ? $_GET['a'] : '';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 // Reads are GET, writes are POST. Stated once, here, so no action has to remember.
-$writes = ['link', 'session', 'flags', 'logout'];
+$writes = ['link', 'session', 'flags', 'logout', 'migrate', 'republish'];
 if (in_array($action, $writes, true) && $method !== 'POST') {
     reply(405, ['error' => 'POST only']);
 }
@@ -156,6 +156,22 @@ switch ($action) {
         $email = is_string($in['email'] ?? null) ? $in['email'] : '';
         try {
             $auth->requestLink($email, clientIp());
+        } catch (PDOException) {
+            /*
+             * PDOException EXTENDS RuntimeException, so this branch must come first.
+             * Without it, a missing table was reported as "the mailer refused the message"
+             * — found by running the flow against an empty database, where it is the most
+             * misleading answer possible: the operator would go and check their mail
+             * configuration.
+             *
+             * And on an empty database this is the ONLY thing that can happen, because
+             * requesting a link records a rate-limit attempt first.
+             */
+            reply(503, [
+                'error' => 'the database schema is not installed, so a link cannot be recorded',
+                'schemaMissing' => true,
+                'pending' => $app->migrator()->pending(),
+            ]);
         } catch (RuntimeException) {
             reply(502, ['error' => 'the mailer refused the message']);
         } catch (Throwable) {
@@ -188,14 +204,86 @@ switch ($action) {
         // no break
 }
 
+$authorised = signedIn() || $auth->authorisedByToken($_SERVER['HTTP_AUTHORIZATION'] ?? null);
+
+/*
+ * ONE deliberate pre-auth answer: "the schema is not installed".
+ *
+ * Without it the first run is a dead end. The auth gate below answers 401 to an anonymous
+ * visitor whatever the schema state, so the page could never learn that it should be asking
+ * for ADMIN_TOKEN — and a magic link cannot work on an empty database, because signing in
+ * writes to a table the migrations create.
+ *
+ * What it gives away is one bit, to somebody who already has the secret admin path and can
+ * therefore already see a login form. It carries **no applied list and no file names**, and
+ * it stops answering the moment the schema exists — at which point there is both something
+ * to protect and a way to authenticate.
+ */
+if ($action === 'schema' && !$authorised) {
+    $migrator = $app->migrator();
+    if ($migrator->installed()) {
+        reply(401, ['error' => 'no']);
+    }
+    reply(200, ['installed' => false, 'pending' => $migrator->pending(), 'applied' => [], 'files' => $migrator->files()]);
+}
+
 /* ── Everything below is privileged ───────────────────────────────────────── */
 
-if (!signedIn() && !$auth->authorisedByToken($_SERVER['HTTP_AUTHORIZATION'] ?? null)) {
+if (!$authorised) {
     reply(401, ['error' => 'no']);
 }
 
+/*
+ * The schema may not exist yet.
+ *
+ * Without this, a fresh database makes `?a=state` throw a PDOException, which the page
+ * reports as "The admin API answered 500" — true and useless. A named 503 lets the page
+ * show the migrate panel instead of an error.
+ *
+ * Only the actions that read tables are guarded. `?a=usage` reads a file and makes outbound
+ * calls, so it works on an empty database and is worth having then.
+ */
+function requireSchema(App $app): void
+{
+    if ($app->migrator()->installed()) {
+        return;
+    }
+
+    reply(503, [
+        'error' => 'the database schema is not installed',
+        'schemaMissing' => true,
+        'pending' => $app->migrator()->pending(),
+    ]);
+}
+
 switch ($action) {
+    /*
+     * The schema panel. Reachable on an EMPTY database, which is the whole point:
+     * `?a=state` cannot answer there, and this is what tells the operator why.
+     */
+    case 'schema':
+        reply(200, $app->migrator()->status());
+
+        // no break
+
+    /*
+     * Apply pending migrations.
+     *
+     * Then republish `flags.json`, so a freshly migrated host has the file the Worker and
+     * the hub read. Without that it stays absent until the first flag change, and the
+     * health panel reports the Worker as failing open — technically true and needlessly
+     * alarming on a working install.
+     */
+    case 'migrate':
+        $result = $app->migrator()->apply((int) round(microtime(true) * 1000));
+        reply($result['ok'] ? 200 : 500, $result + [
+            'published' => $result['ok'] ? $app->flags()->republish() : false,
+        ]);
+
+        // no break
+
     case 'state':
+        requireSchema($app);
         $service = $app->flags();
         reply(200, [
             'flags' => $service->all() ?: new stdClass(),
@@ -206,6 +294,7 @@ switch ($action) {
         // no break
 
     case 'flags':
+        requireSchema($app);
         $in = body();
         $patch = [];
         // Only the three fields, only the right types. Everything else is dropped
@@ -238,6 +327,7 @@ switch ($action) {
         // no break
 
     case 'republish':
+        requireSchema($app);
         reply(200, ['published' => $app->flags()->republish()]);
 
         // no break
