@@ -149,11 +149,55 @@ final class Flags
      * already succeeded in MySQL, and it needs to report "saved, but not published"
      * rather than lose the save.
      */
+    /**
+     * Why publishing to this path would fail, or null if nothing is obviously wrong.
+     *
+     * Inspection only — it writes nothing, so it is safe to call after a failure to turn a
+     * bare `false` into something the operator can act on. A publish that fails silently
+     * leaves the Worker failing open with every game playable, and "use republish" as the
+     * only advice is useless when republish fails for the same reason.
+     *
+     * The most likely cause is the one that is invisible from the message: `tempnam()`
+     * **falls back to the system temp directory** when the target directory is not
+     * writable, and the `rename()` onto the web root then fails as a cross-device move. So
+     * an unwritable web root looks like a mysterious rename failure rather than a
+     * permission problem, which is exactly why this says so out loud.
+     */
+    public static function publishDiagnosis(string $path): ?string
+    {
+        $dir = dirname($path);
+
+        if (!is_dir($dir)) {
+            return "the directory {$dir} does not exist";
+        }
+
+        if (!is_writable($dir)) {
+            return "the directory {$dir} is not writable by the web server user, so the"
+                . ' temporary file lands in the system temp directory and cannot be renamed'
+                . ' into place across filesystems';
+        }
+
+        if (file_exists($path) && !is_writable($path)) {
+            return "{$path} exists but is not writable by the web server user";
+        }
+
+        return null;
+    }
+
     public static function publish(string $path, string $json): bool
     {
         $dir = dirname($path);
         $tmp = tempnam($dir, '.flags');
         if ($tmp === false) {
+            return false;
+        }
+
+        // `tempnam()` silently falls back to the system temp dir when $dir is not writable,
+        // and the rename below would then fail as a cross-device move — reported as a
+        // rename problem when it is a permissions one. Catch it here instead.
+        if (dirname($tmp) !== $dir) {
+            @unlink($tmp);
+
             return false;
         }
 

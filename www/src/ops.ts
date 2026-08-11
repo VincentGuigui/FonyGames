@@ -508,18 +508,24 @@ async function write(patch: Record<string, unknown>): Promise<void> {
   // and the file everything READS did not, so the Worker is still enforcing the old
   // answer while this page shows the new one.
   const published = data['published'] === true;
+  // The API now says WHY when it could not write, because "check the web root is writable"
+  // was a guess and the real cause is usually invisible: tempnam() falls back to the system
+  // temp dir, so the failure surfaces as a rename error rather than a permission one.
+  const why = typeof data['publishWhy'] === 'string' ? ` ${data['publishWhy']}.` : '';
   await load();
   say(
     published
       ? 'Saved.'
-      : 'Saved to the database, but flags.json was NOT rewritten — the Worker and the hub are still on the old answer. Check the web root is writable, then use republish.',
+      : 'Saved to the database, but flags.json was NOT rewritten — the Worker and the hub are'
+        + ` still on the old answer.${why}`,
   );
 
   if (!published) {
     const retry = el('button', 'ops__link', 'republish');
     retry.addEventListener('click', () => {
       void api('republish', {}).then(({ data: d }) => {
-        say(d['published'] === true ? 'Published.' : 'Still could not write flags.json.');
+        const reason = typeof d['publishWhy'] === 'string' ? ` ${d['publishWhy']}.` : '';
+        say(d['published'] === true ? 'Published.' : `Still could not write flags.json.${reason}`);
       });
     });
     document.getElementById('ops-notice')?.append(' ', retry);

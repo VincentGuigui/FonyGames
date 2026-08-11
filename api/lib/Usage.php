@@ -230,29 +230,26 @@ final class Usage
      * rather than built, so the exact text is reviewable — it is the part most likely to
      * need correcting against the real schema.
      *
-     * ⚠️ **It asks for `requests` and nothing else, on purpose.** GraphQL fails the WHOLE
-     * query on one unknown field, so guessing at the GB-seconds field name would take the
-     * request count down with it — and the request count is the ceiling that actually
-     * binds at our scale (100k/day vs ~139 heavy rounds/day,
-     * docs/realtime-options.md §4).
+     * ⚠️ **One dataset, one field, and that is the whole lesson.** GraphQL fails the WHOLE
+     * query on a single unknown field, and the first real response proved it: this asked
+     * `durableObjectsPeriodicGroups` for `sum { requests }`, which that dataset does not
+     * have, and the panel died with `unknown field "requests"` — taking the request count
+     * with it even though the *other* dataset spelled it correctly.
      *
-     * Adding duration is a one-line change once somebody has seen a real response: add the
-     * field here, and `parse()` already reads either documented spelling. Until then the
-     * panel reports GB-seconds as unknown, which is true.
+     * The periodic block earned nothing: `parse()` treats GB-seconds as optional and never
+     * required it, so the guess was pure downside. It is gone rather than corrected,
+     * because a second guess would fail the same way.
+     *
+     * The request count is the ceiling that actually binds at our scale (100k/day vs ~139
+     * heavy rounds/day, docs/realtime-options.md §4). Adding duration later means finding
+     * the real field name from a real response first — `parse()` already reads either
+     * documented spelling if it turns up.
      */
     private const QUERY = <<<'GRAPHQL'
         query FonyUsage($accountTag: String!, $start: Date!, $end: Date!) {
           viewer {
             accounts(filter: { accountTag: $accountTag }) {
               durableObjectsInvocationsAdaptiveGroups(
-                limit: 1000
-                filter: { date_geq: $start, date_leq: $end }
-                orderBy: [date_DESC]
-              ) {
-                dimensions { date }
-                sum { requests }
-              }
-              durableObjectsPeriodicGroups(
                 limit: 1000
                 filter: { date_geq: $start, date_leq: $end }
                 orderBy: [date_DESC]
