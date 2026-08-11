@@ -114,6 +114,12 @@ $ok = PHP_VERSION_ID >= $minimum && count($missing) === 0 && count($found) > 0;
 http_response_code($ok ? 200 : 503);
 echo json_encode(array(
     'ok' => $ok,
+    // Which header actually carried it, reported on SUCCESS too — not only on refusal.
+    // `Authorization` is the one Apache can eat, so whether it survives on this host is a
+    // standing fact worth having in the deploy log: if this says `X-Admin-Token`, then the
+    // admin page's break-glass field only works because of the fallback, and anyone
+    // debugging with plain `curl -H Authorization:` will be confused for an hour.
+    'presentedVia' => $via,
     'php' => PHP_VERSION,
     'phpId' => PHP_VERSION_ID,
     'phpRequired' => '8.1',
