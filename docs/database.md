@@ -108,7 +108,7 @@ runs `init.sql` into a second one, and compares `information_schema`. If they di
 one of the two is lying and there is no way to tell which — so the test says which
 columns differ.
 
-### The runner's three deliberate limits
+### The runner’s four deliberate limits
 
 1. **No transaction around DDL.** MariaDB implicitly commits on `CREATE`/`ALTER`, so
    wrapping a migration would be *false safety* — a rollback would not undo the DDL
@@ -122,7 +122,15 @@ columns differ.
    bodies contain semicolons that are not statement ends, and there is no honest way
    to split one without implementing `DELIMITER`. A loud "unsupported, apply it by
    hand" beats a confident wrong split.
-3. **The statement splitter is not `explode(';')`.** It skips `--`, `#` and `/* */`
+3. **"Not installed" means exactly one error.** `Migrator::installed()` returns false only
+   on SQLSTATE `42S02` — base table or view not found. It used to catch `Throwable` and
+   return false for anything, which made a **wrong DSN indistinguishable from a fresh
+   database**: the admin page offered to migrate a server it could not reach, and the deploy
+   reported a schema problem when the fault was connectivity. Everything else (`2002`
+   refused, `1049` unknown database, `28000` access denied) propagates, and the API answers
+   `503 dbUnreachable` with the driver's own message
+   ([specs/backoffice.md](specs/backoffice.md) §2c).
+4. **The statement splitter is not `explode(';')`.** It skips `--`, `#` and `/* */`
    comments and quoted strings and identifiers, including backslash-escaped and
    doubled quotes — because a semicolon inside any of those would split a statement in
    half and produce an error pointing at something that is not the problem.

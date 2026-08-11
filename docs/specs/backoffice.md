@@ -206,6 +206,43 @@ without it the first run is a dead end.
 After a successful run the page hands off to the normal sign-in, because the magic link
 works from that moment on.
 
+### "Unreachable" is not "not installed"
+
+Three states, and the page says which — they used to collapse into one:
+
+| State | Answer |
+| --- | --- |
+| Connected, tables absent | `503 schemaMissing` + the pending list → the bootstrap panel |
+| **Cannot connect at all** | `503 dbUnreachable`, plus `dbError` for an authorised caller |
+| Connected, tables present | the action's normal answer |
+
+`Migrator::installed()` used to return false for *any* error, so a wrong DSN produced the
+bootstrap panel — offering to migrate a server that could not be reached, which is the
+wrong fix presented confidently. Only SQLSTATE `42S02` means absent now
+([../database.md](../database.md) §4).
+
+The `dbError` string is the driver's own message and it **names the database user and
+host**, so it is included only once the caller has been authorised. The anonymous
+pre-auth probe gets `dbUnreachable` and nothing more.
+
+Two orderings make this work, and both are load-bearing rather than stylistic:
+
+1. **Token authorisation is settled before anything opens the connection.** Building an
+   `Auth` constructs a `PdoAuthStore`, so `App::auth()` is where an unreachable database
+   first throws — above every handler in `api/index.php`. `App::tokenMatches()` answers
+   from config alone, so the failure that follows can name itself to the caller entitled
+   to hear it. That caller is usually the deploy.
+2. **`catch (PDOException)` precedes `catch (RuntimeException)`**, because `PDOException`
+   extends it. Without that, a missing table was reported as *"the mailer refused the
+   message"* — the most misleading answer available, since it sends the operator to check
+   their mail configuration.
+
+An uncaught throwable is worse than either: on a host with `display_errors` off it is a
+**500 with an empty body**, which is what made the first deploy of `?a=migrate`
+undiagnosable from CI. `api/index.php` now installs an exception handler and a shutdown
+handler above its own `require`, and `api/preflight.php` covers the one case they cannot
+— a parse error in `index.php` itself ([../deployment.md](../deployment.md) §3.6c, §3.6d).
+
 ### What the runner will not do
 
 - **No transaction around DDL.** MariaDB commits as it goes, so wrapping a migration

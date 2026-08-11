@@ -155,10 +155,22 @@ final class Migrator
             $this->db->query('SELECT 1 FROM game_flags LIMIT 1');
 
             return true;
-        } catch (Throwable) {
-            // Any error is "not installed" for our purposes: the caller's next move is to
-            // run the migrations either way.
-            return false;
+        } catch (PDOException $e) {
+            /*
+             * ONE error means "not installed": SQLSTATE 42S02, base table or view not found.
+             *
+             * This used to `catch (Throwable)` and return false for anything at all, which
+             * made a **wrong DSN look exactly like a fresh database** — the admin page then
+             * offered to run migrations against a server it could not reach, and the deploy
+             * reported a schema problem when the real fault was connectivity. Everything
+             * else (2002 refused, 1049 unknown database, 28000 access denied) is a fault to
+             * report, so it propagates.
+             */
+            if ($e->getCode() === '42S02') {
+                return false;
+            }
+
+            throw $e;
         }
     }
 

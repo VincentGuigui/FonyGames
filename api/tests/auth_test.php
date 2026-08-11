@@ -261,7 +261,24 @@ check(
     'the address comparison goes through it',
     str_contains($source, 'return $this->constantTimeEquals(') && str_contains($source, 'strtolower(trim($email))'),
 );
+/*
+ * The bearer comparison moved to the STATIC `tokenMatches()`, so that authorisation can be
+ * settled before anything opens a database connection (App::tokenMatches, and the ordering
+ * in api/index.php). A static cannot call `$this->constantTimeEquals`, so the hashing is
+ * written out there — which is exactly the kind of duplication that quietly loses a
+ * property, so it is asserted on its own rather than trusted.
+ */
 check(
-    'and so does the bearer',
-    str_contains($source, '$this->constantTimeEquals(substr($header, 7), $this->adminToken)'),
+    'the bearer comparison hashes both sides too',
+    (bool) preg_match(
+        '/hash_equals\(\s*hash\(\'sha256\', \$expected\),\s*hash\(\'sha256\', substr\(\$header, 7\)\)\s*,?\s*\)/',
+        $source,
+    ),
+);
+check(
+    'and the instance method delegates to it rather than comparing again',
+    (bool) preg_match(
+        '/public function authorisedByToken\(\?string \$header\): bool\s*\{\s*return self::tokenMatches\(\$header, \$this->adminToken\);\s*\}/',
+        $source,
+    ),
 );
