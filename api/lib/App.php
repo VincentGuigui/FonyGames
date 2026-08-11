@@ -107,6 +107,21 @@ final class App
         return $this->pdo;
     }
 
+    /**
+     * Does this request carry the break-glass token? Answered **without the database**.
+     *
+     * `auth()` cannot answer it: building an Auth constructs a PdoAuthStore, which opens
+     * the connection. So on an unreachable database the old order threw before
+     * authorisation had been decided, every action answered 500 before dispatch, and the
+     * crash report had to withhold its detail from a caller who was in fact authorised —
+     * which is how a failed deploy ended up with an empty body and no cause
+     * (docs/specs/backoffice.md §2c).
+     */
+    public function tokenMatches(?string $header): bool
+    {
+        return Auth::tokenMatches($header, (string) $this->config['admin_token']);
+    }
+
     public function flags(): FlagService
     {
         return new FlagService(

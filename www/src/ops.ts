@@ -533,10 +533,18 @@ async function load(): Promise<void> {
     return;
   }
   if (status === 503) {
-    // Two different 503s: an unconfigured host, and a configured one whose schema is not
-    // installed. Only the second has something the operator can do from here.
+    // Three different 503s, and telling them apart is the difference between a useful
+    // screen and a shrug. Only `schemaMissing` has something the operator can fix here.
     if (data['schemaMissing'] === true) {
       bootstrap((data['pending'] as string[] | undefined) ?? []);
+      return;
+    }
+    if (data['dbUnreachable'] === true) {
+      // NOT the bootstrap panel: there is nothing to migrate into. Offering the migrate
+      // button here would be proposing a fix that cannot work — which is what this used
+      // to do, because a refused connection reported itself as a missing schema.
+      const detail = typeof data['dbError'] === 'string' ? ` ${data['dbError']}` : '';
+      signIn(`The database is not reachable from this host.${detail}`);
       return;
     }
     signIn('This host has no admin configured.');
