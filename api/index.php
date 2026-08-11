@@ -17,6 +17,55 @@ declare(strict_types=1);
  * part of getting a session (spec §4).
  */
 
+/*
+ * ── The last resort, registered before anything can fail ───────────────────
+ *
+ * An uncaught throwable answers **500 with an empty body** on any host with
+ * `display_errors` off, which is every shared host. That is how the first dev deploy of
+ * `?a=migrate` failed: the workflow could only report "answered 500", the body was
+ * empty, and the cause was unknowable from the log.
+ *
+ * Registered ABOVE the require, on purpose. Top-level function declarations are hoisted,
+ * so `reply()` and `crash()` are callable before their textual position — and doing it
+ * here means a parse error in one of the `lib/` files is reported too, rather than being
+ * the one failure that still answers nothing.
+ *
+ * What it CANNOT cover is a parse error in *this* file: PHP never runs a line of it. That
+ * is what `api/preflight.php` is for (docs/deployment.md §3.6c).
+ */
+set_exception_handler(static function (Throwable $e): void {
+    crash(get_class($e), $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
+});
+
+register_shutdown_function(static function (): void {
+    $last = error_get_last();
+    $fatal = E_ERROR | E_PARSE | E_CORE_ERROR | E_COMPILE_ERROR;
+
+    // Shutdown functions run on every request, including successful ones. Only a fatal
+    // that produced no output is ours to report; `reply()` echoes and exits, so a normal
+    // answer has already sent its headers by the time we get here.
+    if ($last === null || ($last['type'] & $fatal) === 0 || headers_sent()) {
+        return;
+    }
+
+    crash('fatal', $last['message'] . ' @ ' . basename($last['file']) . ':' . $last['line']);
+});
+
+/**
+ * Report a crash as JSON.
+ *
+ * The message is included **only for a caller we have already authorised**. A PDO connect
+ * failure quotes the database user and host, and a stack of file paths is reconnaissance;
+ * an anonymous caller gets the class and nothing else, which is still enough to tell a
+ * database fault from a bug.
+ */
+function crash(string $kind, string $message): never
+{
+    $authorised = ($GLOBALS['authorised'] ?? null) === true;
+
+    reply(500, ['error' => 'unavailable', 'kind' => $kind] + ($authorised ? ['detail' => $message] : []));
+}
+
 require_once __DIR__ . '/lib/App.php';
 
 $app = App::boot(__DIR__);
@@ -138,7 +187,30 @@ if (!$app->configured()) {
     reply(503, ['error' => 'the admin centre is not configured on this host']);
 }
 
-$auth = $app->auth();
+/*
+ * Settle the token BEFORE anything opens the connection.
+ *
+ * `$app->auth()` builds a PdoAuthStore, so the line below is where an unreachable database
+ * first throws — and it is above every one of this file's own handlers. Deciding token
+ * authorisation first (a config comparison, no database) means the crash that follows can
+ * include its detail for the caller that is entitled to it, which is the deploy.
+ *
+ * `$authorised` is completed after the switch, where `signedIn()` joins it. This is not the
+ * access decision; it is the half of it that costs nothing.
+ */
+$authorised = $app->tokenMatches($_SERVER['HTTP_AUTHORIZATION'] ?? null);
+
+try {
+    $auth = $app->auth();
+} catch (PDOException $e) {
+    // Named rather than fatal. Before this, an unreachable database made EVERY action —
+    // including `?a=schema`, the one that exists to work on a fresh install — answer 500
+    // with an empty body on any host with display_errors off.
+    reply(503, [
+        'error' => 'the database is not reachable from this host',
+        'dbUnreachable' => true,
+    ] + ($authorised ? ['dbError' => $e->getMessage()] : []));
+}
 
 switch ($action) {
     /*
@@ -204,7 +276,9 @@ switch ($action) {
         // no break
 }
 
-$authorised = signedIn() || $auth->authorisedByToken($_SERVER['HTTP_AUTHORIZATION'] ?? null);
+// The token half is already settled above, before the connection was opened. `signedIn()`
+// is the other half and costs a session read.
+$authorised = $authorised || signedIn();
 
 /*
  * ONE deliberate pre-auth answer: "the schema is not installed".
@@ -221,10 +295,17 @@ $authorised = signedIn() || $auth->authorisedByToken($_SERVER['HTTP_AUTHORIZATIO
  */
 if ($action === 'schema' && !$authorised) {
     $migrator = $app->migrator();
-    if ($migrator->installed()) {
-        reply(401, ['error' => 'no']);
+    try {
+        if ($migrator->installed()) {
+            reply(401, ['error' => 'no']);
+        }
+        reply(200, ['installed' => false, 'pending' => $migrator->pending(), 'applied' => [], 'files' => $migrator->files()]);
+    } catch (PDOException) {
+        // No detail on the anonymous path: the driver's message names the database user
+        // and host. "Not reachable" is all this caller needs, and offering the bootstrap
+        // panel here would propose migrating a database we cannot even connect to.
+        reply(503, ['error' => 'the database is not reachable from this host']);
     }
-    reply(200, ['installed' => false, 'pending' => $migrator->pending(), 'applied' => [], 'files' => $migrator->files()]);
 }
 
 /* ── Everything below is privileged ───────────────────────────────────────── */
@@ -245,14 +326,24 @@ if (!$authorised) {
  */
 function requireSchema(App $app): void
 {
-    if ($app->migrator()->installed()) {
-        return;
+    try {
+        if ($app->migrator()->installed()) {
+            return;
+        }
+
+        $pending = $app->migrator()->pending();
+    } catch (PDOException $e) {
+        // A DIFFERENT state, and it used to be indistinguishable: `installed()` reported
+        // every failure as "not installed", so a wrong DSN offered the operator a migrate
+        // button that could not possibly work. Reachability is the operator's problem to
+        // fix, not ours to paper over.
+        reply(503, ['error' => 'the database is not reachable', 'dbError' => $e->getMessage()]);
     }
 
     reply(503, [
         'error' => 'the database schema is not installed',
         'schemaMissing' => true,
-        'pending' => $app->migrator()->pending(),
+        'pending' => $pending,
     ]);
 }
 
@@ -262,7 +353,11 @@ switch ($action) {
      * `?a=state` cannot answer there, and this is what tells the operator why.
      */
     case 'schema':
-        reply(200, $app->migrator()->status());
+        try {
+            reply(200, $app->migrator()->status());
+        } catch (PDOException $e) {
+            reply(503, ['error' => 'the database is not reachable', 'dbError' => $e->getMessage()]);
+        }
 
         // no break
 
@@ -275,7 +370,25 @@ switch ($action) {
      * alarming on a working install.
      */
     case 'migrate':
-        $result = $app->migrator()->apply((int) round(microtime(true) * 1000));
+        try {
+            $result = $app->migrator()->apply((int) round(microtime(true) * 1000));
+        } catch (PDOException $e) {
+            /*
+             * `apply()` handles a failing *statement* itself and reports which one. What
+             * lands here is everything around it: a refused connection, an unknown
+             * database, a user without CREATE. Those used to be UNCAUGHT — and an uncaught
+             * throwable is an empty 500 on a host with display_errors off, which is how
+             * this endpoint's first real deploy failed with nothing in the log.
+             *
+             * 503, not 500: the request was fine, the dependency is not.
+             */
+            reply(503, [
+                'ok' => false,
+                'error' => 'the database refused the migration',
+                'dbError' => $e->getMessage(),
+            ]);
+        }
+
         reply($result['ok'] ? 200 : 500, $result + [
             'published' => $result['ok'] ? $app->flags()->republish() : false,
         ]);

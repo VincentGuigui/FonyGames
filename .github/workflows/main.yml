@@ -267,6 +267,68 @@ jobs:
         # dist/ committed. Staying on `full` is the correct choice here.
         sync: full
 
+    # Can this host run the API at all? Asked BEFORE anything depends on the answer.
+    #
+    # `api/index.php` and `api/lib/` need PHP 8.1 (`reply(): never`, App's `readonly`
+    # promoted property). On an older interpreter they are a PARSE error, which no handler
+    # inside them can catch, and with display_errors off — the shared-hosting norm — every
+    # endpoint answers 500 with an empty body. That is precisely how this endpoint's first
+    # deploy failed, with nothing in the log to act on.
+    #
+    # `api/preflight.php` is written in pre-7 syntax so it parses on the interpreter that
+    # cannot parse the rest (docs/deployment.md §3.6c). It also counts the .sql files that
+    # actually landed, which the runner cannot otherwise see: SFTP hands back no manifest,
+    # so "db/ uploaded" and "db/ silently skipped" look identical from here.
+    - name: 🐘 Host PHP check
+      env:
+        ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+      run: |
+        if [ -z "$ADMIN_TOKEN" ]; then
+          echo "::notice::ADMIN_TOKEN not set — skipping the host PHP check."
+          exit 0
+        fi
+
+        if [ "${{ github.ref_name }}" = "prod" ]; then
+          ORIGIN="https://fonygames.guigui.fr"
+        else
+          ORIGIN="https://fonygames-dev.guigui.fr"
+        fi
+
+        BODY=$(curl -sS \
+          -H "Authorization: Bearer $ADMIN_TOKEN" \
+          -w '\n%{http_code}' \
+          "$ORIGIN/api/preflight.php") || {
+            echo "::error::Could not reach $ORIGIN/api/preflight.php."
+            exit 1
+          }
+
+        STATUS=$(printf '%s' "$BODY" | tail -n1)
+        JSON=$(printf '%s' "$BODY" | sed '$d')
+        echo "${JSON:-(empty body)}"
+
+        # An empty body HERE means even the old-syntax probe did not run, so the fault is
+        # the host or the sync rather than a PHP version — said explicitly, because the
+        # obvious reading of a 500 from this file is the one thing it cannot be.
+        if [ "$STATUS" = "500" ] && [ -z "$JSON" ]; then
+          echo "::error::preflight.php answered 500 with no body. It is deliberately"\
+               "old-syntax PHP, so this is not a version problem — check that"\
+               "api/config.php reached the host and that .htaccess is valid."
+          exit 1
+        fi
+
+        if [ "$STATUS" = "401" ]; then
+          echo "::error::preflight.php refused ADMIN_TOKEN. The host's api/config.php holds"\
+               "a different token than this environment's secret — the config is rewritten"\
+               "on every deploy, so a mismatch means the sync did not replace it."
+          exit 1
+        fi
+
+        if [ "$STATUS" != "200" ]; then
+          echo "::error::Host preflight failed ($STATUS). The site is deployed but the API"\
+               "cannot run on this host; the body above says which requirement is unmet."
+          exit 1
+        fi
+
     # Apply pending migrations, by ASKING THE HOST.
     #
     # This runner cannot reach the database: MariaDB is bound to localhost on the web
@@ -309,7 +371,10 @@ jobs:
         STATUS=$(printf '%s' "$BODY" | tail -n1)
         JSON=$(printf '%s' "$BODY" | sed '$d')
 
-        echo "$JSON"
+        # `:-` rather than a bare echo: a blank line reads as a truncated log, and "the
+        # endpoint answered nothing" is a finding in its own right — it means PHP died
+        # before our code could reply.
+        echo "${JSON:-(empty body)}"
 
         if [ "$STATUS" != "200" ]; then
           # A silent migration failure is worse than a red build: the site is already

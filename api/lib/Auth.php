@@ -154,7 +154,24 @@ final class Auth
      */
     public function authorisedByToken(?string $header): bool
     {
-        if ($this->adminToken === '' || $header === null) {
+        return self::tokenMatches($header, $this->adminToken);
+    }
+
+    /**
+     * The same check, without an Auth instance — and therefore **without a database**.
+     *
+     * Constructing an Auth opens the connection (`App::auth()` builds a PdoAuthStore), so
+     * an unreachable database used to throw before the token had been looked at. Every
+     * action then answered 500 before dispatch, which is what hid the cause of a failed
+     * deploy behind an empty body. `App::tokenMatches()` calls this to settle authorisation
+     * first, so the failure that follows can name itself.
+     *
+     * Static rather than duplicated: a constant-time comparison is not a thing to have two
+     * copies of.
+     */
+    public static function tokenMatches(?string $header, string $expected): bool
+    {
+        if ($expected === '' || $header === null) {
             return false;
         }
 
@@ -162,7 +179,11 @@ final class Auth
             return false;
         }
 
-        return $this->constantTimeEquals(substr($header, 7), $this->adminToken);
+        // Both sides hashed, for the reason `constantTimeEquals` documents: bare
+        // `hash_equals` returns false immediately on a length mismatch, so the token's
+        // length is observable through timing. This is the same comparison, not a cheaper
+        // one — it is static only so it can run before the database is touched.
+        return hash_equals(hash('sha256', $expected), hash('sha256', substr($header, 7)));
     }
 
     /**

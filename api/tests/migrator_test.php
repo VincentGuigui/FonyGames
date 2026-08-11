@@ -200,3 +200,44 @@ check('the two schemas are identical', $initPrint === $migPrint, [
 // applied to the real files rather than to fixtures.
 $twice = $shipped->apply(1_700_000_060_000);
 check('re-running the shipped directory changes nothing', $twice['ok'] === true && $twice['applied'] === [], $twice);
+
+group('installed(): a fault is not a missing schema');
+
+/*
+ * The regression this group exists for. `installed()` used to `catch (Throwable)` and
+ * return false for ANY error, so a wrong DSN was indistinguishable from an empty
+ * database: the admin page offered a migrate button for a server it could not reach, and
+ * the deploy reported a schema problem when the fault was connectivity.
+ *
+ * SQLSTATE 42S02 — base table or view not found — is the only error that means the schema
+ * is absent. Everything else must propagate, so the API can answer 503 "not reachable"
+ * with the driver's own message (docs/specs/backoffice.md §2c).
+ */
+$empty = testDbSecond('installed');
+check('an empty-but-reachable database reports not-installed', (new Migrator($empty, tempDir('mig-e')))->installed() === false);
+
+// A port nothing listens on. Chosen over a bad password because it needs no server-side
+// state and fails the same way on any host.
+$unreachable = null;
+try {
+    $unreachable = new PDO('mysql:host=127.0.0.1;port=1;dbname=fonygames_test', 'nobody', 'nobody', [
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+    ]);
+} catch (PDOException $e) {
+    // Connecting is what fails here, which is itself the point: the API's own `App::db()`
+    // throws at this moment, and §1's handler is what turns it into a named answer.
+    check('an unreachable server throws on connect, not silently', $e->getCode() !== '42S02', $e->getCode());
+}
+check('and no connection was handed back', $unreachable === null);
+
+/*
+ * The other half: connected, but the query fails for a reason that is NOT a missing table.
+ * A view over a nonexistent table gives SQLSTATE 42S22 / HY000 rather than 42S02, so it
+ * proves the code checks the state and does not just re-catch everything.
+ */
+$installed = testDbSecond('installed2');
+$installed->exec('CREATE TABLE IF NOT EXISTS game_flags (slug VARCHAR(64) PRIMARY KEY) ENGINE=InnoDB');
+check('a real game_flags table reports installed', (new Migrator($installed, tempDir('mig-i')))->installed() === true);
+
+$installed->exec('DROP TABLE game_flags');
+check('and dropping it reports not-installed again', (new Migrator($installed, tempDir('mig-i2')))->installed() === false);

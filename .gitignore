@@ -17,3 +17,11 @@ coverage/
 # by the next `git add -A`.
 .dev.vars
 .dev.vars.*
+
+# The admin centre's real credentials — database password, admin token, admin path.
+#
+# Written by the deploy from GitHub environment secrets (docs/deployment.md §3.1) and
+# written by hand when driving the API locally. It was NEVER ignored, only never yet
+# created by anyone running `git add -A`; on a public repo that is a loaded gun rather
+# than a convention. `api/config.example.php` is the committed shape.
+api/config.php
