@@ -228,6 +228,49 @@ for it.
 `prod` gets the same treatment. A required reviewer on the `prod` environment (§2) is what
 gates automatic production DDL, and is now worth having for that reason as well.
 
+### 3.6c The host must run PHP 8.1, and the deploy now checks
+
+The API needs **PHP 8.1 or newer**, on two lines:
+
+- `api/index.php` — `function reply(int $status, mixed $body = null): never`
+- `api/lib/App.php` — `private function __construct(public readonly array $config)`
+
+`never` and `readonly` are both 8.1 syntax. On an older interpreter these files are a
+**parse error**, and that is the failure mode worth understanding: PHP never runs a line of
+them, so no handler inside them can report anything, and with `display_errors` off — the
+shared-hosting default — the request answers **500 with an empty body**. Every endpoint,
+identically, with nothing in any log the deploy can read.
+
+That is not a hypothetical. It is indistinguishable from the *other* empty-500 (an uncaught
+exception, §3.6d), which is why the first deploy of the migration endpoint could not be
+diagnosed from CI at all.
+
+**`api/preflight.php`** answers it. Token-gated, and deliberately written in pre-7 syntax —
+no type declarations, no arrow functions, no `??`, no `str_contains` — because **it has to
+parse on the interpreter that cannot parse the rest**. That property is the entire point of
+the file: modernising it, however much a linter wants to, destroys it. Its header says so.
+
+It reports the PHP version, the required extensions (`pdo`, `pdo_mysql`, `json`,
+`session`), and **a count of `db/migrations/*.sql` present on the host**. That last number
+closes a gap CI otherwise cannot see: SFTP hands back no manifest, so "the sync uploaded
+`db/`" and "the sync silently skipped it" look identical from the runner.
+
+The `🐘 Host PHP check` step runs it after the sync and before the migration, and fails
+with the real version — *"the host runs PHP 8.0.30, the API needs 8.1"* beats *"answered
+500"*. Skipped with a notice when `ADMIN_TOKEN` is unset, like the migrate step.
+
+### 3.6d An empty 500 is a bug in us, not just a symptom
+
+`api/index.php` registers a `set_exception_handler` and a `register_shutdown_function`
+**above** its `require`, so an uncaught throwable — or a parse error in one of the `lib/`
+files — answers JSON instead of nothing. The detail is included **only for a caller already
+authorised**, because a PDO connect failure quotes the database user and host.
+
+Ordering matters and is load-bearing: the token half of authorisation is settled *before*
+`App::auth()` opens the connection, via the database-free `App::tokenMatches()`. Otherwise
+an unreachable database throws before anyone has been authorised, and the crash report has
+to withhold its detail from the deploy, which is the one caller entitled to it.
+
 ### 3.7 Rules
 
 - Credentials never appear in the repository, in logs, or in this doc.
