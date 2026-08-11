@@ -271,14 +271,76 @@ check(
 check(
     'the bearer comparison hashes both sides too',
     (bool) preg_match(
-        '/hash_equals\(\s*hash\(\'sha256\', \$expected\),\s*hash\(\'sha256\', substr\(\$header, 7\)\)\s*,?\s*\)/',
+        '/hash_equals\(\s*hash\(\'sha256\', \$expected\),\s*hash\(\'sha256\', \$presented\)\s*,?\s*\)/',
         $source,
     ),
 );
 check(
     'and the instance method delegates to it rather than comparing again',
     (bool) preg_match(
-        '/public function authorisedByToken\(\?string \$header\): bool\s*\{\s*return self::tokenMatches\(\$header, \$this->adminToken\);\s*\}/',
+        '/public function authorisedByToken\(\?string \$header\): bool\s*\{\s*'
+        . 'return self::tokenMatches\(self::tokenFromHeader\(\$header\), \$this->adminToken\);\s*\}/',
         $source,
     ),
 );
+
+group('the token is found wherever this host puts it');
+
+/*
+ * `Authorization` is NOT reliably visible to PHP: Apache consumes it and, behind a
+ * CGI/FastCGI/FPM handler, does not forward it without `CGIPassAuth`. On the dev host it
+ * never arrived, and a swallowed header is indistinguishable from a wrong token — the
+ * deploy's preflight answered 401 and blamed a stale config.
+ *
+ * So three sources are accepted, in this order. The custom one needs no server
+ * cooperation, which is the whole reason it exists.
+ */
+check('the standard header', Auth::presentedToken(['HTTP_AUTHORIZATION' => 'Bearer abc']) === 'abc');
+check(
+    'the mod_rewrite alias, when Apache moved it',
+    Auth::presentedToken(['REDIRECT_HTTP_AUTHORIZATION' => 'Bearer abc']) === 'abc',
+);
+check('the custom header, raw and unprefixed', Auth::presentedToken(['HTTP_X_ADMIN_TOKEN' => 'abc']) === 'abc');
+check('nothing at all is null, not empty string', Auth::presentedToken([]) === null);
+
+// Precedence matters: a host that behaves normally must behave normally, so the standard
+// header wins and the fallback cannot override it.
+check(
+    'the standard header wins over the custom one',
+    Auth::presentedToken(['HTTP_AUTHORIZATION' => 'Bearer real', 'HTTP_X_ADMIN_TOKEN' => 'other']) === 'real',
+);
+// An empty custom header is a header that was sent blank; treating it as a token would
+// hand `tokenMatches` an empty string to compare.
+check('an empty custom header is not a token', Auth::presentedToken(['HTTP_X_ADMIN_TOKEN' => '']) === null);
+check('a bare token in Authorization is refused', Auth::presentedToken(['HTTP_AUTHORIZATION' => 'abc']) === null);
+check('and so is an empty Bearer', Auth::presentedToken(['HTTP_AUTHORIZATION' => 'Bearer ']) === null);
+
+// The comparison itself takes the RAW token now, not the header, so a caller cannot
+// accidentally compare "Bearer x" against "x" and always fail.
+check('an unset expected token authorises nobody', Auth::tokenMatches('anything', '') === false);
+check('a null presentation authorises nobody', Auth::tokenMatches(null, 'real') === false);
+check('and the right token does', Auth::tokenMatches('real', 'real') === true);
+
+group('preflight.php stays parseable by an OLD interpreter');
+
+/*
+ * The file's entire purpose is to run where index.php cannot: it reports the PHP version
+ * when the API's own 8.1 syntax is a parse error. A type declaration or an arrow function
+ * added here would make it die exactly where it is needed, so the property is asserted
+ * rather than left to a comment nobody re-reads (docs/deployment.md §3.6c).
+ */
+/*
+ * `php_strip_whitespace` rather than the raw file: it tokenises and drops comments, so the
+ * header's own prose about not using `??` does not count as using it. The first version of
+ * this group failed on its own documentation.
+ */
+$pre = php_strip_whitespace(__DIR__ . '/../preflight.php');
+check('no strict_types declaration', !str_contains($pre, 'declare(strict_types'));
+check('no null coalescing', !str_contains($pre, '??'));
+check('no arrow functions', !str_contains($pre, 'fn('));
+check('no 8.0 string helpers', !str_contains($pre, 'str_contains(') && !str_contains($pre, 'str_starts_with('));
+check('no scalar type declarations', preg_match('/function \w+\([^)]*\b(string|int|bool|array) \$/', $pre) === 0);
+check('no return types', preg_match('/function \w+\([^)]*\)\s*:/', $pre) === 0);
+// `[...]` is 5.4, so it would parse — but `array()` is what the file uses throughout and a
+// mixed style here invites "tidying" it towards modern syntax, which is the actual hazard.
+check('array() throughout, not []', !str_contains($pre, '=> [') && !str_contains($pre, 'array(['));

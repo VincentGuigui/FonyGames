@@ -30,28 +30,57 @@ $config = dirname(__FILE__) . '/config.php';
 $loaded = is_readable($config) ? require $config : array();
 $expected = is_array($loaded) && isset($loaded['admin_token']) ? (string) $loaded['admin_token'] : '';
 
-$header = isset($_SERVER['HTTP_AUTHORIZATION']) ? $_SERVER['HTTP_AUTHORIZATION'] : '';
-$presented = (strpos($header, 'Bearer ') === 0) ? substr($header, 7) : '';
+/*
+ * Where the token may be, in the order `Auth::presentedToken()` uses.
+ *
+ * **`Authorization` is not reliably visible to PHP.** Apache consumes it and, behind a
+ * CGI/FastCGI/FPM handler, does not forward it without `CGIPassAuth` — so the header can
+ * be absent here while the client did send it, which looks identical to a wrong token.
+ * `X-Admin-Token` needs no server cooperation, and over HTTPS it is exactly as private.
+ */
+$presented = '';
+$via = 'nothing';
+if (isset($_SERVER['HTTP_AUTHORIZATION']) && strpos($_SERVER['HTTP_AUTHORIZATION'], 'Bearer ') === 0) {
+    $presented = substr($_SERVER['HTTP_AUTHORIZATION'], 7);
+    $via = 'Authorization';
+} elseif (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])
+    && strpos($_SERVER['REDIRECT_HTTP_AUTHORIZATION'], 'Bearer ') === 0) {
+    $presented = substr($_SERVER['REDIRECT_HTTP_AUTHORIZATION'], 7);
+    $via = 'REDIRECT_HTTP_AUTHORIZATION';
+} elseif (isset($_SERVER['HTTP_X_ADMIN_TOKEN']) && $_SERVER['HTTP_X_ADMIN_TOKEN'] !== '') {
+    $presented = $_SERVER['HTTP_X_ADMIN_TOKEN'];
+    $via = 'X-Admin-Token';
+}
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('Referrer-Policy: no-referrer');
 
-// A short token is not a token. Refuse before comparing, so an empty ADMIN_TOKEN on the
-// host cannot be matched by an empty header.
-if (strlen($expected) < 16 || strlen($presented) < 16) {
-    http_response_code(401);
-    echo '{"error":"no"}';
-    exit;
-}
-
-$match = function_exists('hash_equals')
-    ? hash_equals($expected, $presented)
-    : ($expected === $presented);
+$match = strlen($expected) >= 16
+    && strlen($presented) >= 16
+    && (function_exists('hash_equals')
+        ? hash_equals(hash('sha256', $expected), hash('sha256', $presented))
+        : ($expected === $presented));
 
 if (!$match) {
+    /*
+     * A refusal that says WHICH refusal. The first run of this file answered a bare
+     * `{"error":"no"}` and the workflow guessed at one cause out of three; the guess was
+     * unfalsifiable from CI, which is the failure this whole file exists to prevent.
+     *
+     * Booleans and lengths only — never a value, never a fragment of one. A length is not
+     * a secret (the token is documented as `openssl rand -hex 32`), and it is decisive:
+     * `tokenChars: 0` is a config that did not arrive, `presentedChars: 0` is a header this
+     * host swallowed, and two non-zero numbers mean the values genuinely differ.
+     */
     http_response_code(401);
-    echo '{"error":"no"}';
+    echo json_encode(array(
+        'error' => 'no',
+        'configReadable' => is_readable($config),
+        'tokenChars' => strlen($expected),
+        'presentedChars' => strlen($presented),
+        'presentedVia' => $via,
+    ));
     exit;
 }
 

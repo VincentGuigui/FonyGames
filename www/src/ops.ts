@@ -48,7 +48,15 @@ async function api(
     headers['Content-Type'] = 'application/json';
     headers['X-Admin'] = '1';
   }
-  if (bearer) headers['Authorization'] = `Bearer ${bearer}`;
+  if (bearer) {
+    headers['Authorization'] = `Bearer ${bearer}`;
+    // And again in a header Apache cannot eat. Behind a CGI/FastCGI/FPM handler Apache
+    // consumes `Authorization` and does not forward it to PHP without `CGIPassAuth`, so on
+    // a shared host the break-glass token silently never arrives — which reads as "the
+    // token is wrong" at the exact moment the operator has no other way in. The API
+    // prefers the standard header when it is there (Auth::presentedToken).
+    headers['X-Admin-Token'] = bearer;
+  }
 
   const res = await fetch(`${API}?a=${action}`, {
     method: body === undefined ? 'GET' : 'POST',

@@ -259,6 +259,29 @@ The `🐘 Host PHP check` step runs it after the sync and before the migration, 
 with the real version — *"the host runs PHP 8.0.30, the API needs 8.1"* beats *"answered
 500"*. Skipped with a notice when `ADMIN_TOKEN` is unset, like the migrate step.
 
+**And it immediately earned its place, by failing on something else entirely.** The host's
+PHP was fine; the token was refused. `Authorization` is **not reliably visible to PHP**:
+Apache consumes it for its own auth and, behind a CGI/FastCGI/FPM handler, does not forward
+it without `CGIPassAuth` — so the header can be absent in `$_SERVER` while the client
+plainly sent it, which looks exactly like a wrong token.
+
+So the token is accepted from three places, in order — `Authorization: Bearer`, its
+mod_rewrite alias `REDIRECT_HTTP_AUTHORIZATION`, and **`X-Admin-Token`**, an ordinary
+custom header every SAPI forwards. `Auth::presentedToken()` decides; the deploy and the
+admin page both send the standard header *and* the fallback.
+
+**Not fixed with `.htaccess`, deliberately.** `RewriteEngine On` in a directory where
+`AllowOverride` forbids `FileInfo` is a **500 for that whole directory** — the API would go
+down to fix a header. A custom header needs no server cooperation and, over HTTPS, is
+exactly as private as the one Apache eats.
+
+The 401 body reports `configReadable`, `tokenChars`, `presentedChars` and `presentedVia` —
+booleans and lengths, never a value. That is what tells the three causes apart:
+`tokenChars: 0` means `config.php` never arrived, `presentedChars: 0` means this host
+forwards neither header, and two non-zero numbers mean the tokens really differ. The first
+version of this step answered a bare `{"error":"no"}` and the workflow named one cause out
+of three, which was a guess CI could not check.
+
 ### 3.6d An empty 500 is a bug in us, not just a symptom
 
 `api/index.php` registers a `set_exception_handler` and a `register_shutdown_function`
