@@ -101,3 +101,47 @@ $state = App::boot($bare)->flagsState();
 // the same thing reads as two problems.
 check('it reads as OK, because the schema panel owns this one', $state['ok'] === true, $state);
 check('and says the schema is not installed', str_contains($state['detail'], 'schema is not installed'), $state['detail']);
+
+group('a failed publish says WHY, not just false');
+
+/*
+ * `publish()` returned a bare false, and the panel's advice was "use republish" — which
+ * writes to the same path and fails the same way, so the operator clicks a button that
+ * cannot work. This is the same lesson as the empty 500: a failure that cannot name itself
+ * costs more than the failure.
+ */
+$dir = tempDir('pub');
+check('a writable directory has nothing to report', Flags::publishDiagnosis($dir . '/flags.json') === null);
+check(
+    'a missing directory says so',
+    Flags::publishDiagnosis($dir . '/nope/flags.json') === "the directory {$dir}/nope does not exist",
+);
+
+// THE case that matters, and the one that is invisible from the symptom: tempnam() falls
+// back to the system temp dir when the target is unwritable, so the rename then fails as a
+// cross-device move and reads as a mysterious rename bug.
+$locked = tempDir('locked');
+chmod($locked, 0555);
+
+/*
+ * Skipped as root, which ignores the mode bits entirely — `is_writable` returns true for a
+ * 0555 directory and the assertion would fail for a reason that has nothing to do with the
+ * code. CI runs as root, so this group is the one part of the suite that is genuinely
+ * environment-dependent, and it says so rather than being quietly weakened to always pass.
+ */
+if (function_exists('posix_geteuid') && posix_geteuid() !== 0) {
+    $why = Flags::publishDiagnosis($locked . '/flags.json');
+    check('an unwritable directory names the permission', is_string($why) && str_contains($why, 'not writable'), $why);
+    check('and explains the cross-device rename', is_string($why) && str_contains($why, 'across filesystems'), $why);
+    // publish() must refuse rather than leave a file in /tmp and report a rename failure.
+    check('publish() refuses instead of writing to the system temp dir', Flags::publish($locked . '/flags.json', '{}') === false);
+    check('and leaves nothing behind', glob(sys_get_temp_dir() . '/.flags*') === []);
+} else {
+    check('running as root, so the unwritable-directory group is skipped', true);
+}
+
+chmod($locked, 0755);
+
+$ok = $dir . '/flags.json';
+check('a real publish still works', Flags::publish($ok, '{"flags":{}}') === true);
+check('and the file is readable by the web server', (fileperms($ok) & 0044) === 0044, substr(sprintf('%o', fileperms($ok)), -4));

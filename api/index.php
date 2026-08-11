@@ -435,13 +435,19 @@ switch ($action) {
         // committed, so "saved but not published" is a real state and the operator has
         // to be able to see it — otherwise the Worker keeps enforcing the old answer
         // while this page shows the new one.
-        reply(200, ['flags' => $result['flags'] ?: new stdClass(), 'published' => $result['published']]);
+        // `publishWhy` only when it failed: the operator's next move is to fix the cause,
+        // and "saved but not published" without a reason sends them to a republish button
+        // that fails identically.
+        reply(200, ['flags' => $result['flags'] ?: new stdClass(), 'published' => $result['published']]
+            + ($result['published'] ? [] : ['publishWhy' => Flags::publishDiagnosis($app->flagsPath())]));
 
         // no break
 
     case 'republish':
         requireSchema($app);
-        reply(200, ['published' => $app->flags()->republish()]);
+        $done = $app->flags()->republish();
+        reply(200, ['published' => $done]
+            + ($done ? [] : ['publishWhy' => Flags::publishDiagnosis($app->flagsPath())]));
 
         // no break
 

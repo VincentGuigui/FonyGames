@@ -127,6 +127,12 @@ final class App
         return Auth::tokenMatches(Auth::presentedToken($server), (string) $this->config['admin_token']);
     }
 
+    /** Where `flags.json` is published — needed by callers that want to explain a failure. */
+    public function flagsPath(): string
+    {
+        return (string) $this->config['flags_path'];
+    }
+
     public function flags(): FlagService
     {
         return new FlagService(
@@ -227,11 +233,20 @@ final class App
                 ];
             }
 
+            /*
+             * "Use republish" was useless advice on its own: republish writes to the same
+             * path, so whatever stopped the write stops it too, and the operator clicks a
+             * button that cannot work. Say what is actually in the way.
+             */
+            $why = Flags::publishDiagnosis($path);
+
             return [
                 'ok' => false,
                 'detail' => "{$rows} flag(s) are set but flags.json is MISSING — the Worker is"
                     . ' failing open, so every game is playable whatever the switches above'
-                    . ' say. Use republish.',
+                    . ' say. ' . ($why === null
+                        ? 'Nothing obvious is wrong with ' . $path . ', so try republish.'
+                        : 'Republish will fail the same way until this is fixed: ' . $why . '.'),
             ];
         }
 
