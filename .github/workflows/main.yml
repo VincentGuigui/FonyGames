@@ -294,8 +294,14 @@ jobs:
           ORIGIN="https://fonygames-dev.guigui.fr"
         fi
 
+        # BOTH headers, every time. Apache eats `Authorization` behind a CGI/FastCGI/FPM
+        # handler unless CGIPassAuth is on, so on a shared host it can simply never reach
+        # PHP — which is indistinguishable from a wrong token, and is what the first run of
+        # this step actually hit. `X-Admin-Token` needs no server cooperation. The API
+        # prefers the standard header when it is there.
         BODY=$(curl -sS \
           -H "Authorization: Bearer $ADMIN_TOKEN" \
+          -H "X-Admin-Token: $ADMIN_TOKEN" \
           -w '\n%{http_code}' \
           "$ORIGIN/api/preflight.php") || {
             echo "::error::Could not reach $ORIGIN/api/preflight.php."
@@ -316,10 +322,14 @@ jobs:
           exit 1
         fi
 
+        # Three causes, and the body above distinguishes them rather than this message
+        # picking one. An earlier version asserted "the config is stale", which was one
+        # guess out of three and could not be checked from here.
         if [ "$STATUS" = "401" ]; then
-          echo "::error::preflight.php refused ADMIN_TOKEN. The host's api/config.php holds"\
-               "a different token than this environment's secret — the config is rewritten"\
-               "on every deploy, so a mismatch means the sync did not replace it."
+          echo "::error::preflight.php refused the token. Read the JSON above:"\
+               "tokenChars 0 = api/config.php did not reach the host or has no admin_token;"\
+               "presentedChars 0 = this host forwards neither header to PHP;"\
+               "both non-zero = the host's config really holds a different token."
           exit 1
         fi
 
@@ -359,6 +369,7 @@ jobs:
         # failure detail — which file, which statement — is in it and is the whole point.
         BODY=$(curl -sS -X POST \
           -H "Authorization: Bearer $ADMIN_TOKEN" \
+          -H "X-Admin-Token: $ADMIN_TOKEN" \
           -H 'X-Admin: 1' \
           -H 'Content-Type: application/json' \
           -d '{}' \
