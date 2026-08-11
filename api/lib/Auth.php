@@ -154,11 +154,56 @@ final class Auth
      */
     public function authorisedByToken(?string $header): bool
     {
-        return self::tokenMatches($header, $this->adminToken);
+        return self::tokenMatches(self::tokenFromHeader($header), $this->adminToken);
     }
 
     /**
-     * The same check, without an Auth instance — and therefore **without a database**.
+     * The token the request presented, from wherever this host chose to put it.
+     *
+     * **`Authorization` is not reliably visible to PHP.** Apache consumes it for its own
+     * auth and, with a CGI/FastCGI/FPM handler, does not forward it unless `CGIPassAuth`
+     * is on — so on a shared host `$_SERVER['HTTP_AUTHORIZATION']` can simply be absent
+     * while the client did send it. That looks exactly like a wrong token.
+     *
+     * The fix is not an `.htaccess` rewrite: `RewriteEngine On` where `AllowOverride`
+     * forbids `FileInfo` is a **500 for the whole directory**, so guessing there would risk
+     * taking the API down to fix a header. `X-Admin-Token` needs no server cooperation —
+     * every SAPI forwards an ordinary custom header — and over HTTPS it is exactly as
+     * private as the one Apache eats.
+     *
+     * Order is deliberate: the standard header first, its mod_rewrite alias second, the
+     * custom one last, so a host that behaves normally behaves normally.
+     *
+     * @param array<string, mixed> $server
+     */
+    public static function presentedToken(array $server): ?string
+    {
+        foreach (['HTTP_AUTHORIZATION', 'REDIRECT_HTTP_AUTHORIZATION'] as $key) {
+            $found = self::tokenFromHeader(is_string($server[$key] ?? null) ? $server[$key] : null);
+            if ($found !== null) {
+                return $found;
+            }
+        }
+
+        $custom = $server['HTTP_X_ADMIN_TOKEN'] ?? null;
+
+        return is_string($custom) && $custom !== '' ? $custom : null;
+    }
+
+    /** `Bearer <token>` → `<token>`. Null for anything else, including a bare token. */
+    public static function tokenFromHeader(?string $header): ?string
+    {
+        if ($header === null || !str_starts_with($header, 'Bearer ')) {
+            return null;
+        }
+
+        $token = substr($header, 7);
+
+        return $token === '' ? null : $token;
+    }
+
+    /**
+     * The comparison, without an Auth instance — and therefore **without a database**.
      *
      * Constructing an Auth opens the connection (`App::auth()` builds a PdoAuthStore), so
      * an unreachable database used to throw before the token had been looked at. Every
@@ -169,13 +214,9 @@ final class Auth
      * Static rather than duplicated: a constant-time comparison is not a thing to have two
      * copies of.
      */
-    public static function tokenMatches(?string $header, string $expected): bool
+    public static function tokenMatches(?string $presented, string $expected): bool
     {
-        if ($expected === '' || $header === null) {
-            return false;
-        }
-
-        if (!str_starts_with($header, 'Bearer ')) {
+        if ($expected === '' || $presented === null) {
             return false;
         }
 
@@ -183,7 +224,7 @@ final class Auth
         // `hash_equals` returns false immediately on a length mismatch, so the token's
         // length is observable through timing. This is the same comparison, not a cheaper
         // one — it is static only so it can run before the database is touched.
-        return hash_equals(hash('sha256', $expected), hash('sha256', substr($header, 7)));
+        return hash_equals(hash('sha256', $expected), hash('sha256', $presented));
     }
 
     /**

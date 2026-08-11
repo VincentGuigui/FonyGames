@@ -198,7 +198,7 @@ if (!$app->configured()) {
  * `$authorised` is completed after the switch, where `signedIn()` joins it. This is not the
  * access decision; it is the half of it that costs nothing.
  */
-$authorised = $app->tokenMatches($_SERVER['HTTP_AUTHORIZATION'] ?? null);
+$authorised = $app->tokenMatches($_SERVER);
 
 try {
     $auth = $app->auth();

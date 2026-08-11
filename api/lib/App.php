@@ -116,10 +116,15 @@ final class App
      * crash report had to withhold its detail from a caller who was in fact authorised —
      * which is how a failed deploy ended up with an empty body and no cause
      * (docs/specs/backoffice.md §2c).
+     *
+     * Takes the whole `$_SERVER`, not one header: `Authorization` is not reliably forwarded
+     * to PHP on a shared host, so `Auth::presentedToken()` decides where to look.
+     *
+     * @param array<string, mixed> $server
      */
-    public function tokenMatches(?string $header): bool
+    public function tokenMatches(array $server): bool
     {
-        return Auth::tokenMatches($header, (string) $this->config['admin_token']);
+        return Auth::tokenMatches(Auth::presentedToken($server), (string) $this->config['admin_token']);
     }
 
     public function flags(): FlagService
