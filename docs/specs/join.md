@@ -13,7 +13,7 @@ Every game offers all three, always. They need no sensor and no permission.
 | Method | How |
 | --- | --- |
 | **Share link** | `/<slug>/#<CODE>` via `navigator.share`, clipboard copy as fallback |
-| **4-char code** | Typed on the hub or in the lobby. Alphabet excludes `O`/`0`/`I`/`1` so a code shouted across a noisy room survives — `www/src/core/room/code.ts` |
+| **4-char code** | Typed on the hub or in a game's chooser — the same field in both (§Landing on a game page). Alphabet excludes `O`/`0`/`I`/`1` so a code shouted across a noisy room survives — `www/src/core/room/code.ts` |
 | **QR code** | The host shows it big; everyone else scans with the OS camera app. We never ask for camera permission ourselves |
 
 The hub's code field routes by code alone: the server resolves `CODE → game`, so
@@ -125,16 +125,41 @@ has any reason to trust us.
 4. **Time-boxed.** A join gesture window lasts seconds and then closes; no
    sensor stream is left running.
 
-## A damaged link
+## Landing on a game page
 
-A room code in the URL hash is one of three things, and the third used to be folded
-into the first:
+The URL hash decides which of three screens you get. All three go through one gate,
+`www/src/lobby/RoomGate.tsx`, so every game answers identically:
 
 | Hash | Meaning | Behaviour |
 | --- | --- | --- |
-| empty | starting a room | mint a code and write it to the URL at once, so a reload rejoins rather than creating a second room |
-| a valid code | joining | use it |
+| empty | you have not chosen yet | **the join-or-create chooser** (below). Nothing is minted and no socket opens until you pick |
+| a valid code | joining | straight into the lobby — arriving by a friend's link must never cost an extra tap |
 | anything else | the link arrived damaged | **"This room doesn't exist"**, with the bad hash left in place |
+
+### The chooser, and why the code is no longer minted on arrival
+
+Opening a game page used to mint a code, rewrite the URL and connect **immediately**, so
+you were the host of a new room before deciding you wanted one — and anyone who had come
+to *join* a friend had to go back to the hub to type their code. Merely browsing the
+catalogue created rooms.
+
+So an empty hash now shows two choices, either of which is one tap away from the other:
+
+- **Join a room** — the hub's own code field, the same component
+  (`www/src/core/ui/JoinByCode.tsx`), so there is one place where a typed code is
+  validated, resolved and followed. Its rule is unchanged: the code names the game, so a
+  code for a *different* game navigates there.
+- **Create a room** — mints the code **at that moment**, writes it to the hash, and shows
+  the room-code card (code, share link, QR) so it is shareable before anyone has entered.
+
+Flipping between the tabs does not mint a second code: Create reads the hash first, so
+coming back shows the same room you were about to share.
+
+**Minting is not creating.** The room exists server-side only once someone connects, and
+whoever connects first is the host — so *Enter the room* is what makes the creator the
+host. Sitting on the code card while a friend opens the link first hands them the host
+role. That is a fair trade for a shareable code you can look at before committing, and
+it is the one behaviour to revisit if hosting turns out to matter more than sharing.
 
 An invalid hash used to mint a fresh code as well, which dropped the player into a
 *different, empty room* and erased the bad code from the URL. They believed they had
@@ -146,6 +171,16 @@ link and there is nothing at the end of it, and whether the code was malformed o
 merely unused changes nothing they can act on. Two exits, because the screen it
 replaces was a silent dead end — start a fresh room of that game, or go back and type
 the code.
+
+**A hash is validated whole; a typed field is normalised.** The two need different rules,
+and using the typing rule on the hash was a live bug until `hash.test.ts` was written.
+`normaliseRoomCode()` is lossy on purpose — it drops characters outside the alphabet and
+truncates to four — which is right while somebody types and wrong for a link that has
+already arrived: `#lobby` lost its `O` and became room `LBBY`, and `#AB2CD` was truncated to
+`AB2C`. Both silently produced a *valid* code for a room the sender never named, which is
+exactly the failure the table above exists to prevent. So `roomFromHash()` tests the whole
+value with `isRoomCode()` and forgives only case, because some clients lowercase a URL in
+transit and that is the same code rather than a different one.
 
 **Codes are generated from the alphabet, never sanitised into it.**
 `generateRoomCode()` draws every character from `ROOM_CODE_ALPHABET`, so it cannot

@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../core/types';
 import type { RoundResult } from '../../../shared/protocol';
-import { NoSuchRoom } from './NoSuchRoom';
-import { codeFromLocation, useRoom, shareRoom } from '../core/room/useRoom';
+import { useRoom, useShareRoom } from '../core/room/useRoom';
 import { PLAYERS } from '../../../shared/players';
+import { RoomGate } from './RoomGate';
 import { GameLobby } from './GameLobby';
 import { RulesPanel } from '../core/ui/RulesPanel';
 import { Duel, type DuelPhase } from '../games/tap-duel/Duel';
@@ -21,20 +21,16 @@ import { Duel, type DuelPhase } from '../games/tap-duel/Duel';
  */
 
 /**
- * Reads the room code, and stops here if the link was damaged.
- *
- * A wrapper rather than an early return inside the component below: the guard has to
- * come before `useRoom`, and skipping hooks conditionally is not something to rely on
- * even when the condition cannot change.
+ * Everything about *which* room is the shared gate's job: the chooser when there is no code
+ * in the hash, "this room doesn't exist" when the hash is damaged, and this screen once
+ * there is a room to be in (lobby/RoomGate.tsx). Five copies of that logic used to live in
+ * five files, identical down to the comment.
  */
 export function Lobby(props: { game: GameCard }): JSX.Element {
-  const code = useMemo(() => codeFromLocation(), []);
-  if (code === null) return <NoSuchRoom card={props.game} />;
-  return <LobbyInner game={props.game} code={code} />;
+  return <RoomGate game={props.game}>{(code) => <LobbyInner game={props.game} code={code} />}</RoomGate>;
 }
 
 function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Element {
-  const [showQr, setShowQr] = useState(false);
   const [phase, setPhase] = useState<DuelPhase>('idle');
   const [result, setResult] = useState<RoundResult | null>(null);
   const roundRef = useRef<number | null>(null);
@@ -49,9 +45,9 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
   } | null>(null);
   /** Where the target will appear. From the server, so it is the same for all. */
   const [target, setTarget] = useState<{ x: number; y: number } | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const room = useRoom(code, game.slug);
+  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, game.title, room.setError);
   const client = room.client;
 
   useEffect(() => {
@@ -86,18 +82,6 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
       if (fireTimer.current !== null) clearTimeout(fireTimer.current);
     };
   }, [client]);
-
-  const joinUrl = `${location.origin}${location.pathname}#${code}`;
-
-  async function share(): Promise<void> {
-    const outcome = await shareRoom(game.title, code, joinUrl);
-    if (outcome === 'copied') {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } else if (outcome === 'failed') {
-      room.setError('Could not copy — long-press the code to select it.');
-    }
-  }
 
   function startDuel(): void {
     client?.send({ t: 'start', d: { mode: 'pistol' } });
@@ -159,7 +143,7 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
       copied={copied}
       showQr={showQr}
       onShare={share}
-      onToggleQr={() => setShowQr((v) => !v)}
+      onToggleQr={toggleQr}
       canStart={canStart}
       startLabel="Start round"
       onStart={startDuel}

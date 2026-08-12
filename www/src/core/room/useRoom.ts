@@ -3,40 +3,81 @@ import type { Player, RoomSnapshot, ServerMessage } from '../../../../shared/pro
 import { RoomClient, type RoomStatus } from './client';
 import { roomServerUrl } from './config';
 import { loadSeat, saveSeat } from './seat';
-import { generateRoomCode, isRoomCode, normaliseRoomCode } from './code';
+import { generateRoomCode, isRoomCode } from './code';
 import { loadProfile, saveProfile } from '../profile';
 
 /**
- * The room code in the URL hash, or **null** when the hash holds something that is
- * not a code.
+ * What the URL hash says about which room we are in.
+ * Spec: docs/specs/join.md §Landing on a game page
  *
- * Three cases, and the third used to be silently folded into the first:
- *
- * | Hash | Meaning | What happens |
+ * | Hash | `kind` | What the caller shows |
  * | --- | --- | --- |
- * | empty | starting a room | mint a code and put it in the URL at once, so a reload rejoins instead of creating a second room |
- * | a valid code | joining that room | use it |
- * | anything else | a link that arrived damaged | **null** — the caller shows "this room doesn't exist" |
- *
- * The third case used to mint a fresh code too, which meant a mangled link dropped
- * you into a *different, empty room* with the bad code erased from the URL. You
- * thought you had joined; you were alone, and the evidence was gone. A chat app
- * eating a character, or a code copied one short, does exactly that.
- *
- * So an invalid hash is **left alone**: not rewritten, so it can still be read and
- * compared against the code the sender meant to send.
- *
- * Lives here rather than in code.ts because that module is shared with the Worker,
- * which has no `location` and must stay DOM-free.
+ * | empty | `empty` | the join-or-create chooser — **nothing is minted here** |
+ * | a valid code | `code` | the lobby for that room |
+ * | anything else | `invalid` | "this room doesn't exist" |
  */
-export function codeFromLocation(): string | null {
-  const raw = location.hash.replace(/^#/, '');
-  const fromHash = normaliseRoomCode(raw);
-  if (isRoomCode(fromHash)) return fromHash;
-  if (raw !== '') return null;
+export type RoomHash = { kind: 'code'; code: string } | { kind: 'empty' } | { kind: 'invalid' };
 
+/**
+ * Read a hash. **Pure** — takes the raw string rather than touching `location`, which is
+ * the only reason it can be tested: this project has no DOM test runner, so the logic worth
+ * asserting has to be reachable from node (`hash.test.ts`).
+ *
+ * An invalid hash is reported, never repaired. It used to mint a fresh code, which dropped
+ * the player into a *different, empty room* with the bad code erased from the URL: they
+ * believed they had joined, they were alone, and the evidence was gone. A chat app eating a
+ * character, or a code copied one short, does exactly that. Leaving it in place is what lets
+ * it still be compared against the code the sender meant to send.
+ *
+ * Lives here rather than in code.ts because that module is shared with the Worker, which has
+ * no `location` and must stay DOM-free.
+ */
+export function roomFromHash(raw: string): RoomHash {
+  const trimmed = raw.replace(/^#/, '').trim();
+
+  // Whitespace-only is an empty hash, not a damaged one: `#` followed by a stray space
+  // survives a copy-paste and means nothing was chosen.
+  if (trimmed === '') return { kind: 'empty' };
+
+  /*
+   * `isRoomCode` on the WHOLE value, deliberately not `normaliseRoomCode` — which is right
+   * for a field being typed into and wrong here, because it is lossy in two ways: it drops
+   * characters outside the alphabet and truncates to four.
+   *
+   * That combination silently rewrote damaged links into valid ones. `#lobby` lost its `O`
+   * and became room `LBBY`; `#AB2CD` was truncated to `AB2C`. Both are the failure this
+   * whole three-way answer exists to prevent — a link that arrived damaged dropping the
+   * player into a *different* room, alone, with nothing left to compare. Found by
+   * `hash.test.ts` on the day it was written.
+   *
+   * Case is still forgiven: some clients lowercase a URL in transit, and that is a
+   * transformation of the same code rather than a different one.
+   */
+  const upper = trimmed.toUpperCase();
+
+  return isRoomCode(upper) ? { kind: 'code', code: upper } : { kind: 'invalid' };
+}
+
+/** The same, for the live page. */
+export function readRoomHash(): RoomHash {
+  return roomFromHash(location.hash);
+}
+
+/**
+ * Mint a room code and put it in the URL.
+ *
+ * Called when the player chooses **Create**, not on arrival — opening a game page used to
+ * do this unconditionally, so browsing the catalogue created rooms nobody entered
+ * (docs/specs/join.md).
+ *
+ * `replaceState`, not `pushState`: the chooser and the room it minted are one step in the
+ * player's mind, and a back button that returned to an empty chooser after the code had
+ * been shared would be a way to lose the room.
+ */
+export function mintRoomCode(): string {
   const fresh = generateRoomCode();
   history.replaceState(null, '', `${location.pathname}#${fresh}`);
+
   return fresh;
 }
 
@@ -108,6 +149,54 @@ export function useRoom(
     setAvatar: (avatar) => {
       clientRef.current?.send({ t: 'set-profile', d: { avatar } });
       saveProfile({ avatar });
+    },
+  };
+}
+
+/**
+ * The share link and its two buttons — everything `CodeCard` needs.
+ *
+ * Every room screen had grown its own copy of this: the same two `useState`s, the same
+ * `joinUrl` template, the same `share()` with the same 2000 ms reset of the "Link copied"
+ * label. Five identical copies, so a fix to the copy-failure message reached one of them.
+ *
+ * `setError` is optional because the chooser has nowhere to put an error — it is showing the
+ * code before anyone has connected, so there is no room state to attach one to. In the lobby
+ * it goes to the room's error line.
+ */
+export function useShareRoom(
+  code: string,
+  title: string,
+  setError?: (message: string | null) => void,
+): {
+  joinUrl: string;
+  copied: boolean;
+  showQr: boolean;
+  share: () => Promise<void>;
+  toggleQr: () => void;
+} {
+  const [copied, setCopied] = useState(false);
+  const [showQr, setShowQr] = useState(false);
+
+  // From `location`, not from config: the link has to point at the host the player is
+  // actually on, which is how one code works on dev and prod without knowing which it is.
+  const joinUrl = `${location.origin}${location.pathname}#${code}`;
+
+  return {
+    joinUrl,
+    copied,
+    showQr,
+    toggleQr: () => setShowQr((v) => !v),
+    share: async () => {
+      const outcome = await shareRoom(title, code, joinUrl);
+      if (outcome === 'copied') {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } else if (outcome === 'failed') {
+        // Not silence: the button appeared to do nothing, and the code is still readable on
+        // screen, so say how to get it by hand.
+        setError?.('Could not copy — long-press the code to select it.');
+      }
     },
   };
 }

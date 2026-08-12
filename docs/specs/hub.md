@@ -61,7 +61,7 @@ the catalogue is small enough to scan.
 | URL | Screen |
 | --- | --- |
 | `/` | Hub |
-| `/<slug>/` | Game lobby (creates or joins a room) |
+| `/<slug>/` | Join-or-create chooser ([join.md](join.md) §Landing on a game page) |
 | `/<slug>/#<CODE>` | Join that room directly |
 | `/about` | About sheet (also reachable from `[?]`) |
 
@@ -70,6 +70,9 @@ the catalogue is small enough to scan.
 - The "Join with a code" field routes to the right game from the code alone: the
   server resolves `CODE → slug`, so a player pasting a code never needs to know
   which game their friends picked.
+- **That field is one component**, `www/src/core/ui/JoinByCode.tsx`, shared by the hub
+  and by every game's chooser — so the rule above holds in both places rather than
+  being reimplemented in the second one.
 - Back from a lobby returns to the hub without losing scroll position.
 
 ## 5. Data source
