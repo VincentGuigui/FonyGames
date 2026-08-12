@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
 import {
@@ -9,8 +9,8 @@ import {
   type ServerMessage,
   type SpillState,
 } from '../../../../shared/protocol';
-import { NoSuchRoom } from '../../lobby/NoSuchRoom';
-import { codeFromLocation, shareRoom, useRoom } from '../../core/room/useRoom';
+import { useRoom, useShareRoom } from '../../core/room/useRoom';
+import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { SeatMap } from './SeatMap';
 import { SpillBoard } from './SpillBoard';
@@ -28,21 +28,16 @@ import { SPILL_THEME } from './themes';
  */
 
 /**
- * Reads the room code, and stops here if the link was damaged.
- *
- * A wrapper rather than an early return inside the component below: the guard has to
- * come before `useRoom`, and skipping hooks conditionally is not something to rely on
- * even when the condition cannot change.
+ * Everything about *which* room is the shared gate's job: the chooser when there is no code
+ * in the hash, "this room doesn't exist" when the hash is damaged, and this screen once
+ * there is a room to be in (lobby/RoomGate.tsx). Five copies of that logic used to live in
+ * five files, identical down to the comment.
  */
 export function SpillRoom(props: { game: GameCard }): JSX.Element {
-  const code = useMemo(() => codeFromLocation(), []);
-  if (code === null) return <NoSuchRoom card={props.game} />;
-  return <SpillRoomInner game={props.game} code={code} />;
+  return <RoomGate game={props.game}>{(code) => <SpillRoomInner game={props.game} code={code} />}</RoomGate>;
 }
 
 function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
-  const [showQr, setShowQr] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [, redraw] = useState(0);
 
   // Created before the socket, because the first `spill` frame can arrive
@@ -62,6 +57,7 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
   );
 
   const room = useRoom(code, card.slug, onGame);
+  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
   const client = room.client;
   const myId = room.me?.id;
 
@@ -69,18 +65,6 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
     if (client && myId) game.identify(myId, () => client.now());
   }, [game, client, myId]);
 
-
-  const joinUrl = `${location.origin}${location.pathname}#${code}`;
-
-  async function share(): Promise<void> {
-    const outcome = await shareRoom(card.title, code, joinUrl);
-    if (outcome === 'copied') {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } else if (outcome === 'failed') {
-      room.setError('Could not copy — long-press the code to select it.');
-    }
-  }
 
   const state = game.state;
 
@@ -111,7 +95,7 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
       copied={copied}
       showQr={showQr}
       onShare={share}
-      onToggleQr={() => setShowQr((v) => !v)}
+      onToggleQr={toggleQr}
       canStart={
         room.isHost && room.connected >= SPILL_MIN_PLAYERS && room.connected <= SPILL_MAX_PLAYERS
       }

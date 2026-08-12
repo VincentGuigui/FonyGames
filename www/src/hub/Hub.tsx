@@ -1,10 +1,8 @@
-import { useState } from 'preact/hooks';
 import type { JSX, VNode } from 'preact';
 import { catalogue } from '../games/registry';
 import { HubGrid } from './HubGrid';
 import { cardState, flagFor, type GameFlag } from '../../../shared/flags';
-import { isRoomCode, normaliseRoomCode } from '../core/room/code';
-import { lookupRoom } from '../core/room/lookup';
+import { JoinByCode } from '../core/ui/JoinByCode';
 
 /**
  * The hub: a stranger should want to play something within ten seconds.
@@ -28,52 +26,10 @@ export function Hub({
   grid?: VNode;
 } = {}): JSX.Element {
   const games = catalogue();
-  const [code, setCode] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [checking, setChecking] = useState(false);
 
   // "Nothing is playable yet" has to account for the flags, not just build-time status:
   // with every built game disabled, the shell notice is the honest thing to show.
   const anyPlayable = games.some((g) => cardState(g.status, flagFor(flags, g.slug), showAll).playable);
-
-  /**
-   * Route a typed code to the right lobby (hub spec §4).
-   *
-   * The code carries no hint of which game it is, so this asks the room server
-   * and then navigates. `location.assign` rather than client-side routing: each
-   * game is its own page (architecture.md §3), so this is a real navigation.
-   */
-  async function onJoin(event: Event): Promise<void> {
-    event.preventDefault();
-    // Read the field, not the state. A paste followed immediately by Enter can
-    // submit before the input event's render has committed, and then this would
-    // act on the *previous* value — the code before last, or nothing at all.
-    const form = event.currentTarget as HTMLFormElement;
-    const field = form.elements.namedItem('room-code');
-    const typed = field instanceof HTMLInputElement ? field.value : code;
-    const value = normaliseRoomCode(typed);
-    setCode(value);
-
-    if (!isRoomCode(value)) {
-      setError('A room code is 4 letters or numbers.');
-      return;
-    }
-
-    setChecking(true);
-    setError(null);
-    const found = await lookupRoom(value);
-    setChecking(false);
-
-    if (found.found) {
-      location.assign(`/${found.game}/#${value}`);
-      return;
-    }
-    setError(
-      found.reason === 'unknown'
-        ? `No room called ${value}. Check the code, or ask for the link.`
-        : 'Could not reach the game server. Check your connection and try again.',
-    );
-  }
 
   return (
     <div class="hub">
@@ -84,40 +40,7 @@ export function Hub({
         </p>
       </header>
 
-      <form class="join" onSubmit={onJoin}>
-        <label class="join__label" for="room-code">
-          Got a code from a friend?
-        </label>
-        <div class="join__row">
-          <input
-            id="room-code"
-            name="room-code"
-            class="join__input"
-            type="text"
-            inputMode="text"
-            autocomplete="off"
-            autocapitalize="characters"
-            spellcheck={false}
-            maxLength={4}
-            placeholder="ABCD"
-            value={code}
-            disabled={checking}
-            aria-describedby={error ? 'join-error' : undefined}
-            onInput={(e) => {
-              setCode(normaliseRoomCode((e.target as HTMLInputElement).value));
-              setError(null);
-            }}
-          />
-          <button class="join__button" type="submit" disabled={checking}>
-            {checking ? 'Looking…' : 'Join'}
-          </button>
-        </div>
-        {error && (
-          <p class="join__error" id="join-error" role="alert">
-            {error}
-          </p>
-        )}
-      </form>
+      <JoinByCode />
 
       {!anyPlayable && (
         <p class="hub__notice">

@@ -1,3 +1,7 @@
+/* Must be first: CSS @import is only valid before any rule. The shared join form
+ * (core/ui/JoinByCode.tsx) is used by the hub and by every game's chooser. */
+@import '../core/ui/join.css';
+
 /* Lobby. Spec: docs/multiplayer.md §3 · Rules: docs/design/ui-guidelines.md */
 
 .lobby {
@@ -602,4 +606,60 @@
   margin-bottom: var(--space-3);
   text-align: center;
   text-decoration: none;
+}
+
+/* --- join-or-create chooser --------------------------------------------- */
+/* Spec: docs/specs/join.md §Landing on a game page */
+
+.choice {
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: var(--space-4);
+}
+
+.choice__header {
+  margin-bottom: var(--space-5);
+}
+
+/*
+ * Two tabs, equal width. Equal because neither is the recommended one: someone arriving
+ * from a friend's message wants Join, someone starting the evening wants Create, and the
+ * layout should not push either.
+ */
+.choice__tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+
+.choice__tab {
+  flex: 1 1 0;
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
+  font-weight: 700;
+}
+
+.choice__tab--on {
+  border-color: var(--game-accent, var(--color-accent));
+  color: var(--color-text);
+}
+
+.choice__tab:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+.choice__enter {
+  width: 100%;
+  margin-top: var(--space-4);
+}
+
+.choice__hint {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
 }

@@ -1,0 +1,69 @@
+/*
+ * The "Got a code from a friend?" form — `core/ui/JoinByCode.tsx`.
+ * Spec: docs/specs/join.md §1
+ *
+ * Its own file because the form is shared by the hub and by every game's join-or-create
+ * chooser, and the two pages load different stylesheets: game entries import `lobby.css`
+ * and never `hub.css`. Both @import this, so the form cannot be styled in one place and
+ * bare in the other — which is exactly what happened while these rules lived in `hub.css`.
+ */
+
+.join {
+  margin-bottom: var(--space-5);
+}
+
+.join__label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.join__row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.join__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: var(--tap-target);
+  padding: 0 var(--space-4);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  /* 1rem minimum, or iOS zooms the page on focus. */
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+
+.join__input::placeholder {
+  color: var(--color-text-dim);
+  opacity: 0.5;
+  letter-spacing: 0.3em;
+}
+
+.join__button {
+  flex: 0 0 auto;
+  height: var(--tap-target);
+  padding: 0 var(--space-5);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 700;
+}
+
+.join__button:active {
+  transform: scale(0.97);
+}
+
+.join__error {
+  margin: var(--space-2) 0 0;
+  color: var(--color-accent);
+  font-size: var(--font-small);
+}
+
