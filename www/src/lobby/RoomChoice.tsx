@@ -2,6 +2,8 @@ import { useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../core/types';
 import { JoinByCode } from '../core/ui/JoinByCode';
+import { HowToPlay } from '../core/ui/HowToPlay';
+import { Disclosure } from '../core/ui/Disclosure';
 import { CodeCard } from './parts';
 import { mintRoomCode, readRoomHash, useShareRoom } from '../core/room/useRoom';
 
@@ -69,6 +71,15 @@ export function RoomChoice({
           {notice}
         </p>
       )}
+
+      {/*
+        Above the choice, and open: deciding whether to start a room or wait for a friend's
+        code is a decision about *this* game, so the rules come before the tabs rather than
+        below them. It collapses if you already know the game.
+      */}
+      <Disclosure heading="How to play" open>
+        <HowToPlay concept={card.concept} rules={card.rules} />
+      </Disclosure>
 
       {/*
         A real tablist, so a keyboard and a screen reader get the same two choices a thumb

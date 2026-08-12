@@ -143,12 +143,21 @@ you were the host of a new room before deciding you wanted one — and anyone wh
 to *join* a friend had to go back to the hub to type their code. Merely browsing the
 catalogue created rooms.
 
+**How to play leads the screen**, above the two choices and expanded. Deciding whether to
+start a room or wait for a friend's code is a decision about *this* game, so the rules come
+before the choice rather than below it. It is a collapsible panel
+(`www/src/core/ui/Disclosure.tsx`) so someone who knows the game can fold it away — and in the
+lobby the same panel arrives **collapsed**, because by then the rules have been read and what
+matters on screen is the code to share and who has arrived.
+
 So an empty hash now shows two choices, either of which is one tap away from the other:
 
 - **Join a room** — the hub's own code field, the same component
-  (`www/src/core/ui/JoinByCode.tsx`), so there is one place where a typed code is
-  validated, resolved and followed. Its rule is unchanged: the code names the game, so a
-  code for a *different* game navigates there.
+  (`www/src/core/ui/JoinByCode.tsx`), so there is one place where a typed code is validated,
+  resolved and followed. Its rule is unchanged: the code names the game, so a code for a
+  *different* game navigates there. Its button takes `var(--game-accent, var(--color-accent))`
+  — the game's colour on a game page, the site accent on the hub where no game is in scope,
+  the same chain `.btn--primary` uses.
 - **Create a room** — mints the code **at that moment**, writes it to the hash, and shows
   the room-code card (code, share link, QR) so it is shareable before anyone has entered.
 
