@@ -50,7 +50,13 @@
   flex: 0 0 auto;
   height: var(--tap-target);
   padding: 0 var(--space-5);
-  background: var(--color-accent);
+  /*
+   * The game's accent when there is one, the site accent otherwise — the same fallback chain
+   * `.btn--primary` uses. On a game's chooser this form sits under that game's title, so a
+   * button in the site accent read as belonging to something else; on the hub, where no game
+   * is in scope, `--game-accent` is unset and the site accent is the right answer.
+   */
+  background: var(--game-accent, var(--color-accent));
   color: var(--color-on-accent);
   border: none;
   border-radius: var(--radius);

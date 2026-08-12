@@ -4,6 +4,7 @@ import type { GameCard } from '../core/types';
 import type { Room } from '../core/room/useRoom';
 import { AvatarPicker, CodeCard, ConnectionBanner, PlayerList } from './parts';
 import { HowToPlay } from '../core/ui/HowToPlay';
+import { Disclosure } from '../core/ui/Disclosure';
 
 /**
  * The lobby, identical for every game.
@@ -80,12 +81,16 @@ export function GameLobby({
         </p>
       )}
 
-      <section class="panel">
-        <h2 class="panel__heading">How to play</h2>
+      {/*
+        Collapsed here, expanded on the chooser. By the time you are in the room you have
+        already read the rules on the way in, and what you want on screen is the code to share
+        and who has arrived — so the rules stay one tap away rather than pushing both down.
+      */}
+      <Disclosure heading="How to play">
         <HowToPlay concept={card.concept} rules={card.rules}>
           {aside}
         </HowToPlay>
-      </section>
+      </Disclosure>
 
       <CodeCard
         code={code}

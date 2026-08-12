@@ -663,3 +663,62 @@
   color: var(--color-text-dim);
   font-size: var(--font-small);
 }
+
+/* --- collapsible panel (core/ui/Disclosure.tsx) --------------------------- */
+
+/*
+ * `.disclosure` is a `<details>` that also wears `.panel`, so a collapsed section keeps the
+ * same surface, border and radius as the ones that never collapse.
+ *
+ * Collapsed, it should cost about a tap target and no more — `.panel`'s full block padding
+ * around a single heading row left a mostly-empty box as tall as the room code card. The
+ * padding comes back when it opens, where the body does need the breathing room.
+ */
+.disclosure {
+  padding-block: var(--space-2);
+}
+
+.disclosure[open] {
+  padding-bottom: var(--space-4);
+}
+
+.disclosure__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  /*
+   * The whole heading row is the hit area, so it takes the full tap target — the same
+   * `min-height: var(--tap-target)` every other tappable row in here uses, rather than a
+   * smaller number arrived at by subtracting padding.
+   */
+  min-height: var(--tap-target);
+  margin: 0;
+  cursor: pointer;
+  /* The default triangle is replaced by the chevron below, in both engines. */
+  list-style: none;
+}
+
+.disclosure__summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Open state gets the margin back, so the body is not crowded against the heading. */
+.disclosure[open] .disclosure__summary {
+  margin-bottom: var(--space-3);
+}
+
+.disclosure__chevron {
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  /* Points down when closed — "there is more below" — and up once open. */
+  transform: rotate(45deg);
+  transition: transform var(--duration) var(--ease);
+}
+
+.disclosure[open] .disclosure__chevron {
+  transform: rotate(-135deg);
+}
