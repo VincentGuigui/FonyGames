@@ -116,6 +116,25 @@
   font-weight: 600;
 }
 
+/*
+ * Anchors wearing `.btn` have to centre their own text.
+ *
+ * `.btn` gives every button a `min-height` of a full tap target and no vertical padding, and a
+ * real `<button>` still looks right because the browser centres a button's content box for us.
+ * An `<a>` gets none of that: the line box sits at the top of the taller box, which put "Leave
+ * game" in the in-game menu 14 px above centre — 4 px of space above the text and 32 px below.
+ *
+ * Scoped to `a` so no `<button>` changes its display type, and kept here beside `.btn` rather
+ * than at each call site: the two `NoSuchRoom` links had already grown their own copy of these
+ * three declarations, and the third anchor was written without them.
+ */
+a.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .btn--primary {
   background: var(--game-accent, var(--color-accent));
   color: var(--color-on-accent);
@@ -599,13 +618,8 @@
  * min-height box.
  */
 .nosuchroom__cta {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
   margin-bottom: var(--space-3);
-  text-align: center;
-  text-decoration: none;
 }
 
 /* --- join-or-create chooser --------------------------------------------- */

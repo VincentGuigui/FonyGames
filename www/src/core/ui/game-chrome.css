@@ -121,10 +121,7 @@
 }
 
 .gamemenu__exit {
-  display: block;
   margin-top: var(--space-4);
-  text-align: center;
-  text-decoration: none;
 }
 
 /* --- the pre-round panel ------------------------------------------------- */
