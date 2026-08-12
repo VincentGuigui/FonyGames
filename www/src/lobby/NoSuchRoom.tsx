@@ -31,8 +31,13 @@ export function NoSuchRoom({ card }: { card: GameCard }): JSX.Element {
       </p>
 
       {/*
-        `#` alone, not the bare path: landing with an empty hash is what means "start a
-        room", so this mints a code the same way opening the game fresh does.
+        `#` alone, not the bare path, so the damaged code is cleared rather than carried into
+        the next screen — an empty hash is what means "you have not chosen yet".
+
+        That lands on the chooser, which opens on **Create**, so the label still describes what
+        happens next: one tap and you are in a new room. It stopped being literally true when
+        the code stopped being minted on arrival, and it went briefly wrong while the chooser
+        opened on Join and answered this button with a code field.
       */}
       <a class="btn btn--primary btn--big nosuchroom__cta" href={`/${card.slug}/#`}>
         Start a new {card.title} room

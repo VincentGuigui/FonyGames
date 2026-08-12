@@ -1,10 +1,12 @@
 import type { ComponentChildren, JSX } from 'preact';
+import { useContext } from 'preact/hooks';
 import type { PlayerId } from '../../../shared/protocol';
 import type { GameCard } from '../core/types';
 import type { Room } from '../core/room/useRoom';
 import { AvatarPicker, CodeCard, ConnectionBanner, PlayerList } from './parts';
 import { HowToPlay } from '../core/ui/HowToPlay';
 import { Disclosure } from '../core/ui/Disclosure';
+import { ArrivedByLink } from './arrival';
 
 /**
  * The lobby, identical for every game.
@@ -63,6 +65,8 @@ export function GameLobby({
   standings?: ComponentChildren;
   extras?: ComponentChildren;
 }): JSX.Element {
+  const arrivedByLink = useContext(ArrivedByLink);
+
   return (
     <div class="lobby" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
       <header class="lobby__header">
@@ -82,11 +86,11 @@ export function GameLobby({
       )}
 
       {/*
-        Collapsed here, expanded on the chooser. By the time you are in the room you have
-        already read the rules on the way in, and what you want on screen is the code to share
-        and who has arrived — so the rules stay one tap away rather than pushing both down.
+        Open for someone who followed a link, collapsed for whoever came through the chooser and
+        read the rules there. Collapsing it for everyone assumed the rules had been read on the
+        way in — true only of the host, and false for most of the table (lobby/arrival.ts).
       */}
-      <Disclosure heading="How to play">
+      <Disclosure heading="How to play" open={arrivedByLink}>
         <HowToPlay concept={card.concept} rules={card.rules}>
           {aside}
         </HowToPlay>
@@ -119,9 +123,17 @@ export function GameLobby({
       {extras}
 
       <footer class="lobby__footer">
-        <button class="btn btn--primary btn--big" type="button" disabled={!canStart} onClick={onStart}>
-          {startLabel}
-        </button>
+        {/*
+          Only the host gets the button. Every game's `canStart` already requires `isHost`, so
+          for everyone else it was a full-width primary control that could never become
+          enabled — in a six-player room, five people looking at a dead button in the most
+          prominent slot on the screen. The note carries the state instead.
+        */}
+        {room.isHost && (
+          <button class="btn btn--primary btn--big" type="button" disabled={!canStart} onClick={onStart}>
+            {startLabel}
+          </button>
+        )}
         <p class="lobby__note">{note}</p>
       </footer>
     </div>
