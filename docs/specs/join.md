@@ -146,11 +146,19 @@ catalogue created rooms.
 **How to play leads the screen**, above the two choices and expanded. Deciding whether to
 start a room or wait for a friend's code is a decision about *this* game, so the rules come
 before the choice rather than below it. It is a collapsible panel
-(`www/src/core/ui/Disclosure.tsx`) so someone who knows the game can fold it away — and in the
-lobby the same panel arrives **collapsed**, because by then the rules have been read and what
-matters on screen is the code to share and who has arrived.
+(`www/src/core/ui/Disclosure.tsx`) so someone who knows the game can fold it away.
 
-So an empty hash now shows two choices, either of which is one tap away from the other:
+**In the lobby its state depends on how the player arrived** (`www/src/lobby/arrival.ts`):
+collapsed for whoever came through the chooser and read the rules there, **open for anyone who
+followed a link**, because they never saw the chooser. Collapsing it for everyone assumed the
+rules had been read on the way in — true of the host and false for most of the table.
+
+So an empty hash shows two choices, either of which is one tap away from the other. **Create is
+the default tab**: a valid hash goes straight to the lobby and the hub's code field navigates
+straight to a lobby, so the only way to reach this screen is to tap a game card on the hub —
+which means very nearly everyone who sees it just chose a game and wants to start it. Opening on
+Join charged all of them a tap and showed an empty code field to someone with no code. Being
+wrong costs one tap to Join, the cheaper of the two mistakes.
 
 - **Join a room** — the hub's own code field, the same component
   (`www/src/core/ui/JoinByCode.tsx`), so there is one place where a typed code is validated,
@@ -158,17 +166,20 @@ So an empty hash now shows two choices, either of which is one tap away from the
   *different* game navigates there. Its button takes `var(--game-accent, var(--color-accent))`
   — the game's colour on a game page, the site accent on the hub where no game is in scope,
   the same chain `.btn--primary` uses.
-- **Create a room** — mints the code **at that moment**, writes it to the hash, and shows
-  the room-code card (code, share link, QR) so it is shareable before anyone has entered.
+- **Create a room** — one button. It mints the code **at that moment**, writes it to the hash and
+  goes straight into the lobby, where the code, share link and QR live. The code is deliberately
+  *not* shown on the chooser as well: it was, briefly, and the host then met the same panel twice
+  with a button between them whose only visible effect was "that panel again".
 
-Flipping between the tabs does not mint a second code: Create reads the hash first, so
-coming back shows the same room you were about to share.
+Tapping Create twice does not mint a second code — it reads the hash first, so a code that may
+already have been read out loud does not change underneath the player.
 
-**Minting is not creating.** The room exists server-side only once someone connects, and
-whoever connects first is the host — so *Enter the room* is what makes the creator the
-host. Sitting on the code card while a friend opens the link first hands them the host
-role. That is a fair trade for a shareable code you can look at before committing, and
-it is the one behaviour to revisit if hosting turns out to matter more than sharing.
+**Minting is not creating.** The room exists server-side only once someone connects, and whoever
+connects first is the host — so tapping **Create the room** is what makes the creator the host.
+Because that tap also connects, the creator now reliably *is* the host; while the code sat on the
+chooser waiting for a second tap, a friend who opened the link first took the role instead.
+
+Nothing is minted before that tap, so browsing the catalogue still creates no rooms.
 
 An invalid hash used to mint a fresh code as well, which dropped the player into a
 *different, empty room* and erased the bad code from the URL. They believed they had

@@ -1,9 +1,13 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import type { JSX, VNode } from 'preact';
 import type { GameCard } from '../core/types';
 import { readRoomHash } from '../core/room/useRoom';
 import { NoSuchRoom } from './NoSuchRoom';
+import { ArrivedByLink } from './arrival';
 import { RoomChoice } from './RoomChoice';
+
+/** Which room the player is in, and how they got there. */
+type Entered = { code: string; byLink: boolean };
 
 /**
  * Which room, if any — the one entrance every game shares.
@@ -12,17 +16,13 @@ import { RoomChoice } from './RoomChoice';
  * ## Why this is a component and not five copies of an `if`
  *
  * Each of the five room screens had grown its own identical wrapper: read the hash, bail to
- * "this room doesn't exist", otherwise render the inner. Byte-identical apart from two
- * names, docblock included. Adding the chooser to five copies would have been five chances
- * for them to answer differently, which is the failure the shared `GameLobby` template
- * already exists to prevent one level down.
+ * "this room doesn't exist", otherwise render the inner. Byte-identical apart from two names,
+ * docblock included. Adding the chooser to five copies would have been five chances for them to
+ * answer differently, which is the failure the shared `GameLobby` template already exists to
+ * prevent one level down.
  *
- * The guard has to sit **outside** the component that calls `useRoom`, because hooks cannot
- * be skipped — which is why this is a wrapper taking children rather than an early return.
- *
- * `code` is state, not a value read once per render: entering from the chooser must not
- * depend on a navigation. The chooser has already written the code to the hash, so a reload
- * lands straight in the room; this only saves the round trip.
+ * The guard has to sit **outside** the component that calls `useRoom`, because hooks cannot be
+ * skipped — which is why this is a wrapper taking children rather than an early return.
  */
 export function RoomGate({
   game,
@@ -31,42 +31,80 @@ export function RoomGate({
   game: GameCard;
   children: (code: string) => VNode;
 }): JSX.Element {
-  // Read once. The hash does change — the chooser writes to it — but through
-  // `replaceState`, which fires no event, and re-reading on every render would be a way for
-  // this to disagree with the room the player is already connected to.
-  const [initial] = useState(readRoomHash);
-  const [entered, setEntered] = useState<string | null>(
-    initial.kind === 'code' ? initial.code : null,
-  );
+  const [hash, setHash] = useState(readRoomHash);
+  const [entered, setEntered] = useState<Entered | null>(() => {
+    const initial = readRoomHash();
+    return initial.kind === 'code' ? { code: initial.code, byLink: true } : null;
+  });
+
+  /**
+   * Follow the hash when the *player* changes it.
+   *
+   * Reading it once was not enough, and the gap was a dead primary button: `NoSuchRoom`'s
+   * "Start a new room" links from `/<slug>/#AB2` to `/<slug>/#`, which differs only in the
+   * hash, so the browser does not reload and this component kept its first answer — the player
+   * tapped the button and the screen sat there. The same applies to the back button between two
+   * rooms, and to anyone editing the URL by hand.
+   *
+   * Safe to listen for, because `replaceState` — how the chooser and `enter` write the hash —
+   * does **not** fire `hashchange`. So this hears real navigations and never our own writes.
+   */
+  useEffect(() => {
+    function onHashChange(): void {
+      const next = readRoomHash();
+      setHash(next);
+      // A hash naming a room is a link being followed, even mid-session: the rules have not
+      // been read in this room, so the lobby should open them.
+      setEntered(next.kind === 'code' ? { code: next.code, byLink: true } : null);
+    }
+
+    addEventListener('hashchange', onHashChange);
+    return () => removeEventListener('hashchange', onHashChange);
+  }, []);
 
   /**
    * Enter a room, and make sure the URL says so.
    *
-   * The hash is what a reload reads, so entering without writing it left the player one
-   * refresh away from being dumped back on the chooser — which is the property the old
-   * mint-on-arrival code had for free and the first thing this lost. Create has already
-   * written it; **Join has not**, because it resolved a code someone typed.
+   * The hash is what a reload reads, so entering without writing it left the player one refresh
+   * away from being dumped back on the chooser — the property the old mint-on-arrival code had
+   * for free and the first thing this lost.
    *
-   * `replaceState`, so the room does not become a second history entry the back button lands
-   * on. Guarded, so re-entering the same room does not stack identical states.
+   * The comparison is against the code itself, not merely "is there a code there" — a hash left
+   * over from a room the player minted but did not enter would otherwise survive while they sat
+   * in a different one, and a reload would take them to the wrong room.
+   *
+   * `replaceState`, so the room does not become a second history entry the back button lands on.
    */
   function enter(code: string): void {
-    if (readRoomHash().kind !== 'code') {
+    const current = readRoomHash();
+    if (!(current.kind === 'code' && current.code === code)) {
       history.replaceState(null, '', `${location.pathname}#${code}`);
     }
-    setEntered(code);
+    setHash({ kind: 'code', code });
+    setEntered({ code, byLink: false });
   }
 
-  if (entered !== null) return children(entered);
+  /*
+   * Arriving with the code already in the hash means a link was followed, so the rules have not
+   * been read — the lobby opens How to play for those players and leaves it collapsed for
+   * whoever came through the chooser and read them there (lobby/arrival.ts).
+   */
+  if (entered !== null) {
+    return (
+      <ArrivedByLink.Provider value={entered.byLink}>
+        {children(entered.code)}
+      </ArrivedByLink.Provider>
+    );
+  }
 
   /*
    * A damaged link keeps its own screen rather than being folded into the chooser.
    *
    * The chooser would arguably do — its two choices are exactly NoSuchRoom's two exits — but
-   * that screen exists to be unmistakable: a link that led nowhere must not look like a
-   * normal landing, or the player never learns that the code they were sent was wrong.
+   * that screen exists to be unmistakable: a link that led nowhere must not look like a normal
+   * landing, or the player never learns that the code they were sent was wrong.
    */
-  if (initial.kind === 'invalid') return <NoSuchRoom card={game} />;
+  if (hash.kind === 'invalid') return <NoSuchRoom card={game} />;
 
   return <RoomChoice card={game} onEnter={enter} />;
 }
