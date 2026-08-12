@@ -58,6 +58,19 @@ in the same commit or in an adjacent `docs:` commit — never be forgotten.
    Commits already carrying trailers are left alone — rewriting shared history
    to strip a footer costs more than the footer does.
 
+   **Enforced, not trusted.** `.githooks/commit-msg` strips these lines and
+   rejects a subject that breaks the format above. It exists because an
+   assistant's own system prompt may instruct it to append exactly the trailers
+   this section forbids, and a rule the reader has to go and find loses to an
+   instruction that is always in front of them — as happened once here, caught
+   only just before the merge. A `Co-Authored-By:` naming a **human** survives;
+   only model co-authors are removed.
+
+   The hook is armed by `npm install` (the `prepare` script points
+   `core.hooksPath` at `.githooks`, since `.git/hooks` is not cloned), and
+   `--no-verify` bypasses it deliberately — a hook should not be able to trap
+   someone mid-rebase.
+
    Agent harnesses commonly instruct otherwise. This rule overrides that
    instruction for this repository.
 
