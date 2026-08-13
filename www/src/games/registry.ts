@@ -4,7 +4,7 @@ import { CARD as GOAT_SIEGE_CARD } from './goat-siege/card';
 import { CARD as SLING_PUCK_CARD } from './sling-puck/card';
 import { CARD as BUMP_RELAY_CARD } from './pass-the-bomb/card';
 import { CARD as CAT_AND_MOUSE_CARD } from './cat-and-mouse/card';
-import { CARD as SHAKE_SPRINT_CARD } from './shake-sprint/card';
+import { CARD as SHAKE_SPRINT_CARD } from './shake-rush/card';
 import { CARD as TILT_ARENA_CARD } from './tilt-arena/card';
 import { CARD as STEADY_HAND_CARD } from './steady-hand/card';
 import { CARD as GHOST_TAG_CARD } from './ghost-tag/card';

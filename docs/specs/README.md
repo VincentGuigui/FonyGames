@@ -20,13 +20,13 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | Game | Catchy sentence | Input | Players | Status |
 | --- | --- | --- | --- | --- |
 | [Pass the Bomb](games/pass-the-bomb.md) | *Smash phones together to pass the bomb before it blows* | bump / motion | 3–8 | 📝 draft |
-| Shake Sprint | *Shake like your life depends on it — first to the finish wins* | motion | 2–8 | 💡 idea |
+| [Shake Rush](games/shake-rush.md) | *Shake like your life depends on it — first to the finish wins* | motion | 2–8 | 📝 draft |
 | Tilt Arena | *Tilt to steer, crash to win* | orientation | 2–6 | 💡 idea |
-| Steady Hand | *Hold your phone perfectly still. Longer than everyone else* | motion | 2–8 | 💡 idea |
+| [Steady Hand](games/steady-hand.md) | *Hold your phone perfectly still. Longer than everyone else* | motion | 2–8 | 📝 draft |
 | [Tap Duel](games/tap-duel.md) | *The fastest thumb in the room takes the round* | touch | 2–8 | 🎮 `pistol` live · `sprint`/`simon` to come |
 | Ghost Tag | *One ghost, a whole neighbourhood, and a map that only whispers* | GPS | 3–10 | 💡 idea |
 | Zone Rush | *Claim real streets by standing on them longer than your rivals* | GPS | 2–10 | 💡 idea |
-| Compass Hunt | *Follow the arrow to the treasure — so is everyone else* | compass + GPS | 2–10 | 💡 idea |
+| [Compass Hunt](games/compass-hunt.md) | *Point your phone at things nobody else can see* | orientation | 2–8 | 📝 draft — **respecced**, no longer GPS |
 | Scream Meter | *Loudest wins. Your neighbours will not be thanked* | mic | 2–8 | 💡 idea |
 | [Spill](games/spill.md) | *Fling your water at the neighbours before they flood you* | touch | 2–4 | 🎮 `ring` beta — numbers untested on a real table |
 | [Goat Siege](games/goat-siege.md) | *Shoo the neighbours' goats before they eat your cabbages* | touch | 2–4 | 🎮 beta — balance untested |
@@ -35,21 +35,14 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 
 ### Idea notes (not yet specs)
 
-- **Shake Sprint** — shake energy drives an avatar down a track; modes: plain
-  race, relay (pass the baton by bump), sabotage (spend energy to slow a rival).
 - **Tilt Arena** — sumo/bumper-car arena on a shared board, phone tilt = thrust;
   modes: last-one-standing, football, king-of-the-hill.
-- **Steady Hand** — inverse of shaking: lowest motion wins; modes: pure
-  stillness, "surgeon" (stay still while the game tries to make you laugh),
-  team average.
 - **Tap Duel** — reaction and rhythm duels; modes: pistol duel (tap on the
   signal, false start = loss), tap sprint, Simon-style sequence.
 - **Ghost Tag** — one hidden player, others hunt with distance-only hints;
   contact confirmed by bump; modes: classic tag, hot/cold, blackout.
 - **Zone Rush** — the map is split into cells; standing in a cell claims it over
   time; modes: territory, capture-the-flag, walk-the-most-cells.
-- **Compass Hunt** — a virtual treasure at a GPS point, players see only a
-  heading arrow and a distance; modes: race, hot-potato treasure, team relay.
 - **Scream Meter** — mic level battles; modes: loudest, longest note, quietest
   (whisper duel), choir (team sync).
 - **Spill** — phones flat in a ring; flick your water onto a neighbour's phone,
