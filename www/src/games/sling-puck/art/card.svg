@@ -14,56 +14,52 @@
     Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
     doubled hyphen inside a comment is illegal and silently kills the whole file.
   -->
-  <!-- The shot that has ALREADY been taken, seen from your end of the board.
+  <!-- A bank shot in progress, drawn from your seat. To the maintainer's sketch.
 
-       The axis is vertical because the game is: two phones nose to nose, your half
-       on your screen, the gap at the top (spec §1). A side by side arrangement would
-       read better as a picture and be a lie about the game.
+       Only ONE half is drawn, and that is the point every previous version missed:
+       you can only ever see your own half of the board (spec §4). Two halves stacked
+       with a rail between them was a picture of the rules rather than of the game, and
+       it read as one object split down the middle.
 
-       Three things carry the action, and each replaces something that made the
-       previous version read as a wiring diagram rather than a game:
-
-       1. YOUR half is bigger. Two equal rounded rects joined by a rail read as one
-          object split down the middle. Near half large, far half smaller and
-          narrower: two phones, one further away.
-       2. Only YOUR band is drawn. The far half had one too, and a straight line
-          inside a rounded rect reads as a speaker grille. You cannot see the other
-          player's half anyway (spec §4) so drawing it was wrong twice over.
-       3. The band is RELEASED, not pulled. A band pulled into a V reads as a
-          downward chevron, and a dashed trail feeding into that V reads as an arrow
-          pointing the wrong way. Snapped forward with the puck already gone, the
-          trail runs from the band up through the gap with nothing to mistake it for.
+       So: your board, open at the top where the gap is, running off the bottom of the
+       frame because it continues into your lap. The puck is squashed against the side
+       wall mid-bounce, with its trail behind it — the shot is a BANK, which is how the
+       game is actually played and what the straight-up-the-middle versions could never
+       show. Where it goes next is off the wall and out through the gap, and leaving
+       that to the viewer is what makes it a moment instead of a diagram.
   -->
-  <!-- Far half: set back, still phone shaped. Smaller than yours, not tiny: shrink it
-       far enough and it stops being a phone and becomes a little window. -->
-  <rect x="40" y="5" width="40" height="27" rx="5" fill="#10121a" stroke="#FB7185" stroke-width="2.5"/>
-  <!-- Near half: yours, filling the bottom of the box. -->
-  <rect x="30" y="44" width="60" height="42" rx="7" fill="#10121a" stroke="#FB7185" stroke-width="3"/>
+  <!-- The board: an open path, not a rect, because the gap at the top has to be a real
+       break in the outline. Clockwise from the left of the gap round to its right, and
+       bleeding past the bottom edge on purpose.
 
-  <!-- The rail the two halves meet on, broken by the gap the puck goes through. -->
+       Wider than the sketch, which was drawn portrait on a phone. In a 120x90 frame a
+       portrait board reads as a doorway; widened, it reads as a board you are looking
+       across, which is also what you actually see from your seat. -->
+  <path d="M50 9 L24 9 Q16 9 16 17 L16 98 M104 98 L104 17 Q104 9 96 9 L70 9"
+        fill="none" stroke="#FB7185" stroke-width="4.5"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- The puck, pressed against the right wall. Taller than it is wide, because hitting
+       the wall squashes it across — that is the whole reason to draw it here rather than
+       in open space, where a circle says nothing about what is happening to it. -->
+  <ellipse cx="97" cy="47" rx="7" ry="9.5" fill="none" stroke="#FB7185" stroke-width="4"/>
+  <circle cx="97" cy="47" r="2" fill="#FB7185"/>
+
+  <!-- The trail, three strokes climbing from the band to the wall. Separate strokes
+       rather than a dashed line: a dash pattern spaces itself evenly and reads as a
+       border, while three deliberate marks read as speed. -->
   <g stroke="#FB7185" stroke-width="4" stroke-linecap="round">
-    <path d="M28 38 L49 38"/><path d="M71 38 L92 38"/>
+    <path d="M85 60 L90 55"/>
+    <path d="M74 68 L80 63"/>
+    <path d="M63 75 L69 71"/>
   </g>
 
-  <!-- The band, snapped forward, and its two posts. The posts are what make it a band
-       rather than a line; the shallow bow away from the gap is the recoil. -->
+  <!-- The band, pulled back into a shallow V, and its two chunky posts. Pulled rather
+       than released this time: the sketch has it loaded, and with the puck already out on
+       the wall there is no chevron confusion left to avoid. -->
   <g fill="#FB7185">
-    <circle cx="38" cy="76" r="2.5"/><circle cx="82" cy="76" r="2.5"/>
+    <circle cx="28" cy="72" r="5"/><circle cx="92" cy="72" r="5"/>
   </g>
-  <path d="M38 76 Q60 71 82 76" fill="none" stroke="#FB7185" stroke-width="3"
-        stroke-linecap="round"/>
-
-  <!-- The shot is OFF AXIS, and that is the whole trick.
-
-       Every earlier version put the puck, the trail and the gap on one centred
-       vertical line, which is the grammar of a wiring diagram: symmetrical, static,
-       explaining itself. A trajectory that leans and clips the gap off centre reads as
-       something travelling, and it is also truer to the game, where you bank the puck
-       off the walls rather than firing it straight up the middle (spec §1). -->
-  <path d="M52 72 L68 30" fill="none" stroke="#FB7185" stroke-width="3"
-        stroke-dasharray="5 6" stroke-linecap="round" opacity="0.85"/>
-
-  <!-- The puck, already across and off to one side. -->
-  <circle cx="70" cy="22" r="6.5" fill="#f4f1e8"/>
-  <circle cx="70" cy="22" r="2.5" fill="#10121a"/>
+  <path d="M28 72 L60 84 L92 72" fill="none" stroke="#FB7185" stroke-width="4"
+        stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
