@@ -23,14 +23,14 @@ import {
 } from '../shared/protocol';
 import { PLAYERS } from '../shared/players';
 import {
-  onBump as relayBump,
-  onFuse as relayFuse,
-  onPass as relayPass,
-  onPlayerGone as relayPlayerGone,
-  startRelay,
-  type Ctx as RelayCtx,
-  type Relay,
-} from './bumpRelay';
+  onBump as bombBump,
+  onFuse as bombFuse,
+  onPass as bombPass,
+  onPlayerGone as bombPlayerGone,
+  startBomb,
+  type Ctx as BombCtx,
+  type Bomb,
+} from './passTheBomb';
 import {
   nextDeadline as spillDeadline,
   onCatch as spillCatch,
@@ -118,7 +118,7 @@ export class Room extends DurableObject {
    * That distinction is the bug this shape exists to fix. It used to be a plain counter starting
    * at 0, and a Durable Object is evicted whenever the room goes quiet: the next instance began
    * again at 1, every frame it sent looked stale to a client that had already seen 11, and
-   * `RoomClient` silently dropped all of them for the rest of the session. Bump Relay found it
+   * `RoomClient` silently dropped all of them for the rest of the session. Pass the Bomb found it
    * because its fuse is a deliberate 8-25 second silence — an eviction window by design — so the
    * `boom` ending the round never arrived and the game could not finish. Every other game had the
    * same hole; they just rarely go quiet long enough to fall in it.
@@ -240,12 +240,12 @@ export class Room extends DurableObject {
         return;
       case 'bump': {
         const id = this.#idOf(ws);
-        if (id) await relayBump(this.#relayCtx(), id, msg.d.roundId, msg.d.at);
+        if (id) await bombBump(this.#bombCtx(), id, msg.d.roundId, msg.d.at);
         return;
       }
       case 'pass': {
         const id = this.#idOf(ws);
-        if (id) await relayPass(this.#relayCtx(), id, msg.d.roundId, msg.d.to);
+        if (id) await bombPass(this.#bombCtx(), id, msg.d.roundId, msg.d.to);
         return;
       }
       case 'fling': {
@@ -308,7 +308,7 @@ export class Room extends DurableObject {
 
   /**
    * There is exactly **one** alarm slot, and every game wants it: a live duel's
-   * timeout, a relay fuse, a spill drop landing, a goat arriving, a Sling Puck
+   * timeout, a Pass the Bomb fuse, a spill drop landing, a goat arriving, a Sling Puck
    * round cap — plus seat/host housekeeping underneath all of them.
    *
    * So the handler never assumes it was woken for its own reason. It runs every
@@ -323,9 +323,9 @@ export class Room extends DurableObject {
       return;
     }
 
-    const relay = await this.#relay();
-    if (relay && relay.phase === 'running' && Date.now() >= Math.min(relay.fuseAt, relay.endsAt)) {
-      await relayFuse(this.#relayCtx());
+    const bomb = await this.#bomb();
+    if (bomb && bomb.phase === 'running' && Date.now() >= Math.min(bomb.fuseAt, bomb.endsAt)) {
+      await bombFuse(this.#bombCtx());
       await this.#rearm();
       return;
     }
@@ -419,8 +419,8 @@ export class Room extends DurableObject {
 
     const duel = await this.#duel();
     if (duel && duel.phase !== 'done') return; // one round at a time
-    const relay = await this.#relay();
-    if (relay && relay.phase !== 'done') return;
+    const bomb = await this.#bomb();
+    if (bomb && bomb.phase !== 'done') return;
     const running = await this.#spill();
     if (running && running.phase !== 'done') return;
     const besieged = await this.#siege();
@@ -434,7 +434,7 @@ export class Room extends DurableObject {
     const ready = [...players.values()].filter((p) => p.connected);
 
     if (
-      mode === 'relay' ||
+      mode === 'bomb' ||
       mode === 'spill' ||
       mode === 'siege' ||
       mode === 'sling' ||
@@ -443,7 +443,7 @@ export class Room extends DurableObject {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
       const ids = ready.map((p) => p.id);
-      if (mode === 'relay') await startRelay(this.#relayCtx(), roundId, ids);
+      if (mode === 'bomb') await startBomb(this.#bombCtx(), roundId, ids);
       else if (mode === 'spill') await startSpill(this.#spillCtx(), roundId, ids);
       else if (mode === 'siege') await startSiege(this.#siegeCtx(), roundId, ids);
       else if (mode === 'sling') await startSling(this.#slingCtx(), roundId, ids);
@@ -576,18 +576,18 @@ export class Room extends DurableObject {
     await this.#rearm(players);
   }
 
-  async #relay(): Promise<Relay | null> {
-    return (await this.ctx.storage.get<Relay>('relay')) ?? null;
+  async #bomb(): Promise<Bomb | null> {
+    return (await this.ctx.storage.get<Bomb>('bomb')) ?? null;
   }
 
   /**
-   * Everything bumpRelay.ts needs, without giving it socket access.
+   * Everything passTheBomb.ts needs, without giving it socket access.
    *
    * `setAlarm` ignores the requested time on purpose: the module has already
    * saved the state that implies its deadline, so #rearm recomputes the correct
    * one across *all* subsystems. A module cannot know what else wants the slot.
    */
-  #relayCtx(): RelayCtx {
+  #bombCtx(): BombCtx {
     return {
       now: () => Date.now(),
       nextSeq: () => this.#nextSeq(),
@@ -597,8 +597,8 @@ export class Room extends DurableObject {
           if (this.#idOf(ws) === playerId) this.#send(ws, msg);
         }
       },
-      load: () => this.#relay(),
-      save: (relay) => this.ctx.storage.put('relay', relay),
+      load: () => this.#bomb(),
+      save: (bomb) => this.ctx.storage.put('bomb', bomb),
       setAlarm: () => this.#rearm(),
     };
   }
@@ -805,10 +805,10 @@ export class Room extends DurableObject {
     me.goneAt = Date.now();
 
     await this.#savePlayers(players);
-    // Relay must react immediately — the bomb cannot sit on an empty seat. A
+    // Bomb must react immediately — the bomb cannot sit on an empty seat. A
     // Spill player, by contrast, is only out once their seat is reaped, so a
     // refresh keeps their water (see the reaping loop in alarm()).
-    await relayPlayerGone(this.#relayCtx(), id);
+    await bombPlayerGone(this.#bombCtx(), id);
     // No #ensureHost here: promoting the moment a socket drops is exactly
     // what stole the host role from anyone who refreshed. The alarm handles
     // it once HOST_GRACE_MS has passed.
@@ -864,8 +864,8 @@ export class Room extends DurableObject {
     const duel = await this.#duel();
     if (duel?.phase === 'armed') return duel.fireAt + DUEL_TIMEOUT_MS;
 
-    const relay = await this.#relay();
-    if (relay?.phase === 'running') return Math.min(relay.fuseAt, relay.endsAt);
+    const bomb = await this.#bomb();
+    if (bomb?.phase === 'running') return Math.min(bomb.fuseAt, bomb.endsAt);
 
     const spill = await this.#spill();
     if (spill?.phase === 'running') return spillDeadline(spill);

@@ -4,7 +4,7 @@
 | --- | --- |
 | **Slug** | `sling-puck` |
 | **Catchy sentence** | *Sling every puck onto their side before they sling them back* |
-| **Illustration** | `www/src/games/sling-puck/art/card.svg` — two phones nose to nose, a stretched elastic on the near one, a puck streaking through the gap between them |
+| **Illustration** | `www/src/games/sling-puck/art/card.svg` — the shot already taken: your half large in front with the band snapped forward, the far half smaller and set back, and the puck across the gap on an **off-centre** line. The lean is deliberate — puck, gap and trail on one centred vertical axis read as a wiring diagram rather than a game, and banking off the walls is how it is actually played |
 | **Players** | 2 — exactly |
 | **Round length** | 30 s – 2 min |
 | **Inputs** | touch (drag back and release) |

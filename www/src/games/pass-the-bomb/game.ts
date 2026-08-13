@@ -1,9 +1,9 @@
 import type { PlayerId, ServerMessage } from '../../../../shared/protocol';
 
 /**
- * What the phone knows about the bomb. Spec: docs/specs/games/bump-relay.md
+ * What the phone knows about the bomb. Spec: docs/specs/games/pass-the-bomb.md
  *
- * The referee (`worker/bumpRelay.ts`) is authoritative for all of it. This reduces the three
+ * The referee (`worker/passTheBomb.ts`) is authoritative for all of it. This reduces the three
  * frames it sends into something a screen can render, and does nothing else — no timers, no
  * guessing, and above all **no fuse**.
  *
@@ -20,7 +20,7 @@ import type { PlayerId, ServerMessage } from '../../../../shared/protocol';
  * no equivalent: the round is over when a `boom` leaves one player or none. So that is what
  * this watches for. Anything expecting an explicit end frame would wait forever.
  */
-export type RelayView = {
+export type BombView = {
   roundId: number;
   /** Who is holding it right now. */
   holder: PlayerId;
@@ -39,7 +39,7 @@ export type RelayView = {
 };
 
 /** Nothing yet, or the state after one frame. */
-export type RelayState = RelayView | null;
+export type BombState = BombView | null;
 
 /**
  * Fold a server frame into the view.
@@ -49,7 +49,7 @@ export type RelayState = RelayView | null;
  *
  * Returns the same object when a frame changes nothing, so a caller can skip a re-render.
  */
-export function applyRelay(state: RelayState, msg: ServerMessage, now: number): RelayState {
+export function applyBomb(state: BombState, msg: ServerMessage, now: number): BombState {
   switch (msg.t) {
     case 'bomb': {
       /*
@@ -105,6 +105,6 @@ export function applyRelay(state: RelayState, msg: ServerMessage, now: number): 
 }
 
 /** Is this player still in the round? Eliminated players watch (spec §2 step 4). */
-export function isAlive(state: RelayState, id: PlayerId | undefined): boolean {
+export function isAlive(state: BombState, id: PlayerId | undefined): boolean {
   return !!id && !!state && state.alive.includes(id);
 }

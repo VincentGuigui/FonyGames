@@ -90,7 +90,7 @@ Silently is the problem. No error, no reconnect, no log — the room simply stop
 only for clients that had been there long enough to have a high-water mark.
 
 It went unnoticed because none of the first five games goes quiet for long: something is on the
-wire every few hundred milliseconds, so the object is rarely evicted mid-round. Bump Relay's fuse
+wire every few hundred milliseconds, so the object is rarely evicted mid-round. Pass the Bomb's fuse
 is a deliberate 8–25 second silence, which is an eviction window by design — the `boom` that ends
 the round was the first frame to land on a fresh instance, and it never arrived.
 
@@ -117,7 +117,7 @@ the client's memory outlives the server's and the two disagree with no symptom.
 ### One alarm slot, everything that wants it
 
 A Durable Object has exactly **one** alarm, and every game competes for it: a Tap
-Duel timeout, a Bump Relay fuse, a Spill drop landing, a Goat Siege arrival, a
+Duel timeout, a Pass the Bomb fuse, a Spill drop landing, a Goat Siege arrival, a
 Sling Puck round cap — with seat/host housekeeping underneath all of them.
 
 Every subsystem calling `storage.setAlarm()` directly does not work — whichever

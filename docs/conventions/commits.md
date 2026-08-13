@@ -15,7 +15,7 @@ in the same commit or in an adjacent `docs:` commit — never be forgotten.
 - Type is lowercase, followed by `: `.
 - Summary is imperative ("add", not "added"/"adds"), ≤ 72 characters, no
   trailing period.
-- Scope may be added when useful: `game(bump-relay): tune bomb timer`.
+- Scope may be added when useful: `game(pass-the-bomb): tune bomb timer`.
 
 ## Types
 
@@ -24,7 +24,7 @@ in the same commit or in an adjacent `docs:` commit — never be forgotten.
 | `feat` | New user-facing capability that isn't a whole game | `feat: add room code sharing via QR` |
 | `game` | Adding or changing a game's playable content | `game(tilt-arena): add sudden-death mode` |
 | `ui` | Visual / layout / interaction work, no logic change | `ui: make hub cards thumb-reachable` |
-| `spec` | Writing or amending a specification in `docs/specs` | `spec: add Bump Relay game spec` |
+| `spec` | Writing or amending a specification in `docs/specs` | `spec: add Pass the Bomb game spec` |
 | `docs` | Any other documentation | `docs: define commit convention` |
 | `test` | Adding or changing tests | `test: cover bump detection threshold` |
 | `fix` | Bug fix | `fix: stop timer drifting on tab resume` |
@@ -100,9 +100,9 @@ See [../deployment.md](../deployment.md) for what each deploy does.
 For game work the topic **is the game slug**, so everything lines up:
 
 ```
-branch  feat/bump-relay
-spec    docs/specs/games/bump-relay.md
-code    www/src/games/bump-relay/
+branch  feat/pass-the-bomb
+spec    docs/specs/games/pass-the-bomb.md
+code    www/src/games/pass-the-bomb/
 ```
 
 Branch prefixes are deliberately coarser than the commit types above. One

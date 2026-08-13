@@ -23,7 +23,7 @@ import { aimSeat, wrapAngle } from '../shared/spillGeometry';
 /**
  * Spill — the referee. Spec: docs/specs/games/spill.md
  *
- * Same shape as bumpRelay.ts: all state is persisted (the object hibernates
+ * Same shape as passTheBomb.ts: all state is persisted (the object hibernates
  * between flicks), and everything reaches the sockets through `Ctx` so this
  * module stays testable and Room.ts stays under the 300-line guidance.
  *

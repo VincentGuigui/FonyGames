@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
 import {
-  BUMP_RELAY_MAX_PLAYERS,
-  BUMP_RELAY_MIN_PLAYERS,
+  BOMB_MAX_PLAYERS,
+  BOMB_MIN_PLAYERS,
   type PlayerId,
   type ServerMessage,
 } from '../../../../shared/protocol';
@@ -12,11 +12,11 @@ import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { detectBumps } from '../../core/sensors/bump';
 import { motionSupport, requestMotion, type MotionSupport } from '../../core/sensors/motion';
-import { applyRelay, type RelayState } from './game';
+import { applyBomb, type BombState } from './game';
 import { BombScreen } from './BombScreen';
 
 /**
- * Bump Relay's room screen. Spec: docs/specs/games/bump-relay.md
+ * Pass the Bomb's room screen. Spec: docs/specs/games/pass-the-bomb.md
  *
  * The first game in the catalogue that needs a **sensor permission**, so it is also the first
  * that has to ask for one without being obnoxious about it. Two rules shape this file:
@@ -28,16 +28,16 @@ import { BombScreen } from './BombScreen';
  *    permission is requested when the player opts in, and the game is fully playable if they
  *    never do (spec §5, §11).
  */
-export function BumpRoom(props: { game: GameCard }): JSX.Element {
+export function BombRoom(props: { game: GameCard }): JSX.Element {
   return (
     <RoomGate game={props.game}>
-      {(code) => <BumpRoomInner game={props.game} code={code} />}
+      {(code) => <BombRoomInner game={props.game} code={code} />}
     </RoomGate>
   );
 }
 
-function BumpRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
-  const [state, setState] = useState<RelayState>(null);
+function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const [state, setState] = useState<BombState>(null);
   /** Server time until which our bumps are being ignored, from a `calm-down` frame. */
   const [mutedUntil, setMutedUntil] = useState(0);
   const [support] = useState<MotionSupport>(motionSupport);
@@ -49,7 +49,7 @@ function BumpRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       setMutedUntil(msg.d.untilServerTime);
       return;
     }
-    setState((prev) => applyRelay(prev, msg, Date.now()));
+    setState((prev) => applyBomb(prev, msg, Date.now()));
   }, []);
 
   const room = useRoom(code, card.slug, onGame);
@@ -139,11 +139,11 @@ function BumpRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       onToggleQr={toggleQr}
       canStart={
         room.isHost &&
-        room.connected >= BUMP_RELAY_MIN_PLAYERS &&
-        room.connected <= BUMP_RELAY_MAX_PLAYERS
+        room.connected >= BOMB_MIN_PLAYERS &&
+        room.connected <= BOMB_MAX_PLAYERS
       }
       startLabel={state ? 'Play again' : 'Start round'}
-      onStart={() => client?.send({ t: 'start', d: { mode: 'relay' } })}
+      onStart={() => client?.send({ t: 'start', d: { mode: 'bomb' } })}
       note={note(room.isHost, room.connected)}
       playerTag={(id) => {
         if (!state) return null;
@@ -237,12 +237,12 @@ function MotionPrimer({
 }
 
 function note(isHost: boolean, connected: number): string {
-  if (connected < BUMP_RELAY_MIN_PLAYERS) {
-    const missing = BUMP_RELAY_MIN_PLAYERS - connected;
-    return `Need ${missing} more player${missing === 1 ? '' : 's'} — it takes ${BUMP_RELAY_MIN_PLAYERS} to pass a bomb around.`;
+  if (connected < BOMB_MIN_PLAYERS) {
+    const missing = BOMB_MIN_PLAYERS - connected;
+    return `Need ${missing} more player${missing === 1 ? '' : 's'} — it takes ${BOMB_MIN_PLAYERS} to pass a bomb around.`;
   }
-  if (connected > BUMP_RELAY_MAX_PLAYERS) {
-    return `${BUMP_RELAY_MAX_PLAYERS} players is the most this one takes.`;
+  if (connected > BOMB_MAX_PLAYERS) {
+    return `${BOMB_MAX_PLAYERS} players is the most this one takes.`;
   }
   if (!isHost) return 'The host starts the round.';
   return 'Stand in a circle, arms out. The fuse is hidden.';

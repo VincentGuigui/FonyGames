@@ -20,7 +20,7 @@ Assume a 6-player room, a 2-minute round, and the transmit caps already set in
 
 | | **Profile A — event games** | **Profile B — streaming games** |
 | --- | --- | --- |
-| Examples | Bump Relay, Tap Duel, Scream Meter | **Cat and Mouse** (the first one built), Tilt Arena, Shake Sprint |
+| Examples | Pass the Bomb, Tap Duel, Scream Meter | **Cat and Mouse** (the first one built), Tilt Arena, Shake Sprint |
 | Client → server | ~0.5 msg/s/player → 3 msg/s | 20 Hz × 6 → 120 msg/s |
 | Server → clients | ~2 events/s × 6 → 12 msg/s | 20 Hz × 6 → 120 msg/s |
 | **Per 2-min round** | ~360 in + ~1,440 out = **~1,800** | ~14,400 in + ~14,400 out = **~28,800** |

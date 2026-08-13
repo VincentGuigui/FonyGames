@@ -14,37 +14,56 @@
     Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
     doubled hyphen inside a comment is illegal and silently kills the whole file.
   -->
-  <!-- The two halves of one board, the join between them broken by the gap, your
-       band stretched into a V and a puck already through it.
+  <!-- The shot that has ALREADY been taken, seen from your end of the board.
 
-       Not drawn with the shared phone glyph: two portrait phones nose to nose is a
-       tall narrow arrangement, and at card size it came out as two flat bars with a
-       dot in one. These are the two HALVES OF THE BOARD, proportioned to fill the
-       box; the true phone geometry is taught by the lobby's diagram instead. -->
-  <g fill="#10121a" stroke="#FB7185" stroke-width="3">
-    <rect x="38" y="5" width="44" height="36" rx="6"/>
-    <rect x="38" y="49" width="44" height="36" rx="6"/>
-  </g>
-  <!-- The join, with the gap as a break in it. -->
+       The axis is vertical because the game is: two phones nose to nose, your half
+       on your screen, the gap at the top (spec §1). A side by side arrangement would
+       read better as a picture and be a lie about the game.
+
+       Three things carry the action, and each replaces something that made the
+       previous version read as a wiring diagram rather than a game:
+
+       1. YOUR half is bigger. Two equal rounded rects joined by a rail read as one
+          object split down the middle. Near half large, far half smaller and
+          narrower: two phones, one further away.
+       2. Only YOUR band is drawn. The far half had one too, and a straight line
+          inside a rounded rect reads as a speaker grille. You cannot see the other
+          player's half anyway (spec §4) so drawing it was wrong twice over.
+       3. The band is RELEASED, not pulled. A band pulled into a V reads as a
+          downward chevron, and a dashed trail feeding into that V reads as an arrow
+          pointing the wrong way. Snapped forward with the puck already gone, the
+          trail runs from the band up through the gap with nothing to mistake it for.
+  -->
+  <!-- Far half: set back, still phone shaped. Smaller than yours, not tiny: shrink it
+       far enough and it stops being a phone and becomes a little window. -->
+  <rect x="40" y="5" width="40" height="27" rx="5" fill="#10121a" stroke="#FB7185" stroke-width="2.5"/>
+  <!-- Near half: yours, filling the bottom of the box. -->
+  <rect x="30" y="44" width="60" height="42" rx="7" fill="#10121a" stroke="#FB7185" stroke-width="3"/>
+
+  <!-- The rail the two halves meet on, broken by the gap the puck goes through. -->
   <g stroke="#FB7185" stroke-width="4" stroke-linecap="round">
-    <path d="M36 45 L52 45"/><path d="M68 45 L84 45"/>
+    <path d="M28 38 L49 38"/><path d="M71 38 L92 38"/>
   </g>
-  <!-- Both bands, each with its two posts. The posts matter: without them a plain
-       line at the top of a rounded rect reads as a speaker grille, and a bare V
-       reads as a downward arrow rather than as something under tension. -->
+
+  <!-- The band, snapped forward, and its two posts. The posts are what make it a band
+       rather than a line; the shallow bow away from the gap is the recoil. -->
   <g fill="#FB7185">
-    <circle cx="44" cy="14" r="2.5"/><circle cx="76" cy="14" r="2.5"/>
-    <circle cx="44" cy="66" r="2.5"/><circle cx="76" cy="66" r="2.5"/>
+    <circle cx="38" cy="76" r="2.5"/><circle cx="82" cy="76" r="2.5"/>
   </g>
-  <path d="M44 14 L76 14" stroke="#FB7185" stroke-width="2.5" stroke-linecap="round"/>
-  <!-- Yours, pulled deep: the moment before a shot. -->
-  <path d="M44 66 L60 79 L76 66" fill="none" stroke="#FB7185" stroke-width="3.5"
-        stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- The puck caught IN the gap, mid-crossing, rather than past it with a trail:
-       a trail long enough to read had to start inside the V, and dashes-into-a-V is
-       a downward arrow, the opposite of what is happening. -->
-  <path d="M60 63 L60 54" fill="none" stroke="#FB7185" stroke-width="2.5"
-        stroke-dasharray="4 5" stroke-linecap="round"/>
-  <circle cx="60" cy="45" r="7" fill="#f4f1e8"/>
-  <circle cx="60" cy="45" r="3" fill="#10121a"/>
+  <path d="M38 76 Q60 71 82 76" fill="none" stroke="#FB7185" stroke-width="3"
+        stroke-linecap="round"/>
+
+  <!-- The shot is OFF AXIS, and that is the whole trick.
+
+       Every earlier version put the puck, the trail and the gap on one centred
+       vertical line, which is the grammar of a wiring diagram: symmetrical, static,
+       explaining itself. A trajectory that leans and clips the gap off centre reads as
+       something travelling, and it is also truer to the game, where you bank the puck
+       off the walls rather than firing it straight up the middle (spec §1). -->
+  <path d="M52 72 L68 30" fill="none" stroke="#FB7185" stroke-width="3"
+        stroke-dasharray="5 6" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- The puck, already across and off to one side. -->
+  <circle cx="70" cy="22" r="6.5" fill="#f4f1e8"/>
+  <circle cx="70" cy="22" r="2.5" fill="#10121a"/>
 </svg>

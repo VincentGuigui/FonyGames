@@ -25,7 +25,7 @@ Local dev therefore needs an HTTPS dev server or a tunnel — see
 
 1. **Never request a permission on the hub.** Only inside a game lobby.
 2. **Always show a primer first**: one sentence saying what the game does with
-   it ("Bump Relay needs motion to feel your phone tap another one."), plus the
+   it ("Pass the Bomb needs motion to feel your phone tap another one."), plus the
    button that triggers the real prompt. iOS requires that tap anyway.
 3. **Request only what the chosen mode needs.** A local mode that doesn't use
    GPS must not ask for GPS.

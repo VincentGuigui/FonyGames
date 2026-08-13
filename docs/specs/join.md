@@ -53,7 +53,7 @@ coordinates, only while the join screen is open, never stored.
 **Bump is rejected for joining** because it is inherently pairwise: a 6-player
 room needs a chain of five bumps with someone tracking who has already joined.
 It remains the right mechanic for the game it was designed for
-([games/bump-relay.md](games/bump-relay.md)).
+([games/pass-the-bomb.md](games/pass-the-bomb.md)).
 
 ### 2.3 Draw across devices — the flagship
 

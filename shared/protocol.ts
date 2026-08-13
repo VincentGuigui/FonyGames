@@ -271,11 +271,11 @@ export type ServerMessage =
   /** Only the offender is told, and only they see it. */
   | { t: 'false-start'; d: { roundId: number } }
   | { t: 'result'; s: number; d: RoundResult }
-  /** Bump Relay: the bomb is now here. Late frames with a lower `s` are dropped. */
+  /** Pass the Bomb: the bomb is now here. Late frames with a lower `s` are dropped. */
   | { t: 'bomb'; s: number; d: { roundId: number; holder: PlayerId; alive: PlayerId[] } }
-  /** Bump Relay: the fuse expired on `victim`. */
+  /** Pass the Bomb: the fuse expired on `victim`. */
   | { t: 'boom'; s: number; d: { roundId: number; victim: PlayerId; alive: PlayerId[] } }
-  /** Bump Relay: too many bumps too fast — this player's bumps are muted briefly. */
+  /** Pass the Bomb: too many bumps too fast — this player's bumps are muted briefly. */
   | { t: 'calm-down'; d: { untilServerTime: number } }
   /** Spill: full state. Sent at round start and after any resync. */
   | { t: 'spill'; s: number; d: SpillState }
@@ -496,7 +496,7 @@ export function randomTarget(): { x: number; y: number } {
 }
 
 /* ------------------------------------------------------------------ */
-/* Bump Relay (docs/specs/games/bump-relay.md)                          */
+/* Pass the Bomb (docs/specs/games/pass-the-bomb.md)                          */
 /* ------------------------------------------------------------------ */
 
 /** First fuse is drawn in this window; both bounds shrink after each boom. */
@@ -515,15 +515,15 @@ export const BUMP_QUOTA_WINDOW_MS = 10_000;
 export const BUMP_MUTE_MS = 3_000;
 
 /**
- * Bump Relay needs three players to be a game rather than a duel.
+ * Pass the Bomb needs three players to be a game rather than a duel.
  *
  * These per-game limits are **derived from `players.ts`**, which is the one place
  * they are written, so a card and its referee cannot promise different numbers.
  * Indexed reads rather than `export const [MIN, MAX] = …`: a destructured export
  * makes Rollup conservative about tree-shaking.
  */
-export const BUMP_RELAY_MIN_PLAYERS = PLAYERS['bump-relay'][0];
-export const BUMP_RELAY_MAX_PLAYERS = PLAYERS['bump-relay'][1];
+export const BOMB_MIN_PLAYERS = PLAYERS['pass-the-bomb'][0];
+export const BOMB_MAX_PLAYERS = PLAYERS['pass-the-bomb'][1];
 
 /** A round is hard-capped, per the safety rules in the spec. */
 export const BUMP_ROUND_CAP_MS = 5 * 60_000;

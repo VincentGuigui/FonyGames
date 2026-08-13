@@ -1,13 +1,13 @@
-# Bump Relay
+# Pass the Bomb
 
 > Status: **`classic` playable end to end**, beta until a play test. This is also the reference
 > example of a filled-in [game spec](../game-spec-template.md).
 
 | | |
 | --- | --- |
-| **Slug** | `bump-relay` |
+| **Slug** | `pass-the-bomb` |
 | **Catchy sentence** | *Smash phones together to pass the bomb before it blows* |
-| **Illustration** | `www/src/games/bump-relay/art/card.svg` — two phones tapping corner to corner, a cartoon bomb with a lit fuse jumping between them |
+| **Illustration** | `www/src/games/pass-the-bomb/art/card.svg` — two phones tapping corner to corner, a cartoon bomb with a lit fuse jumping between them |
 | **Players** | 3–8 |
 | **Round length** | 1–2 min |
 | **Inputs** | motion (bump), touch (fallback) |
@@ -113,7 +113,7 @@ Two deliberate differences from the original sketch:
 - **One-step pass, not request-and-confirm.** A receiver confirmation adds a round trip and a way
   to strand the bomb if the target never taps. The holder chooses and it moves.
 - **No `round-end` frame.** The round is over when a `boom` leaves one player or none, and the
-  phone derives it (`www/src/games/bump-relay/game.ts`). A client waiting for an explicit end
+  phone derives it (`www/src/games/pass-the-bomb/game.ts`). A client waiting for an explicit end
   frame would wait forever — which is worth stating plainly, because the sketch promised one.
 
 **Latency tolerance:** transfers are decided server-side within the ±250 ms
@@ -171,7 +171,7 @@ room's lifetime and is discarded when the room dies.
 
 ## 11b. What the phone UI actually does
 
-Screens are in `www/src/games/bump-relay/`: `BumpRoom.tsx` (lobby, permission, sensor wiring),
+Screens are in `www/src/games/pass-the-bomb/`: `BombRoom.tsx` (lobby, permission, sensor wiring),
 `BombScreen.tsx` (the four in-round states), `game.ts` (the reducer, with its own test).
 
 - **Nothing is asked for on arrival.** The permission primer is a button in the lobby, and

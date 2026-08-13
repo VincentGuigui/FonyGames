@@ -14,7 +14,7 @@
     "build:api": "node scripts/stage-api.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json",
-    "test": "npm run test:php && npm run test:flags && npm run test:outlines && npm run test:og && npm run test:cards && npm run test:seo && npm run test:cm && npm run test:drift && npm run test:relay && npm run test:relay-ui && npm run test:sprites && npm run test:router && npm run test:hash && npm run test:spill && npm run test:siege && npm run test:sling && npm run test:sling-game && npm run test:sling-room",
+    "test": "npm run test:php && npm run test:flags && npm run test:outlines && npm run test:og && npm run test:cards && npm run test:seo && npm run test:cm && npm run test:drift && npm run test:bomb && npm run test:bomb-ui && npm run test:sprites && npm run test:router && npm run test:hash && npm run test:spill && npm run test:siege && npm run test:sling && npm run test:sling-game && npm run test:sling-room",
     "test:php": "php api/tests/run.php",
     "test:spill": "esbuild worker/spill.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/spill.test.mjs --log-level=warning && node node_modules/.cache/spill.test.mjs",
     "test:siege": "esbuild worker/goatSiege.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/siege.test.mjs --log-level=warning && node node_modules/.cache/siege.test.mjs",
@@ -29,7 +29,7 @@
     "test:outlines": "node www/src/games/outlines.mjs --check",
     "test:cards": "node www/src/games/cards.test.mjs",
     "test:sprites": "esbuild www/src/core/art/sprites.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/sprites.test.mjs --log-level=warning && node node_modules/.cache/sprites.test.mjs",
-    "test:relay": "esbuild worker/bumpRelay.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/relay.test.mjs --log-level=warning && node node_modules/.cache/relay.test.mjs",
+    "test:bomb": "esbuild worker/passTheBomb.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/bomb.test.mjs --log-level=warning && node node_modules/.cache/bomb.test.mjs",
     "test:cm": "esbuild worker/catMouse.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/cm.test.mjs --log-level=warning && node node_modules/.cache/cm.test.mjs",
     "test:drift": "esbuild www/src/games/tap-duel/drift.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/drift.test.mjs --log-level=warning && node node_modules/.cache/drift.test.mjs",
     "test:router": "esbuild worker/router.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/router.test.mjs --log-level=warning && node node_modules/.cache/router.test.mjs",
@@ -40,7 +40,7 @@
     "test:ssr": "php api/tests/ssr_check.php",
     "postbuild": "npm run test:ssr",
     "test:hash": "esbuild www/src/core/room/hash.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/hash.test.mjs --log-level=warning && node node_modules/.cache/hash.test.mjs",
-    "test:relay-ui": "esbuild www/src/games/bump-relay/game.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/relayui.test.mjs --log-level=warning && node node_modules/.cache/relayui.test.mjs"
+    "test:bomb-ui": "esbuild www/src/games/pass-the-bomb/game.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/bombui.test.mjs --log-level=warning && node node_modules/.cache/bombui.test.mjs"
   },
   "dependencies": {
     "preact": "^10.27.2",
