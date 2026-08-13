@@ -72,6 +72,15 @@ export type ClientMessage =
    * the elapsed time could physically hold rather than believed.
    */
   | { t: 'shake'; d: { n: number; roundId: number } }
+  /** Ghost Hunt: I have calibrated my forward and I am ready to start. */
+  | { t: 'anchor'; d: { roundId: number } }
+  /**
+   * Ghost Hunt: I locked target `index`, `ms` after it appeared.
+   *
+   * One message per find — the aim itself never crosses the wire (ghost-hunt.md
+   * §6), so the server checks the only thing it can see, which is the clock.
+   */
+  | { t: 'found'; d: { roundId: number; index: number; ms: number } }
   /**
    * Spill: flick water off your screen. `angle` is radians clockwise from
    * screen-up; `speed` is in **screen heights per second**, so the server never
@@ -321,6 +330,39 @@ export type ServerMessage =
       t: 'steady-end';
       s: number;
       d: { roundId: number; winner: PlayerId | null; times: Record<PlayerId, number> };
+    }
+  /** Ghost Hunt: the shared sequence, and how far down it everyone has got. */
+  | {
+      t: 'hunt';
+      s: number;
+      d: {
+        roundId: number;
+        /**
+         * The ghosts, in order, in DEGREES — and relative to each player's OWN
+         * forward, not to north. Everyone hunts the same sequence, so it is a fair
+         * race, but each reads it against their own calibration (ghost-hunt.md §3).
+         *
+         * The whole sequence rather than just the live one, because progress is
+         * PER PLAYER: a fast player must not yank the ghost off somebody else's
+         * screen mid-sweep, and two people finding the same ghost both score
+         * (spec §7).
+         */
+        targets: { azimuth: number; elevation: number }[];
+        /** Which target each player is on. A `found` for any other index is stale. */
+        index: Record<PlayerId, number>;
+        endsAt: number;
+        scores: Record<PlayerId, number>;
+      };
+    }
+  /** Ghost Hunt: round over. `best` is the fastest single find, if there was one. */
+  | {
+      t: 'hunt-end';
+      s: number;
+      d: {
+        roundId: number;
+        scores: Record<PlayerId, number>;
+        best: { player: PlayerId; ms: number } | null;
+      };
     }
   /** Shake Rush: where everyone is on the track, and who has finished. */
   | {
@@ -772,6 +814,8 @@ const CLIENT_TYPES = new Set([
   'pass',
   'wobble',
   'shake',
+  'anchor',
+  'found',
   'fling',
   'catch',
   'lob',
@@ -881,3 +925,46 @@ export const RUSH_CAP_MS = 90_000;
 
 /** No frames for this long and a runner is marked `away` and frozen (spec §7). */
 export const RUSH_AWAY_MS = 3 * RUSH_TICK_MS;
+
+/* ------------------------------------------------------------------ */
+/* Ghost Hunt (docs/specs/games/ghost-hunt.md)                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How close the aim has to be, and for how long.
+ *
+ * The cone is findable by sweeping but too tight to hit by accident — about a
+ * dinner plate at two metres — and the dwell is what stops a sweep straight
+ * through the target from scoring (spec §2).
+ */
+export const LOCK_CONE_DEG = 12;
+export const LOCK_DWELL_MS = 600;
+
+/**
+ * Consecutive targets are never near each other, so a find always costs a
+ * movement. Without it the sequence can put two ghosts a few degrees apart and
+ * the second is free.
+ */
+export const TARGET_MIN_SEPARATION_DEG = 50;
+
+/** Nothing at your feet, nothing behind your head — and see the safety note, §9. */
+export const ELEVATION_MIN_DEG = -40;
+export const ELEVATION_MAX_DEG = 70;
+
+export const HUNT_ROUND_MS = 90_000;
+
+/**
+ * The floor on a believable find, and the only thing the server can check.
+ *
+ * It cannot see where a phone is pointing, so a patched client could claim every
+ * target instantly (spec §8). It can see the clock: `LOCK_DWELL_MS` alone is 600,
+ * so nothing honest arrives faster than this.
+ */
+export const MIN_FIND_MS = 700;
+
+/** How often the room state goes out while a round runs. */
+export const HUNT_TICK_MS = 500;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const HUNT_MIN_PLAYERS = PLAYERS['ghost-hunt'][0];
+export const HUNT_MAX_PLAYERS = PLAYERS['ghost-hunt'][1];

@@ -50,6 +50,14 @@ import {
   type Rush,
 } from './shakeRush';
 import {
+  nextDeadline as huntDeadline,
+  onFound,
+  onHuntTick,
+  startHunt,
+  type Ctx as HuntCtx,
+  type Hunt,
+} from './ghostHunt';
+import {
   nextDeadline as spillDeadline,
   onCatch as spillCatch,
   onFling as spillFling,
@@ -271,6 +279,18 @@ export class Room extends DurableObject {
         if (id) await onShake(this.#rushCtx(), id, msg.d.roundId, msg.d.n);
         return;
       }
+      case 'found': {
+        const id = this.#idOf(ws);
+        if (id) await onFound(this.#huntCtx(), id, msg.d.roundId, msg.d.index, msg.d.ms);
+        return;
+      }
+      /*
+       * Ghost Hunt calibrates entirely on the phone — the anchor is a local offset
+       * that never leaves the device (spec §10) — so there is nothing for the
+       * server to store. The message exists so the lobby can say who is ready.
+       */
+      case 'anchor':
+        return;
 
       case 'pass': {
         const id = this.#idOf(ws);
@@ -373,6 +393,13 @@ export class Room extends DurableObject {
       return;
     }
 
+    const hunt = await this.#hunt();
+    if (hunt && hunt.phase === 'running' && Date.now() >= huntDeadline(hunt)) {
+      await onHuntTick(this.#huntCtx());
+      await this.#rearm();
+      return;
+    }
+
     const spill = await this.#spill();
     if (spill && spill.phase === 'running' && Date.now() >= spillDeadline(spill)) {
       await spillTick(this.#spillCtx());
@@ -468,6 +495,8 @@ export class Room extends DurableObject {
     if (stilling && stilling.phase !== 'done') return;
     const rushing = await this.#rush();
     if (rushing && rushing.phase !== 'done') return;
+    const hunting = await this.#hunt();
+    if (hunting && hunting.phase !== 'done') return;
     const running = await this.#spill();
     if (running && running.phase !== 'done') return;
     const besieged = await this.#siege();
@@ -484,6 +513,7 @@ export class Room extends DurableObject {
       mode === 'bomb' ||
       mode === 'steady' ||
       mode === 'rush' ||
+      mode === 'hunt' ||
       mode === 'spill' ||
       mode === 'siege' ||
       mode === 'sling' ||
@@ -495,6 +525,7 @@ export class Room extends DurableObject {
       if (mode === 'bomb') await startBomb(this.#bombCtx(), roundId, ids);
       else if (mode === 'steady') await startSteady(this.#steadyCtx(), roundId, ids);
       else if (mode === 'rush') await startRush(this.#rushCtx(), roundId, ids);
+      else if (mode === 'hunt') await startHunt(this.#huntCtx(), roundId, ids);
       else if (mode === 'spill') await startSpill(this.#spillCtx(), roundId, ids);
       else if (mode === 'siege') await startSiege(this.#siegeCtx(), roundId, ids);
       else if (mode === 'sling') await startSling(this.#slingCtx(), roundId, ids);
@@ -669,6 +700,23 @@ export class Room extends DurableObject {
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#steady(),
       save: (s) => this.ctx.storage.put('steady', s),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #hunt(): Promise<Hunt | null> {
+    return (await this.ctx.storage.get<Hunt>('hunt')) ?? null;
+  }
+
+  #huntCtx(): HuntCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      // The one game whose referee needs randomness: it picks where the ghosts go.
+      random: () => Math.random(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#hunt(),
+      save: (s) => this.ctx.storage.put('hunt', s),
       setAlarm: () => this.#rearm(),
     };
   }
@@ -955,6 +1003,9 @@ export class Room extends DurableObject {
 
     const rush = await this.#rush();
     if (rush?.phase === 'running') return rushDeadline(rush);
+
+    const hunt = await this.#hunt();
+    if (hunt?.phase === 'running') return huntDeadline(hunt);
 
     const spill = await this.#spill();
     if (spill?.phase === 'running') return spillDeadline(spill);

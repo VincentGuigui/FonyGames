@@ -23,10 +23,10 @@ export const CARD: GameCard = {
     'Most ghosts in 90 seconds wins.',
   ],
   art: { src: art, alt: 'A phone held up, its screen a bright ring of traced edges' },
-  accent: '#FBBF24',
+  accent: '#34D399',
   players: PLAYERS['ghost-hunt'],
   duration: '90 s',
   inputs: ['orientation', 'camera', 'touch'],
   modes: [],
-  status: 'soon',
+  status: 'new',
 };

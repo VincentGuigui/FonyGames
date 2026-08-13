@@ -90,7 +90,7 @@ Index: **[docs/specs/README.md](docs/specs/README.md)**
 | **[Steady Hand](docs/specs/games/steady-hand.md)** | *Hold your phone perfectly still. Longer than everyone else.* | Motion | 🎮 playable, beta |
 | **Ghost Tag** | *One ghost, a whole neighbourhood, and a map that only whispers.* | GPS | 💡 idea |
 | **Zone Rush** | *Claim real streets by standing on them longer than your rivals.* | GPS | 💡 idea |
-| **Ghost Hunt** | *Sweep the room for ghosts only your phone can see.* | Tilt + camera | 📝 draft |
+| **[Ghost Hunt](docs/specs/games/ghost-hunt.md)** | *Sweep the room for ghosts only your phone can see.* | Tilt + camera | 🎮 playable, beta |
 | **Scream Meter** | *Loudest wins. Your neighbours will not be thanked.* | Microphone | 💡 idea |
 
 Full index and status: [docs/specs/README.md](docs/specs/README.md).

@@ -1,6 +1,8 @@
 # Ghost Hunt
 
-> Status: **draft**, awaiting validation. No code yet.
+> Status: **built, beta**. The numbers in §2 are guesses that need a real room —
+> `LOCK_CONE`, `LOCK_DWELL_MS`, and whether the Sobel filter holds its frame rate
+> on a mid-range phone (§12).
 >
 > **Replaces "Compass Hunt"**, a GPS treasure hunt where everyone followed one
 > arrow to a place. Nothing survives but the idea of hunting: no GPS, no walking,
@@ -17,12 +19,12 @@
 | --- | --- |
 | **Slug** | `ghost-hunt` |
 | **Catchy sentence** | *Sweep the room for ghosts only your phone can see* |
-| **Illustration** | `www/src/games/ghost-hunt/art/card.svg` — **to redraw**: a phone held up, its screen a bright ring cut out of the dark with an edge-traced shape inside it. The current compass needle belongs to the old idea |
+| **Illustration** | `www/src/games/ghost-hunt/art/card.svg` — a phone held up, its screen a bright ring cut out of the dark, a faint room wireframe inside it and a ghost traced in white. Replaced the compass needle, which belonged to the old idea |
 | **Players** | 2–8 |
 | **Round length** | 90 s |
 | **Inputs** | orientation (device attitude) + **camera**. Touch fallback (§5.4). No GPS, no magnetometer — see §3 |
-| **Accent colour** | `#FBBF24` |
-| **Status** | draft |
+| **Accent colour** | `#34D399` — a radar green, since the ring is a radar. Was `#FBBF24`; the amber belonged to the compass |
+| **Status** | built, beta |
 
 ## 1. Pitch
 
@@ -203,9 +205,18 @@ Ghost Hunt is *not* on the no-fallback list with Steady Hand and Shake Rush:
   is worth something on its own.
 
 Cost: one panorama asset shipped with the game, which is heavier than anything
-else in `art/`. It needs a budget (target **< 300 KB**, one image, lazily loaded
-only when the fallback is chosen) and it must be a place, not a room — a
-recognisable interior invites "why is my room not this room".
+else in `art/`. Budget: **< 300 KB**, one image, lazily loaded only when the
+fallback is chosen, and a place rather than a room — a recognisable interior
+invites "why is my room not this room".
+
+Shipping as `art/photosphere.png`: an illustrated colonnade at dusk, 2048×1024,
+**36 KB**, well inside the budget. Deliberately a PNG and not an SVG, because
+`outlines.mjs` walks every `art/` directory and would generate a hollow variant of
+it. It is a **placeholder for a real photograph** and swapping it is a file copy —
+same path, same dimensions, nothing else to change. Whatever replaces it must keep
+the projection honest: equirectangular means x is 0…360° of azimuth and y is
++90°…−90° of elevation, so **the horizon has to be the exact vertical midpoint**,
+and detail near the top and bottom edges smears across a whole pole.
 
 ## 6. Networking
 
@@ -216,7 +227,7 @@ cannot verify an aim, so it verifies *timing* instead (§8).
 | --- | --- | --- | --- |
 | `anchor` | client → server | `{roundId}` | I have calibrated and I am ready |
 | `found` | client → server | `{roundId, index, ms}` | I locked target `index`, `ms` after it appeared |
-| `hunt` | server → clients | `{roundId, index, azimuth, elevation, endsAt, scores}` | The current target and the state of the room |
+| `hunt` | server → clients | `{roundId, targets[], index: {playerId: n}, endsAt, scores}` | The shared sequence, and how far down it everyone is |
 | `hunt-end` | server → clients | `{roundId, scores, best}` | Round over |
 
 **The aim never crosses the wire.** The phone streams nothing during the round —
@@ -228,12 +239,25 @@ nothing.
 Every player gets the same `azimuth`/`elevation` per index, so the sequence is
 shared even though each player's frame is their own (§3).
 
+**Progress is per player over a shared sequence.** The first implementation had a
+single live target that advanced on the first find, and it was wrong twice over:
+it yanked the ghost off everyone else's screen mid-sweep, and it meant the second
+finder of a ghost scored nothing — which §7 says should score. So the frame carries
+the whole sequence and each player's place in it. The sequence is ~15 pairs of small
+numbers at the end of a 90 second round, which is cheap enough that a phone which
+missed a frame or joined late needs no resync path at all.
+
+**The broadcast deadline is a stored moment**, not "now plus a tick": Room's one
+alarm slot decides which game woke it by comparing the clock against that number,
+and a deadline computed from the caller's own clock is never due (steady-hand.md §6).
+
 ## 7. Failure & edge cases
 
 | Case | Behaviour |
 | --- | --- |
 | A player has not calibrated when the host starts | Start is blocked, and the lobby names who is not ready |
 | A player re-anchors mid-round | Allowed, free, and their current target stays the same one |
+| A player never chose a route before the host started | They get the photosphere, which needs no permission — and a **Sweep instead** button on the round screen, because the picker lives in the lobby and a link-joiner may never have seen it |
 | Orientation events stop (tab backgrounded) | Round continues; you simply find nothing. On return, the current target is still live |
 | `found` arrives for a target that has moved on | Ignored — a late lock on a stale index is not a point |
 | Two players find the same target | Both score. This is a race for count, not a claim on the target |
@@ -327,6 +351,8 @@ game (§5.3).
 - **Does the Sobel filter hold 15 fps at 160² on a real mid-range phone**, next to
   an open WebSocket and an orientation listener? The whole aesthetic depends on it
   being cheap. Fallback ladder in §5.2, and it needs a real device to settle.
+- **Is the placeholder panorama good enough to keep?** It is an illustration, not a
+  photograph, and a photograph would sell the "somewhere else" better (§5.4).
 - **Does yaw drift over 90 s in practice?** The anchoring design (§3) assumes it is
   small. If it is worse than ~10°, the re-anchor button stops being a comfort and
   becomes a chore.

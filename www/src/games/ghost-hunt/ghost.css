@@ -1,0 +1,342 @@
+/*
+ * Ghost Hunt round screens. Spec: docs/specs/games/ghost-hunt.md §4
+ *
+ * The whole interface is one split: outside the ring, your room; inside it, the
+ * room a ghost lives in. The hot/cold signal lives in the ring itself — it
+ * tightens, brightens and takes the accent colour as you close in — so there is
+ * no separate meter to look away at, which is a safety property as much as a
+ * design one (§9): your eyes stay up.
+ *
+ * `--hot` is 0…1, set on the root by the screen.
+ */
+
+.hunt {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100dvh;
+  padding: var(--space-4);
+  padding-top: max(var(--space-4), env(safe-area-inset-top));
+  padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
+  text-align: center;
+  background: #05070b;
+  color: var(--color-text);
+  overflow: hidden;
+  /* The sphere is dragged with a finger, so the browser must not also scroll. */
+  touch-action: none;
+}
+
+.hunt__backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Dimmed, so white outlines and white type stay legible over a lit room. */
+.hunt__veil {
+  position: absolute;
+  inset: 0;
+  background: rgb(5 7 11 / 0.55);
+  /* Decoration, and it covers the whole screen — without this it swallows every
+     drag before the photosphere ever sees one. */
+  pointer-events: none;
+}
+
+/* Same for the ring and the readout: they sit over the backdrop in the middle of
+   the screen, which is exactly where a thumb starts a drag. Only the controls in
+   the bar and the foot take a pointer. */
+.hunt__ringwrap {
+  pointer-events: none;
+}
+
+.hunt--dark .hunt__backdrop {
+  display: none;
+}
+
+.hunt__bar,
+.hunt__ringwrap,
+.hunt__foot {
+  position: relative;
+  width: 100%;
+}
+
+.hunt__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.hunt__label {
+  margin: 0;
+  font-size: var(--font-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dim);
+}
+
+/* --- the ring ------------------------------------------------------------ */
+
+.hunt__ringwrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin: auto 0;
+}
+
+.hunt__ring {
+  position: relative;
+  /* About a third of the screen, per the spec. */
+  width: min(62vw, 15rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  /*
+   * Brightness and glow are the hot/cold channel, and they are capped: the ring
+   * brightens smoothly rather than pulsing, so nothing here goes near the 3 Hz
+   * flashing limit (§11).
+   */
+  box-shadow:
+    0 0 0 calc(2px + var(--hot, 0) * 4px) var(--game-accent, var(--color-accent)),
+    0 0 calc(var(--hot, 0) * 44px) rgb(52 211 153 / calc(var(--hot, 0) * 0.55));
+  opacity: calc(0.72 + var(--hot, 0) * 0.28);
+  transition: opacity 120ms linear;
+}
+
+.hunt__edges {
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Chunky is the aesthetic: a crisp trace looks like a filter, a coarse one
+     looks like equipment. */
+  image-rendering: pixelated;
+}
+
+/* The dwell, on the ring's own rim — the thing you are staring at is the thing
+   telling you the answer. */
+.hunt__rim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.hunt__rim-track {
+  fill: none;
+  stroke: rgb(255 255 255 / 0.12);
+  stroke-width: 5;
+}
+
+.hunt__rim-fill {
+  fill: none;
+  stroke: var(--game-accent, var(--color-accent));
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+/* The number: the one channel that works entirely on its own (§11). */
+.hunt__reading {
+  margin: 0;
+  font-size: var(--font-large);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.hunt--near .hunt__reading {
+  color: var(--game-accent, var(--color-accent));
+}
+
+/* The found beat, fired by the SCORE going up — the server agreeing, not the
+   phone guessing. A fade, and reduced-motion turns even that off. */
+.hunt--found .hunt__ring {
+  animation: hunt-found 500ms ease-out;
+}
+
+@keyframes hunt-found {
+  from {
+    transform: scale(1.14);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hunt--found .hunt__ring {
+    animation: none;
+  }
+  .hunt__ring {
+    transition: none;
+  }
+}
+
+/* --- the foot ------------------------------------------------------------ */
+
+.hunt__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.hunt__board {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hunt__score {
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-2);
+  background: rgb(5 7 11 / 0.6);
+  font-size: var(--font-small);
+}
+
+.hunt__score--me {
+  box-shadow: inset 0 0 0 2px var(--game-accent, var(--color-accent));
+}
+
+.hunt__score-n {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.hunt__reanchor {
+  flex: none;
+}
+
+/* --- results -------------------------------------------------------------- */
+
+.hunt--over {
+  background: var(--color-bg);
+}
+
+.hunt__trophy {
+  margin: auto 0 0;
+  font-size: clamp(4rem, 26vw, 8rem);
+  line-height: 1;
+}
+
+.hunt__winner {
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: var(--font-large);
+  font-weight: 800;
+}
+
+.hunt__placing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hunt__place {
+  display: grid;
+  grid-template-columns: 2ch auto 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-2);
+  background: var(--color-surface);
+  text-align: left;
+}
+
+.hunt__place--me {
+  box-shadow: inset 0 0 0 2px var(--game-accent, var(--color-accent));
+}
+
+.hunt__place-n {
+  font-weight: 800;
+  color: var(--color-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.hunt__place-who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hunt__place-at {
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.hunt__best {
+  margin: var(--space-3) 0 auto;
+  color: var(--color-text-dim);
+}
+
+.hunt__again {
+  width: 100%;
+  margin-top: var(--space-4);
+}
+
+.hunt__note {
+  margin: var(--space-4) 0 0;
+  color: var(--color-text-dim);
+}
+
+/* --- the lobby's own panels ---------------------------------------------- */
+
+.hunt-safety__body,
+.hunt-safety__note,
+.hunt-privacy__body {
+  margin: 0;
+}
+
+.hunt-safety__note {
+  margin-top: var(--space-2);
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.hunt-route {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.hunt-route__pick {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15em;
+  padding: var(--space-3);
+  text-align: left;
+  height: auto;
+}
+
+.hunt-route__pick--on {
+  box-shadow: inset 0 0 0 2px var(--game-accent, var(--color-accent));
+}
+
+.hunt-route__title {
+  font-weight: 700;
+}
+
+.hunt-route__note {
+  font-size: var(--font-small);
+  font-weight: 400;
+  color: var(--color-text-dim);
+  white-space: normal;
+}
+
+.hunt-route__camera {
+  width: 100%;
+  margin-top: var(--space-2);
+}
