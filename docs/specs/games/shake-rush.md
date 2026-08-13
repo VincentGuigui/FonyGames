@@ -1,6 +1,7 @@
 # Shake Rush
 
-> Status: **draft**, awaiting validation. No code yet.
+> Status: **built, beta**. `RUSH_DISTANCE` and the tolerance for a room full of
+> real arms are still guesses — see §12.
 
 | | |
 | --- | --- |
@@ -11,7 +12,7 @@
 | **Round length** | ~1 min, hard cap 90 s |
 | **Inputs** | motion (shake). **No fallback** — see §5 |
 | **Accent colour** | `#4ADE80` |
-| **Status** | draft |
+| **Status** | built, beta |
 
 ## 1. Pitch
 
@@ -138,6 +139,16 @@ broadcasts on its own **~10 Hz** tick. Under
 [realtime-server.md](../../realtime-server.md)'s Profile B, this is well inside
 budget.
 
+**An empty window is never sent.** The phone reports only ticks that actually
+contained accelerometer samples. A window with none has a count of zero, which is
+indistinguishable from "did not shake" — and sending it would keep a backgrounded
+or sensor-less runner from ever being marked `away` (§7). Steady Hand learnt this
+the hard way; see steady-hand.md §6.
+
+**The broadcast deadline is a stored moment**, not "now plus a tick": Room's one
+alarm slot decides which game woke it by comparing the clock against that number,
+and a deadline computed from the caller's own clock is never due.
+
 ## 7. Failure & edge cases
 
 | Case | Behaviour |
@@ -154,12 +165,27 @@ A client that lies about its shake count wins, and there is no way to prove it
 did not — the accelerometer is not observable from the server. Everything below
 is about making the *easy* cheats pointless rather than pretending to solve it.
 
-- **The rate cap is the real defence.** `SHAKE_RATE_CAP` clips a batch to a
-  humanly-possible rate. Reporting 500 shakes in one frame advances you by 8.
-- **Batches are checked against elapsed time**, not accepted at face value: a
-  150 ms tick can carry at most `SHAKE_RATE_CAP × 0.15` shakes.
+There are **three** ceilings, and none of them is redundant — each closes a hole
+the other two leave open. All three are pinned by `worker/shakeRush.test.ts`.
+
+- **The frame cap.** A batch is clipped to `SHAKE_RATE_CAP × elapsed`, plus one
+  shake of slack so a frame that lands early does not clip an honest player.
+  Reporting 500 shakes in one 150 ms frame advances you by 2.
+- **The trajectory cap** (`reachableBy`). The frame cap's slack is *per frame*,
+  so at a 150 ms tick a client claiming the maximum every time banks 13 shakes a
+  second against a cap of 8 — a third off the race, just by sending more frames.
+  Bounding the *position* by the elapsed round time makes the slack a constant
+  rather than a rate, and splitting a lie across frames stops paying.
+- **The claim window** (`RUSH_AWAY_MS`). Both caps above measure from a clock, so
+  a phone that says nothing for sixteen seconds may then claim sixteen seconds'
+  worth in one frame and arrive at the line from a standing start — both caps
+  satisfied. A frame may only claim for as long as the away threshold, which is
+  the same rule the player is already being shown: an away runner freezes (§7).
 - **No client-reported distance, ever.** The phone reports increments; the server
   owns the position.
+- **And the phone throttles itself first.** `SHAKE_REFRACTORY_MS` means the
+  detector cannot report more than ~11/s however hard the phone is shaken, so an
+  unmodified client never reaches the server's cap at all.
 - Beyond that: it is a party game among people in the same room, and the
   strongest anti-cheat is that everyone can see you not shaking.
 
@@ -201,4 +227,7 @@ room.
 - Should a runner **slow down** when you stop, rather than freezing? Decay would
   punish pacing and reward continuous effort, which is funnier but crueller.
 - Is one lane per player readable at 8 players on a 390 px screen, or does it
-  need to collapse to "you + the leader" above some count?
+  need to collapse to "you + the leader" above some count? Verified legible at 3
+  lanes on a 390 px viewport; 8 is untested.
+- `SHAKE_THRESHOLD` at 14 m/s² is set against a synthesised accelerometer, not a
+  real arm. It is the number most likely to be wrong on contact with a phone.

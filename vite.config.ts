@@ -31,6 +31,7 @@ export default defineConfig({
         'cat-and-mouse': 'www/cat-and-mouse/index.html',
         'pass-the-bomb': 'www/pass-the-bomb/index.html',
         'steady-hand': 'www/steady-hand/index.html',
+        'shake-rush': 'www/shake-rush/index.html',
         // The admin centre. Built to a PLACEHOLDER directory name and renamed to the
         // ADMIN_PATH secret by the deploy — this repository is public, so the real
         // path cannot be committed (docs/deployment.md §3.4).
