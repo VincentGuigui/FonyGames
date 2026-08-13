@@ -16,9 +16,10 @@ export const CARD: GameCard = {
   slug: 'shake-rush',
   title: 'Shake Rush',
   pitch: 'Shake like your life depends on it — first to the finish wins',
-  concept: 'Pure effort: the harder you shake, the faster you move.',
+  concept: 'Pure effort: every change of direction moves you one step down the track.',
   rules: [
     'Shake to move down the track.',
+    'It counts changes of direction, not force — shaking harder does not help.',
     'First over the finish line wins.',
   ],
   art: { src: art, alt: 'A phone shaking, motion lines either side of it' },
@@ -27,5 +28,5 @@ export const CARD: GameCard = {
   duration: '1 min',
   inputs: ['motion'],
   modes: [],
-  status: 'soon',
+  status: 'new',
 };

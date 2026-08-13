@@ -14,7 +14,7 @@
     "build:api": "node scripts/stage-api.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json",
-    "test": "npm run test:php && npm run test:flags && npm run test:outlines && npm run test:og && npm run test:cards && npm run test:seo && npm run test:cm && npm run test:drift && npm run test:bomb && npm run test:bomb-ui && npm run test:steady && npm run test:steady-ui && npm run test:sprites && npm run test:router && npm run test:hash && npm run test:spill && npm run test:siege && npm run test:sling && npm run test:sling-game && npm run test:sling-room",
+    "test": "npm run test:php && npm run test:flags && npm run test:outlines && npm run test:og && npm run test:cards && npm run test:seo && npm run test:cm && npm run test:drift && npm run test:bomb && npm run test:bomb-ui && npm run test:steady && npm run test:steady-ui && npm run test:rush && npm run test:rush-ui && npm run test:sprites && npm run test:router && npm run test:hash && npm run test:spill && npm run test:siege && npm run test:sling && npm run test:sling-game && npm run test:sling-room",
     "test:php": "php api/tests/run.php",
     "test:spill": "esbuild worker/spill.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/spill.test.mjs --log-level=warning && node node_modules/.cache/spill.test.mjs",
     "test:siege": "esbuild worker/goatSiege.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/siege.test.mjs --log-level=warning && node node_modules/.cache/siege.test.mjs",
@@ -42,7 +42,9 @@
     "test:hash": "esbuild www/src/core/room/hash.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/hash.test.mjs --log-level=warning && node node_modules/.cache/hash.test.mjs",
     "test:bomb-ui": "esbuild www/src/games/pass-the-bomb/game.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/bombui.test.mjs --log-level=warning && node node_modules/.cache/bombui.test.mjs",
     "test:steady": "esbuild worker/steadyHand.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/steady.test.mjs --log-level=warning && node node_modules/.cache/steady.test.mjs",
-    "test:steady-ui": "esbuild www/src/games/steady-hand/game.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/steadyui.test.mjs --log-level=warning && node node_modules/.cache/steadyui.test.mjs"
+    "test:steady-ui": "esbuild www/src/games/steady-hand/game.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/steadyui.test.mjs --log-level=warning && node node_modules/.cache/steadyui.test.mjs",
+    "test:rush": "esbuild worker/shakeRush.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/rush.test.mjs --log-level=warning && node node_modules/.cache/rush.test.mjs",
+    "test:rush-ui": "esbuild www/src/games/shake-rush/game.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/rushui.test.mjs --log-level=warning && node node_modules/.cache/rushui.test.mjs"
   },
   "dependencies": {
     "preact": "^10.27.2",

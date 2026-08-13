@@ -1,0 +1,227 @@
+/*
+ * Shake Rush round screens. Spec: docs/specs/games/shake-rush.md §4
+ *
+ * Every size here is set by one constraint: it has to be readable while the phone
+ * is being shaken violently. Nothing thin, nothing small, nothing that depends on
+ * fine detail — and no animation on the runners, because a transition on a bar
+ * that already moves ten times a second reads as lag.
+ */
+
+.rush {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100dvh;
+  padding: var(--space-4);
+  padding-top: max(var(--space-4), env(safe-area-inset-top));
+  padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
+  text-align: center;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.rush__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.rush__label {
+  margin: 0;
+  font-size: var(--font-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dim);
+}
+
+/* --- the count ----------------------------------------------------------- */
+
+.rush__togo {
+  margin: auto 0 0;
+  font-size: clamp(4.5rem, 30vw, 9rem);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--game-accent, var(--color-accent));
+}
+
+.rush__togo-note {
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: var(--font-small);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dim);
+}
+
+/* --- the track ----------------------------------------------------------- */
+
+.rush__track {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  margin: 0 auto auto;
+  padding: 0;
+  list-style: none;
+}
+
+.rush__lane {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, 28%) 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-2);
+  background: var(--color-surface);
+}
+
+/* Your own lane, findable without reading it. */
+.rush__lane--me {
+  background: color-mix(in srgb, var(--game-accent, var(--color-accent)) 16%, var(--color-surface));
+  box-shadow: inset 0 0 0 2px var(--game-accent, var(--color-accent));
+}
+
+.rush__lane--away {
+  opacity: 0.55;
+}
+
+.rush__lane-who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--font-small);
+  text-align: left;
+}
+
+.rush__lane-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rush__lane-away {
+  flex: none;
+  padding: 0 0.35em;
+  border-radius: var(--radius-1);
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--color-bg);
+  color: var(--color-text-dim);
+}
+
+.rush__lane-rail {
+  position: relative;
+  display: block;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: var(--color-bg);
+  overflow: visible;
+}
+
+.rush__lane-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  background: var(--game-accent, var(--color-accent));
+  /* No transition: the server sends a position ten times a second, and easing
+     between them shows the phone catching up rather than the runner running. */
+}
+
+.rush__runner {
+  position: absolute;
+  top: 50%;
+  translate: -50% -50%;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+/* The number that still works when two runners are a few pixels apart. */
+.rush__lane-n {
+  min-width: 2.5ch;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- the finish ---------------------------------------------------------- */
+
+.rush__trophy {
+  margin: auto 0 0;
+  font-size: clamp(4rem, 26vw, 8rem);
+  line-height: 1;
+}
+
+.rush__winner {
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: var(--font-large);
+  font-weight: 800;
+}
+
+.rush__placing {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: 100%;
+  margin: 0 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.rush__place {
+  display: grid;
+  grid-template-columns: 2ch auto 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-2);
+  background: var(--color-surface);
+  text-align: left;
+}
+
+.rush__place--me {
+  box-shadow: inset 0 0 0 2px var(--game-accent, var(--color-accent));
+}
+
+.rush__place-n {
+  font-weight: 800;
+  color: var(--color-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.rush__place-who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rush__place-at {
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.rush__again {
+  width: 100%;
+  margin-top: var(--space-4);
+}
+
+.rush__note {
+  margin: var(--space-4) 0 0;
+  color: var(--color-text-dim);
+}
+
+/* --- the lobby's own panels ---------------------------------------------- */
+
+.rush-safety__body,
+.rush-safety__note {
+  margin: 0;
+}
+
+.rush-safety__note {
+  margin-top: var(--space-2);
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}

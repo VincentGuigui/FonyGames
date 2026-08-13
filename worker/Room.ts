@@ -41,6 +41,15 @@ import {
   type Steady,
 } from './steadyHand';
 import {
+  nextDeadline as rushDeadline,
+  onPlayerGone as rushPlayerGone,
+  onRushTick,
+  onShake,
+  startRush,
+  type Ctx as RushCtx,
+  type Rush,
+} from './shakeRush';
+import {
   nextDeadline as spillDeadline,
   onCatch as spillCatch,
   onFling as spillFling,
@@ -257,6 +266,11 @@ export class Room extends DurableObject {
         if (id) await onWobble(this.#steadyCtx(), id, msg.d.roundId, msg.d.w, msg.d.held);
         return;
       }
+      case 'shake': {
+        const id = this.#idOf(ws);
+        if (id) await onShake(this.#rushCtx(), id, msg.d.roundId, msg.d.n);
+        return;
+      }
 
       case 'pass': {
         const id = this.#idOf(ws);
@@ -348,6 +362,13 @@ export class Room extends DurableObject {
     const steady = await this.#steady();
     if (steady && steady.phase === 'running' && Date.now() >= steadyDeadline(steady)) {
       await onSteadyTick(this.#steadyCtx());
+      await this.#rearm();
+      return;
+    }
+
+    const rush = await this.#rush();
+    if (rush && rush.phase === 'running' && Date.now() >= rushDeadline(rush)) {
+      await onRushTick(this.#rushCtx());
       await this.#rearm();
       return;
     }
@@ -445,6 +466,8 @@ export class Room extends DurableObject {
     if (bomb && bomb.phase !== 'done') return;
     const stilling = await this.#steady();
     if (stilling && stilling.phase !== 'done') return;
+    const rushing = await this.#rush();
+    if (rushing && rushing.phase !== 'done') return;
     const running = await this.#spill();
     if (running && running.phase !== 'done') return;
     const besieged = await this.#siege();
@@ -460,6 +483,7 @@ export class Room extends DurableObject {
     if (
       mode === 'bomb' ||
       mode === 'steady' ||
+      mode === 'rush' ||
       mode === 'spill' ||
       mode === 'siege' ||
       mode === 'sling' ||
@@ -470,6 +494,7 @@ export class Room extends DurableObject {
       const ids = ready.map((p) => p.id);
       if (mode === 'bomb') await startBomb(this.#bombCtx(), roundId, ids);
       else if (mode === 'steady') await startSteady(this.#steadyCtx(), roundId, ids);
+      else if (mode === 'rush') await startRush(this.#rushCtx(), roundId, ids);
       else if (mode === 'spill') await startSpill(this.#spillCtx(), roundId, ids);
       else if (mode === 'siege') await startSiege(this.#siegeCtx(), roundId, ids);
       else if (mode === 'sling') await startSling(this.#slingCtx(), roundId, ids);
@@ -633,6 +658,10 @@ export class Room extends DurableObject {
     return (await this.ctx.storage.get<Steady>('steady')) ?? null;
   }
 
+  async #rush(): Promise<Rush | null> {
+    return (await this.ctx.storage.get<Rush>('rush')) ?? null;
+  }
+
   #steadyCtx(): SteadyCtx {
     return {
       now: () => Date.now(),
@@ -640,6 +669,17 @@ export class Room extends DurableObject {
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#steady(),
       save: (s) => this.ctx.storage.put('steady', s),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
+  #rushCtx(): RushCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#rush(),
+      save: (s) => this.ctx.storage.put('rush', s),
       setAlarm: () => this.#rearm(),
     };
   }
@@ -851,6 +891,7 @@ export class Room extends DurableObject {
     // refresh keeps their water (see the reaping loop in alarm()).
     await bombPlayerGone(this.#bombCtx(), id);
     await steadyPlayerGone(this.#steadyCtx(), id);
+    await rushPlayerGone(this.#rushCtx(), id);
     // No #ensureHost here: promoting the moment a socket drops is exactly
     // what stole the host role from anyone who refreshed. The alarm handles
     // it once HOST_GRACE_MS has passed.
@@ -911,6 +952,9 @@ export class Room extends DurableObject {
 
     const steady = await this.#steady();
     if (steady?.phase === 'running') return steadyDeadline(steady);
+
+    const rush = await this.#rush();
+    if (rush?.phase === 'running') return rushDeadline(rush);
 
     const spill = await this.#spill();
     if (spill?.phase === 'running') return spillDeadline(spill);

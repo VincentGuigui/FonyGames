@@ -85,7 +85,7 @@ Index: **[docs/specs/README.md](docs/specs/README.md)**
 | **[Goat Siege](docs/specs/games/goat-siege.md)** | *Shoo the neighbours' goats before they eat your cabbages.* | Touch | 🎮 playable, beta |
 | **[Sling Puck](docs/specs/games/sling-puck.md)** | *Sling every puck onto their side before they sling them back.* | Touch | 🎮 playable, beta |
 | **[Cat and Mouse](docs/specs/games/cat-and-mouse.md)** | *One cat, a floor full of mice, and nowhere to hide.* | Touch | ✅ built, beta |
-| **[Shake Rush](docs/specs/games/shake-rush.md)** | *Shake like your life depends on it — first to the finish wins.* | Motion | 📝 spec written |
+| **[Shake Rush](docs/specs/games/shake-rush.md)** | *Shake like your life depends on it — first to the finish wins.* | Motion | 🎮 playable, beta |
 | **Tilt Arena** | *Tilt to steer, crash to win.* | Orientation | 💡 idea |
 | **[Steady Hand](docs/specs/games/steady-hand.md)** | *Hold your phone perfectly still. Longer than everyone else.* | Motion | 🎮 playable, beta |
 | **Ghost Tag** | *One ghost, a whole neighbourhood, and a map that only whispers.* | GPS | 💡 idea |

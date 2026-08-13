@@ -65,6 +65,14 @@ export type ClientMessage =
    */
   | { t: 'wobble'; d: { w: number; held: boolean; roundId: number } }
   /**
+   * Shake Rush: how many shakes I felt since my last frame.
+   *
+   * An increment, never a position — the server owns where anyone is
+   * (shake-rush.md §8), and a client that sends an absurd `n` is clipped to what
+   * the elapsed time could physically hold rather than believed.
+   */
+  | { t: 'shake'; d: { n: number; roundId: number } }
+  /**
    * Spill: flick water off your screen. `angle` is radians clockwise from
    * screen-up; `speed` is in **screen heights per second**, so the server never
    * has to know how big anyone's phone is. `dropId` re-flings a caught drop.
@@ -313,6 +321,27 @@ export type ServerMessage =
       t: 'steady-end';
       s: number;
       d: { roundId: number; winner: PlayerId | null; times: Record<PlayerId, number> };
+    }
+  /** Shake Rush: where everyone is on the track, and who has finished. */
+  | {
+      t: 'rush';
+      s: number;
+      d: {
+        roundId: number;
+        endsAt: number;
+        /** Shakes travelled, per player. `RUSH_DISTANCE` is the line. */
+        at: Record<PlayerId, number>;
+        /** Finish order so far, first to last. */
+        finished: PlayerId[];
+        /** Players whose phone has stopped reporting — their runner is frozen. */
+        away: PlayerId[];
+      };
+    }
+  /** Shake Rush: round over. `order` is the finish order, then the furthest of the rest. */
+  | {
+      t: 'rush-end';
+      s: number;
+      d: { roundId: number; order: PlayerId[]; at: Record<PlayerId, number> };
     }
   /** Spill: full state. Sent at round start and after any resync. */
   | { t: 'spill'; s: number; d: SpillState }
@@ -742,6 +771,7 @@ const CLIENT_TYPES = new Set([
   'bump',
   'pass',
   'wobble',
+  'shake',
   'fling',
   'catch',
   'lob',
@@ -805,3 +835,49 @@ export const STEADY_MAX_PLAYERS = PLAYERS['steady-hand'][1];
 
 /** Hard cap, per the safety rules in the spec. */
 export const STEADY_CAP_MS = 2 * 60_000;
+
+/* ------------------------------------------------------------------ */
+/* Shake Rush (docs/specs/games/shake-rush.md)                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A shake is a **direction reversal**, not a magnitude, and the whole game rests
+ * on that choice (spec §2.1).
+ *
+ * Summing acceleration rewards violence: the harder you swing, the bigger the
+ * number, so the winning strategy becomes swinging a phone as hard as a human
+ * can — which is how a phone leaves a hand and hits a wall. Counting reversals
+ * makes a gentle fast shake beat a wild slow one, and it equalises phones, since
+ * peak magnitude varies with mass and case while a count does not.
+ */
+export const SHAKE_THRESHOLD = 14;
+export const SHAKE_REFRACTORY_MS = 90;
+
+/** How often a phone reports its count. Batched, not one message per shake. */
+export const RUSH_TICK_MS = 150;
+
+/** The server's own broadcast tick, ~10 Hz. */
+export const RUSH_BROADCAST_MS = 100;
+
+/**
+ * The ceiling on a believable rate, in shakes per second.
+ *
+ * This is the real anti-cheat (spec §8) — a batch is clipped to what the elapsed
+ * time could physically hold, so reporting 500 shakes in one frame advances you
+ * by the same amount as shaking hard. It doubles as the safety rule: there is no
+ * reward for shaking harder than is sensible.
+ */
+export const SHAKE_RATE_CAP = 8;
+
+/** The finish line, in shakes. A guess pending a play test (spec §12). */
+export const RUSH_DISTANCE = 120;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const RUSH_MIN_PLAYERS = PLAYERS['shake-rush'][0];
+export const RUSH_MAX_PLAYERS = PLAYERS['shake-rush'][1];
+
+/** Hard cap. Nobody wants a shake-off that never ends. */
+export const RUSH_CAP_MS = 90_000;
+
+/** No frames for this long and a runner is marked `away` and frozen (spec §7). */
+export const RUSH_AWAY_MS = 3 * RUSH_TICK_MS;
