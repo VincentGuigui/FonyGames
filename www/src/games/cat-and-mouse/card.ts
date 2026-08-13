@@ -33,5 +33,5 @@ export const CARD: GameCard = {
   // Built, and new enough to shout about. It ships with no tap-only fallback and
   // says so in the lobby rather than in a doc — a deliberate decision, not a gap
   // (spec §12).
-  status: 'new',
+  status: 'live',
 };

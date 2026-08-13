@@ -88,17 +88,21 @@ export type GameCard = {
    * | Value | Badge | Tappable | Order |
    * | --- | --- | --- | --- |
    * | `live` | none | yes | first |
-   * | `new` | **NEW**, in the accent | yes | after `live` |
    * | `soon` | **SOON**, quiet | **no**, and dimmed | last |
    *
-   * `new` replaced `beta`. Same switch, different promise: the hub's job is to sell a
-   * game, and "beta" reads as *might be broken* where "new" reads as *look at this*.
-   * A game's actual maturity is not lost — it stays in its spec's Status row, which is
-   * where an honest "playable but the balance numbers are guesses" belongs, and which
-   * nobody browsing the hub is reading.
+   * **This says whether a game EXISTS, not how it is being sold.** There used to be a
+   * third value, `new`, and it was a mistake: the NEW badge is a merchandising
+   * decision that changes every few weeks, and baking it into a bundle meant the only
+   * way to take it off a card was a deploy. Worse, `cardState` OR'd it with the flag,
+   * so the admin's NEW toggle silently did nothing for exactly the games that had it.
+   *
+   * NEW now lives entirely in `flags.json`, set from the admin centre. A game's actual
+   * maturity is not lost either — it stays in its spec's Status row, which is where an
+   * honest "playable but the balance numbers are guesses" belongs, and which nobody
+   * browsing the hub is reading.
    *
    * Adding a value means: this table, the badge in `GameCardTile`, an
    * `ORDER` entry in `games/registry.ts`, and a `.game-card__badge--<value>` rule.
    */
-  status: 'live' | 'new' | 'soon';
+  status: 'live' | 'soon';
 };

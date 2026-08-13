@@ -32,5 +32,5 @@ export const CARD: GameCard = {
   ],
   // `new`: playable, but §14 of the spec has the puck count and gap width
   // down as open questions, and only a play test settles either.
-  status: 'new',
+  status: 'live',
 };

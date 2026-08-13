@@ -31,5 +31,5 @@ export const CARD: GameCard = {
     { id: 'patch', name: 'Patch', blurb: 'Six cabbages each, last garden standing' },
   ],
   // `new`: playable, but §11 of the spec lists real balance questions.
-  status: 'new',
+  status: 'live',
 };

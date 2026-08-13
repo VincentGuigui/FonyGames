@@ -90,8 +90,8 @@ including on branches that must not deploy.
 | `FTPHOST` | Server hostname, e.g. `ftp.example.com` (no scheme, no port) | site |
 | `FTPUSER` | SSH/SFTP account login | site |
 | `FTPPWD` | SSH/SFTP account password | site |
-| `CLOUDFLARE_API_TOKEN` | **Edit Cloudflare Workers** token | room server |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account id | room server |
+| `CLOUDFLARE_API_TOKEN` | **Edit Cloudflare Workers** token | room server — **required on `prod`**, see below |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account id | room server — **required on `prod`**, see below |
 | `ADMIN_PATH` | Folder name the admin page is deployed under, e.g. `ops-7f3a91` | site (§3.4) |
 | `ADMIN_EMAIL` | The one address a magic link may be sent to | site (admin config) |
 | `ADMIN_TOKEN` | Break-glass bearer, **and what the deploy uses to apply migrations** (§3.7). `openssl rand -hex 32` | site (admin config) |
@@ -388,6 +388,9 @@ re-uploads everything.
 | Files land in the wrong folder | `remote-path` is absolute (`/www`). If the SFTP account is chrooted to its home, the web root may be `www` or `~/www` instead. |
 | Files land one level too deep | `local-path` names the folder whose *contents* are uploaded. `local-path: dist` is correct; `local-path: .` would publish the whole repo. |
 | Deploy uploads nothing | Almost certainly `sync: delta`, which cannot see generated files (§5). Use `full`. |
+| **Every game says "Connection lost — reconnecting…", but the site itself is fine** | The room server is not there. The site and the Worker deploy in two independent jobs, so the hub can be perfectly current while no Worker has ever been published. Check the run's **☁️ Deploy room server** job: if its `☁️ Publish` step says *skipped*, `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` are missing from that GitHub **Environment**. This is now a failed deploy on `prod` rather than a warning — it was a warning once, and prod ran without a room server because nobody reads a green run's warnings. |
+| `https://…workers.dev/health answered 000` | The Worker published but is not reachable at the hostname the site is compiled to use. Most likely its **workers.dev route is disabled** in the Cloudflare dashboard (Worker → Settings → Domains & Routes) — publishing does not enable it. Confirm the name matches `www/src/core/room/config.ts`. |
+| `No room server mapped for <host>` | The site's hostname is not in `www/src/core/room/config.ts`, so the browser would fall back to `ws://127.0.0.1:8787` and no game could connect. Add the mapping. |
 | Raw `.tsx` files on the server | `local-path` is pointing at `www/` (source) instead of `dist/` (build output). |
 | Build fails on a type error | Intended — `npm run build` runs `tsc --noEmit` first, so broken types never ship. |
 | Two deploys race | Shouldn't happen: `concurrency` serialises per branch and never cancels a running sync. |

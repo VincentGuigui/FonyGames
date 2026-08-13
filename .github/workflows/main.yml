@@ -427,9 +427,15 @@ jobs:
     - name: 🚚 Get latest code
       uses: actions/checkout@v6
 
-    # Skip rather than fail while the Cloudflare secrets are not yet set, so
-    # adding this job cannot break the site deploy. Remove once both are in
-    # every environment.
+    # This step used to warn-and-skip in every environment, and that is exactly how
+    # production shipped for weeks with no room server: the secrets were never set,
+    # `Publish` was skipped on every single run, and the deploy went green anyway.
+    # Every game on prod failed with "Connection lost — reconnecting…" while CI said
+    # success. A warning nobody reads is not a signal.
+    #
+    # So on `prod` a missing credential is now a FAILED deploy. `dev` keeps the
+    # warning: it is the branch where a half-configured environment is a normal
+    # state, and blocking it buys nothing.
     - name: 🔐 Check Cloudflare credentials
       id: creds
       env:
@@ -438,10 +444,24 @@ jobs:
       run: |
         if [ -n "$CF_API_TOKEN" ] && [ -n "$CF_ACCOUNT_ID" ]; then
           echo "ready=true" >> "$GITHUB_OUTPUT"
-        else
-          echo "ready=false" >> "$GITHUB_OUTPUT"
-          echo "::warning::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set in environment '${{ github.ref_name }}' — skipping room server deploy."
+          exit 0
         fi
+
+        echo "ready=false" >> "$GITHUB_OUTPUT"
+
+        missing=""
+        [ -n "$CF_API_TOKEN" ]  || missing="$missing CLOUDFLARE_API_TOKEN"
+        [ -n "$CF_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+
+        if [ "${{ github.ref_name }}" = "prod" ]; then
+          echo "::error::Missing in the 'prod' GitHub Environment:$missing — the room"\
+               "server was NOT deployed, so every game on the site will fail to connect."\
+               "Set them under Settings → Environments → prod (docs/deployment.md §6)."
+          exit 1
+        fi
+
+        echo "::warning::Missing in the 'dev' GitHub Environment:$missing — skipping the"\
+             "room server deploy. The site is up but no game can open a room."
 
     - name: 🟢 Set up Node
       if: steps.creds.outputs.ready == 'true'
@@ -467,3 +487,45 @@ jobs:
         # --env selects the block in wrangler.jsonc, so `dev` and `prod` are
         # separate Workers with separate Durable Object namespaces.
         command: deploy --env ${{ github.ref_name }}
+
+    # A published Worker is not the same thing as a reachable one: the workers.dev
+    # route can be disabled per Worker, and the browser's only symptom for that is a
+    # failed handshake the player reads as "Connection lost". Ask the Worker itself,
+    # over the exact hostname the site is compiled to use.
+    - name: 🩺 Room server answers
+      if: steps.creds.outputs.ready == 'true'
+      run: |
+        # Read the hostname out of config.ts rather than repeating it here. That
+        # file is the single place the browser's mapping lives, and a copy in this
+        # workflow would keep passing against the old host on the day it changes —
+        # checking the wrong server is worse than not checking one.
+        if [ "${{ github.ref_name }}" = "prod" ]; then
+          SITE="fonygames.guigui.fr"
+        else
+          SITE="fonygames-dev.guigui.fr"
+        fi
+
+        HOST=$(sed -n "s|.*'$SITE': *'wss://\([^']*\)'.*|\1|p" www/src/core/room/config.ts)
+        if [ -z "$HOST" ]; then
+          echo "::error::No room server mapped for $SITE in www/src/core/room/config.ts."\
+               "The site would fall back to localhost and no game could connect."
+          exit 1
+        fi
+
+        # A fresh deploy takes a moment to propagate, so this retries rather than
+        # failing on the first miss.
+        for attempt in 1 2 3 4 5; do
+          STATUS=$(curl -fsS -o /tmp/health -w '%{http_code}' -m 15 "https://$HOST/health" || echo 000)
+          [ "$STATUS" = "200" ] && break
+          sleep 5
+        done
+
+        if [ "$STATUS" != "200" ]; then
+          echo "::error::https://$HOST/health answered $STATUS. The Worker deployed but is"\
+               "not reachable at the hostname www/src/core/room/config.ts maps this site to,"\
+               "so every game will fail to connect. Check that the workers.dev route is"\
+               "enabled for this Worker (docs/deployment.md §6)."
+          exit 1
+        fi
+
+        echo "Room server healthy at https://$HOST/health — $(cat /tmp/health)"

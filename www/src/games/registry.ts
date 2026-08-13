@@ -43,7 +43,7 @@ export const GAMES: GameCard[] = [
 ];
 
 /** Display order by status. One entry per value of `GameCard['status']`. */
-const ORDER = { live: 0, new: 1, soon: 2 } as const;
+const ORDER = { live: 0, soon: 1 } as const;
 
 /** Catalogue in display order. */
 export function catalogue(): GameCard[] {

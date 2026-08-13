@@ -32,5 +32,5 @@ export const CARD: GameCard = {
   ],
   // `new`: playable end to end, but the numbers in spec §12 are guesses
   // until a real table test.
-  status: 'new',
+  status: 'live',
 };

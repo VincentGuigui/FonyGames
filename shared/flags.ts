@@ -61,19 +61,29 @@ export function mayOpenRoom(
  * **The stricter of the two wins** (spec §2b). `status` says how finished a game is;
  * the flag says whether it may be played now. A `soon` game that someone flipped to
  * `active` is still `soon` — the code does not exist yet, and a flag cannot conjure it.
+ *
+ * ## NEW is a flag and ONLY a flag
+ *
+ * This used to read `flag.isNew || status === 'new'`, and the `||` made the admin's
+ * NEW toggle a no-op for every game whose card said `status: 'new'`: turning the flag
+ * off left the badge on, because the build-time half of the OR still held. Nothing in
+ * the admin could ever clear it — the only way was a deploy.
+ *
+ * A badge that says "look at this" is a *merchandising* decision that changes every
+ * few weeks, so it belongs to the operator, not to a constant compiled into a bundle.
+ * `status` now only says whether a game exists yet.
  */
 export function cardState(
-  status: 'live' | 'new' | 'soon',
+  status: 'live' | 'soon',
   flag: GameFlag,
   /** dev shows everything with a badge stating what prod would do (spec §2b). */
   showAll: boolean,
 ): { show: boolean; playable: boolean; badge: string | null } {
   if (status === 'soon') return { show: true, playable: false, badge: 'soon' };
 
-  const isNew = flag.isNew || status === 'new';
   switch (flag.availability) {
     case 'active':
-      return { show: true, playable: true, badge: isNew ? 'new' : null };
+      return { show: true, playable: true, badge: flag.isNew ? 'new' : null };
     case 'disabled':
       return {
         show: true,

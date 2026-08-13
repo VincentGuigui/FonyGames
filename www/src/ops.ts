@@ -170,9 +170,7 @@ function render(state: State): void {
     const view = cardState(game.status, flag, false);
 
     // Prefixed, because the badge is the OUTCOME and the buttons below are the INPUTS.
-    // Unlabelled, a "NEW" badge sitting next to a "NEW off" button reads as a bug — it
-    // is not: `status: 'new'` is compiled into card.ts and the flag is a separate,
-    // additional way to switch the badge on (spec §5).
+    // Unlabelled, a "NEW" badge sitting beside a NEW button reads as a bug.
     name.append(
       el(
         'span',
@@ -188,8 +186,6 @@ function render(state: State): void {
     const buildTimeSoon = game.status === 'soon';
     if (buildTimeSoon) {
       name.append(el('span', 'ops__slug', 'not built — a flag cannot make it playable'));
-    } else if (game.status === 'new') {
-      name.append(el('span', 'ops__slug', 'status: new, so the badge is on either way'));
     }
 
     row.append(name);
@@ -206,8 +202,18 @@ function render(state: State): void {
       controls.append(b);
     }
 
-    const isNew = el('button', 'ops__choice', flag.isNew ? 'NEW flag on' : 'NEW flag off');
+    /*
+     * A toggle, labelled with what it controls rather than with its own state.
+     *
+     * It used to read "NEW flag on" / "NEW flag off", which is ambiguous on a button —
+     * is that the current state or the thing pressing it will do? The availability
+     * buttons beside it already answer that by naming the value and lighting up the
+     * one in force, so this matches them. `aria-pressed` carries the state for anyone
+     * who cannot see the highlight.
+     */
+    const isNew = el('button', 'ops__choice', 'NEW');
     if (flag.isNew) isNew.classList.add('is-on');
+    isNew.setAttribute('aria-pressed', String(flag.isNew));
     isNew.disabled = buildTimeSoon;
     isNew.addEventListener('click', () => {
       void write({ slug: game.slug, isNew: !flag.isNew });

@@ -28,5 +28,5 @@ export const CARD: GameCard = {
   duration: '1 min',
   inputs: ['motion'],
   modes: [],
-  status: 'new',
+  status: 'live',
 };

@@ -33,5 +33,5 @@ export const CARD: GameCard = {
     { id: 'simon', name: 'Simon', blurb: 'Repeat the sequence, faster each round' },
   ],
   // `new`: pistol mode is playable; sprint and simon are not built yet.
-  status: 'new',
+  status: 'live',
 };
