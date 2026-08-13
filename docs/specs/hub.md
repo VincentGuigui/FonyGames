@@ -24,7 +24,7 @@ play something in under ten seconds.
 │                             │
 │ ┌───────────┐ ┌───────────┐ │
 │ │illustration│ │illustration│ │  1 column on narrow phones,
-│ │ Bump Relay │ │Shake Sprint│ │  2 columns from 380 px
+│ │ Pass the Bomb │ │Shake Sprint│ │  2 columns from 380 px
 │ │ pitch      │ │ pitch      │ │
 │ │ 2–8·2min·📳│ │ 2–8·1min·📳│ │
 │ └───────────┘ └───────────┘ │

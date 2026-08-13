@@ -19,7 +19,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 
 | Game | Catchy sentence | Input | Players | Status |
 | --- | --- | --- | --- | --- |
-| [Bump Relay](games/bump-relay.md) | *Smash phones together to pass the bomb before it blows* | bump / motion | 3–8 | 📝 draft |
+| [Pass the Bomb](games/pass-the-bomb.md) | *Smash phones together to pass the bomb before it blows* | bump / motion | 3–8 | 📝 draft |
 | Shake Sprint | *Shake like your life depends on it — first to the finish wins* | motion | 2–8 | 💡 idea |
 | Tilt Arena | *Tilt to steer, crash to win* | orientation | 2–6 | 💡 idea |
 | Steady Hand | *Hold your phone perfectly still. Longer than everyone else* | motion | 2–8 | 💡 idea |

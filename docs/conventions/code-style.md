@@ -17,7 +17,7 @@
 
 | Thing | Convention | Example |
 | --- | --- | --- |
-| Files & folders | kebab-case | `bump-relay/`, `room-client.ts` |
+| Files & folders | kebab-case | `pass-the-bomb/`, `room-client.ts` |
 | Game slug | kebab-case, matches folder and URL | `tilt-arena` |
 | Functions, variables | camelCase | `startRound` |
 | Types, interfaces | PascalCase, no `I` prefix | `GameCard` |

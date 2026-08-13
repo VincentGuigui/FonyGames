@@ -38,7 +38,7 @@ A card is a **promise in one glance**:
 │      ILLUSTRATION         │  explicit: you can guess the game from it alone
 │                           │
 ├───────────────────────────┤
-│ Bump Relay                │  title
+│ Pass the Bomb                │  title
 │ Smash phones together to  │  ONE catchy sentence, ≤ 60 chars, no period
 │ pass the bomb.            │
 │ 2–8 · 1–2 min · 📳 motion │  players · duration · input icons

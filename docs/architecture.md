@@ -98,7 +98,7 @@ shared/                 wire protocol, imported by BOTH www/ and worker/
 worker/                 the room server (docs/realtime-server.md)
   index.ts              router: origin check, code check, idFromName
   Room.ts               the Durable Object — one per room
-  bumpRelay.ts          Bump Relay round logic, driven through a Ctx interface
+  passTheBomb.ts          Pass the Bomb round logic, driven through a Ctx interface
   spill.ts              } one referee per game, same Ctx shape, each with a
   goatSiege.ts          } .test.ts beside it (docs/testing.md §1.1)
   slingPuck.ts          }
@@ -171,7 +171,7 @@ anything about it. Source of truth: `www/src/core/types.ts`.
 ```ts
 type GameCard = {
   slug: string;            // url segment, kebab-case
-  title: string;           // "Bump Relay"
+  title: string;           // "Pass the Bomb"
   pitch: string;           // ONE catchy sentence, ≤ 60 chars
   art: { src: string;      // from `import … from './art/card.svg?url&no-inline'`
          alt: string };    // what it SHOWS — required, ui-guidelines §6

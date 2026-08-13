@@ -3,8 +3,8 @@ import {
   BUMP_PAIR_WINDOW_MS,
   BUMP_QUOTA,
   BUMP_QUOTA_WINDOW_MS,
-  BUMP_RELAY_MAX_PLAYERS,
-  BUMP_RELAY_MIN_PLAYERS,
+  BOMB_MAX_PLAYERS,
+  BOMB_MIN_PLAYERS,
   BUMP_ROUND_CAP_MS,
   CLOCK_SKEW_TOLERANCE_MS,
   FUSE_FLOOR_MAX_MS,
@@ -17,14 +17,14 @@ import {
 } from '../shared/protocol';
 
 /**
- * Bump Relay — `classic` mode. Spec: docs/specs/games/bump-relay.md
+ * Pass the Bomb — `classic` mode. Spec: docs/specs/games/pass-the-bomb.md
  *
  * Kept out of Room.ts so neither file outgrows the 300-line guidance in
  * docs/conventions/code-style.md. Everything here is driven through `Ctx`,
  * which Room supplies — this module never touches a socket directly.
  */
 
-export type Relay = {
+export type Bomb = {
   roundId: number;
   holder: PlayerId;
   /** Server time at which the bomb goes off unless it is passed on. */
@@ -50,8 +50,8 @@ export type Ctx = {
   nextSeq(): number;
   broadcast(msg: ServerMessage): void;
   sendTo(playerId: PlayerId, msg: ServerMessage): void;
-  load(): Promise<Relay | null>;
-  save(relay: Relay): Promise<void>;
+  load(): Promise<Bomb | null>;
+  save(bomb: Bomb): Promise<void>;
   setAlarm(at: number): Promise<void>;
 };
 
@@ -60,20 +60,20 @@ function drawFuse(min: number, max: number, now: number): number {
 }
 
 /** Host pressed start. Returns false when the room is not eligible. */
-export async function startRelay(
+export async function startBomb(
   ctx: Ctx,
   roundId: number,
   connected: PlayerId[],
 ): Promise<boolean> {
   // Both ends, from shared/players.ts. The maximum was missing, so a ninth and tenth
   // player could join and start a round the card had promised was 3-8.
-  if (connected.length < BUMP_RELAY_MIN_PLAYERS) return false;
-  if (connected.length > BUMP_RELAY_MAX_PLAYERS) return false;
+  if (connected.length < BOMB_MIN_PLAYERS) return false;
+  if (connected.length > BOMB_MAX_PLAYERS) return false;
 
   const now = ctx.now();
   const holder = connected[Math.floor(Math.random() * connected.length)] as PlayerId;
 
-  const relay: Relay = {
+  const bomb: Bomb = {
     roundId,
     holder,
     fuseAt: drawFuse(FUSE_MIN_MS, FUSE_MAX_MS, now),
@@ -87,14 +87,14 @@ export async function startRelay(
     phase: 'running',
   };
 
-  await ctx.save(relay);
+  await ctx.save(bomb);
   // The remaining time is never sent — that is the whole game (spec §2.1).
   ctx.broadcast({
     t: 'bomb',
     s: ctx.nextSeq(),
-    d: { roundId, holder, alive: relay.alive },
+    d: { roundId, holder, alive: bomb.alive },
   });
-  await ctx.setAlarm(relay.fuseAt);
+  await ctx.setAlarm(bomb.fuseAt);
   return true;
 }
 
@@ -111,30 +111,30 @@ export async function onBump(
   roundId: number,
   clientAt: number,
 ): Promise<void> {
-  const relay = await ctx.load();
-  if (!relay || relay.phase !== 'running') return;
+  const bomb = await ctx.load();
+  if (!bomb || bomb.phase !== 'running') return;
   // A bump belongs to the round it was felt in. Without this, a stale frame
   // from a previous round — or a forged one — moves the current bomb.
-  if (relay.roundId !== roundId) return;
-  if (!relay.alive.includes(playerId)) return;
+  if (bomb.roundId !== roundId) return;
+  if (!bomb.alive.includes(playerId)) return;
 
   const now = ctx.now();
 
-  if ((relay.mutedUntil[playerId] ?? 0) > now) return;
+  if ((bomb.mutedUntil[playerId] ?? 0) > now) return;
 
   // Never trust a client timestamp beyond a small skew allowance.
   const at = Math.min(Number.isFinite(clientAt) ? clientAt : now, now + CLOCK_SKEW_TOLERANCE_MS);
 
   // Anti-spam: shaking wildly produces a stream of spikes. Exceeding the quota
   // mutes this player briefly rather than ending their round (spec §8).
-  const recent = (relay.quota[playerId] ?? []).filter(
+  const recent = (bomb.quota[playerId] ?? []).filter(
     (t) => now - t < BUMP_QUOTA_WINDOW_MS,
   );
   recent.push(now);
-  relay.quota[playerId] = recent;
+  bomb.quota[playerId] = recent;
   if (recent.length > BUMP_QUOTA) {
-    relay.mutedUntil[playerId] = now + BUMP_MUTE_MS;
-    await ctx.save(relay);
+    bomb.mutedUntil[playerId] = now + BUMP_MUTE_MS;
+    await ctx.save(bomb);
     ctx.sendTo(playerId, {
       t: 'calm-down',
       d: { untilServerTime: now + BUMP_MUTE_MS },
@@ -144,44 +144,44 @@ export async function onBump(
 
   // Drop bumps too old to pair with anything, so `pending` cannot grow without
   // bound over a long round.
-  for (const [other, t] of Object.entries(relay.pending)) {
-    if (at - t > BUMP_PAIR_WINDOW_MS) delete relay.pending[other];
+  for (const [other, t] of Object.entries(bomb.pending)) {
+    if (at - t > BUMP_PAIR_WINDOW_MS) delete bomb.pending[other];
   }
 
   // Look for a partner: someone else whose bump landed within the window.
   let partner: PlayerId | null = null;
-  for (const [other, t] of Object.entries(relay.pending)) {
+  for (const [other, t] of Object.entries(bomb.pending)) {
     if (other === playerId) continue;
-    if (Math.abs(at - t) <= BUMP_PAIR_WINDOW_MS && relay.alive.includes(other)) {
+    if (Math.abs(at - t) <= BUMP_PAIR_WINDOW_MS && bomb.alive.includes(other)) {
       partner = other;
       break;
     }
   }
 
   if (!partner) {
-    relay.pending[playerId] = at;
-    await ctx.save(relay);
+    bomb.pending[playerId] = at;
+    await ctx.save(bomb);
     return;
   }
 
-  delete relay.pending[partner];
-  delete relay.pending[playerId];
+  delete bomb.pending[partner];
+  delete bomb.pending[playerId];
 
   // Exactly one of the pair must be holding the bomb; the other receives it.
   const receiver =
-    relay.holder === playerId ? partner : relay.holder === partner ? playerId : null;
+    bomb.holder === playerId ? partner : bomb.holder === partner ? playerId : null;
   if (!receiver) {
-    await ctx.save(relay);
+    await ctx.save(bomb);
     return;
   }
 
-  relay.holder = receiver;
-  await ctx.save(relay);
+  bomb.holder = receiver;
+  await ctx.save(bomb);
   // Passing does NOT reset the fuse — the alarm stays where it was.
   ctx.broadcast({
     t: 'bomb',
     s: ctx.nextSeq(),
-    d: { roundId: relay.roundId, holder: receiver, alive: relay.alive },
+    d: { roundId: bomb.roundId, holder: receiver, alive: bomb.alive },
   });
 }
 
@@ -192,18 +192,18 @@ export async function onPass(
   roundId: number,
   to: PlayerId,
 ): Promise<void> {
-  const relay = await ctx.load();
-  if (!relay || relay.phase !== 'running') return;
-  if (relay.roundId !== roundId) return;
-  if (relay.holder !== from) return;
-  if (from === to || !relay.alive.includes(to)) return;
+  const bomb = await ctx.load();
+  if (!bomb || bomb.phase !== 'running') return;
+  if (bomb.roundId !== roundId) return;
+  if (bomb.holder !== from) return;
+  if (from === to || !bomb.alive.includes(to)) return;
 
-  relay.holder = to;
-  await ctx.save(relay);
+  bomb.holder = to;
+  await ctx.save(bomb);
   ctx.broadcast({
     t: 'bomb',
     s: ctx.nextSeq(),
-    d: { roundId: relay.roundId, holder: to, alive: relay.alive },
+    d: { roundId: bomb.roundId, holder: to, alive: bomb.alive },
   });
 }
 
@@ -212,40 +212,40 @@ export async function onPass(
  * Returns true when the round is over.
  */
 export async function onFuse(ctx: Ctx): Promise<boolean> {
-  const relay = await ctx.load();
-  if (!relay || relay.phase !== 'running') return false;
+  const bomb = await ctx.load();
+  if (!bomb || bomb.phase !== 'running') return false;
 
   const now = ctx.now();
-  const victim = relay.holder;
-  relay.alive = relay.alive.filter((p) => p !== victim);
-  relay.pending = {};
+  const victim = bomb.holder;
+  bomb.alive = bomb.alive.filter((p) => p !== victim);
+  bomb.pending = {};
 
   ctx.broadcast({
     t: 'boom',
     s: ctx.nextSeq(),
-    d: { roundId: relay.roundId, victim, alive: relay.alive },
+    d: { roundId: bomb.roundId, victim, alive: bomb.alive },
   });
 
   // Last player standing, or the safety cap hit — either way we stop.
-  if (relay.alive.length <= 1 || now >= relay.endsAt) {
-    relay.phase = 'done';
-    await ctx.save(relay);
+  if (bomb.alive.length <= 1 || now >= bomb.endsAt) {
+    bomb.phase = 'done';
+    await ctx.save(bomb);
     return true;
   }
 
   // Shrink the fuse so each round tightens, with a floor so it stays playable.
-  relay.fuseMin = Math.max(FUSE_FLOOR_MIN_MS, Math.round(relay.fuseMin * FUSE_SHRINK));
-  relay.fuseMax = Math.max(FUSE_FLOOR_MAX_MS, Math.round(relay.fuseMax * FUSE_SHRINK));
-  relay.holder = relay.alive[Math.floor(Math.random() * relay.alive.length)] as PlayerId;
-  relay.fuseAt = drawFuse(relay.fuseMin, relay.fuseMax, now);
+  bomb.fuseMin = Math.max(FUSE_FLOOR_MIN_MS, Math.round(bomb.fuseMin * FUSE_SHRINK));
+  bomb.fuseMax = Math.max(FUSE_FLOOR_MAX_MS, Math.round(bomb.fuseMax * FUSE_SHRINK));
+  bomb.holder = bomb.alive[Math.floor(Math.random() * bomb.alive.length)] as PlayerId;
+  bomb.fuseAt = drawFuse(bomb.fuseMin, bomb.fuseMax, now);
 
-  await ctx.save(relay);
+  await ctx.save(bomb);
   ctx.broadcast({
     t: 'bomb',
     s: ctx.nextSeq(),
-    d: { roundId: relay.roundId, holder: relay.holder, alive: relay.alive },
+    d: { roundId: bomb.roundId, holder: bomb.holder, alive: bomb.alive },
   });
-  await ctx.setAlarm(Math.min(relay.fuseAt, relay.endsAt));
+  await ctx.setAlarm(Math.min(bomb.fuseAt, bomb.endsAt));
   return false;
 }
 
@@ -254,31 +254,31 @@ export async function onFuse(ctx: Ctx): Promise<boolean> {
  * stalls until the fuse blows on someone who is not there.
  */
 export async function onPlayerGone(ctx: Ctx, playerId: PlayerId): Promise<void> {
-  const relay = await ctx.load();
-  if (!relay || relay.phase !== 'running') return;
-  if (!relay.alive.includes(playerId)) return;
+  const bomb = await ctx.load();
+  if (!bomb || bomb.phase !== 'running') return;
+  if (!bomb.alive.includes(playerId)) return;
 
-  relay.alive = relay.alive.filter((p) => p !== playerId);
-  delete relay.pending[playerId];
+  bomb.alive = bomb.alive.filter((p) => p !== playerId);
+  delete bomb.pending[playerId];
 
-  if (relay.alive.length <= 1) {
-    relay.phase = 'done';
-    await ctx.save(relay);
+  if (bomb.alive.length <= 1) {
+    bomb.phase = 'done';
+    await ctx.save(bomb);
     ctx.broadcast({
       t: 'boom',
       s: ctx.nextSeq(),
-      d: { roundId: relay.roundId, victim: playerId, alive: relay.alive },
+      d: { roundId: bomb.roundId, victim: playerId, alive: bomb.alive },
     });
     return;
   }
 
-  if (relay.holder === playerId) {
-    relay.holder = relay.alive[Math.floor(Math.random() * relay.alive.length)] as PlayerId;
+  if (bomb.holder === playerId) {
+    bomb.holder = bomb.alive[Math.floor(Math.random() * bomb.alive.length)] as PlayerId;
   }
-  await ctx.save(relay);
+  await ctx.save(bomb);
   ctx.broadcast({
     t: 'bomb',
     s: ctx.nextSeq(),
-    d: { roundId: relay.roundId, holder: relay.holder, alive: relay.alive },
+    d: { roundId: bomb.roundId, holder: bomb.holder, alive: bomb.alive },
   });
 }

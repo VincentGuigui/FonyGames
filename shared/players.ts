@@ -38,7 +38,7 @@ export type PlayerLimits = readonly [min: number, max: number];
 export const PLAYERS = {
   'tap-duel': [2, 8],
   spill: [2, 4],
-  'bump-relay': [3, 8],
+  'pass-the-bomb': [3, 8],
   'goat-siege': [2, 4],
   'sling-puck': [2, 2],
   'cat-and-mouse': [2, 6],

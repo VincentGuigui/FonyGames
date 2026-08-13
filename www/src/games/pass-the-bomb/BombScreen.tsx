@@ -2,13 +2,13 @@ import { useEffect, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
 import { GameMenu } from '../../core/ui/GameMenu';
-import type { RelayView } from './game';
+import type { BombView } from './game';
 
 /** How long the explosion holds the screen before the next bomb view returns. */
 const BOOM_MS = 2200;
 
 /**
- * The round, on one phone. Spec: docs/specs/games/bump-relay.md §4
+ * The round, on one phone. Spec: docs/specs/games/pass-the-bomb.md §4
  *
  * Four states, and which one you see is decided entirely by the referee's last frame:
  *
@@ -36,7 +36,7 @@ export function BombScreen({
   canBump,
   muted,
 }: {
-  state: RelayView;
+  state: BombView;
   players: Player[];
   myId: PlayerId | undefined;
   title: string;
@@ -78,33 +78,33 @@ export function BombScreen({
 
   if (iAmOut) {
     return (
-      <div class="relay relay--out">
-        <div class="relay__bar">
-          <p class="relay__label">You're out — watching</p>
+      <div class="bombscreen bombscreen--out">
+        <div class="bombscreen__bar">
+          <p class="bombscreen__label">You're out — watching</p>
           <GameMenu title={title} concept={concept} rules={rules} />
         </div>
-        <p class="relay__holder-avatar" aria-hidden="true">
+        <p class="bombscreen__holder-avatar" aria-hidden="true">
           {avatar(state.holder)}
         </p>
-        <p class="relay__holder-name">{name(state.holder)} has it</p>
-        <p class="relay__still-in">{state.alive.length} still in</p>
+        <p class="bombscreen__holder-name">{name(state.holder)} has it</p>
+        <p class="bombscreen__still-in">{state.alive.length} still in</p>
       </div>
     );
   }
 
   if (iAmHolder) {
     return (
-      <div class="relay relay--holder">
-        <div class="relay__bar">
-          <p class="relay__label">You have it</p>
+      <div class="bombscreen bombscreen--holder">
+        <div class="bombscreen__bar">
+          <p class="bombscreen__label">You have it</p>
           <GameMenu title={title} concept={concept} rules={rules} />
         </div>
 
-        <p class="relay__bomb" aria-hidden="true">
+        <p class="bombscreen__icon" aria-hidden="true">
           💣
         </p>
-        <p class="relay__shout">PASS IT</p>
-        <p class="relay__how">
+        <p class="bombscreen__shout">PASS IT</p>
+        <p class="bombscreen__how">
           {muted
             ? 'Too much shaking — hold still a moment.'
             : canBump
@@ -117,14 +117,14 @@ export function BombScreen({
           rather than a consolation for a denied permission). It is folded away by default so
           it does not become what the holder stares at.
         */}
-        <details class="relay__tap">
-          <summary class="relay__tap-summary">Pass with a tap instead</summary>
-          <ul class="relay__targets">
+        <details class="bombscreen__tap">
+          <summary class="bombscreen__tap-summary">Pass with a tap instead</summary>
+          <ul class="bombscreen__targets">
             {state.alive
               .filter((id) => id !== myId)
               .map((id) => (
                 <li key={id}>
-                  <button class="btn relay__target" type="button" onClick={() => onPass(id)}>
+                  <button class="btn bombscreen__target" type="button" onClick={() => onPass(id)}>
                     <span aria-hidden="true">{avatar(id)}</span> {name(id)}
                   </button>
                 </li>
@@ -136,16 +136,16 @@ export function BombScreen({
   }
 
   return (
-    <div class="relay relay--watching">
-      <div class="relay__bar">
-        <p class="relay__label">{state.alive.length} still in</p>
+    <div class="bombscreen bombscreen--watching">
+      <div class="bombscreen__bar">
+        <p class="bombscreen__label">{state.alive.length} still in</p>
         <GameMenu title={title} concept={concept} rules={rules} />
       </div>
-      <p class="relay__holder-avatar" aria-hidden="true">
+      <p class="bombscreen__holder-avatar" aria-hidden="true">
         {avatar(state.holder)}
       </p>
-      <p class="relay__holder-name">{name(state.holder)} has it</p>
-      <p class="relay__how">
+      <p class="bombscreen__holder-name">{name(state.holder)} has it</p>
+      <p class="bombscreen__how">
         {canBump
           ? 'Stay close — they have to knock a phone to get rid of it.'
           : 'Waiting. This phone has no motion sensor, so they will pass by tap.'}
@@ -164,7 +164,7 @@ export function BombScreen({
  * On a round-ending boom it never expires: the explosion holds until the room starts again,
  * which is also the results screen.
  */
-function useFreshBoom(state: RelayView): { victim: PlayerId } | null {
+function useFreshBoom(state: BombView): { victim: PlayerId } | null {
   const [, tick] = useState(0);
   const at = state.lastBoom?.at ?? null;
   const over = state.phase === 'over';

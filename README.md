@@ -81,7 +81,7 @@ Index: **[docs/specs/README.md](docs/specs/README.md)**
 | --- | --- | --- | --- |
 | **[Tap Duel](docs/specs/games/tap-duel.md)** | *The fastest thumb in the room takes the round.* | Touch | 🎮 `pistol` playable |
 | **[Spill](docs/specs/games/spill.md)** | *Fling your water at the neighbours before they flood you.* | Touch | 🎮 playable, beta |
-| **[Bump Relay](docs/specs/games/bump-relay.md)** | *Smash phones together to pass the bomb before it blows.* | Bump / motion | 📝 server built, phone UI to come |
+| **[Pass the Bomb](docs/specs/games/pass-the-bomb.md)** | *Smash phones together to pass the bomb before it blows.* | Bump / motion | 📝 server built, phone UI to come |
 | **[Goat Siege](docs/specs/games/goat-siege.md)** | *Shoo the neighbours' goats before they eat your cabbages.* | Touch | 🎮 playable, beta |
 | **[Sling Puck](docs/specs/games/sling-puck.md)** | *Sling every puck onto their side before they sling them back.* | Touch | 🎮 playable, beta |
 | **[Cat and Mouse](docs/specs/games/cat-and-mouse.md)** | *One cat, a floor full of mice, and nowhere to hide.* | Touch | ✅ built, beta |
