@@ -1,0 +1,256 @@
+/* Bump Relay round screens. Spec: docs/specs/games/bump-relay.md §4 */
+
+.relay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100dvh;
+  padding: var(--space-4);
+  padding-top: max(var(--space-4), env(safe-area-inset-top));
+  padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
+  text-align: center;
+}
+
+/*
+ * The holder's screen is unmissable from across a room — someone else has to be able to tell at a
+ * glance who is holding it, because they are the person about to be bumped.
+ */
+.relay--holder {
+  background: var(--game-accent, var(--color-accent));
+  color: var(--color-on-accent);
+}
+
+.relay--watching,
+.relay--out {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.relay--out {
+  opacity: 0.85;
+}
+
+/* The gear has to stay reachable, so the bar sits above the shouting. */
+.relay__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.relay__label {
+  margin: 0;
+  font-size: var(--font-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.8;
+}
+
+.relay__bomb {
+  margin: auto 0 0;
+  font-size: clamp(5rem, 34vw, 10rem);
+  line-height: 1;
+}
+
+/*
+ * "PASS IT" is the whole interface. It is sized to be read at arm's length while your arms are
+ * moving, which is why it is set in viewport units rather than a fixed step.
+ */
+.relay__shout {
+  margin: var(--space-3) 0 0;
+  font-size: clamp(2.5rem, 15vw, 5rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 0.95;
+}
+
+.relay__how {
+  margin: var(--space-3) 0 auto;
+  max-width: 22rem;
+  font-size: var(--font-small);
+  opacity: 0.85;
+}
+
+.relay__holder-avatar {
+  margin: auto 0 0;
+  font-size: clamp(4rem, 26vw, 8rem);
+  line-height: 1;
+}
+
+.relay__holder-name {
+  margin: var(--space-3) 0 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.relay__still-in {
+  margin: var(--space-2) 0 auto;
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
+}
+
+/* --- the tap route ------------------------------------------------------- */
+
+/*
+ * Folded away, but never absent (spec §11). On the accent background the summary has to read as
+ * tappable without a button's weight, or it competes with PASS IT.
+ */
+.relay__tap {
+  width: 100%;
+  max-width: 22rem;
+  margin-top: var(--space-3);
+}
+
+.relay__tap-summary {
+  min-height: var(--tap-target);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-small);
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  list-style: none;
+}
+
+.relay__tap-summary::-webkit-details-marker {
+  display: none;
+}
+
+.relay__targets {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.relay__target {
+  width: 100%;
+}
+
+/* --- the explosion ------------------------------------------------------- */
+
+.boom {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 100dvh;
+  padding: var(--space-5);
+  text-align: center;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/*
+ * The flash is a layer BEHIND the text, not the page background.
+ *
+ * Animating `background` put light text on the accent for half of every cycle, which is exactly
+ * when the player is trying to read whose name it is. A separate layer keeps the text on the dark
+ * ground throughout and still fills the screen with colour.
+ */
+.boom::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--game-accent, var(--color-accent));
+  animation: boom-flash 320ms steps(2) 2;
+  z-index: 0;
+}
+
+.boom > * {
+  position: relative;
+  z-index: 1;
+}
+
+.boom__blast {
+  margin: 0;
+  font-size: clamp(6rem, 40vw, 12rem);
+  line-height: 1;
+}
+
+.boom__who {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 800;
+}
+
+.boom__left {
+  margin: 0;
+  color: var(--color-text-dim);
+}
+
+/*
+ * Two steps at ~3 Hz, and the whole thing is replaced by a fade when the player has asked for
+ * less motion — spec §11 caps this at 3 Hz and forbids a strobe for anyone who opted out.
+ */
+@keyframes boom-flash {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    /* Short of solid, so the text underneath never drops below a readable contrast. */
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No strobe at all for anyone who asked for less motion (spec §11) — one gentle fade. */
+  .boom::before {
+    animation: boom-fade 400ms ease-out 1;
+  }
+
+  @keyframes boom-fade {
+    from {
+      opacity: 0.4;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+}
+
+/* --- the permission primer, in the lobby -------------------------------- */
+
+.primer__body {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.primer__body--on {
+  color: var(--color-text);
+  margin-bottom: 0;
+}
+
+.primer__enable {
+  width: 100%;
+}
+
+.primer__opt-out {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+/* --- the safety line ----------------------------------------------------- */
+
+/*
+ * Its own panel rather than a note inside How to play: that panel collapses, and spec §9 wants
+ * this read before anyone starts swinging a phone.
+ */
+.safety {
+  border-color: var(--game-accent, var(--color-accent));
+}
+
+.safety__body {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-small);
+}

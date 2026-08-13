@@ -33,5 +33,5 @@ export const CARD: GameCard = {
     { id: 'hot-hands', name: 'Hot Hands', blurb: 'Hold it too long and it speeds up' },
     { id: 'teams', name: 'Teams', blurb: 'Two colours, one bomb, zero trust' },
   ],
-  status: 'soon',
+  status: 'new',
 };
