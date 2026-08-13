@@ -37,6 +37,16 @@ export async function requestMotion(): Promise<boolean> {
 export type MotionSample = {
   /** Magnitude of acceleration including gravity, m/s². */
   magnitude: number;
+  /**
+   * The same reading by axis, device frame, m/s².
+   *
+   * Magnitude alone is enough to notice a knock (`bump.ts`), but not to tell a phone
+   * held upright from one lying flat, or to measure how far the vector *moved* — both
+   * of which need the components (`steady.ts`).
+   */
+  x: number;
+  y: number;
+  z: number;
   /** performance.now() at the sample. */
   at: number;
 };
@@ -54,6 +64,9 @@ export function onMotion(handler: (sample: MotionSample) => void): () => void {
     if (!a || a.x === null || a.y === null || a.z === null) return;
     handler({
       magnitude: Math.sqrt(a.x * a.x + a.y * a.y + a.z * a.z),
+      x: a.x,
+      y: a.y,
+      z: a.z,
       at: performance.now(),
     });
   };

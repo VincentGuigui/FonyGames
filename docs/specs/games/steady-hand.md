@@ -171,15 +171,33 @@ Server is authoritative for the tolerance, eliminations and the result.
 | `steady-out` | server → clients | `{roundId, victim, reason, alive[]}` | Somebody spent their last one |
 | `steady-end` | server → clients | `{roundId, winner, times}` | Round over |
 
-**Silence is elimination.** A phone that stops sending for `2 × STEADY_TICK_MS`
-is out. Without that rule the winning move is to close the tab, and it also
-covers the backgrounded-tab case for free.
+**Silence is elimination.** A phone that stops sending for `3 × STEADY_TICK_MS`
+is out, with reason `left`. Without that rule the winning move is to close the
+tab, and it also covers the backgrounded-tab case for free. Three ticks rather
+than two so that one dropped frame on a bad connection is not an execution.
+
+**An empty window is never sent.** The phone reports only tick windows that
+actually contained accelerometer samples; a window with none is silence, and
+silence is the server's to interpret. This is what makes the rule above
+enforceable at all — a window with no samples has a wobble of zero, which is
+indistinguishable from a flawless hold, so a phone whose sensor had stopped used
+to report a perfect score forever and refresh its own liveness while doing it.
+Turning the sensor off was a winning move. Pinned by
+`www/src/games/steady-hand/game.test.ts` §the detector reports what it measured.
+
+**The tick is a stored moment, not an interval.** `Steady.tickAt` holds the
+server time the next broadcast is due, because Room's single alarm slot decides
+which game it was woken for by comparing the clock against that number — a
+deadline computed as "now plus a tick" is never due, and the round silently loses
+both its tightening tolerance and the silence reaper while still looking alive,
+since eliminations broadcast from the wobble path regardless.
 
 ## 7. Failure & edge cases
 
 | Case | Behaviour |
 | --- | --- |
-| Tab backgrounded | Motion events stop → silence → eliminated. Deliberate, and the rules say so |
+| Tab backgrounded | Motion events stop → nothing to report → silence → eliminated. Deliberate, and the rules say so |
+| Motion permission revoked mid-round | Same path as above: no samples, so nothing is sent, so eliminated for silence |
 | Player disconnects | Eliminated with reason `left` |
 | Everyone spends their last life on the same tick | The one with the lowest wobble that tick keeps one life and wins |
 | A life is lost during the grace window | Impossible by construction — grace is enforced server-side, not by the phone |
@@ -198,7 +216,9 @@ What is worth doing anyway:
 - **A perfectly constant value is itself suspicious.** Real hands produce noise;
   an exact 0.000 for twenty ticks is not a steady hand, it is a patched client.
   Flagged, not auto-eliminated — a false accusation is worse than a cheat.
-- **Silence is elimination** (§6), which closes the simplest exploit.
+- **Silence is elimination** (§6), which closes the simplest exploit — and the
+  phone never sends a window it did not measure, which is what stops a dead
+  sensor from being reported as a perfect hold (§6).
 - **The `held` flag** (§2.3) makes the laziest physical cheat — table, lap, knee
   — cost something.
 - And the room can see you. Everyone is standing in a circle holding a phone out;

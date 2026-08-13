@@ -60,6 +60,11 @@ export type ClientMessage =
   /** Touch fallback for a player without motion: pass to a chosen player. */
   | { t: 'pass'; d: { to: PlayerId; roundId: number } }
   /**
+   * Steady Hand: my worst wobble this tick, and whether the phone is still held up.
+   * A summary rather than a stream — the raw accelerometer never leaves the phone.
+   */
+  | { t: 'wobble'; d: { w: number; held: boolean; roundId: number } }
+  /**
    * Spill: flick water off your screen. `angle` is radians clockwise from
    * screen-up; `speed` is in **screen heights per second**, so the server never
    * has to know how big anyone's phone is. `dropId` re-flings a caught drop.
@@ -277,6 +282,38 @@ export type ServerMessage =
   | { t: 'boom'; s: number; d: { roundId: number; victim: PlayerId; alive: PlayerId[] } }
   /** Pass the Bomb: too many bumps too fast — this player's bumps are muted briefly. */
   | { t: 'calm-down'; d: { untilServerTime: number } }
+  /** Steady Hand: the state of the room. `w` is everyone's last wobble, for the meters. */
+  | {
+      t: 'steady';
+      s: number;
+      d: {
+        roundId: number;
+        tolerance: number;
+        startsAt: number;
+        endsAt: number;
+        alive: PlayerId[];
+        lives: Record<PlayerId, number>;
+        w: Record<PlayerId, number>;
+      };
+    }
+  /** Steady Hand: somebody flinched and spent a life. */
+  | {
+      t: 'steady-hit';
+      s: number;
+      d: { roundId: number; victim: PlayerId; lives: number; graceUntil: number };
+    }
+  /** Steady Hand: somebody spent their last life, or put the phone down. */
+  | {
+      t: 'steady-out';
+      s: number;
+      d: { roundId: number; victim: PlayerId; reason: 'moved' | 'parked' | 'left'; alive: PlayerId[] };
+    }
+  /** Steady Hand: round over. `times` is survival in ms, per player. */
+  | {
+      t: 'steady-end';
+      s: number;
+      d: { roundId: number; winner: PlayerId | null; times: Record<PlayerId, number> };
+    }
   /** Spill: full state. Sent at round start and after any resync. */
   | { t: 'spill'; s: number; d: SpillState }
   /**
@@ -704,6 +741,7 @@ const CLIENT_TYPES = new Set([
   'tap',
   'bump',
   'pass',
+  'wobble',
   'fling',
   'catch',
   'lob',
@@ -717,3 +755,53 @@ export function isClientMessage(value: unknown): value is ClientMessage {
   const t = (value as { t?: unknown }).t;
   return typeof t === 'string' && CLIENT_TYPES.has(t);
 }
+
+/* ------------------------------------------------------------------ */
+/* Steady Hand (docs/specs/games/steady-hand.md)                       */
+/* ------------------------------------------------------------------ */
+
+/** How often a phone reports its wobble. 5 messages/s per player. */
+export const STEADY_TICK_MS = 200;
+
+/**
+ * The tolerance, and how it closes in.
+ *
+ * It **must** tighten, or the round never ends: a phone that is not moving never
+ * wobbles, so two careful players would stand there until the cap. Same
+ * structural trick as the shrinking fuse in Pass the Bomb (spec §2.2).
+ */
+export const WOBBLE_START = 1.2;
+export const WOBBLE_FLOOR = 0.25;
+export const TIGHTEN_EVERY_MS = 10_000;
+export const TIGHTEN_FACTOR = 0.8;
+
+/**
+ * Three lives, and a second of grace after each one is spent.
+ *
+ * The grace is not a kindness, it is required. Wobble arrives every
+ * `STEADY_TICK_MS`, and the flinch that costs a life is still in progress on the
+ * next tick — without it, one twitch spends all three lives in 600 ms and the
+ * whole mode does nothing (spec §2.4).
+ */
+export const STEADY_LIVES = 3;
+export const STEADY_GRACE_MS = 1_000;
+
+/**
+ * How far off vertical the phone may be before it counts as put down.
+ *
+ * Flat on a table wins the game trivially, so lying flat for
+ * `STEADY_PARKED_MS` eliminates outright — bypassing lives, because lives
+ * forgive a flinch and this is not a flinch (spec §2.3).
+ */
+export const STEADY_HOLD_CONE_DEG = 35;
+export const STEADY_PARKED_MS = 1_000;
+
+/** A settle window before anything counts, so nobody is out before they are ready. */
+export const STEADY_SETTLE_MS = 3_000;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const STEADY_MIN_PLAYERS = PLAYERS['steady-hand'][0];
+export const STEADY_MAX_PLAYERS = PLAYERS['steady-hand'][1];
+
+/** Hard cap, per the safety rules in the spec. */
+export const STEADY_CAP_MS = 2 * 60_000;
