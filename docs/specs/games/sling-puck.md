@@ -4,7 +4,7 @@
 | --- | --- |
 | **Slug** | `sling-puck` |
 | **Catchy sentence** | *Sling every puck onto their side before they sling them back* |
-| **Illustration** | `www/src/games/sling-puck/art/card.svg` — the shot already taken: your half large in front with the band snapped forward, the far half smaller and set back, and the puck across the gap on an **off-centre** line. The lean is deliberate — puck, gap and trail on one centred vertical axis read as a wiring diagram rather than a game, and banking off the walls is how it is actually played |
+| **Illustration** | `www/src/games/sling-puck/art/card.svg` — a bank shot in progress, from your seat. **One** half only, because one half is all you ever see (§4): open at the top where the gap is, running off the bottom of the frame, the band loaded, and the puck squashed against the side wall mid-bounce with its trail behind it. Where it goes next is left to the viewer, which is what makes it a moment rather than a diagram of the rules. Widened from the maintainer's portrait sketch — in a 120×90 frame a portrait board reads as a doorway |
 | **Players** | 2 — exactly |
 | **Round length** | 30 s – 2 min |
 | **Inputs** | touch (drag back and release) |
