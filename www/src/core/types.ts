@@ -7,6 +7,13 @@ export type GameInput =
   | 'orientation'
   | 'gps'
   | 'compass'
+  /**
+   * The rear camera, as **scenery** rather than input. Ghost Hunt draws the live feed
+   * behind its detector ring; no game reads a pixel of it for gameplay, and nothing
+   * leaves the phone (docs/specs/games/ghost-hunt.md §10). Listed on the card anyway,
+   * because a player deserves to know a game will ask before they open it.
+   */
+  | 'camera'
   | 'mic';
 
 /**

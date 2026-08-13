@@ -24,9 +24,9 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | Tilt Arena | *Tilt to steer, crash to win* | orientation | 2–6 | 💡 idea |
 | [Steady Hand](games/steady-hand.md) | *Hold your phone perfectly still. Longer than everyone else* | motion | 2–8 | 📝 draft |
 | [Tap Duel](games/tap-duel.md) | *The fastest thumb in the room takes the round* | touch | 2–8 | 🎮 `pistol` live · `sprint`/`simon` to come |
-| Ghost Tag | *One ghost, a whole neighbourhood, and a map that only whispers* | GPS | 3–10 | 💡 idea |
+| Ghost Tag | *One ghost, a whole neighbourhood, and a map that only whispers* | GPS | 3–10 | 💡 idea — **name clashes with Ghost Hunt** |
 | Zone Rush | *Claim real streets by standing on them longer than your rivals* | GPS | 2–10 | 💡 idea |
-| [Compass Hunt](games/compass-hunt.md) | *Point your phone at things nobody else can see* | orientation | 2–8 | 📝 draft — **respecced**, no longer GPS |
+| [Ghost Hunt](games/ghost-hunt.md) | *Sweep the room for ghosts only your phone can see* | orientation + camera | 2–8 | 📝 draft — was *Compass Hunt*; **name clashes with Ghost Tag** |
 | Scream Meter | *Loudest wins. Your neighbours will not be thanked* | mic | 2–8 | 💡 idea |
 | [Spill](games/spill.md) | *Fling your water at the neighbours before they flood you* | touch | 2–4 | 🎮 `ring` beta — numbers untested on a real table |
 | [Goat Siege](games/goat-siege.md) | *Shoo the neighbours' goats before they eat your cabbages* | touch | 2–4 | 🎮 beta — balance untested |

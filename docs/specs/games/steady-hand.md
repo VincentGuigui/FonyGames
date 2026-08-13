@@ -8,7 +8,7 @@
 | **Catchy sentence** | *Hold your phone perfectly still. Longer than everyone else* |
 | **Illustration** | `www/src/games/steady-hand/art/card.svg` — a phone held perfectly level, a target centred on it |
 | **Players** | 2–8 |
-| **Round length** | ~1 min, hard cap 2 min |
+| **Round length** | ~1–2 min, hard cap 2 min |
 | **Inputs** | motion (accelerometer) |
 | **Accent colour** | `#C084FC` |
 | **Status** | draft |
@@ -26,12 +26,14 @@ different kind of funny from the shouting games.
 
 1. The host starts. A three-second settle window lets everyone get into position
    before anything counts.
-2. Everyone is `steady`. Your phone measures its own **wobble** (§2.1) and sends
-   it on a tick.
-3. Exceed the current tolerance and you are **out**, instantly and visibly.
+2. Everyone starts with **three lives**. Your phone measures its own **wobble**
+   (§2.1) and sends it on a tick.
+3. Exceed the current tolerance and you lose **one life**, visibly, with a second
+   of grace before the next one can be taken (§2.4). At zero you are out.
 4. The tolerance **tightens** on a schedule (§2.2), so a room full of statues
    still produces a winner.
-5. Last player steady wins. If the 2 min cap arrives, the steadiest average wins.
+5. Last player with a life wins. If the 2 min cap arrives, the steadiest average
+   wins.
 
 **Win condition:** be the last player not eliminated.
 **Scoring:** 1 point for the win, plus a survival time worth showing on the
@@ -57,6 +59,8 @@ exactly what the game is looking for, and a mean would hide it.
 | `WOBBLE_FLOOR` | 0.25 m/s² | Tight enough that nobody survives it for long |
 | `TIGHTEN_EVERY_MS` | 10 000 | One step every ten seconds |
 | `TIGHTEN_FACTOR` | 0.8 | Ten steps from start to floor, so ~90 s worst case |
+| `STEADY_LIVES` | 3 | A flinch costs a life, not the round (§2.4) |
+| `GRACE_MS` | 1000 | After losing a life, wobble is ignored while you resettle |
 
 ### 2.2 Why the tolerance has to tighten
 
@@ -75,12 +79,36 @@ steady unless the phone is **held up**:
 
 - The gravity vector must be within `HOLD_CONE` (**35°**) of horizontal-ish —
   i.e. the screen facing you, not flat to the ceiling.
-- Flat on a table for more than 1 s → eliminated, with the honest reason:
-  *"Phone put down"*, not a vague "you moved".
+- Flat on a table for more than 1 s → **eliminated outright, bypassing lives**,
+  with the honest reason: *"Phone put down"*, not a vague "you moved".
+
+Parking costs the round rather than a life on purpose. Lives exist to forgive a
+flinch, which is the game being hard; putting the phone down is not a flinch, and
+three free goes at the one cheat the game can actually detect would make the
+detection pointless.
 
 This is the one rule that needs saying out loud in the rules panel, because a
 player who is eliminated for cheating they did not know was cheating will think
 the game is broken.
+
+### 2.4 Three lives, and the grace window
+
+A single flinch ending a 40-second hold is more annoying than dramatic — it
+punishes the nervous rather than the unsteady, and it empties the room fast in a
+game whose tension comes from watching several people suffer at once.
+
+Three lives change the shape: the first slip is a scare, the second is a
+countdown, the third is the end. The room thins gradually and the last thirty
+seconds have two or three people left rather than one.
+
+**The grace window is not a nicety, it is required.** Wobble is reported every
+200 ms, and the flinch that costs a life is still in progress on the next tick —
+without grace, one twitch spends all three lives in 600 ms and the mode does
+nothing. After a life is lost, wobble is ignored for `GRACE_MS`, which is also
+long enough to get the phone back under control.
+
+**Sudden death** — one life — is recorded as a mode in §3 rather than the
+default, because it is the harsher version of a game that is already tense.
 
 ## 3. Modes / variations
 
@@ -88,9 +116,9 @@ None at launch. Recorded, not built:
 
 | Idea | Difference |
 | --- | --- |
+| `sudden-death` | One life. The knife-edge version, for a room that has played it before |
 | `one-hand` | Held at arm's length, the tolerance tightens twice as fast |
 | `sabotage` | Eliminated players get one 3 s "shout" that flashes everyone's screen |
-| `lives` | Three strikes instead of instant elimination, for a longer, gentler round |
 
 `sabotage` is the interesting one: it solves the spectator problem in §12 by
 giving the dead something to do to the living.
@@ -100,9 +128,13 @@ giving the dead something to do to the living.
 - **Lobby**: shared template, permission primer, and the "held not parked" rule
   (§2.3) stated where it cannot be missed.
 - **Round — steady**: your wobble as a **meter that fills toward the limit**, the
-  current tolerance as a line on it, and how many players are left. The meter is
+  current tolerance as a line on it, your **remaining lives as pips and a number**,
+  and how many players are left. The meter is
   the whole game: it has to be readable without moving your eyes much, so it is
   large, central, and changes colour *and* fill.
+- **Losing a life**: a hard, brief full-screen beat — the count that is left, big —
+  then straight back to the meter. It has to be unmissable without stealing the
+  second of grace you need to resettle.
 - **Round — the moment you go**: full-screen, unmistakable, naming the reason
   (*"You moved"* / *"Phone put down"*). Then you become a spectator.
 - **Spectator**: who is left, and their live wobble meters — watching four people
@@ -134,8 +166,9 @@ Server is authoritative for the tolerance, eliminations and the result.
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
 | `wobble` | client → server | `{w, held, roundId}` | My rolling-max wobble this tick, and whether the phone is held (§2.3) |
-| `steady` | server → clients | `{roundId, tolerance, alive[], w: {playerId: wobble}}` | The state of the room |
-| `steady-out` | server → clients | `{roundId, victim, reason, alive[]}` | Somebody went |
+| `steady` | server → clients | `{roundId, tolerance, alive[], lives: {playerId: n}, w: {playerId: wobble}}` | The state of the room |
+| `steady-hit` | server → clients | `{roundId, victim, lives, graceUntil}` | Somebody lost a life |
+| `steady-out` | server → clients | `{roundId, victim, reason, alive[]}` | Somebody spent their last one |
 | `steady-end` | server → clients | `{roundId, winner, times}` | Round over |
 
 **Silence is elimination.** A phone that stops sending for `2 × STEADY_TICK_MS`
@@ -148,7 +181,8 @@ covers the backgrounded-tab case for free.
 | --- | --- |
 | Tab backgrounded | Motion events stop → silence → eliminated. Deliberate, and the rules say so |
 | Player disconnects | Eliminated with reason `left` |
-| Everyone eliminated on the same tick | The one with the lowest wobble that tick survives and wins |
+| Everyone spends their last life on the same tick | The one with the lowest wobble that tick keeps one life and wins |
+| A life is lost during the grace window | Impossible by construction — grace is enforced server-side, not by the phone |
 | Nobody eliminated by the 2 min cap | Lowest average wobble wins |
 | A player rejoins mid-round | Spectator until the next round. There is no way back into a round you were eliminated from |
 | Fewer than 2 players | Start disabled |
@@ -196,7 +230,9 @@ What can be done, and is:
 
 - The **spectator role is real** (§4), not a waiting room — watching the meters is
   genuinely the second-best seat.
-- `lives` mode (§3) softens elimination from a cliff to a slope.
+- **Three lives is the default** precisely because it softens elimination from a
+  cliff to a slope. It does not fix the tremor problem — nothing does — but it
+  means one bad moment is not the whole round.
 - Elimination always names its reason, so nobody is left guessing.
 - The meter carries fill, number and colour — never colour alone.
 - No flashing on elimination; a fade under `prefers-reduced-motion`.
@@ -208,9 +244,6 @@ and the catalogue is large enough to carry one.
 
 - Are the numbers in §2.1 anywhere near right? All five are guesses. `WOBBLE_START`
   in particular has to survive a nervous person's pulse at arm's length.
-- Does elimination-on-first-flinch make for a good party game, or is `lives` the
-  better default? A single flinch ending your round after 40 s of tension may be
-  more annoying than dramatic.
 - Do eliminated players need something to do (`sabotage`, §3)? A minute of
   watching is fine; three rounds of it is not.
 - Should the tolerance tighten on a **timer** or on **survivors** — e.g. tighten

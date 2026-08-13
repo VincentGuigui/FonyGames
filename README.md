@@ -90,7 +90,7 @@ Index: **[docs/specs/README.md](docs/specs/README.md)**
 | **Steady Hand** | *Hold your phone perfectly still. Longer than everyone else.* | Motion | 💡 idea |
 | **Ghost Tag** | *One ghost, a whole neighbourhood, and a map that only whispers.* | GPS | 💡 idea |
 | **Zone Rush** | *Claim real streets by standing on them longer than your rivals.* | GPS | 💡 idea |
-| **Compass Hunt** | *Follow the arrow to the treasure — everyone else is following it too.* | Compass + GPS | 💡 idea |
+| **Ghost Hunt** | *Sweep the room for ghosts only your phone can see.* | Tilt + camera | 📝 draft |
 | **Scream Meter** | *Loudest wins. Your neighbours will not be thanked.* | Microphone | 💡 idea |
 
 Full index and status: [docs/specs/README.md](docs/specs/README.md).

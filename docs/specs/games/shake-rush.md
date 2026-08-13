@@ -9,7 +9,7 @@
 | **Illustration** | `www/src/games/shake-rush/art/card.svg` — a phone shaking, motion lines either side of it |
 | **Players** | 2–8 |
 | **Round length** | ~1 min, hard cap 90 s |
-| **Inputs** | motion (shake), touch (fallback, §5) |
+| **Inputs** | motion (shake). **No fallback** — see §5 |
 | **Accent colour** | `#4ADE80` |
 | **Status** | draft |
 
@@ -100,25 +100,24 @@ refuses the prompt outside a user gesture and remembers a denial
 ([device-capabilities.md](../../device-capabilities.md) §2). Same primer pattern
 as [pass-the-bomb.md](pass-the-bomb.md) §11b.
 
-**Fallbacks:**
+**Fallbacks: there are none, and the card says so.**
+
+A tap route was designed and then cut, and the reasoning is worth keeping because
+it will be proposed again. A thumb taps at 8–10/s against an arm's 5–6/s, so
+tapping does not *substitute* for shaking, it **beats** it. Three ways out were on
+the table — convert at a ratio, race tappers separately, or let it be unfair and
+mark it — and all three are worse than the honest answer: this game is one
+physical act, and a version of it played with a thumb is a different game wearing
+its name.
+
+So Shake Rush joins Steady Hand and Cat and Mouse as a game that names who it
+excludes rather than shipping a fallback it does not believe in. A player without
+motion access **spectates**, and the track is worth watching.
 
 | Missing | Behaviour |
 | --- | --- |
-| Motion denied / unavailable | **Tap rush**: rapid tapping advances you instead, marked with 👆 in the lane so nobody thinks they are cheating |
-| Tab backgrounded | The phone stops counting; the lane shows `away` and the runner stops |
-
-**The tap fallback is not obviously fair, and pretending otherwise would be
-worse than saying so.** A thumb can tap faster than an arm can shake — plausibly
-8–10/s against 5–6/s. Three options, and the choice needs a play test:
-
-1. **Convert at a ratio** (`TAP_WORTH` ≈ 0.6 shakes per tap) so the two land in
-   the same range. Simple, tunable, slightly arbitrary.
-2. **Tappers race tappers** on a separate line. Fair, but splits a party game.
-3. **Let it be unfair** and mark it clearly.
-
-Proposal: (1), starting at 0.6, on the grounds that a party game should keep
-everyone on one track and an approximately fair conversion beats an exact
-exclusion. **Open question §12.**
+| Motion denied / unavailable | Spectator, with the reason said plainly in the lobby before the round |
+| Tab backgrounded | Counting stops, the lane shows `away`, the runner freezes |
 
 ## 6. Networking
 
@@ -184,10 +183,13 @@ room.
 
 ## 11. Accessibility
 
-- The **tap fallback (§5) is the accessible mode** and is available to anyone
-  from the lobby, not only when a permission is denied.
-- Sustained vigorous shaking is not available to everyone; the tap route is the
-  answer, and its fairness is an open question rather than a solved one.
+- **This game asks for sustained vigorous shaking and has no way around it.**
+  Anyone who cannot do that cannot play it, and §5 explains why a tap route was
+  cut rather than shipped. Three of the catalogue's games now exclude somebody
+  this way; that is a real cost and the catalogue has to stay large enough and
+  varied enough to carry it.
+- The spectator role is a real seat: the track with everyone's runner on it is the
+  best view in the room.
 - The track uses position **and** a number, never colour alone, to say who is
   ahead.
 - No flashing. A finish celebration respects `prefers-reduced-motion`.
@@ -196,8 +198,6 @@ room.
 
 - `RUSH_DISTANCE` 120 — is ~30 s the right length? Long enough to be funny,
   short enough that arms survive best-of-three.
-- `TAP_WORTH` 0.6 — the fairness of tap against shake, and whether one track for
-  both is the right call at all (§5).
 - Should a runner **slow down** when you stop, rather than freezing? Decay would
   punish pacing and reward continuous effort, which is funnier but crueller.
 - Is one lane per player readable at 8 players on a 390 px screen, or does it

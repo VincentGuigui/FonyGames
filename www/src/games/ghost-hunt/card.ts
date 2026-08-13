@@ -3,7 +3,7 @@ import { PLAYERS } from '../../../../shared/players';
 import art from './art/card.svg?url&no-inline';
 
 /**
- * Compass Hunt's hub card. Contract: docs/design/illustrations.md
+ * Ghost Hunt's hub card. Contract: docs/design/illustrations.md
  *
  * **This file is a leaf.** It may import only `core/types`, `shared/players` and its
  * own `art/`. The hub imports every card, so one import of this game's runtime would
@@ -13,19 +13,20 @@ import art from './art/card.svg?url&no-inline';
  * changing the spec is a bug.
  */
 export const CARD: GameCard = {
-  slug: 'compass-hunt',
-  title: 'Compass Hunt',
-  pitch: 'Follow the arrow to the treasure — so is everyone else',
-  concept: 'Everyone gets the same arrow, so the race is the game.',
+  slug: 'ghost-hunt',
+  title: 'Ghost Hunt',
+  pitch: 'Sweep the room for ghosts only your phone can see',
+  concept: 'The ring shows the room as outlines — the ghost hides in there.',
   rules: [
-    'Follow the arrow to the treasure.',
-    'Everyone else is following it too.',
+    'Hold your phone up and sweep the room.',
+    'The ring shows edges — find the ghost in it.',
+    'Most ghosts in 90 seconds wins.',
   ],
-  art: { src: art, alt: 'A compass needle pointing north' },
+  art: { src: art, alt: 'A phone held up, its screen a bright ring of traced edges' },
   accent: '#FBBF24',
-  players: PLAYERS['compass-hunt'],
-  duration: '10 min',
-  inputs: ['compass', 'gps'],
+  players: PLAYERS['ghost-hunt'],
+  duration: '90 s',
+  inputs: ['orientation', 'camera', 'touch'],
   modes: [],
   status: 'soon',
 };

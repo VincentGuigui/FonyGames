@@ -9,7 +9,7 @@ import { CARD as TILT_ARENA_CARD } from './tilt-arena/card';
 import { CARD as STEADY_HAND_CARD } from './steady-hand/card';
 import { CARD as GHOST_TAG_CARD } from './ghost-tag/card';
 import { CARD as ZONE_RUSH_CARD } from './zone-rush/card';
-import { CARD as COMPASS_HUNT_CARD } from './compass-hunt/card';
+import { CARD as COMPASS_HUNT_CARD } from './ghost-hunt/card';
 import { CARD as SCREAM_METER_CARD } from './scream-meter/card';
 import type { GameCard } from '../core/types';
 
