@@ -78,6 +78,32 @@ the socket with `serializeAttachment()` and read back with
 Anything rebuilt after hibernation must be non-essential. The rate-limit buckets
 are a `WeakMap` and deliberately disposable.
 
+### The frame sequence is the trap this rule exists for
+
+`#seq` in `Room.ts` numbers every server→client frame, and `RoomClient` drops anything not
+**above** the highest number it has seen — that is what makes a replayed frame after a reconnect
+harmless. It was a plain counter starting at `0`, which is an instance field, so eviction reset
+it: the next instance began again at 1, every frame it sent looked stale to a client that had
+already seen 11, and the client silently discarded **all of them for the rest of the session**.
+
+Silently is the problem. No error, no reconnect, no log — the room simply stopped updating, and
+only for clients that had been there long enough to have a high-water mark.
+
+It went unnoticed because none of the first five games goes quiet for long: something is on the
+wire every few hundred milliseconds, so the object is rarely evicted mid-round. Bump Relay's fuse
+is a deliberate 8–25 second silence, which is an eviction window by design — the `boom` that ends
+the round was the first frame to land on a fresh instance, and it never arrived.
+
+`#nextSeq()` now seeds from the clock — `max(#seq + 1, Date.now())`. Wall-clock time already
+survives eviction and every previously sent value was also roughly `Date.now()`, so a new
+instance resumes above them; the `+1` keeps it strictly increasing when two frames share a
+millisecond, which `boom` and the `bomb` after it always do. The values are opaque to clients, so
+making them timestamps costs nothing.
+
+**The general rule:** anything a client compares *across* frames — a counter, a version, a
+generation — is room state, not instance state. If it lives in a field and eviction resets it,
+the client's memory outlives the server's and the two disagree with no symptom.
+
 ## 4. Lifecycle
 
 | Event | Behaviour |

@@ -64,7 +64,32 @@ function meta(html, attribute, name) {
 
 const all = pages();
 console.log('\nevery page carries the tags');
-check('six pages were found', all.length === 6, all.map((p) => p.name));
+
+/*
+ * Cross-checked against the build's own list of pages rather than a hardcoded count.
+ *
+ * This used to assert `all.length === 6`, which failed the moment a seventh game shipped and
+ * taught nobody anything when it did — the number was not the property worth protecting. What
+ * matters is that the set of directories with an `index.html` is exactly the set of Rollup
+ * inputs: a page nobody builds is dead, and a built page nobody tagged has no preview.
+ */
+const built = new Set(
+  [...readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8')
+    .matchAll(/^\s*'?([a-z0-9-]+)'?:\s*'www\/([a-z0-9-]*)\/?index\.html'/gm)]
+    .map((m) => (m[2] === '' ? 'hub' : m[2]))
+    .filter((name) => name !== 'ops-placeholder'),
+);
+const found = new Set(all.map((p) => p.name));
+check(
+  `every built page has tags (${built.size} built)`,
+  [...built].every((name) => found.has(name)),
+  { built: [...built], found: [...found] },
+);
+check(
+  'and every tagged page is one the build produces',
+  [...found].every((name) => built.has(name)),
+  { built: [...built], found: [...found] },
+);
 
 for (const page of all) {
   const file = join(WWW, page.dir, 'index.html');

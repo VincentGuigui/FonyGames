@@ -29,6 +29,7 @@ export default defineConfig({
         'goat-siege': 'www/goat-siege/index.html',
         'sling-puck': 'www/sling-puck/index.html',
         'cat-and-mouse': 'www/cat-and-mouse/index.html',
+        'bump-relay': 'www/bump-relay/index.html',
         // The admin centre. Built to a PLACEHOLDER directory name and renamed to the
         // ADMIN_PATH secret by the deploy — this repository is public, so the real
         // path cannot be committed (docs/deployment.md §3.4).

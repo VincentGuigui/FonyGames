@@ -1,7 +1,7 @@
 # Bump Relay
 
-> Status: **draft**, awaiting validation. This is also the reference example of
-> a filled-in [game spec](../game-spec-template.md).
+> Status: **`classic` playable end to end**, beta until a play test. This is also the reference
+> example of a filled-in [game spec](../game-spec-template.md).
 
 | | |
 | --- | --- |
@@ -12,7 +12,7 @@
 | **Round length** | 1–2 min |
 | **Inputs** | motion (bump), touch (fallback) |
 | **Accent colour** | `#FF5A36` |
-| **Status** | server logic built and tested; **phone UI not built** — not yet playable |
+| **Status** | `classic` **playable end to end** — referee, phone UI, bump sensor and tap fallback all built and covered by `npm test`. The other three modes are specified, not built |
 
 ## 1. Pitch
 
@@ -98,14 +98,23 @@ Standard flow (see [../../multiplayer.md](../../multiplayer.md) §3). Specifics:
 
 Server is authoritative for: who holds the bomb, the fuse, eliminations, score.
 
+**As built** (this table was aspirational in two places; the shipped protocol is the one below):
+
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
-| `bump` | client → server | `{at: clientTs}` | I felt a bump |
-| `pass-request` | client → server | `{to: playerId}` | Fallback pass (tap mode) |
-| `pass-confirm` | client → server | `{from: playerId}` | Fallback receive |
-| `bomb` | server → clients | `{holder, bombId, seq}` | The bomb is now here |
-| `boom` | server → clients | `{victim, remaining[]}` | Fuse expired |
-| `round-end` | server → clients | `{winner, scores}` | Round over |
+| `bump` | client → server | `{at, roundId}` | I felt a bump. `at` is **server** time — the phone converts from `performance.now()` before sending, or it could never pair |
+| `pass` | client → server | `{to, roundId}` | Tap fallback, **one step**: only the holder may send it and the target does not confirm |
+| `bomb` | server → clients | `{roundId, holder, alive[]}` | The bomb is now here |
+| `boom` | server → clients | `{roundId, victim, alive[]}` | Fuse expired |
+| `calm-down` | server → **one** client | `{untilServerTime}` | Your bumps are muted for spamming (§8) |
+
+Two deliberate differences from the original sketch:
+
+- **One-step pass, not request-and-confirm.** A receiver confirmation adds a round trip and a way
+  to strand the bomb if the target never taps. The holder chooses and it moves.
+- **No `round-end` frame.** The round is over when a `boom` leaves one player or none, and the
+  phone derives it (`www/src/games/bump-relay/game.ts`). A client waiting for an explicit end
+  frame would wait forever — which is worth stating plainly, because the sketch promised one.
 
 **Latency tolerance:** transfers are decided server-side within the ±250 ms
 pairing window, so a 150 ms link never loses a pass. The bomb never renders on
@@ -159,6 +168,24 @@ room's lifetime and is discarded when the room dies.
   of them alone is enough to play.
 - Explosion flash respects `prefers-reduced-motion` (fade instead of strobe) and
   never exceeds 3 Hz.
+
+## 11b. What the phone UI actually does
+
+Screens are in `www/src/games/bump-relay/`: `BumpRoom.tsx` (lobby, permission, sensor wiring),
+`BombScreen.tsx` (the four in-round states), `game.ts` (the reducer, with its own test).
+
+- **Nothing is asked for on arrival.** The permission primer is a button in the lobby, and
+  `requestMotion()` is the first thing its handler does — iOS refuses the prompt outside a user
+  gesture and refuses it silently after an `await`. Asking on load would spend the permission
+  before the player knows what the game is, and a denial is remembered.
+- **The safety line (§9) is its own always-visible panel**, not a note inside How to play: that
+  panel collapses, and a safety instruction behind a tap is not shown.
+- **The motion listener runs only while this phone is in a live round**, and `onMotion` drops it
+  while the tab is hidden.
+- **Tap-to-pass is present for everyone, every round**, folded behind a summary so the holder is
+  not staring at a list — §4 wants them looking at people.
+- The explosion flashes a layer *behind* the text rather than the page background, so the victim's
+  name stays readable while it strobes, and it is one fade under `prefers-reduced-motion` (§11).
 
 ## 12. Open questions
 
