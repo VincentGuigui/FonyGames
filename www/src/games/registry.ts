@@ -4,12 +4,12 @@ import { CARD as GOAT_SIEGE_CARD } from './goat-siege/card';
 import { CARD as SLING_PUCK_CARD } from './sling-puck/card';
 import { CARD as BUMP_RELAY_CARD } from './pass-the-bomb/card';
 import { CARD as CAT_AND_MOUSE_CARD } from './cat-and-mouse/card';
-import { CARD as SHAKE_SPRINT_CARD } from './shake-sprint/card';
+import { CARD as SHAKE_SPRINT_CARD } from './shake-rush/card';
 import { CARD as TILT_ARENA_CARD } from './tilt-arena/card';
 import { CARD as STEADY_HAND_CARD } from './steady-hand/card';
 import { CARD as GHOST_TAG_CARD } from './ghost-tag/card';
 import { CARD as ZONE_RUSH_CARD } from './zone-rush/card';
-import { CARD as COMPASS_HUNT_CARD } from './compass-hunt/card';
+import { CARD as COMPASS_HUNT_CARD } from './ghost-hunt/card';
 import { CARD as SCREAM_METER_CARD } from './scream-meter/card';
 import type { GameCard } from '../core/types';
 

@@ -32,6 +32,15 @@ import {
   type Bomb,
 } from './passTheBomb';
 import {
+  nextDeadline as steadyDeadline,
+  onPlayerGone as steadyPlayerGone,
+  onSteadyTick,
+  onWobble,
+  startSteady,
+  type Ctx as SteadyCtx,
+  type Steady,
+} from './steadyHand';
+import {
   nextDeadline as spillDeadline,
   onCatch as spillCatch,
   onFling as spillFling,
@@ -243,6 +252,12 @@ export class Room extends DurableObject {
         if (id) await bombBump(this.#bombCtx(), id, msg.d.roundId, msg.d.at);
         return;
       }
+      case 'wobble': {
+        const id = this.#idOf(ws);
+        if (id) await onWobble(this.#steadyCtx(), id, msg.d.roundId, msg.d.w, msg.d.held);
+        return;
+      }
+
       case 'pass': {
         const id = this.#idOf(ws);
         if (id) await bombPass(this.#bombCtx(), id, msg.d.roundId, msg.d.to);
@@ -326,6 +341,13 @@ export class Room extends DurableObject {
     const bomb = await this.#bomb();
     if (bomb && bomb.phase === 'running' && Date.now() >= Math.min(bomb.fuseAt, bomb.endsAt)) {
       await bombFuse(this.#bombCtx());
+      await this.#rearm();
+      return;
+    }
+
+    const steady = await this.#steady();
+    if (steady && steady.phase === 'running' && Date.now() >= steadyDeadline(steady)) {
+      await onSteadyTick(this.#steadyCtx());
       await this.#rearm();
       return;
     }
@@ -421,6 +443,8 @@ export class Room extends DurableObject {
     if (duel && duel.phase !== 'done') return; // one round at a time
     const bomb = await this.#bomb();
     if (bomb && bomb.phase !== 'done') return;
+    const stilling = await this.#steady();
+    if (stilling && stilling.phase !== 'done') return;
     const running = await this.#spill();
     if (running && running.phase !== 'done') return;
     const besieged = await this.#siege();
@@ -435,6 +459,7 @@ export class Room extends DurableObject {
 
     if (
       mode === 'bomb' ||
+      mode === 'steady' ||
       mode === 'spill' ||
       mode === 'siege' ||
       mode === 'sling' ||
@@ -444,6 +469,7 @@ export class Room extends DurableObject {
       await this.ctx.storage.put('roundId', roundId);
       const ids = ready.map((p) => p.id);
       if (mode === 'bomb') await startBomb(this.#bombCtx(), roundId, ids);
+      else if (mode === 'steady') await startSteady(this.#steadyCtx(), roundId, ids);
       else if (mode === 'spill') await startSpill(this.#spillCtx(), roundId, ids);
       else if (mode === 'siege') await startSiege(this.#siegeCtx(), roundId, ids);
       else if (mode === 'sling') await startSling(this.#slingCtx(), roundId, ids);
@@ -599,6 +625,21 @@ export class Room extends DurableObject {
       },
       load: () => this.#bomb(),
       save: (bomb) => this.ctx.storage.put('bomb', bomb),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #steady(): Promise<Steady | null> {
+    return (await this.ctx.storage.get<Steady>('steady')) ?? null;
+  }
+
+  #steadyCtx(): SteadyCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#steady(),
+      save: (s) => this.ctx.storage.put('steady', s),
       setAlarm: () => this.#rearm(),
     };
   }
@@ -809,6 +850,7 @@ export class Room extends DurableObject {
     // Spill player, by contrast, is only out once their seat is reaped, so a
     // refresh keeps their water (see the reaping loop in alarm()).
     await bombPlayerGone(this.#bombCtx(), id);
+    await steadyPlayerGone(this.#steadyCtx(), id);
     // No #ensureHost here: promoting the moment a socket drops is exactly
     // what stole the host role from anyone who refreshed. The alarm handles
     // it once HOST_GRACE_MS has passed.
@@ -866,6 +908,9 @@ export class Room extends DurableObject {
 
     const bomb = await this.#bomb();
     if (bomb?.phase === 'running') return Math.min(bomb.fuseAt, bomb.endsAt);
+
+    const steady = await this.#steady();
+    if (steady?.phase === 'running') return steadyDeadline(steady);
 
     const spill = await this.#spill();
     if (spill?.phase === 'running') return spillDeadline(spill);

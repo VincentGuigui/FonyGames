@@ -24,6 +24,7 @@ const INPUT_LABEL: Record<GameInput, string> = {
   orientation: 'tilt',
   gps: 'GPS',
   compass: 'compass',
+  camera: 'camera',
   mic: 'mic',
 };
 

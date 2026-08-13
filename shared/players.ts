@@ -42,12 +42,12 @@ export const PLAYERS = {
   'goat-siege': [2, 4],
   'sling-puck': [2, 2],
   'cat-and-mouse': [2, 6],
-  'shake-sprint': [2, 8],
+  'shake-rush': [2, 8],
   'tilt-arena': [2, 6],
   'steady-hand': [2, 8],
   'ghost-tag': [3, 10],
   'zone-rush': [2, 10],
-  'compass-hunt': [2, 10],
+  'ghost-hunt': [2, 10],
   'scream-meter': [2, 8],
 } as const satisfies Record<string, PlayerLimits>;
 

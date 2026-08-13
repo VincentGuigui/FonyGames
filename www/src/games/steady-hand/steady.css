@@ -1,0 +1,201 @@
+/* Steady Hand round screens. Spec: docs/specs/games/steady-hand.md §4 */
+
+.steady {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100dvh;
+  padding: var(--space-4);
+  padding-top: max(var(--space-4), env(safe-area-inset-top));
+  padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
+  text-align: center;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+/*
+ * The life-lost beat. A border rather than a full-screen flash: the meter must stay
+ * readable through it, because the second after losing a life is when you most need to
+ * see where you are — and §11 caps any flashing well under 3 Hz, which one 700 ms
+ * border does trivially.
+ */
+.steady--hit {
+  box-shadow: inset 0 0 0 6px var(--game-accent, var(--color-accent));
+}
+
+.steady__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.steady__label {
+  margin: 0;
+  font-size: var(--font-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dim);
+}
+
+/* --- the settle window --------------------------------------------------- */
+
+.steady__settle-count {
+  margin: auto 0 0;
+  font-size: clamp(5rem, 34vw, 10rem);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--game-accent, var(--color-accent));
+}
+
+.steady__settle {
+  margin: var(--space-3) 0 auto;
+  max-width: 20rem;
+  color: var(--color-text-dim);
+}
+
+/* --- the meter ----------------------------------------------------------- */
+
+.steady__dial {
+  width: 100%;
+  max-width: 22rem;
+  margin: auto 0 0;
+}
+
+.meter {
+  width: 100%;
+  height: 0.75rem;
+  background: var(--color-surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+/* Big enough to read from the corner of your eye without turning your head. */
+.meter--big {
+  height: 3.5rem;
+  border-radius: var(--radius);
+}
+
+.meter__fill {
+  height: 100%;
+  /* Snappy, but not instant: a bar that jumps every 200 ms frame reads as noise. */
+  transition: width 160ms linear, background-color 160ms linear;
+}
+
+.meter--calm .meter__fill {
+  background: var(--game-accent, var(--color-accent));
+}
+
+.meter--warn .meter__fill {
+  background: #fbbf24;
+}
+
+.meter--danger .meter__fill {
+  background: #f87171;
+}
+
+.steady__reading {
+  margin: var(--space-3) 0 0;
+  font-size: 1.25rem;
+}
+
+.steady__reading strong {
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+.steady__reading span {
+  color: var(--color-text-dim);
+}
+
+.steady__lives {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 auto;
+  font-size: 1.5rem;
+  letter-spacing: 0.15em;
+  color: var(--game-accent, var(--color-accent));
+}
+
+.steady__lives-n {
+  font-size: var(--font-small);
+  letter-spacing: normal;
+  color: var(--color-text-dim);
+}
+
+.steady__hit-note {
+  margin: 0 0 var(--space-4);
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--game-accent, var(--color-accent));
+}
+
+/* --- out, and watching --------------------------------------------------- */
+
+.steady--out {
+  opacity: 0.95;
+}
+
+.steady__gone {
+  margin: auto 0 0;
+  font-size: clamp(4rem, 26vw, 7rem);
+  line-height: 1;
+}
+
+.steady__gone-note {
+  margin: var(--space-2) 0 var(--space-5);
+  font-weight: 800;
+  font-size: 1.25rem;
+}
+
+.steady__others {
+  width: 100%;
+  max-width: 24rem;
+  margin: 0 0 auto;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.steady__other {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+  text-align: left;
+}
+
+.steady__other-who {
+  font-size: var(--font-small);
+}
+
+.steady__other-lives {
+  color: var(--game-accent, var(--color-accent));
+  letter-spacing: 0.1em;
+}
+
+.steady__other .meter {
+  grid-column: 1 / -1;
+}
+
+/* --- the lobby's one rule ------------------------------------------------ */
+
+.steady-rule {
+  border-color: var(--game-accent, var(--color-accent));
+}
+
+.steady-rule__body {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-small);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meter__fill {
+    transition: none;
+  }
+}

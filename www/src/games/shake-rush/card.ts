@@ -3,7 +3,7 @@ import { PLAYERS } from '../../../../shared/players';
 import art from './art/card.svg?url&no-inline';
 
 /**
- * Compass Hunt's hub card. Contract: docs/design/illustrations.md
+ * Shake Rush's hub card. Contract: docs/design/illustrations.md
  *
  * **This file is a leaf.** It may import only `core/types`, `shared/players` and its
  * own `art/`. The hub imports every card, so one import of this game's runtime would
@@ -13,19 +13,19 @@ import art from './art/card.svg?url&no-inline';
  * changing the spec is a bug.
  */
 export const CARD: GameCard = {
-  slug: 'compass-hunt',
-  title: 'Compass Hunt',
-  pitch: 'Follow the arrow to the treasure — so is everyone else',
-  concept: 'Everyone gets the same arrow, so the race is the game.',
+  slug: 'shake-rush',
+  title: 'Shake Rush',
+  pitch: 'Shake like your life depends on it — first to the finish wins',
+  concept: 'Pure effort: the harder you shake, the faster you move.',
   rules: [
-    'Follow the arrow to the treasure.',
-    'Everyone else is following it too.',
+    'Shake to move down the track.',
+    'First over the finish line wins.',
   ],
-  art: { src: art, alt: 'A compass needle pointing north' },
-  accent: '#FBBF24',
-  players: PLAYERS['compass-hunt'],
-  duration: '10 min',
-  inputs: ['compass', 'gps'],
+  art: { src: art, alt: 'A phone shaking, motion lines either side of it' },
+  accent: '#4ADE80',
+  players: PLAYERS['shake-rush'],
+  duration: '1 min',
+  inputs: ['motion'],
   modes: [],
   status: 'soon',
 };

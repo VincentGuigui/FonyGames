@@ -3,7 +3,7 @@ import { PLAYERS } from '../../../../shared/players';
 import art from './art/card.svg?url&no-inline';
 
 /**
- * Shake Sprint's hub card. Contract: docs/design/illustrations.md
+ * Ghost Hunt's hub card. Contract: docs/design/illustrations.md
  *
  * **This file is a leaf.** It may import only `core/types`, `shared/players` and its
  * own `art/`. The hub imports every card, so one import of this game's runtime would
@@ -13,19 +13,20 @@ import art from './art/card.svg?url&no-inline';
  * changing the spec is a bug.
  */
 export const CARD: GameCard = {
-  slug: 'shake-sprint',
-  title: 'Shake Sprint',
-  pitch: 'Shake like your life depends on it — first to the finish wins',
-  concept: 'Pure effort: the harder you shake, the faster you move.',
+  slug: 'ghost-hunt',
+  title: 'Ghost Hunt',
+  pitch: 'Sweep the room for ghosts only your phone can see',
+  concept: 'The ring shows the room as outlines — the ghost hides in there.',
   rules: [
-    'Shake to move down the track.',
-    'First over the finish line wins.',
+    'Hold your phone up and sweep the room.',
+    'The ring shows edges — find the ghost in it.',
+    'Most ghosts in 90 seconds wins.',
   ],
-  art: { src: art, alt: 'A phone shaking, motion lines either side of it' },
-  accent: '#4ADE80',
-  players: PLAYERS['shake-sprint'],
-  duration: '1 min',
-  inputs: ['motion'],
+  art: { src: art, alt: 'A phone held up, its screen a bright ring of traced edges' },
+  accent: '#FBBF24',
+  players: PLAYERS['ghost-hunt'],
+  duration: '90 s',
+  inputs: ['orientation', 'camera', 'touch'],
   modes: [],
   status: 'soon',
 };
