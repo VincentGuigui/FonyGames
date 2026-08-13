@@ -81,13 +81,13 @@ Index: **[docs/specs/README.md](docs/specs/README.md)**
 | --- | --- | --- | --- |
 | **[Tap Duel](docs/specs/games/tap-duel.md)** | *The fastest thumb in the room takes the round.* | Touch | 🎮 `pistol` playable |
 | **[Spill](docs/specs/games/spill.md)** | *Fling your water at the neighbours before they flood you.* | Touch | 🎮 playable, beta |
-| **[Pass the Bomb](docs/specs/games/pass-the-bomb.md)** | *Smash phones together to pass the bomb before it blows.* | Bump / motion | 📝 server built, phone UI to come |
+| **[Pass the Bomb](docs/specs/games/pass-the-bomb.md)** | *Smash phones together to pass the bomb before it blows.* | Bump / motion | 🎮 playable, beta |
 | **[Goat Siege](docs/specs/games/goat-siege.md)** | *Shoo the neighbours' goats before they eat your cabbages.* | Touch | 🎮 playable, beta |
 | **[Sling Puck](docs/specs/games/sling-puck.md)** | *Sling every puck onto their side before they sling them back.* | Touch | 🎮 playable, beta |
 | **[Cat and Mouse](docs/specs/games/cat-and-mouse.md)** | *One cat, a floor full of mice, and nowhere to hide.* | Touch | ✅ built, beta |
-| **Shake Rush** | *Shake like your life depends on it — first to the finish wins.* | Motion | 💡 idea |
+| **[Shake Rush](docs/specs/games/shake-rush.md)** | *Shake like your life depends on it — first to the finish wins.* | Motion | 📝 spec written |
 | **Tilt Arena** | *Tilt to steer, crash to win.* | Orientation | 💡 idea |
-| **Steady Hand** | *Hold your phone perfectly still. Longer than everyone else.* | Motion | 💡 idea |
+| **[Steady Hand](docs/specs/games/steady-hand.md)** | *Hold your phone perfectly still. Longer than everyone else.* | Motion | 🎮 playable, beta |
 | **Ghost Tag** | *One ghost, a whole neighbourhood, and a map that only whispers.* | GPS | 💡 idea |
 | **Zone Rush** | *Claim real streets by standing on them longer than your rivals.* | GPS | 💡 idea |
 | **Ghost Hunt** | *Sweep the room for ghosts only your phone can see.* | Tilt + camera | 📝 draft |
