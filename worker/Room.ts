@@ -110,8 +110,35 @@ type Duel = {
 };
 
 export class Room extends DurableObject {
-  /** seq for server->client ordering; clients drop out-of-order state. */
+  /**
+   * Ordering token for server->client frames. Clients drop anything not above the highest they
+   * have seen, so this must only ever go **up** — for the life of the room, not the life of this
+   * object.
+   *
+   * That distinction is the bug this shape exists to fix. It used to be a plain counter starting
+   * at 0, and a Durable Object is evicted whenever the room goes quiet: the next instance began
+   * again at 1, every frame it sent looked stale to a client that had already seen 11, and
+   * `RoomClient` silently dropped all of them for the rest of the session. Bump Relay found it
+   * because its fuse is a deliberate 8-25 second silence — an eviction window by design — so the
+   * `boom` ending the round never arrived and the game could not finish. Every other game had the
+   * same hole; they just rarely go quiet long enough to fall in it.
+   *
+   * Seeded from the clock instead of from storage, so it needs no write per frame and no
+   * migration: wall-clock time already survives eviction, and every previously sent value was
+   * also roughly `Date.now()`, so a fresh instance resumes above them. The `+1` keeps it strictly
+   * increasing when two frames land in the same millisecond, which `boom` and the `bomb` that
+   * follows it always do.
+   *
+   * The values are opaque to clients — only their order carries meaning — so making them
+   * timestamps costs nothing. If a backwards clock adjustment across an eviction ever does bite,
+   * the alternative is to persist a high-water mark and reserve blocks of ids from it.
+   */
   #seq = 0;
+
+  #nextSeq(): number {
+    this.#seq = Math.max(this.#seq + 1, Date.now());
+    return this.#seq;
+  }
   #buckets = new WeakMap<WebSocket, Bucket>();
 
   async fetch(request: Request): Promise<Response> {
@@ -459,7 +486,7 @@ export class Room extends DurableObject {
       entrants: ready.map((p) => p.id),
     });
 
-    this.#broadcast({ t: 'arm', s: ++this.#seq, d: { roundId, fireAt, startsAt, target } });
+    this.#broadcast({ t: 'arm', s: this.#nextSeq(), d: { roundId, fireAt, startsAt, target } });
 
     // The server owns the timer, not the host — so a host dropping mid-duel
     // cannot stall it. This alarm resolves the duel if nobody taps.
@@ -535,7 +562,7 @@ export class Room extends DurableObject {
 
     this.#broadcast({
       t: 'result',
-      s: ++this.#seq,
+      s: this.#nextSeq(),
       d: {
         roundId: duel.roundId,
         ranking: ranking.filter((r) => players.has(r.playerId)),
@@ -563,7 +590,7 @@ export class Room extends DurableObject {
   #relayCtx(): RelayCtx {
     return {
       now: () => Date.now(),
-      nextSeq: () => ++this.#seq,
+      nextSeq: () => this.#nextSeq(),
       broadcast: (msg) => this.#broadcast(msg),
       sendTo: (playerId, msg) => {
         for (const ws of this.ctx.getWebSockets()) {
@@ -583,7 +610,7 @@ export class Room extends DurableObject {
   #spillCtx(): SpillCtx {
     return {
       now: () => Date.now(),
-      nextSeq: () => ++this.#seq,
+      nextSeq: () => this.#nextSeq(),
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#spill(),
       save: (spill) => this.ctx.storage.put('spill', spill),
@@ -598,7 +625,7 @@ export class Room extends DurableObject {
   #siegeCtx(): SiegeCtx {
     return {
       now: () => Date.now(),
-      nextSeq: () => ++this.#seq,
+      nextSeq: () => this.#nextSeq(),
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#siege(),
       save: (siege) => this.ctx.storage.put('siege', siege),
@@ -617,7 +644,7 @@ export class Room extends DurableObject {
   #cmCtx(): CatMouseCtx {
     return {
       now: () => Date.now(),
-      nextSeq: () => ++this.#seq,
+      nextSeq: () => this.#nextSeq(),
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#catMouse(),
       save: (state) => this.ctx.storage.put('catMouse', state),
@@ -628,7 +655,7 @@ export class Room extends DurableObject {
   #slingCtx(): SlingCtx {
     return {
       now: () => Date.now(),
-      nextSeq: () => ++this.#seq,
+      nextSeq: () => this.#nextSeq(),
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#sling(),
       save: (sling) => this.ctx.storage.put('sling', sling),
@@ -703,7 +730,7 @@ export class Room extends DurableObject {
     const room = await this.#snapshot(players);
     this.#send(ws, {
       t: 'welcome',
-      s: ++this.#seq,
+      s: this.#nextSeq(),
       d: { you: id, serverTime: Date.now(), room },
     });
 
@@ -712,25 +739,25 @@ export class Room extends DurableObject {
     // one snapshot is enough to resume the animation exactly where it is.
     const spill = await this.#spill();
     if (spill && spill.phase === 'running') {
-      this.#send(ws, { t: 'spill', s: ++this.#seq, d: toState(spill) });
+      this.#send(ws, { t: 'spill', s: this.#nextSeq(), d: toState(spill) });
     }
     const siege = await this.#siege();
     if (siege && siege.phase === 'running') {
-      this.#send(ws, { t: 'siege', s: ++this.#seq, d: siegeToState(siege) });
+      this.#send(ws, { t: 'siege', s: this.#nextSeq(), d: siegeToState(siege) });
     }
     // Sling Puck resyncs the **count** and nothing else: the pucks were never
     // the server's to remember, so a refresher gets their own five back at rest
     // and loses only the motion nobody else could see (spec §9).
     const sling = await this.#sling();
     if (sling && sling.phase === 'running') {
-      this.#send(ws, { t: 'sling', s: ++this.#seq, d: slingToState(sling) });
+      this.#send(ws, { t: 'sling', s: this.#nextSeq(), d: slingToState(sling) });
     }
     // Cat and Mouse resyncs the full state, then the next tick puts everyone
     // where they are — a refresher comes back at their last reported position,
     // which is what spec §8 promises.
     const chase = await this.#catMouse();
     if (chase && chase.phase === 'running') {
-      this.#send(ws, { t: 'cm', s: ++this.#seq, d: cmToState(chase) });
+      this.#send(ws, { t: 'cm', s: this.#nextSeq(), d: cmToState(chase) });
     }
 
     await this.#broadcastPresence(ws);
@@ -871,7 +898,7 @@ export class Room extends DurableObject {
 
   async #broadcastPresence(except?: WebSocket): Promise<void> {
     const room = await this.#snapshot();
-    const msg: ServerMessage = { t: 'presence', s: ++this.#seq, d: room };
+    const msg: ServerMessage = { t: 'presence', s: this.#nextSeq(), d: room };
     for (const ws of this.ctx.getWebSockets()) {
       if (ws !== except) this.#send(ws, msg);
     }
