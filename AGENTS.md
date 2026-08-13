@@ -114,6 +114,26 @@ Nothing outside those ships. Nothing outside `docs/` documents.
    `prod`. See [docs/conventions/commits.md](./docs/conventions/commits.md) and
    [docs/deployment.md](./docs/deployment.md). Open a PR only when asked.
 
+### Reporting what you verified
+
+State what you checked and what it showed. Then stop.
+
+**The deployed hosts are not reachable from an agent sandbox.** Outbound requests to
+`fonygames.guigui.fr` are refused by the egress proxy, and this is a permanent property of the
+environment, not news. So:
+
+- Report the local evidence — `npm test`, `npm run build`, what a browser driven against
+  `php -S` plus `wrangler dev` actually showed, with the numbers where there are numbers.
+- **Do not** append a caveat that the live site could not be checked, and **do not** tell the
+  maintainer to go and test it on their phone. They know the sandbox cannot reach prod and they
+  know what a deploy is; saying it every time is noise, and repeating it after being told is
+  worse.
+- A green CI run is evidence the deploy job succeeded — say that, and let it stand for itself
+  rather than qualifying it.
+
+The exception is a genuine gap in *this* piece of work: something you could not test that a
+reader would otherwise assume you had, or a check that failed. Say that plainly, once.
+
 ### Commit message shape
 
 ```
