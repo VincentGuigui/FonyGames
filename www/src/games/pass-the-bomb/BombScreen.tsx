@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
-import { opponentOf, StatusBar } from '../../core/ui/StatusBar';
+import { StatusBar } from '../../core/ui/StatusBar';
+import { Scoreboard } from '../../core/ui/Scoreboard';
 import type { BombView } from './game';
 
 /** How long the explosion holds the screen before the next bomb view returns. */
@@ -32,6 +33,7 @@ export function BombScreen({
   title,
   concept,
   rules,
+  accent,
   onPass,
   canBump,
   muted,
@@ -42,6 +44,15 @@ export function BombScreen({
   title: string;
   concept: string;
   rules: string[];
+  /**
+   * The game's accent, set as `--game-accent` on the round screen's own root.
+   *
+   * The lobby template sets it for its screens and the round screen is not inside it,
+   * so without this every accented thing here — the status bar's number, the score
+   * panel's values — fell back to the SITE accent. That is how Ghost Hunt shipped a
+   * green game with an orange radar.
+   */
+  accent: string;
   /** Tap fallback — always offered, not only when motion is denied (spec §11). */
   onPass: (to: PlayerId) => void;
   /** False when this phone has no usable motion sensor, so the copy stops promising bumps. */
@@ -78,14 +89,15 @@ export function BombScreen({
 
   if (iAmOut) {
     return (
-      <div class="bombscreen bombscreen--out">
+      <div class="bombscreen bombscreen--out" style={{ '--game-accent': accent } as JSX.CSSProperties}>
         <StatusBar
           status={"You're out — watching"}
-          opponent={bombOpponent(players, myId, state)}
           title={title}
           concept={concept}
           rules={rules}
         />
+
+        <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" />
         <p class="bombscreen__holder-avatar" aria-hidden="true">
           {avatar(state.holder)}
         </p>
@@ -97,14 +109,15 @@ export function BombScreen({
 
   if (iAmHolder) {
     return (
-      <div class="bombscreen bombscreen--holder">
+      <div class="bombscreen bombscreen--holder" style={{ '--game-accent': accent } as JSX.CSSProperties}>
         <StatusBar
           status={"You have it"}
-          opponent={bombOpponent(players, myId, state)}
           title={title}
           concept={concept}
           rules={rules}
         />
+
+        <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" />
 
         <p class="bombscreen__icon" aria-hidden="true">
           💣
@@ -142,14 +155,15 @@ export function BombScreen({
   }
 
   return (
-    <div class="bombscreen bombscreen--watching">
+    <div class="bombscreen bombscreen--watching" style={{ '--game-accent': accent } as JSX.CSSProperties}>
       <StatusBar
         status={`${state.alive.length} still in`}
-        opponent={bombOpponent(players, myId, state)}
         title={title}
         concept={concept}
         rules={rules}
       />
+
+      <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" />
       <p class="bombscreen__holder-avatar" aria-hidden="true">
         {avatar(state.holder)}
       </p>
@@ -193,20 +207,19 @@ function useFreshBoom(state: BombView): { victim: PlayerId } | null {
 }
 
 /**
- * Who has the bomb, in a two-player round.
+ * Who has the bomb, for the panel.
  *
- * Not a score — Pass the Bomb has none until somebody is out. What the other player
- * is worth knowing for is whether the thing is in their hands or yours, which is
- * the whole round compressed into one word.
+ * **Not a score.** Pass the Bomb has none until somebody is out, and what a player wants
+ * to know about everyone else is whether the thing is in their hands. So the value is a
+ * word, and `best: 'none'` — there is nothing to be ahead in, and a bold row would be
+ * inventing a leader.
  */
-function bombOpponent(players: Player[], me: PlayerId | undefined, state: BombView) {
-  const other = opponentOf(players, me);
-  if (!other) return null;
-
-  return {
-    avatar: other.avatar,
-    name: other.name,
-    value: state.holder === other.id ? 'has it' : 'clear',
-    dim: !state.alive.includes(other.id),
-  };
+function bombRows(players: Player[], state: BombView) {
+  return players.map((p) => ({
+    id: p.id,
+    avatar: p.avatar,
+    name: p.name,
+    value: state.holder === p.id ? 'has it' : 'clear',
+    ...(state.alive.includes(p.id) ? {} : { out: true }),
+  }));
 }

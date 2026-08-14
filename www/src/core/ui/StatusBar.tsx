@@ -1,5 +1,4 @@
 import type { ComponentChildren, JSX } from 'preact';
-import type { Player, PlayerId } from '../../../../shared/protocol';
 import { GameMenu } from './GameMenu';
 
 /**
@@ -15,15 +14,15 @@ import { GameMenu } from './GameMenu';
  *
  * So the arrangement is fixed here and a game chooses only what to put in it:
  *
- *   [ my score / status ]        [ opponent ]   [ ☰ ]
+ *   [ my score / status ]                        [ ☰ ]
  *
- * ## The opponent slot is for TWO-player rounds only
+ * ## Other players are NOT on this bar
  *
- * With three or more, a single "them" is a lie — and games that seat players
- * physically (Spill, Goat Siege) already draw everyone where they actually sit,
- * which is better information than a row of numbers. `opponentOf()` below returns
- * a player only when there are exactly two, so a game can hand it the whole roster
- * and let the rule decide rather than counting seats itself.
+ * There used to be an opponent slot here, filled only in a two-player round because
+ * with three or more a single "them" is a lie. That made the answer to "how am I
+ * doing" arrive in one place at two players and somewhere else at three, and left
+ * every screen computing which case it was in. Everyone's score now lives in one
+ * panel that is the same at every head count — `core/ui/Scoreboard.tsx`.
  */
 
 export type StatusScore = {
@@ -33,62 +32,24 @@ export type StatusScore = {
   label?: string;
 };
 
-export type StatusOpponent = {
-  avatar: string;
-  name: string;
-  value: string | number;
-  /** Dim them: out, away, disconnected. */
-  dim?: boolean;
-};
-
-/**
- * The other player, but only in a two-player round.
- *
- * Returns null for one player (solo testing) and for three or more, which is what
- * keeps the decision out of every game's screen. `players` is the live roster, so a
- * round that started with two and lost one collapses to null on its own.
- */
-export function opponentOf(players: Player[], me: PlayerId | undefined): Player | null {
-  if (players.length !== 2) return null;
-  return players.find((p) => p.id !== me) ?? null;
-}
-
-/**
- * The lone opponent from an `OpponentScores` list, or null.
- *
- * Three games already build that list — Sling Puck, Goat Siege, Cat and Mouse —
- * and it is exactly the right input: it already excludes the player themselves and
- * already carries who is out. This just applies the two-player rule to it, so those
- * games do not each re-derive "is it a duel".
- */
-export function fromScores(
-  scores: { avatar: string; name: string; score: number; out?: boolean }[],
-): StatusOpponent | null {
-  if (scores.length !== 1) return null;
-  const only = scores[0] as { avatar: string; name: string; score: number; out?: boolean };
-  return { avatar: only.avatar, name: only.name, value: only.score, dim: only.out === true };
-}
-
 export function StatusBar({
   score,
   status,
-  opponent,
   title,
   concept,
   rules,
   children,
 }: {
   /*
-   * `| undefined` on each, deliberately: `exactOptionalPropertyTypes` is on, and
-   * every one of these is COMPUTED by the caller — `opponentOf()` returns null, a
-   * status is conditional on the phase. Without it each of the nine call sites
-   * would have to spread the prop in conditionally, which is noise around the one
-   * thing this component exists to make uniform.
+   * `| undefined` on both, deliberately: `exactOptionalPropertyTypes` is on, and both
+   * are COMPUTED by the caller — a status is conditional on the phase, a score is
+   * absent in a game that has none. Without it each call site would have to spread
+   * the prop in conditionally, which is noise around the one thing this component
+   * exists to make uniform.
    */
   score?: StatusScore | undefined;
   /** Free text for a game whose state is not a number — "3 still in". */
   status?: string | undefined;
-  opponent?: StatusOpponent | null | undefined;
   title: string;
   concept: string;
   rules: string[];
@@ -106,23 +67,6 @@ export function StatusBar({
         )}
         {status && <p class="statusbar__status">{status}</p>}
       </div>
-
-      {/*
-        Announced rather than silent: a score changing is the one thing on this bar
-        worth telling a screen reader about, and `polite` means it waits for a gap
-        instead of interrupting whatever the game is saying.
-      */}
-      {opponent && (
-        <p
-          class={`statusbar__them${opponent.dim ? ' statusbar__them--dim' : ''}`}
-          role="status"
-          aria-live="polite"
-        >
-          <span aria-hidden="true">{opponent.avatar}</span>
-          <span class="statusbar__them-name">{opponent.name}</span>
-          <strong class="statusbar__them-value">{opponent.value}</strong>
-        </p>
-      )}
 
       <GameMenu title={title} concept={concept} rules={rules}>
         {children}

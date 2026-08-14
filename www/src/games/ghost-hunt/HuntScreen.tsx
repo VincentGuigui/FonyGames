@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX, RefObject } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
 import { RADAR_FOV_DEG } from '../../../../shared/protocol';
-import { opponentOf, StatusBar } from '../../core/ui/StatusBar';
+import { StatusBar } from '../../core/ui/StatusBar';
+import { Scoreboard } from '../../core/ui/Scoreboard';
 import { heat, ranking, type HuntView, type LockState } from './game';
 import { RADAR_PX } from './vision';
 
@@ -77,7 +78,6 @@ export function HuntScreen({
   backdropRef: RefObject<HTMLCanvasElement>;
   radarRef: RefObject<HTMLCanvasElement>;
 }): JSX.Element {
-  const byId = new Map(players.map((p) => [p.id, p]));
   const hot = heat(lock.error);
   const mine = myId ? (state.scores[myId] ?? 0) : 0;
   const near = lock.error <= RADAR_FOV_DEG;
@@ -95,7 +95,6 @@ export function HuntScreen({
         <StatusBar
           score={{ value: mine, label: 'found' }}
           status={`${secondsLeft}s`}
-          opponent={huntOpponent(players, myId, state)}
           title={title}
           concept={concept}
           rules={rules}
@@ -161,16 +160,22 @@ export function HuntScreen({
         </p>
       </div>
 
-      <div class="hunt__foot">
-        <ul class="hunt__board">
-          {ranking(state, players.map((p) => p.id)).slice(0, 4).map((id) => (
-            <li key={id} class={`hunt__score ${id === myId ? 'hunt__score--me' : ''}`}>
-              <span aria-hidden="true">{byId.get(id)?.avatar ?? '🙂'}</span>
-              <span class="hunt__score-n">{state.scores[id] ?? 0}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+      {/*
+        The scores used to be a row of avatar-and-number chips along the foot of this
+        screen, capped at four players and unlabelled. The shared panel is that, with
+        names, at any head count, and identical in every other game — so the row is
+        gone rather than sitting above it saying the same thing twice.
+      */}
+      <Scoreboard
+        rows={players.map((p) => ({
+          id: p.id,
+          avatar: p.avatar,
+          name: p.name,
+          value: state.scores[p.id] ?? 0,
+        }))}
+        me={myId}
+        unit="ghosts"
+      />
     </div>
   );
 }
@@ -276,10 +281,3 @@ export function HuntResults({
   );
 }
 
-/** How many the other hunter has found, in a two-player round. */
-function huntOpponent(players: Player[], me: PlayerId | undefined, state: HuntView) {
-  const other = opponentOf(players, me);
-  if (!other) return null;
-
-  return { avatar: other.avatar, name: other.name, value: state.scores[other.id] ?? 0 };
-}

@@ -117,6 +117,7 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         title={card.title}
         concept={card.concept}
         rules={card.rules}
+        accent={card.accent}
         onAgain={again}
         canAgain={room.isHost && enoughPlayers}
       />

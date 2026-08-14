@@ -2,6 +2,7 @@ import type { JSX } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import type { Player, PlayerId, RoundResult } from '../../../../shared/protocol';
 import { GameMenu } from '../../core/ui/GameMenu';
+import { Scoreboard } from '../../core/ui/Scoreboard';
 import { driftAt } from './drift';
 
 /**
@@ -155,6 +156,32 @@ export function Duel(props: {
     </div>
   );
 
+  /*
+   * The session's running points, in the panel every game has.
+   *
+   * A duel has no score DURING a round — it is one tap — so what this shows is the
+   * cumulative total, which is the only number Tap Duel keeps. `result` is not cleared
+   * between rounds, so the totals stay on screen through the next arm and signal; before
+   * the first duel everyone is on nil, which is true and which the panel does not bold
+   * because a tie has no leader.
+   *
+   * It cannot cost a reaction: the panel is `pointer-events: none`, so a tap over it
+   * falls through to the target or the backdrop exactly as it did before, and the round
+   * screen stays the bare tap target it is meant to be.
+   */
+  const scores = (
+    <Scoreboard
+      rows={players.map((p) => ({
+        id: p.id,
+        avatar: p.avatar,
+        name: p.name,
+        value: result?.scores[p.id] ?? 0,
+      }))}
+      me={me}
+      unit="points"
+    />
+  );
+
   const nameOf = (id: PlayerId): string =>
     players.find((p) => p.id === id)?.name ?? 'Someone';
 
@@ -171,6 +198,7 @@ export function Duel(props: {
     return (
       <div class="duel duel--waiting">
         {menu}
+        {scores}
         <h2 class="duel__headline">Got it</h2>
         <p class="duel__sub">Waiting for everyone else…</p>
       </div>
@@ -231,6 +259,7 @@ export function Duel(props: {
     return (
       <div class="duel duel--burned">
         {menu}
+        {scores}
         <h2 class="duel__headline">Too early</h2>
         <p class="duel__sub">You’re out of this one. Watch the others suffer.</p>
       </div>
@@ -280,6 +309,7 @@ export function Duel(props: {
         </div>
         {bullseye}
         {menu}
+        {scores}
       </>
     );
   }
@@ -300,6 +330,7 @@ export function Duel(props: {
       </button>
       {bullseye}
       {menu}
+      {scores}
     </>
   );
 }

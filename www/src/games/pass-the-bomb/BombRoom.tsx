@@ -126,6 +126,7 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         title={card.title}
         concept={card.concept}
         rules={card.rules}
+        accent={card.accent}
         canBump={motionOn}
         muted={muted}
         onPass={(to: PlayerId) =>

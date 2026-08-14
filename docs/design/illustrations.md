@@ -271,7 +271,7 @@ redrawing it.
   test that imports `registry.ts` breaks; it returns an untyped record; and it
   destroys the curated card order hub.md §2 requires. The imports are written out.
 - **No per-game "show this UI" config flags.** Whether a game renders
-  `core/ui/OpponentScores.tsx` is one line in that game's own TSX. A boolean beside
+  `core/ui/Scoreboard.tsx` is one line in that game's own TSX. A boolean beside
   it could only ever disagree with reality.
 
 ## 7. Proving it worked

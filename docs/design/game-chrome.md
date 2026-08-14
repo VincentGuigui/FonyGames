@@ -139,35 +139,106 @@ gesture (Spill's flick), per the fallback rule in
 [ui-guidelines.md](ui-guidelines.md) — so they are always present, never behind
 a setting.
 
-## 6. Everyone else's score
+## 6. The score panel
 
-Every game in the catalogue is a race against the other players, so every game
-needs the same glance: *how am I doing against them?* One component,
-`core/ui/OpponentScores.tsx`, along the top of the board.
+Every game in the catalogue is a race against the other players, so every game needs
+the same glance: *how am I doing against them?* **One panel, in every game, with
+everybody in it.** Component `core/ui/Scoreboard.tsx`, styles in
+`core/ui/scoreboard.css`, imported by `game-chrome.css` so a game cannot ship it
+unstyled.
+
+```
+┌──────────────────────┐
+│ 🙂 Vincent         3 │   ← you, always the top row
+│ 🐙 Sam             5 │   ← the leader, bold
+│ 🦊 Ada             1 │
+└──────────────────────┘
+```
 
 | | |
 | --- | --- |
-| Where | Top of the screen, directly under the player's own number, inside the game's HUD scrim |
-| Shows | Avatar, name, score — one entry per **other** player |
-| Hides | Itself entirely when there are no opponents, so a spectator gets no empty strip |
+| Where | Floating in a **corner of the board**, over its own 50%-black scrim. The corner is a per-game setting; the default is bottom left |
+| Shows | Avatar, name, value — one row per player, **including you** |
+| Order | You first, then room order. Never sorted by score |
+| The leader | Bold, and only when exactly one player holds the best value |
 | Out of the round | Dimmed **and** struck through, never colour alone (ui-guidelines §7) |
-| The unit | Named once for the row ("pucks", "cabbages"), not repeated per player |
+| Colour | Name white, value `--game-accent`. The panel has its own dark ground, so it does not follow the page theme |
+| Hides | Itself entirely below two players — a panel restating the status bar is furniture |
+| The unit | On the panel's `aria-label` and each row's hidden text ("pucks", "cabbages"), never drawn |
 
-Shared rather than per-game for the same reason as the gear and the rules panel:
-the first attempt at this was written separately in each game and drifted into
-three different shapes. It also means the game's own number and the opponents'
-are laid out the same way everywhere — own score large on the left, gear on the
-right, opponents small underneath.
+### Why you are the top row rather than sorted
 
-The component takes plain data, not a game state, so nothing about it knows which
-game it is in. A game maps its own state into `OpponentScore[]` **during render**
-rather than mirroring it into component state on a timer — see
-[../conventions/code-style.md](../conventions/code-style.md), and Sling Puck's
-`view.theirs`, which was deleted when this shipped because two sources for one
-number is how they come to disagree.
+A list that reorders while you are playing is a list you have to re-read, and the row
+you look for most is your own. Sorting by score moves it under your thumb at exactly
+the moment something interesting happened.
 
-Enabled in **Sling Puck** and **Goat Siege**. Spill and Tap Duel still show their
-own shapes; they should move to this when next touched.
+### Why the leader is bold only when there is one
+
+Every round starts level. Bolding a four-way tie at nil says nothing while making the
+panel look like it is shouting, so `arrange()` marks a leader only when a single player
+holds the extreme value — and never a player who is out.
+
+### Winning is not always the biggest number
+
+`best` is `'high'`, `'low'` or `'none'` per game, and it has to be:
+
+| Game | Value | `best` |
+| --- | --- | --- |
+| Tap Duel | session points | `high` |
+| Ghost Hunt | ghosts caught | `high` |
+| Goat Siege | cabbages left | `high` |
+| Cat and Mouse | lives | `high` |
+| Shake Rush | shakes to go | **`low`** |
+| Spill | water carried | **`low`** |
+| Sling Puck | pucks left | **`low`** |
+| Pass the Bomb | "has it" / "clear" | **`none`** — there is no score until somebody is out |
+| Steady Hand | lives, as pips | **`none`** — the game is won by lasting longest, not by finishing with the most left |
+
+A single hard-coded `>` would print the bold beside whoever is *losing* in three of
+these, visible only to somebody who plays those three and thinks about it.
+`www/src/core/ui/scoreboard.test.ts` asserts both directions and fails on that
+mutation.
+
+### Where the corner has to move, and why
+
+The default is bottom left everywhere. Three games override it, each because the
+default corner is not theirs to take:
+
+| Game | Corner | Because |
+| --- | --- | --- |
+| Goat Siege | top right | The lob bar owns the bottom — the game's only control |
+| Spill | top left | The throw row owns the bottom, for the same reason |
+| Sling Puck | top right | The bottom half of the screen is the player's own board |
+| Cat and Mouse | top left | Its hint line runs the full width of the bottom |
+
+**The top corners carry a 4rem offset** so they clear the status bar, which starts at the
+same edge and is the same width. Without it the panel lands exactly on the bar: Spill's
+own drop count vanished behind it and Goat Siege's panel sat over the gear.
+
+The panel is `pointer-events: none` regardless, so it can never swallow a tap on a
+board played by dragging and flicking. That is a correctness property, not a nicety: a
+panel that ate taps in one corner would be reported as "the game misses my finger
+sometimes".
+
+### What this replaced
+
+Two components that were each half of it:
+
+- An **opponent slot on the status bar**, filled only in a two-player round, because
+  with three or more a single "them" is a lie.
+- An **`OpponentScores` strip** along the top of the board, which hid itself whenever
+  there was exactly one opponent so the two would not collide.
+
+Between them, a player got the answer to "how am I doing" in one place at two players
+and somewhere else at three, and every screen carried the code to work out which case
+it was in. Ghost Hunt had a *third* shape — a row of avatar-and-number chips capped at
+four players — which the panel also replaced.
+
+Games that place players **spatially** keep doing so: Spill's ring puts every player at
+their real bearing around the table and Shake Rush's track puts each runner at their
+real distance. Those answer *where*, which is what aiming needs; the panel answers *how
+much*. Shake Rush's lane numbers do now say the same thing as the panel, which is a real
+duplication — if one goes, it is the number on the end of each lane.
 
 ## 7. The status bar
 
@@ -176,27 +247,24 @@ One row across the top of every game screen. Component:
 `game-chrome.css` so a game cannot ship it unstyled.
 
 ```
-[ my score / status ]        [ opponent ]   [ ☰ ]
+[ my score / status ]                        [ ☰ ]
 ```
 
 Every game had grown its own — `.steady__bar`, `.rush__bar`, `.hunt__bar`,
 `.spill__hud`, and a `hud__row` in three more. The same three things in six
 arrangements, so learning one game's chrome taught you nothing about the next.
 
-**The opponent slot is for two-player rounds only.** With three or more a single
-"them" is a lie, and §6's row already answers "how am I doing against everyone".
-`opponentOf(players, me)` returns a player only when there are exactly two, and
-`fromScores()` applies the same rule to the list the §6 row already builds — so no
-game counts seats itself. `OpponentScores` renders nothing for a single opponent,
-because that one now lives on the bar; showing both was the duplication this rule
-exists to prevent.
+**Other players are not on this bar.** There used to be an opponent slot here; §6's
+panel replaced it, and the reasoning is recorded there. What is left is the player's
+own number, a free-text status, and the gear.
 
-This started as a Spill bug. Spill draws every other player **at their real
-bearing** around the table (spill.md §4b), which is the right answer for four and
-the wrong one for two: with a pair, the other score lands wherever the geometry puts
-it rather than anywhere the eye looks. Two-player Spill now skips the ring entirely
-and uses the bar; three or more keeps the ring, which is better information than a
-row of numbers.
+The bar also carries `--game-accent` for its own number — which means every round
+screen has to **set** that variable on its root. Most of them did not: the lobby
+template sets it for lobby screens, and a round screen is not inside the template, so
+Steady Hand, Shake Rush, Pass the Bomb, Cat and Mouse, Goat Siege and Sling Puck were
+all drawing the site accent in the middle of their own colour scheme. They each take an
+`accent` prop now and set it, which fixes the panel's values and the bar's number in one
+line per game.
 
 **Tap Duel has no status bar, deliberately.** Its round screen is a bare tap target
 measuring a reaction in milliseconds — a bar across the top would steal taps at the

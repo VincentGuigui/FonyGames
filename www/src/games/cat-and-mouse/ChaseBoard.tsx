@@ -5,9 +5,9 @@ import type { RoomClient } from '../../core/room/client';
 import type { CatMouseGame } from './game';
 import { startRenderer, type Renderer } from './render';
 import { toBoard } from './layout';
-import { fromScores, StatusBar } from '../../core/ui/StatusBar';
+import { StatusBar } from '../../core/ui/StatusBar';
 import { RulesPanel } from '../../core/ui/RulesPanel';
-import { OpponentScores } from '../../core/ui/OpponentScores';
+import { Scoreboard } from '../../core/ui/Scoreboard';
 
 /**
  * The floor. Spec: docs/specs/games/cat-and-mouse.md §7
@@ -26,6 +26,7 @@ export function ChaseBoard({
   title,
   concept,
   rules,
+  accent,
   client,
   players,
 }: {
@@ -33,6 +34,15 @@ export function ChaseBoard({
   title: string;
   concept: string;
   rules: string[];
+  /**
+   * The game's accent, set as `--game-accent` on the round screen's own root.
+   *
+   * The lobby template sets it for its screens and the round screen is not inside it,
+   * so without this every accented thing here — the status bar's number, the score
+   * panel's values — fell back to the SITE accent. That is how Ghost Hunt shipped a
+   * green game with an orange radar.
+   */
+  accent: string;
   client: RoomClient | null;
   players: Player[];
 }): JSX.Element {
@@ -111,30 +121,33 @@ export function ChaseBoard({
   const me = client?.playerId;
 
   /*
-   * Everyone else's lives in the shared strip — **mice only**.
+   * Everyone in the panel, with the cat reading **"cat"** rather than a number.
    *
-   * The cat is deliberately absent. It has no lives, and the strip is a row of
-   * numbers, so putting it there means printing a 0 beside its name: on a phone,
-   * at that size, a 0 in a lives column reads as "about to be out" and the cat is
-   * the one player who can never be out. It needs no strip entry either, because
-   * it is the only icon on the floor that is not a mouse and reads by shape
-   * (spec §7) — and the lobby already said whose turn it was.
+   * The cat has no lives, so a numeric row for it would print a 0: on a phone, at that
+   * size, a 0 in a lives column reads as "about to be out", and the cat is the one
+   * player who can never be out.
+   *
+   * It was left out of the list entirely at first, which was worse. A two-player chase
+   * is one cat and one mouse, so dropping the cat left a single row — and the panel
+   * hides itself below two, meaning the smallest possible game was the one game with no
+   * panel at all. A word instead of a number fixes both ends: the row exists, it says
+   * what that player is, and `Number('cat')` is `NaN` so the ranking skips it without
+   * needing a rule of its own.
    */
-  const opponents = (state?.actors ?? [])
-    .filter((a) => a.playerId !== me && a.playerId !== state?.catId)
-    .map((a) => {
-      const p = players.find((q) => q.id === a.playerId);
-      return {
-        id: a.playerId,
-        avatar: p?.avatar ?? '?',
-        name: p?.name ?? 'them',
-        score: a.lives,
-        ...(a.out ? { out: true } : {}),
-      };
-    });
+  const scores = (state?.actors ?? []).map((a) => {
+    const p = players.find((q) => q.id === a.playerId);
+    const isCat = a.playerId === state?.catId;
+    return {
+      id: a.playerId,
+      avatar: p?.avatar ?? '?',
+      name: p?.name ?? 'them',
+      value: isCat ? 'cat' : a.lives,
+      ...(a.out && !isCat ? { out: true } : {}),
+    };
+  });
 
   return (
-    <div class="chase">
+    <div class="chase" style={{ '--game-accent': accent } as JSX.CSSProperties}>
       <canvas
         ref={canvasRef}
         class="chase__canvas"
@@ -149,13 +162,17 @@ export function ChaseBoard({
         <StatusBar
           score={iAmCat ? undefined : { value: myLives ?? 0, label: 'lives' }}
           status={iAmCat ? 'You’re the cat — catch them all' : '●'.repeat(Math.max(0, myLives ?? 0))}
-          opponent={fromScores(opponents)}
           title={title}
           concept={concept}
           rules={rules}
         />
-        <OpponentScores unit="lives" scores={opponents} />
       </div>
+
+      {/*
+        Top left, not the default bottom left: the hint line runs the full width of the
+        bottom of this screen, and the panel sat on top of it.
+      */}
+      <Scoreboard rows={scores} me={me} unit="lives" corner="top-left" />
 
       <Clock endsAt={game.endsAt()} now={() => client?.now() ?? Date.now()} />
 

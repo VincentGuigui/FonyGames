@@ -4,9 +4,9 @@ import type { Player, PlayerId } from '../../../../shared/protocol';
 import type { RoomClient } from '../../core/room/client';
 import type { SiegeGame } from './game';
 import { startRenderer, type Renderer } from './render';
-import { fromScores, StatusBar } from '../../core/ui/StatusBar';
+import { StatusBar } from '../../core/ui/StatusBar';
 import { RulesPanel } from '../../core/ui/RulesPanel';
-import { OpponentScores } from '../../core/ui/OpponentScores';
+import { Scoreboard } from '../../core/ui/Scoreboard';
 
 /**
  * The patch. Spec: docs/specs/games/goat-siege.md §4
@@ -20,6 +20,7 @@ export function SiegeBoard({
   title,
   concept,
   rules,
+  accent,
   client,
   players,
 }: {
@@ -27,6 +28,15 @@ export function SiegeBoard({
   title: string;
   concept: string;
   rules: string[];
+  /**
+   * The game's accent, set as `--game-accent` on the round screen's own root.
+   *
+   * The lobby template sets it for its screens and the round screen is not inside it,
+   * so without this every accented thing here — the status bar's number, the score
+   * panel's values — fell back to the SITE accent. That is how Ghost Hunt shipped a
+   * green game with an orange radar.
+   */
+  accent: string;
   client: RoomClient | null;
   players: Player[];
 }): JSX.Element {
@@ -78,33 +88,36 @@ export function SiegeBoard({
   // Straight off the state on every render. The state only changes when a message
   // arrives, which is exactly when a score changes, so there is nothing to poll.
   const state = game.state;
-  const opponents = (state?.players ?? [])
-    .filter((id) => id !== client?.playerId)
-    .map((id) => {
-      const p = players.find((q) => q.id === id);
-      return {
-        id,
-        avatar: p?.avatar ?? '?',
-        name: p?.name ?? 'neighbour',
-        score: state?.cabbages[id] ?? 0,
-        out: !!state?.out.includes(id),
-      };
-    });
+  const scores = (state?.players ?? []).map((id) => {
+    const p = players.find((q) => q.id === id);
+    return {
+      id,
+      avatar: p?.avatar ?? '?',
+      name: p?.name ?? 'neighbour',
+      value: state?.cabbages[id] ?? 0,
+      out: !!state?.out.includes(id),
+    };
+  });
 
   return (
-    <div class="siege">
+    <div class="siege" style={{ '--game-accent': accent } as JSX.CSSProperties}>
       <canvas ref={canvasRef} class="siege__canvas" onPointerDown={shoo} />
 
       <div class="siege__hud">
         <StatusBar
           score={{ value: cabbages, label: 'cabbages' }}
-          opponent={fromScores(opponents)}
           title={title}
           concept={concept}
           rules={rules}
         />
-        <OpponentScores unit="cabbages" scores={opponents} />
       </div>
+
+      {/*
+        Top right, not the default bottom left: the lob bar owns the bottom of this
+        screen, and a panel over the neighbours' attack buttons would be a panel over
+        the game's only control.
+      */}
+      <Scoreboard rows={scores} me={client?.playerId} unit="cabbages" corner="top-right" />
 
       <div class="siege__lobbar">
         <span class="aimbar__label">Attack</span>

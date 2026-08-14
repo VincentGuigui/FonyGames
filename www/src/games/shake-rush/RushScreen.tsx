@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
-import { opponentOf, StatusBar } from '../../core/ui/StatusBar';
+import { StatusBar } from '../../core/ui/StatusBar';
+import { Scoreboard } from '../../core/ui/Scoreboard';
 import { progress, standings, toGo, type RushView } from './game';
 
 /**
@@ -21,6 +22,7 @@ export function RushScreen({
   title,
   concept,
   rules,
+  accent,
   onAgain,
   canAgain,
 }: {
@@ -30,6 +32,15 @@ export function RushScreen({
   title: string;
   concept: string;
   rules: string[];
+  /**
+   * The game's accent, set as `--game-accent` on the round screen's own root.
+   *
+   * The lobby template sets it for its screens and the round screen is not inside it,
+   * so without this every accented thing here — the status bar's number, the score
+   * panel's values — fell back to the SITE accent. That is how Ghost Hunt shipped a
+   * green game with an orange radar.
+   */
+  accent: string;
   onAgain: () => void;
   /** Host only — everyone else is told who to wait for. */
   canAgain: boolean;
@@ -47,7 +58,7 @@ export function RushScreen({
   if (over) {
     const winner = ids[0];
     return (
-      <div class="rush rush--over">
+      <div class="rush rush--over" style={{ '--game-accent': accent } as JSX.CSSProperties}>
         <StatusBar status="Finish" title={title} concept={concept} rules={rules} />
 
         <p class="rush__trophy" aria-hidden="true">
@@ -82,15 +93,16 @@ export function RushScreen({
   }
 
   return (
-    <div class="rush">
+    <div class="rush" style={{ '--game-accent': accent } as JSX.CSSProperties}>
       <StatusBar
         score={{ value: left, label: 'to go' }}
         status={state.finished.length > 0 ? 'Someone is home' : undefined}
-        opponent={rushOpponent(players, myId, state)}
         title={title}
         concept={concept}
         rules={rules}
       />
+
+      <Scoreboard rows={rushRows(players, state)} me={myId} unit="shakes to go" best="low" />
 
       {/*
         The count, not a bar. "37 to go" is a motivator; a bar filling up is
@@ -140,15 +152,23 @@ export function RushScreen({
   );
 }
 
-/** How far the other runner still has, in a two-player race. */
-function rushOpponent(players: Player[], me: PlayerId | undefined, state: RushView) {
-  const other = opponentOf(players, me);
-  if (!other) return null;
-
-  return {
-    avatar: other.avatar,
-    name: other.name,
-    value: toGo(state.at[other.id]) === 0 ? 'home' : toGo(state.at[other.id]),
-    dim: state.away.includes(other.id),
-  };
+/**
+ * How far everyone still has, for the panel.
+ *
+ * FEWEST to go is the lead, so `best: 'low'` — the runner in front is the one with the
+ * smallest number, and `'high'` would put the bold on whoever is last.
+ *
+ * This says the same thing as the lane list above it, which is a real duplication and a
+ * deliberate one: the track is the game's own picture of the race and the panel is the
+ * uniform readout every game now has. If one has to go, it is the number on the end of
+ * each lane rather than the panel.
+ */
+function rushRows(players: Player[], state: RushView) {
+  return players.map((p) => ({
+    id: p.id,
+    avatar: p.avatar,
+    name: p.name,
+    value: toGo(state.at[p.id]) === 0 ? 'home' : toGo(state.at[p.id]),
+    ...(state.away.includes(p.id) ? { out: true } : {}),
+  }));
 }

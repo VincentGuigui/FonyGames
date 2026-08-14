@@ -2,7 +2,8 @@ import { useEffect, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
 import { STEADY_LIVES } from '../../../../shared/protocol';
-import { opponentOf, StatusBar } from '../../core/ui/StatusBar';
+import { StatusBar } from '../../core/ui/StatusBar';
+import { Scoreboard } from '../../core/ui/Scoreboard';
 import { meterFill, type SteadyView } from './game';
 
 /** How long the "you lost a life" beat holds. Shorter than the grace window on purpose. */
@@ -24,6 +25,7 @@ export function SteadyScreen({
   title,
   concept,
   rules,
+  accent,
   now,
 }: {
   state: SteadyView;
@@ -32,6 +34,15 @@ export function SteadyScreen({
   title: string;
   concept: string;
   rules: string[];
+  /**
+   * The game's accent, set as `--game-accent` on the round screen's own root.
+   *
+   * The lobby template sets it for its screens and the round screen is not inside it,
+   * so without this every accented thing here — the status bar's number, the score
+   * panel's values — fell back to the SITE accent. That is how Ghost Hunt shipped a
+   * green game with an orange radar.
+   */
+  accent: string;
   /** Server time, for the settle countdown. */
   now: () => number;
 }): JSX.Element {
@@ -48,14 +59,15 @@ export function SteadyScreen({
   if (iAmOut) {
     const reason = state.lastOut?.victim === myId ? state.lastOut.reason : 'moved';
     return (
-      <div class="steady steady--out">
+      <div class="steady steady--out" style={{ '--game-accent': accent } as JSX.CSSProperties}>
         <StatusBar
           status={reason === 'parked' ? 'Phone put down' : reason === 'left' ? 'You dropped out' : 'You moved'}
-          opponent={them(players, myId, state)}
           title={title}
           concept={concept}
           rules={rules}
         />
+
+        <Scoreboard rows={livesRows(players, state)} me={myId} unit="lives" best="none" />
 
         <p class="steady__gone" aria-hidden="true">
           ✋
@@ -79,14 +91,18 @@ export function SteadyScreen({
   }
 
   return (
-    <div class={`steady ${hit ? 'steady--hit' : ''}`}>
+    <div
+      class={`steady ${hit ? 'steady--hit' : ''}`}
+      style={{ '--game-accent': accent } as JSX.CSSProperties}
+    >
       <StatusBar
         status={`${state.alive.length} still in`}
-        opponent={them(players, myId, state)}
         title={title}
         concept={concept}
         rules={rules}
       />
+
+      <Scoreboard rows={livesRows(players, state)} me={myId} unit="lives" best="none" />
 
       {settling !== null ? (
         <>
@@ -192,21 +208,26 @@ function useSettle(state: SteadyView, now: () => number): number | null {
 }
 
 /**
- * The other player's lives, in a two-player round.
+ * Everyone's lives, for the panel.
  *
  * Lives rather than wobble: wobble is a live meter that already has a place on the
- * screen, while "how many mistakes are they allowed" is the thing you actually want
- * to know about the only person you are racing.
+ * screen, while "how many mistakes are they allowed" is the thing you actually want to
+ * know about the people you are racing.
+ *
+ * The value is pips and not a digit — three lives reads as ●●● across the table — so
+ * there is nothing here to rank and the panel bolds nobody (`best: 'none'`). Ranking on
+ * lives would be wrong anyway: this game is won by lasting longest, not by finishing
+ * with the most left.
  */
-function them(players: Player[], me: PlayerId | undefined, state: SteadyView) {
-  const other = opponentOf(players, me);
-  if (!other) return null;
-
-  const lives = state.lives[other.id] ?? 0;
-  return {
-    avatar: other.avatar,
-    name: other.name,
-    value: lives > 0 ? '●'.repeat(lives) : 'out',
-    dim: !state.alive.includes(other.id),
-  };
+function livesRows(players: Player[], state: SteadyView) {
+  return players.map((p) => {
+    const lives = state.lives[p.id] ?? 0;
+    return {
+      id: p.id,
+      avatar: p.avatar,
+      name: p.name,
+      value: lives > 0 ? '●'.repeat(lives) : 'out',
+      ...(state.alive.includes(p.id) ? {} : { out: true }),
+    };
+  });
 }

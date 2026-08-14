@@ -1,0 +1,127 @@
+/*
+ * Everyone's score, in one panel, in every game.
+ * Component: core/ui/Scoreboard.tsx · spec: docs/design/game-chrome.md §6
+ *
+ * Imported by `game-chrome.css`, which every game page already loads — a game must
+ * never have to remember to import this, or the panel arrives unstyled in exactly the
+ * game nobody checked.
+ *
+ * It floats over the board rather than taking a place in the layout, because the board
+ * underneath is different in every game and none of them has a spare row. Its own dark
+ * scrim, so it does not depend on what it happens to be sitting on: at 50% black it is
+ * legible over a lit camera feed, a pale panorama and a bright green field alike.
+ */
+
+.scores {
+  position: fixed;
+  z-index: 3;
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: var(--space-2);
+  list-style: none;
+  border-radius: var(--radius-sm);
+  background: rgb(0 0 0 / 0.5);
+  /*
+   * Never in the way. It sits over a board that is played by dragging and tapping, and
+   * a panel that swallowed a tap in the corner would be a bug reported as "the game
+   * misses my finger sometimes".
+   */
+  pointer-events: none;
+  /* A long name shrinks; the panel never grows across the board. */
+  max-width: min(60%, 15rem);
+}
+
+/*
+ * The corners. `position: fixed` rather than absolute, so this needs nothing from the
+ * game root it happens to be inside — half of them are `position: fixed` themselves
+ * and the other half are static, and a panel that only appeared in some games would be
+ * the obvious result of depending on that.
+ */
+.scores--bottom-left {
+  left: max(var(--space-3), env(safe-area-inset-left));
+  bottom: max(var(--space-3), env(safe-area-inset-bottom));
+}
+
+.scores--bottom-right {
+  right: max(var(--space-3), env(safe-area-inset-right));
+  bottom: max(var(--space-3), env(safe-area-inset-bottom));
+}
+
+/*
+ * The top corners clear the status bar, which is why they carry an extra 4rem.
+ *
+ * Both of them are the same width as the bar and start at the same edge, so without it
+ * the panel lands exactly on top of it: Spill's own drop count disappeared behind the
+ * panel and Goat Siege's panel sat over the gear. `4rem` is the gear's 2.75rem plus the
+ * padding every game's HUD puts above it, which is the tallest the bar gets.
+ */
+.scores--top-left {
+  left: max(var(--space-3), env(safe-area-inset-left));
+  top: calc(max(var(--space-3), env(safe-area-inset-top)) + 4rem);
+}
+
+.scores--top-right {
+  right: max(var(--space-3), env(safe-area-inset-right));
+  top: calc(max(var(--space-3), env(safe-area-inset-top)) + 4rem);
+}
+
+.scores__row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4em;
+  min-width: 0;
+  font-size: var(--font-small);
+  /* White, explicitly, and not `--color-text`: this sits on its own black scrim
+     rather than on the page, so it must not follow a theme the scrim ignores. */
+  color: #fff;
+}
+
+.scores__avatar {
+  font-size: 1rem;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.scores__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The accent, which is the point of the panel being per-game rather than generic. */
+.scores__value {
+  flex: 0 0 auto;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--game-accent, var(--color-accent));
+}
+
+/*
+ * You. A rule down the left rather than a word in the name, so the row still says the
+ * name a player chose — and the top row is already yours, so this only has to confirm
+ * it rather than announce it.
+ */
+.scores__row--me {
+  padding-left: 0.4em;
+  margin-left: -0.4em;
+  box-shadow: inset 0.15em 0 0 var(--game-accent, var(--color-accent));
+}
+
+/* Whoever is in front, and only when exactly one player is (see `arrange`). */
+.scores__row--best .scores__name,
+.scores__row--best .scores__value {
+  font-weight: 800;
+}
+
+/* Out of the round. Dimmed *and* struck, so it never rests on colour (§7). */
+.scores__row--out {
+  opacity: 0.55;
+}
+
+.scores__row--out .scores__name,
+.scores__row--out .scores__value {
+  text-decoration: line-through;
+}

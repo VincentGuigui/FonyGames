@@ -6,9 +6,9 @@ import type { SlingGame } from './game';
 import { startRenderer, type Renderer } from './render';
 import { toBoard, onBoard } from './layout';
 import { PUCK_RADIUS } from './physics';
-import { fromScores, StatusBar } from '../../core/ui/StatusBar';
+import { StatusBar } from '../../core/ui/StatusBar';
 import { RulesPanel } from '../../core/ui/RulesPanel';
-import { OpponentScores } from '../../core/ui/OpponentScores';
+import { Scoreboard } from '../../core/ui/Scoreboard';
 
 /**
  * Your half of the board. Spec: docs/specs/games/sling-puck.md §8, §13
@@ -29,6 +29,7 @@ export function SlingBoard({
   title,
   concept,
   rules,
+  accent,
   client,
   players,
 }: {
@@ -36,6 +37,15 @@ export function SlingBoard({
   title: string;
   concept: string;
   rules: string[];
+  /**
+   * The game's accent, set as `--game-accent` on the round screen's own root.
+   *
+   * The lobby template sets it for its screens and the round screen is not inside it,
+   * so without this every accented thing here — the status bar's number, the score
+   * panel's values — fell back to the SITE accent. That is how Ghost Hunt shipped a
+   * green game with an orange radar.
+   */
+  accent: string;
   client: RoomClient | null;
   players: Player[];
 }): JSX.Element {
@@ -114,22 +124,20 @@ export function SlingBoard({
   const view = game.view();
 
   // "Theirs" used to be a second big number in the corner of this board. It is the
-  // shared strip now, so the same glance works the same way in every game.
+  // shared panel now, so the same glance works the same way in every game.
   const state = game.state;
-  const opponents = (state?.players ?? [])
-    .filter((id) => id !== client?.playerId)
-    .map((id) => {
-      const p = players.find((q) => q.id === id);
-      return {
-        id,
-        avatar: p?.avatar ?? '?',
-        name: p?.name ?? 'them',
-        score: state?.pucks[id] ?? 0,
-      };
-    });
+  const scores = (state?.players ?? []).map((id) => {
+    const p = players.find((q) => q.id === id);
+    return {
+      id,
+      avatar: p?.avatar ?? '?',
+      name: p?.name ?? 'them',
+      value: state?.pucks[id] ?? 0,
+    };
+  });
 
   return (
-    <div class="sling">
+    <div class="sling" style={{ '--game-accent': accent } as JSX.CSSProperties}>
       <canvas
         ref={canvasRef}
         class="sling__canvas"
@@ -142,13 +150,20 @@ export function SlingBoard({
       <div class="sling__hud">
         <StatusBar
           score={{ value: view.mine, label: 'yours' }}
-          opponent={fromScores(opponents)}
           title={title}
           concept={concept}
           rules={rules}
         />
-        <OpponentScores unit="pucks" scores={opponents} />
       </div>
+
+      {/*
+        Emptying your half wins, so FEWEST pucks is the lead — the one game besides
+        Spill where `best: 'high'` would put the bold on whoever is losing.
+
+        Top right, because the bottom half of this screen is the player's own board and
+        a panel over it would be a panel over the thing they are flicking.
+      */}
+      <Scoreboard rows={scores} me={client?.playerId} unit="pucks" best="low" corner="top-right" />
 
       <p class="sling__hint">
         {view.spectating

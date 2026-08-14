@@ -77,6 +77,7 @@ function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         title={card.title}
         concept={card.concept}
         rules={card.rules}
+        accent={card.accent}
         client={client}
         players={room.room?.players ?? []}
       />

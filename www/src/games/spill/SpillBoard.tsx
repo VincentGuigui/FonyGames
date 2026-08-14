@@ -4,7 +4,8 @@ import type { Player, PlayerId } from '../../../../shared/protocol';
 import type { RoomClient } from '../../core/room/client';
 import type { SpillGame } from './game';
 import { startRenderer, type Renderer } from './render';
-import { opponentOf, StatusBar } from '../../core/ui/StatusBar';
+import { StatusBar } from '../../core/ui/StatusBar';
+import { Scoreboard } from '../../core/ui/Scoreboard';
 import { RulesPanel } from '../../core/ui/RulesPanel';
 import { SeatMap } from './SeatMap';
 import { screenAngleTo } from '../../../../shared/spillGeometry';
@@ -205,11 +206,12 @@ export function SpillBoard({
       */}
       <div class="spill__peers" aria-hidden="true">
         {/*
-          Skipped entirely for two, where the status bar carries the other score
-          (core/ui/StatusBar.tsx). This ring places each player at their real
-          bearing, which is the right answer around a table of four and the wrong
-          one for a pair: with two seats the other player lands wherever the
-          geometry puts them rather than anywhere the eye looks for a score.
+          Skipped entirely for two. This ring places each player at their real
+          bearing, which is the right answer around a table of four and the wrong one
+          for a pair: with two seats the other player lands wherever the geometry puts
+          them rather than anywhere the eye looks for a score. The panel carries the
+          numbers at every head count; the ring is about WHERE, which is what you need
+          to aim a flick.
         */}
         {(seats.length === 2 ? [] : seats).map((id, seat) => {
           if (seat === mySeat || mySeat < 0) return null;
@@ -235,7 +237,6 @@ export function SpillBoard({
       <div class="spill__hud">
         <StatusBar
           score={{ value: count, label: `${theme.words.unitPlural} left` }}
-          opponent={spillOpponent(players, me ?? undefined, levels, out)}
           title={title}
           concept={concept}
           rules={rules}
@@ -257,6 +258,18 @@ export function SpillBoard({
           )}
         </StatusBar>
       </div>
+
+      {/*
+        Top left, not the default bottom left: the bottom of this screen is the throw
+        row, and it is the one place on any board where a panel must not be.
+      */}
+      <Scoreboard
+        rows={spillRows(players, levels, out)}
+        me={me}
+        unit={theme.words.unitPlural}
+        best="low"
+        corner="top-left"
+      />
 
       {/*
         The flick is the good input, but a directional drag excludes people
@@ -308,26 +321,28 @@ export function SpillBoard({
 }
 
 /**
- * The other player's level, for a two-player round.
+ * Everyone's count, for the panel.
  *
- * Spill counts *up* to a losing level, so the number in the bar is what they are
- * carrying — the same thing `spill__peers` shows around a bigger table. Someone
- * who has been flooded out stays on the bar, dimmed: a score that disappears reads
- * as a rendering fault rather than as an elimination.
+ * **Least water wins**, so `best: 'low'` — this and Sling Puck are the two games where
+ * `'high'` would put the bold on whoever is closest to losing.
+ *
+ * Spill counts *up* to a losing level, so the number is what a player is carrying — the
+ * same thing `spill__peers` shows around a bigger table, where it is placed by bearing
+ * because aiming needs to know WHERE and not only how much.
+ *
+ * A player who has been flooded out stays in the panel, struck through: a score that
+ * disappears reads as a rendering fault rather than as an elimination.
  */
-function spillOpponent(
+function spillRows(
   players: Player[],
-  me: PlayerId | undefined,
   levels: Record<PlayerId, number>,
   out: PlayerId[],
-): { avatar: string; name: string; value: number; dim: boolean } | null {
-  const them = opponentOf(players, me);
-  if (!them) return null;
-
-  return {
-    avatar: them.avatar,
-    name: them.name,
-    value: levels[them.id] ?? 0,
-    dim: out.includes(them.id),
-  };
+) {
+  return players.map((p) => ({
+    id: p.id,
+    avatar: p.avatar,
+    name: p.name,
+    value: levels[p.id] ?? 0,
+    ...(out.includes(p.id) ? { out: true } : {}),
+  }));
 }

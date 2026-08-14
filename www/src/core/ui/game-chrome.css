@@ -9,6 +9,7 @@
 /* The top row. Imported here so a game page cannot forget it and ship the bar
    unstyled — every game already loads this file. */
 @import './statusbar.css';
+@import './scoreboard.css';
 
 /* --- rules list, used in three places ------------------------------------ */
 
@@ -224,62 +225,6 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
-}
-
-/* --- opponents' scores (OpponentScores.tsx) ----------------------------- */
-
-/*
- * A strip of "who else, and how are they doing", along the top of a board.
- * Shared by every game that has opponents, so it must not assume anything about
- * the board underneath it: no background of its own (the game's HUD scrim
- * already covers this area) and no fixed positioning.
- */
-.oppscores {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem 0.9rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  /* Sits under the game's own count, so it wraps rather than pushing the board. */
-  min-width: 0;
-}
-
-.oppscores__item {
-  display: flex;
-  align-items: baseline;
-  gap: 0.3rem;
-  font-size: 0.8125rem;
-  color: var(--color-text-dim);
-  min-width: 0;
-}
-
-.oppscores__avatar {
-  font-size: 1rem;
-  line-height: 1;
-}
-
-.oppscores__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 6rem;
-}
-
-.oppscores__score {
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  color: var(--color-text);
-}
-
-/* Out of the round. Dimmed *and* struck, so it never rests on colour (§7). */
-.oppscores__item--out {
-  opacity: 0.55;
-}
-
-.oppscores__item--out .oppscores__name,
-.oppscores__item--out .oppscores__score {
-  text-decoration: line-through;
 }
 
 /* Available to any label that must be read but not seen. */

@@ -6,9 +6,9 @@
  * never have to remember to import this, or the bar arrives unstyled in exactly the
  * game nobody checked.
  *
- * Sized to be read at a glance mid-round and to survive a 320px screen with a long
- * name in it: the opponent's name is the only part allowed to shrink, because a
- * truncated name still identifies them while a truncated score is a lie.
+ * Sized to be read at a glance mid-round and to survive a 320px screen. Other players
+ * are not on this bar at all — they are in the panel (`scoreboard.css`), which is the
+ * same shape at every head count.
  */
 
 .statusbar {
@@ -56,47 +56,4 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* --- the other player, in a two-player round only ------------------------ */
-
-.statusbar__them {
-  display: flex;
-  align-items: center;
-  gap: 0.35em;
-  flex: 0 1 auto;
-  min-width: 0;
-  margin: 0;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-2);
-  background: var(--color-surface);
-  font-size: var(--font-small);
-}
-
-/* Out, away, disconnected — still shown, because a score that vanishes reads as a
-   bug rather than as an elimination. */
-.statusbar__them--dim {
-  opacity: 0.5;
-}
-
-.statusbar__them-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--color-text-dim);
-  /* The first thing to give way when the row is tight. */
-  min-width: 0;
-}
-
-.statusbar__them-value {
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Under ~360px a name and two numbers do not fit beside the menu. The name goes
-   first: the avatar still says who it is. */
-@media (max-width: 359px) {
-  .statusbar__them-name {
-    display: none;
-  }
 }
