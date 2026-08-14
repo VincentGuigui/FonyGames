@@ -85,6 +85,25 @@ credential must never open prod.
 repository secrets: a repository-level secret of the same name is visible to any job,
 including on branches that must not deploy.
 
+**Two pairs of Cloudflare secrets, and they are not interchangeable.** The names are
+close enough to be worth stating outright:
+
+| You want to | Set |
+| --- | --- |
+| Deploy the room server | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` |
+| Show the usage panel in the admin centre | `CF_ANALYTICS_TOKEN` + `CF_ACCOUNT_ID` |
+
+The two account ids hold the **same value**; they are separate secrets because they
+are consumed by different things — one by `wrangler` at deploy time, the other written
+into the host's `config.php` for a read-only analytics query (§3.3). The tokens are
+deliberately *not* the same: one is **Edit Cloudflare Workers**, the other is read-only
+analytics, and §3.3 explains why the deploy token is not widened to cover both.
+
+There is no `CF_API_TOKEN`. It appeared only as a shell variable inside the
+worker-deploy job, aliasing `CLOUDFLARE_API_TOKEN`, and has been renamed to match its
+secret — `CF_ACCOUNT_ID` as a local alias for `CLOUDFLARE_ACCOUNT_ID` collided with the
+real, different `CF_ACCOUNT_ID` secret in the other job.
+
 | Secret | Contents | Used by |
 | --- | --- | --- |
 | `FTPHOST` | Server hostname, e.g. `ftp.example.com` (no scheme, no port) | site |
@@ -96,7 +115,7 @@ including on branches that must not deploy.
 | `ADMIN_EMAIL` | The one address a magic link may be sent to | site (admin config) |
 | `ADMIN_TOKEN` | Break-glass bearer, **and what the deploy uses to apply migrations** (§3.7). `openssl rand -hex 32` | site (admin config) |
 | `CF_ANALYTICS_TOKEN` | Read-only analytics token for the usage panel (§3.3) | site (admin config) |
-| `CF_ACCOUNT_ID` | Cloudflare account id, for the same call | site (admin config) |
+| `CF_ACCOUNT_ID` | Cloudflare account id, for the same call — **the same value as `CLOUDFLARE_ACCOUNT_ID`, under a second name**; see below | site (admin config) |
 | `DB_DSN` | PDO DSN, e.g. `mysql:host=localhost;dbname=fonygames;charset=utf8mb4` | site (admin config) |
 | `DB_USER` | MySQL account for that database | site (admin config) |
 | `DB_PASS` | Its password | site (admin config) |

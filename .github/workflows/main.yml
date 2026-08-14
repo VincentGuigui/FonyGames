@@ -438,11 +438,17 @@ jobs:
     # state, and blocking it buys nothing.
     - name: 🔐 Check Cloudflare credentials
       id: creds
+      #
+      # The shell names match the SECRET names deliberately. They used to be
+      # shortened to CF_API_TOKEN / CF_ACCOUNT_ID, and `CF_ACCOUNT_ID` is *also* a
+      # real and different secret twenty lines up — it configures the admin centre's
+      # analytics panel, not the deploy. One identifier meaning two things in two
+      # jobs is a question waiting to be asked, so it is no longer abbreviated.
       env:
-        CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       run: |
-        if [ -n "$CF_API_TOKEN" ] && [ -n "$CF_ACCOUNT_ID" ]; then
+        if [ -n "$CLOUDFLARE_API_TOKEN" ] && [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then
           echo "ready=true" >> "$GITHUB_OUTPUT"
           exit 0
         fi
@@ -450,8 +456,8 @@ jobs:
         echo "ready=false" >> "$GITHUB_OUTPUT"
 
         missing=""
-        [ -n "$CF_API_TOKEN" ]  || missing="$missing CLOUDFLARE_API_TOKEN"
-        [ -n "$CF_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+        [ -n "$CLOUDFLARE_API_TOKEN" ]  || missing="$missing CLOUDFLARE_API_TOKEN"
+        [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
 
         if [ "${{ github.ref_name }}" = "prod" ]; then
           echo "::error::Missing in the 'prod' GitHub Environment:$missing — the room"\
