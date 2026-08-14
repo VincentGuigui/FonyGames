@@ -36,14 +36,19 @@
   /* 1rem minimum, or iOS zooms the page on focus. */
   font-size: 1.5rem;
   font-weight: 700;
-  letter-spacing: 0.3em;
+  /*
+   * Tighter than it was: the field now holds seven glyphs rather than four, and at
+   * 0.3em they no longer fit beside the Join button on a 390px screen. The grouping
+   * dash gives the eye the separation the wide tracking used to.
+   */
+  letter-spacing: 0.2em;
   text-transform: uppercase;
 }
 
 .join__input::placeholder {
   color: var(--color-text-dim);
   opacity: 0.5;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.2em;
 }
 
 .join__button {

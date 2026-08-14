@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
 import type { JSX } from 'preact';
-import { isRoomCode, normaliseRoomCode } from '../room/code';
+import { formatRoomCode, isRoomCode, normaliseRoomCode, ROOM_CODE_LENGTH } from '../room/code';
 import { lookupRoom } from '../room/lookup';
 
 /**
@@ -54,7 +54,7 @@ export function JoinByCode({
     setCode(value);
 
     if (!isRoomCode(value)) {
-      setError('A room code is 4 letters or numbers.');
+      setError(`A room code is ${ROOM_CODE_LENGTH} letters or numbers.`);
       return;
     }
 
@@ -73,7 +73,7 @@ export function JoinByCode({
     }
     setError(
       found.reason === 'unknown'
-        ? `No room called ${value}. Check the code, or ask for the link.`
+        ? `No room called ${formatRoomCode(value)}. Check the code, or ask for the link.`
         : 'Could not reach the game server. Check your connection and try again.',
     );
   }
@@ -84,6 +84,15 @@ export function JoinByCode({
         {label}
       </label>
       <div class="join__row">
+        {/*
+          The field shows the grouped form, `ABC-DEF`, while `code` stays the bare six
+          characters — the dash is presentation and must never reach a URL. `maxLength`
+          counts the dash, hence +1.
+
+          The value is written back on every keystroke so the dash appears as the fourth
+          character is typed. `normaliseRoomCode` drops the dash on the way in, so a
+          pasted `ABC-DEF`, `abcdef` or `ABC DEF` all arrive the same.
+        */}
         <input
           id="room-code"
           name="room-code"
@@ -93,13 +102,20 @@ export function JoinByCode({
           autocomplete="off"
           autocapitalize="characters"
           spellcheck={false}
-          maxLength={4}
-          placeholder="ABCD"
-          value={code}
+          maxLength={ROOM_CODE_LENGTH + 1}
+          placeholder="ABC-DEF"
+          value={formatRoomCode(code)}
           disabled={checking}
           aria-describedby={error ? 'join-error' : undefined}
           onInput={(e) => {
-            setCode(normaliseRoomCode((e.target as HTMLInputElement).value));
+            const field = e.target as HTMLInputElement;
+            const bare = normaliseRoomCode(field.value);
+            // Written directly as well as through state: Preact skips the DOM update
+            // when the new value matches its last render, which happens when the only
+            // change was a character this strips — and the field would then keep
+            // showing what was typed rather than what was accepted.
+            field.value = formatRoomCode(bare);
+            setCode(bare);
             setError(null);
           }}
         />

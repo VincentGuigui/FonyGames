@@ -6,6 +6,29 @@ How players get into the same room. Applies to every game — the lobby is share
 > Tier 1 is **built**. Tier 2 is **specified, not built** — see
 > [roadmap.md](../roadmap.md) M9.
 
+## 0. The code
+
+Six characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` — no `O`/`0`, no `I`/`1`, so a
+code shouted across a noisy room survives.
+
+**Stored and transmitted bare, displayed grouped.** `ABCDEF` is what goes in a hash, a
+WebSocket query and a Durable Object name; `ABC-DEF` is what a human is shown, on the
+hub, in the create panel and in the lobby's code card. The dash is presentation and
+never reaches a wire — `idFromName('ABC-DEF')` and `idFromName('ABCDEF')` are two
+different rooms, so two people reading the same code aloud would end up alone in
+separate ones. `formatRoomCode()` in `www/src/core/room/code.ts` is the only place the
+dash is added.
+
+Grouping because six is past what most people hold in one glance, and it gives someone
+reading it out a place to pause. It was four characters until the catalogue grew; four
+is ~1M rooms, six is ~1G, and the collision arithmetic is in
+[realtime-server.md](../realtime-server.md).
+
+Typed input accepts anything and keeps what it can: `ABC-DEF`, `abc def` and `ABCDEF`
+all normalise to the same six. A **hash** is stricter — it accepts the bare form and
+exactly the grouped form we print, and calls anything else damaged rather than
+repairing it (§4).
+
 ## 1. Tier 1 — always available
 
 Every game offers all three, always. They need no sensor and no permission.
@@ -196,8 +219,9 @@ the code.
 and using the typing rule on the hash was a live bug until `hash.test.ts` was written.
 `normaliseRoomCode()` is lossy on purpose — it drops characters outside the alphabet and
 truncates to four — which is right while somebody types and wrong for a link that has
-already arrived: `#lobby` lost its `O` and became room `LBBY`, and `#AB2CD` was truncated to
-`AB2C`. Both silently produced a *valid* code for a room the sender never named, which is
+already arrived: `#lobby` lost its `O` and became room `LBBY`, and an over-long hash was
+truncated to a shorter valid one. Both silently produced a *valid* code for a room the
+sender never named, which is
 exactly the failure the table above exists to prevent. So `roomFromHash()` tests the whole
 value with `isRoomCode()` and forgives only case, because some clients lowercase a URL in
 transit and that is the same code rather than a different one.

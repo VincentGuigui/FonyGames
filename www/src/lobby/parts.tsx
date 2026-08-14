@@ -3,6 +3,7 @@ import type { Player, PlayerId, RoomSnapshot } from '../../../shared/protocol';
 import type { RoomStatus } from '../core/room/client';
 import { AVATARS } from '../../../shared/names';
 import { QrCode } from '../core/ui/QrCode';
+import { formatRoomCode } from '../core/room/code';
 
 /**
  * The chrome every room screen shares: connection state, the join card, the
@@ -48,7 +49,13 @@ export function CodeCard({
   return (
     <section class="code-card">
       <p class="code-card__label">Room code</p>
-      <p class="code-card__code">{code}</p>
+      {/*
+        Grouped for reading — `ABC-DEF`. The dash is presentation only; `code` itself
+        stays bare everywhere it matters, and the share link and QR below are built
+        from that. A long-press copies the dash too, which is harmless: the join field
+        strips anything outside the alphabet, so pasting it back works.
+      */}
+      <p class="code-card__code">{formatRoomCode(code)}</p>
       <div class="code-card__actions">
         <button class="btn btn--primary" type="button" onClick={onShare}>
           {copied ? 'Link copied' : 'Share link'}

@@ -72,11 +72,19 @@
 
 .code-card__code {
   margin: var(--space-1) 0 var(--space-4);
-  /* Readable across a table, by three people at once. */
-  font-size: clamp(3rem, 18vw, 4.5rem);
+  /*
+   * Readable across a table, by three people at once — but it has to FIT first.
+   * Seven glyphs now (six plus the dash) rather than four, so the old 18vw would
+   * have run ~550px wide on a 390px screen. Sized so the whole code fits at 360px
+   * with the panel's padding, and the letter-spacing is tighter for the same reason:
+   * the grouping already does the work that wide tracking used to do.
+   */
+  font-size: clamp(2rem, 11.5vw, 3.5rem);
   font-weight: 800;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.06em;
   line-height: 1;
+  /* Never let a long code push the panel sideways. */
+  overflow-wrap: anywhere;
   /* Let a player long-press to select it. */
   user-select: all;
 }

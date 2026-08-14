@@ -3,7 +3,7 @@ import type { Player, RoomSnapshot, ServerMessage } from '../../../../shared/pro
 import { RoomClient, type RoomStatus } from './client';
 import { roomServerUrl } from './config';
 import { loadSeat, saveSeat } from './seat';
-import { generateRoomCode, isRoomCode } from './code';
+import { generateRoomCode, isRoomCode, ROOM_CODE_GROUP, ROOM_CODE_LENGTH } from './code';
 import { loadProfile, saveProfile } from '../profile';
 
 /**
@@ -42,20 +42,29 @@ export function roomFromHash(raw: string): RoomHash {
   /*
    * `isRoomCode` on the WHOLE value, deliberately not `normaliseRoomCode` — which is right
    * for a field being typed into and wrong here, because it is lossy in two ways: it drops
-   * characters outside the alphabet and truncates to four.
+   * characters outside the alphabet and truncates to length.
    *
    * That combination silently rewrote damaged links into valid ones. `#lobby` lost its `O`
-   * and became room `LBBY`; `#AB2CD` was truncated to `AB2C`. Both are the failure this
-   * whole three-way answer exists to prevent — a link that arrived damaged dropping the
-   * player into a *different* room, alone, with nothing left to compare. Found by
-   * `hash.test.ts` on the day it was written.
+   * and became room `LBBY`; an over-long hash was truncated to a shorter valid code. Both
+   * are the failure this whole three-way answer exists to prevent — a link that arrived
+   * damaged dropping the player into a *different* room, alone, with nothing left to
+   * compare. Found by `hash.test.ts` on the day it was written.
    *
-   * Case is still forgiven: some clients lowercase a URL in transit, and that is a
-   * transformation of the same code rather than a different one.
+   * Two transformations ARE forgiven, and neither is a guess:
+   *
+   * - **Case**, because some clients lowercase a URL in transit.
+   * - **The grouping dash, in exactly the position we print it.** `ABC-DEF` is the form
+   *   shown on the code card, so somebody typing what they can see is not sending a
+   *   damaged link; there is exactly one code it can mean. Anything else containing a
+   *   dash — `AB-C`, `A-BCDEF`, `ABC-DE` — is still invalid, because accepting those
+   *   would be back to repairing rather than reading.
    */
   const upper = trimmed.toUpperCase();
+  const bare = upper.length === ROOM_CODE_LENGTH + 1 && upper[ROOM_CODE_GROUP] === '-'
+    ? upper.slice(0, ROOM_CODE_GROUP) + upper.slice(ROOM_CODE_GROUP + 1)
+    : upper;
 
-  return isRoomCode(upper) ? { kind: 'code', code: upper } : { kind: 'invalid' };
+  return isRoomCode(bare) ? { kind: 'code', code: bare } : { kind: 'invalid' };
 }
 
 /** The same, for the live page. */
