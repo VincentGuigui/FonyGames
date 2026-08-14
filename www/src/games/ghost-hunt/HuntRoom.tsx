@@ -212,7 +212,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   useEffect(() => {
     if (route !== 'sphere' || sphereImgRef.current) return;
     let live = true;
-    void import('./art/photosphere.png?url&no-inline').then((mod) => {
+    void import('./art/photosphere.jpg?url&no-inline').then((mod) => {
       if (!live) return;
       const img = new Image();
       img.src = (mod as { default: string }).default;
