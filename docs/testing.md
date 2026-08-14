@@ -420,9 +420,13 @@ box at claude.ai/code; applies to **new sessions**
 ```
 fonygames.guigui.fr
 fonygames-dev.guigui.fr
-fonygames-worker.vincent-f02.workers.dev
-fonygames-worker-dev.vincent-f02.workers.dev
+fonygames-worker.vguigui.workers.dev
+fonygames-worker-dev.vguigui.workers.dev
 ```
+
+Copied from [`shared/hosts.json`](../shared/hosts.json), which is where these live —
+if the workers.dev subdomain is ever renamed again, this list is one of the things to
+re-copy, and `api/tests/hosts_test.php` fails until it is.
 
 In full rather than `*.workers.dev`: the Worker hostnames are two labels deep and
 the documented wildcards cover one. It does **not** fix GitHub, whose proxy is

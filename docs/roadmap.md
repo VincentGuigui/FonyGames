@@ -60,7 +60,7 @@ answer here *and* in the doc it affects.
 | 2026-08-02 | **D3 realtime**: Cloudflare Durable Objects, free plan, WebSocket. One object per room is a platform primitive; outgoing messages are free | [realtime-options.md](realtime-options.md) |
 | 2026-08-02 | **MySQL is available on the host** but is not used for game state. Any use requires an init script plus idempotent migrations; local MariaDB for tests | [database.md](database.md) |
 | 2026-08-01 | ~~Only `www/` is published~~ — superseded: `www/` is source, the built `dist/` is what ships | [deployment.md](deployment.md) §5 |
-| 2026-08-02 | **D5 domain**: `guigui.fr` — `fonygames.guigui.fr` (prod), `fonygames-dev.guigui.fr` (dev). Room server on `*.vincent-f02.workers.dev` | [realtime-server.md](realtime-server.md) §6 |
+| 2026-08-02 | **D5 domain**: `guigui.fr` — `fonygames.guigui.fr` (prod), `fonygames-dev.guigui.fr` (dev). Room server on `*.vguigui.workers.dev` (from `shared/hosts.json`) | [realtime-server.md](realtime-server.md) §6 |
 | 2026-08-02 | **Smart join**: "draw across devices on a table" is the flagship — the only method that also yields relative device positions. Shake-together is the fallback; bump is rejected for joining (pairwise). GPS is a coarse gate, never proof | [specs/join.md](specs/join.md) |
 | 2026-08-02 | **Backoffice activity metrics are anonymous aggregates only** — no per-player tracking, ever. Otherwise the about-sheet privacy promise becomes a lie | [specs/backoffice.md](specs/backoffice.md) §1 |
 | 2026-08-02 | **A page refresh must keep your seat, name and host role.** Seat id in `sessionStorage` (per tab); host promotion deferred by `HOST_GRACE_MS` so reloading does not hand the role away | [realtime-server.md](realtime-server.md) §4 |

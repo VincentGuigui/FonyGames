@@ -182,10 +182,51 @@ final class App
         // also be near-worthless: if this code is answering, the site is up. What is worth
         // knowing about this host is whether `flags.json` is there, and that is a disk
         // read (`flagsState()`).
-        return [
-            'room server (dev)' => 'https://fonygames-worker-dev.vincent-f02.workers.dev/health',
-            'room server (prod)' => 'https://fonygames-worker.vincent-f02.workers.dev/health',
-        ];
+        $targets = [];
+        foreach (self::hosts()['environments'] ?? [] as $name => $env) {
+            $worker = (string) ($env['worker'] ?? '');
+            $subdomain = (string) (self::hosts()['workersSubdomain'] ?? '');
+            if ($worker === '' || $subdomain === '') {
+                continue;
+            }
+            $targets["room server ({$name})"] = "https://{$worker}.{$subdomain}/health";
+        }
+
+        return $targets;
+    }
+
+    /**
+     * The deployed hostnames, from the one file that holds them.
+     *
+     * `shared/hosts.json` is the single source (docs/realtime-server.md §6). Two
+     * candidate paths because the file lives in a different place in the repository
+     * than on the host: the deploy stages it to `api/hosts.json` beside this code,
+     * while a checkout has it in `shared/`. Tried in deployed-first order, since that
+     * is the one that has to be fast and certain.
+     *
+     * Anything wrong returns an empty array, which means no health targets rather
+     * than a fatal — the admin page losing one panel is not a reason to lose the page.
+     *
+     * @return array<string, mixed>
+     */
+    private static function hosts(): array
+    {
+        static $cached = null;
+        if ($cached !== null) {
+            return $cached;
+        }
+
+        foreach ([__DIR__ . '/../hosts.json', __DIR__ . '/../../shared/hosts.json'] as $path) {
+            if (!is_readable($path)) {
+                continue;
+            }
+            $decoded = json_decode((string) file_get_contents($path), true);
+            if (is_array($decoded)) {
+                return $cached = $decoded;
+            }
+        }
+
+        return $cached = [];
     }
 
     /**

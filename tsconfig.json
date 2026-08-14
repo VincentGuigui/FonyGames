@@ -3,6 +3,8 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    // shared/hosts.json is imported by config.ts — see docs/realtime-server.md §6.
+    "resolveJsonModule": true,
     "lib": [
       "ES2022",
       "DOM",

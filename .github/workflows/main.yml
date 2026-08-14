@@ -499,20 +499,21 @@ jobs:
     - name: 🩺 Room server answers
       if: steps.creds.outputs.ready == 'true'
       run: |
-        # Read the hostname out of config.ts rather than repeating it here. That
-        # file is the single place the browser's mapping lives, and a copy in this
+        # Read the hostname out of shared/hosts.json rather than repeating it here.
+        # That file is the single place the deployed hostnames live, and a copy in this
         # workflow would keep passing against the old host on the day it changes —
         # checking the wrong server is worse than not checking one.
-        if [ "${{ github.ref_name }}" = "prod" ]; then
-          SITE="fonygames.guigui.fr"
-        else
-          SITE="fonygames-dev.guigui.fr"
-        fi
+        HOST=$(node -e '
+          const h = require("./shared/hosts.json");
+          const env = h.environments[process.argv[1]];
+          if (!env) { console.error("no such environment"); process.exit(1); }
+          process.stdout.write(`${env.worker}.${h.workersSubdomain}`);
+        ' "${{ github.ref_name }}") || HOST=""
 
-        HOST=$(sed -n "s|.*'$SITE': *'wss://\([^']*\)'.*|\1|p" www/src/core/room/config.ts)
         if [ -z "$HOST" ]; then
-          echo "::error::No room server mapped for $SITE in www/src/core/room/config.ts."\
-               "The site would fall back to localhost and no game could connect."
+          echo "::error::No room server mapped for '${{ github.ref_name }}' in"\
+               "shared/hosts.json. The site would fall back to localhost and no game"\
+               "could connect."
           exit 1
         fi
 

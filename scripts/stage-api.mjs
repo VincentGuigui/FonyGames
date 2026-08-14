@@ -41,6 +41,17 @@ const OUT = join(ROOT, 'dist', 'api');
 const DB_SRC = join(ROOT, 'db');
 const DB_OUT = join(ROOT, 'dist', 'db');
 
+/**
+ * The deployed hostnames, staged beside the PHP that reads them.
+ *
+ * `shared/hosts.json` is the single place they live (docs/realtime-server.md §6), and
+ * `App::healthTargets()` needs them at REQUEST time on the host — so the file has to
+ * travel rather than being baked into a bundle. It lands at `dist/api/hosts.json`,
+ * which is where `App.php` looks first.
+ */
+const HOSTS_SRC = join(ROOT, 'shared', 'hosts.json');
+const HOSTS_OUT = join(OUT, 'hosts.json');
+
 /** Left behind on purpose — see the header. */
 const SKIP = new Set(['tests', 'config.example.php', 'config.php']);
 
@@ -98,6 +109,7 @@ if (check) {
     if (existsSync(join(OUT, skipped))) fail(`dist/api/${skipped} should not have been staged`);
   }
 
+  if (!existsSync(HOSTS_OUT)) fail('dist/api/hosts.json is missing — App.php would have no health targets');
   const missingSql = sql.filter((f) => !existsSync(join(DB_OUT, f)));
   if (missingSql.length > 0) fail(`dist/db/ is stale, missing: ${missingSql.join(', ')}`);
   if (!existsSync(join(DB_OUT, '.htaccess'))) fail('dist/db/.htaccess is missing');
@@ -116,6 +128,9 @@ for (const rel of files) {
   mkdirSync(join(to, '..'), { recursive: true });
   cpSync(join(SRC, rel), to);
 }
+
+if (!existsSync(HOSTS_SRC)) fail('shared/hosts.json is missing');
+cpSync(HOSTS_SRC, HOSTS_OUT);
 
 rmSync(DB_OUT, { recursive: true, force: true });
 

@@ -175,13 +175,27 @@ both strings render on other players' phones.
 Two Workers, so a dev round can never land in a production room (separate
 Workers mean separate DO namespaces):
 
+**These names live in one file: [`shared/hosts.json`](../shared/hosts.json).** The
+table below is generated from it by hand and is the only copy — everything that needs
+a hostname *reads* that file: `www/src/core/room/config.ts`, `App::healthTargets()`,
+the deploy's post-publish health check, and the allow-list in
+[testing.md](testing.md). They each held their own copy once, and renaming the
+workers.dev subdomain meant finding five of them, which is how one gets left pointing
+at a host that no longer answers.
+
 | Branch | Site | Worker | Worker URL |
 | --- | --- | --- | --- |
-| `dev` | `https://fonygames-dev.guigui.fr` | `fonygames-worker-dev` | `wss://fonygames-worker-dev.vincent-f02.workers.dev` |
-| `prod` | `https://fonygames.guigui.fr` | `fonygames-worker` | `wss://fonygames-worker.vincent-f02.workers.dev` |
+| `dev` | `https://fonygames-dev.guigui.fr` | `fonygames-worker-dev` | `wss://fonygames-worker-dev.vguigui.workers.dev` |
+| `prod` | `https://fonygames.guigui.fr` | `fonygames-worker` | `wss://fonygames-worker.vguigui.workers.dev` |
 
-`fonygames-worker` is the Worker originally created in the Cloudflare dashboard,
-reused for prod rather than orphaned.
+The Worker URL is always `wss://<worker>.<workersSubdomain>` — nothing composes it
+differently, which is what lets a subdomain rename be a one-line edit.
+
+`fonygames-worker` was originally created in the Cloudflare dashboard and reused for
+prod. That turned out to cost a day: a dashboard Worker's Durable Object class is
+`MyDurableObject`, ours is `Room`, and Cloudflare refuses to replace a script whose
+class has vanished — so it was deleted and recreated by `wrangler`
+(deployment.md §6a).
 
 The browser picks its Worker from `window.location.hostname` in
 `www/src/core/room/config.ts` — a static map, **not** a build-time variable,

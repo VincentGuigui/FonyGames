@@ -1,0 +1,8 @@
+{
+  "_": "The ONE place the deployed hostnames live. See docs/realtime-server.md §6.",
+  "workersSubdomain": "vguigui.workers.dev",
+  "environments": {
+    "dev": { "site": "fonygames-dev.guigui.fr", "worker": "fonygames-worker-dev" },
+    "prod": { "site": "fonygames.guigui.fr", "worker": "fonygames-worker" }
+  }
+}

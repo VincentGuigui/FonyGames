@@ -1,3 +1,5 @@
+import hosts from '../../../../shared/hosts.json';
+
 /**
  * Which room server this page talks to.
  *
@@ -7,13 +9,25 @@
  * mapping in the repo also makes it reviewable and testable instead of
  * invisible CI configuration.
  *
+ * ## The hostnames are NOT written here
+ *
+ * They come from `shared/hosts.json`, which is the single place they live —
+ * this file, `api/lib/App.php`'s health targets, the deploy's post-publish check
+ * and three documents all read it. They were copied into each of those once, and
+ * renaming the workers.dev subdomain then meant finding five of them by hand,
+ * which is exactly the sort of edit that leaves one behind pointing at a host
+ * that no longer answers.
+ *
  * Worker names and environments: docs/realtime-server.md §6
  */
 
-const BY_HOSTNAME: Record<string, string> = {
-  'fonygames.guigui.fr': 'wss://fonygames-worker.vincent-f02.workers.dev',
-  'fonygames-dev.guigui.fr': 'wss://fonygames-worker-dev.vincent-f02.workers.dev',
-};
+/** `wss://<worker>.<subdomain>`, built rather than spelled out. */
+const BY_HOSTNAME: Record<string, string> = Object.fromEntries(
+  Object.values(hosts.environments).map((env) => [
+    env.site,
+    `wss://${env.worker}.${hosts.workersSubdomain}`,
+  ]),
+);
 
 /** Local `wrangler dev`. */
 const LOCAL = 'ws://127.0.0.1:8787';
