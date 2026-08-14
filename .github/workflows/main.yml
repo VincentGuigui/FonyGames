@@ -516,19 +516,30 @@ jobs:
           exit 1
         fi
 
-        # A fresh deploy takes a moment to propagate, so this retries rather than
-        # failing on the first miss.
-        for attempt in 1 2 3 4 5; do
-          STATUS=$(curl -fsS -o /tmp/health -w '%{http_code}' -m 15 "https://$HOST/health" || echo 000)
+        # A FIRST deploy of a Worker has to have its workers.dev subdomain wired up and
+        # a certificate issued, which took over a minute in practice: Cloudflare served
+        # 404 for the first few seconds, then failed the TLS handshake for a while, and
+        # only then started answering. 25 seconds of retries was not enough, so this
+        # waits ~2.5 minutes and prints each attempt — the progression is the diagnosis.
+        #
+        # No `-f`: with it, curl exits non-zero on a 404 AND still writes the status, so
+        # `|| echo 000` appended to it and STATUS became "404000". That is how the first
+        # run reported "answered 000000", which is not a status anyone can act on.
+        # Without `-f`, an HTTP answer always exits 0 and %{http_code} is authoritative;
+        # a non-zero exit now means a transport failure and only then is it 000.
+        for attempt in $(seq 1 10); do
+          STATUS=$(curl -sS -o /tmp/health -w '%{http_code}' -m 15 "https://$HOST/health") || STATUS=000
+          echo "attempt $attempt: $STATUS"
           [ "$STATUS" = "200" ] && break
-          sleep 5
+          sleep 15
         done
 
         if [ "$STATUS" != "200" ]; then
           echo "::error::https://$HOST/health answered $STATUS. The Worker deployed but is"\
                "not reachable at the hostname www/src/core/room/config.ts maps this site to,"\
-               "so every game will fail to connect. Check that the workers.dev route is"\
-               "enabled for this Worker (docs/deployment.md §6)."
+               "so every game will fail to connect. 404 or a TLS failure right after a FIRST"\
+               "deploy is usually still-provisioning — re-run the job. If it persists, the"\
+               "workers.dev route is disabled for this Worker (docs/deployment.md §6)."
           exit 1
         fi
 
