@@ -4,10 +4,11 @@ import type { Player, PlayerId } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { Blast } from './Blast';
+import { BOOM_MS } from './shockwave';
 import type { BombView } from './game';
 
 /** How long the explosion holds the screen before the next bomb view returns. */
-const BOOM_MS = 2200;
+
 
 /**
  * The round, on one phone. Spec: docs/specs/games/pass-the-bomb.md §4

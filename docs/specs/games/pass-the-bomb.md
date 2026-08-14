@@ -75,6 +75,15 @@ Standard flow (see [../../multiplayer.md](../../multiplayer.md) §3). Specifics:
 - **Elimination**: the bomb **comes apart**, vibration, then the player's screen turns to
   spectator with the remaining players list.
 
+  **The round holds for the explosion before it ends.** The room used to render the round
+  screen only while the phase was `running`, so the boom that *ended* a round was never
+  drawn at all: the phase flipped and the standings appeared in the same frame the bomb
+  went off. In a multi-player round that hid the last explosion; in a solo round it hid
+  the only one, since with one player the first boom is also the last. `BOOM_MS` (2 200,
+  in `shockwave.ts`) is longer than the animation so the pieces are gone before the screen
+  changes, and it is held there rather than in either screen because both need the same
+  number.
+
   The explosion is a canvas, not an emoji and not a CSS transform. The bomb is drawn
   once, sampled into a particle per 3×3 block, given one impulse outwards from its middle
   and then left to fly under gravity and drag. A transform can throw the whole bomb

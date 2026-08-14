@@ -16,6 +16,7 @@ import { detectBumps } from '../../core/sensors/bump';
 import { motionSupport, requestMotion, type MotionSupport } from '../../core/sensors/motion';
 import { applyBomb, type BombState } from './game';
 import { BombScreen } from './BombScreen';
+import { BOOM_MS } from './shockwave';
 
 /**
  * Pass the Bomb's room screen. Spec: docs/specs/games/pass-the-bomb.md
@@ -66,6 +67,29 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const myId = room.me?.id;
 
   const running = state?.phase === 'running';
+
+  /*
+   * The round is over — hold the explosion before dropping to the lobby.
+   *
+   * Without this the room switched on `running` alone, so the boom that ENDED a round was
+   * never drawn: the phase flipped and the standings appeared in the same frame the bomb
+   * went off. In a multi-player round that hid the last explosion; in a solo round it hid
+   * the only one, which is how this was noticed.
+   *
+   * Computed from the clock rather than held in state, so the first render after the
+   * final boom already knows to stay — a `useEffect` that sets a flag would show one
+   * frame of the lobby first, which is exactly the flicker being fixed.
+   */
+  const finalBoomAt = state?.phase === 'over' ? (state.lastBoom?.at ?? null) : null;
+  const [, tickBoom] = useState(0);
+  useEffect(() => {
+    if (finalBoomAt === null) return;
+    const left = BOOM_MS - (Date.now() - finalBoomAt);
+    if (left <= 0) return;
+    const timer = setTimeout(() => tickBoom((n) => n + 1), left);
+    return () => clearTimeout(timer);
+  }, [finalBoomAt]);
+  const holdingBoom = finalBoomAt !== null && Date.now() - finalBoomAt < BOOM_MS;
   const iAmAlive = !!myId && !!state && state.alive.includes(myId);
 
   /*
@@ -117,7 +141,7 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
 
   const muted = mutedUntil > (client?.now() ?? Date.now());
 
-  if (state && running) {
+  if (state && (running || holdingBoom)) {
     return (
       <BombScreen
         state={state}

@@ -17,6 +17,21 @@
  * losing a game of Pass the Bomb.
  */
 
+/**
+ * How long the explosion holds the screen.
+ *
+ * Longer than the animation in `Blast.tsx` (1600 ms), so the pieces are gone before the
+ * screen changes rather than being cut off mid-flight.
+ *
+ * It lives here rather than in either screen because **both** need it and they need the
+ * same number: `BombScreen` decides how long a mid-round boom is fresh for, and
+ * `BombRoom` decides how long to keep showing the round after it has ended. When only
+ * the first of those existed, a round-ending explosion was never drawn at all — the room
+ * dropped to the lobby the instant the phase changed, which in a solo round is the only
+ * explosion there is.
+ */
+export const BOOM_MS = 2200;
+
 export type Particle = {
   /** Where it is now, in canvas pixels. */
   x: number;
