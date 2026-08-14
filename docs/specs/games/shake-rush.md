@@ -120,6 +120,48 @@ motion access **spectates**, and the track is worth watching.
 | Motion denied / unavailable | Spectator, with the reason said plainly in the lobby before the round |
 | Tab backgrounded | Counting stops, the lane shows `away`, the runner freezes |
 
+## 5b. The tune — one note per shake
+
+Every counted shake plays a note, and the notes are a melody rather than a
+repeated blip: the pitch climbs across the track, so "nearly home" is audible.
+That matters more here than in any other game, because **the screen is unreadable
+while a phone is being shaken hard** — the ear is the only sense with a clear
+channel, and §11 already accepts that this game asks a lot of the body.
+
+| Piece | File | What it owns |
+| --- | --- | --- |
+| The melody | `www/src/games/shake-rush/melody.ts` | Exactly `RUSH_DISTANCE` note names, and `noteFor(shakes)` |
+| The synth | `www/src/games/shake-rush/tune.ts` | Tone.js, the AudioContext, mute, and the note index |
+| The moment | `core/sensors/shake.ts` `detectShakes(onShake)` | Fires the instant a shake is counted |
+
+**One note per shake, fired from the detector — not from the send interval.** The
+interval batches into `RUSH_TICK_MS` frames (§6), so notes played from it would
+arrive in bursts of three on a 90 ms grid instead of on the movement. That is why
+`detectShakes()` takes a callback at all.
+
+**The melody is exactly `RUSH_DISTANCE` long**, so an honest runner hears it once
+and lands on the last note as they cross the line; `game.test.ts` enforces the
+length. Shaking past the line wraps rather than falling silent — the server clips
+progress, not shaking, and silence mid-shake reads as the sound breaking. The
+local note index is corrected against the server's position only when the two
+diverge by more than a few notes (`RESYNC_SLACK`); correcting on every frame would
+drag the tune backwards ten times a second.
+
+**Tone.js is loaded from the permission tap**, not with the page: it is ~200 KB of
+synthesiser, and the same gesture is needed anyway to resume an AudioContext, which
+every browser starts suspended. A player who never grants motion never downloads
+it. Anything that fails on the way — a blocked context, a chunk that will not load
+— leaves the race playable and silent rather than broken.
+
+**Replacing the tune is one file.** Swap the array in `melody.ts` for any melody
+you have the right to use, keep it `RUSH_DISTANCE` long, and nothing else changes.
+The melody shipped is original: a recognisable film theme was asked for, and
+transcribing a copyrighted composition into the repository is copying it.
+
+Sound is **on by default** with a toggle in the game menu, remembered in
+`localStorage`. In the menu rather than on the track, because a control small
+enough to sit in a corner of this screen is one that gets hit mid-shake.
+
 ## 6. Networking
 
 Server is authoritative for distance, the finish and the result. The phone counts

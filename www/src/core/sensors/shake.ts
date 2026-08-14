@@ -119,15 +119,34 @@ export function shakeCounter(threshold = SHAKE_THRESHOLD, refractoryMs = SHAKE_R
   };
 }
 
-/** Start watching. Nothing is reported until `read()` is called. */
-export function detectShakes(): ShakeDetector {
+/**
+ * Start watching. Nothing is reported until `read()` is called.
+ *
+ * `onShake` fires the instant a shake is counted, which is a different job from `read()`
+ * and cannot be built on top of it: `read()` is drained on the send interval, so it knows
+ * "three shakes happened in the last 90 ms" but not when any of them was. Anything that
+ * has to answer the movement itself — Shake Rush plays a note per shake — needs the
+ * moment, not the window.
+ *
+ * It runs inside the sensor callback, so it has to be cheap and it must not throw: an
+ * exception here would take the counting down with it, which is the game.
+ */
+export function detectShakes(onShake?: () => void): ShakeDetector {
   const counter = shakeCounter();
   let n = 0;
   let samples = 0;
 
   const stop = onMotion((s: MotionSample) => {
     samples += 1;
-    n += counter.feed(s.x, s.y, s.z, s.at);
+    const counted = counter.feed(s.x, s.y, s.z, s.at);
+    n += counted;
+    if (counted && onShake) {
+      try {
+        onShake();
+      } catch {
+        // See the docblock: a listener's failure is not the detector's.
+      }
+    }
   });
 
   return {

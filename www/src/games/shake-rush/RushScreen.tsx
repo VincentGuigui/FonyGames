@@ -25,6 +25,8 @@ export function RushScreen({
   accent,
   onAgain,
   canAgain,
+  sound,
+  onSound,
 }: {
   state: RushView;
   players: Player[];
@@ -44,6 +46,9 @@ export function RushScreen({
   onAgain: () => void;
   /** Host only — everyone else is told who to wait for. */
   canAgain: boolean;
+  /** The tune: on by default, and a race is loud enough that some rooms need it off. */
+  sound: boolean;
+  onSound: (on: boolean) => void;
 }): JSX.Element {
   const byId = new Map(players.map((p) => [p.id, p]));
   const ids = standings(
@@ -59,7 +64,9 @@ export function RushScreen({
     const winner = ids[0];
     return (
       <div class="rush rush--over" style={{ '--game-accent': accent } as JSX.CSSProperties}>
-        <StatusBar status="Finish" title={title} concept={concept} rules={rules} />
+        <StatusBar status="Finish" title={title} concept={concept} rules={rules}>
+          <SoundToggle on={sound} onChange={onSound} />
+        </StatusBar>
 
         <p class="rush__trophy" aria-hidden="true">
           {winner ? (byId.get(winner)?.avatar ?? '🏆') : '🏆'}
@@ -100,7 +107,9 @@ export function RushScreen({
         title={title}
         concept={concept}
         rules={rules}
-      />
+      >
+        <SoundToggle on={sound} onChange={onSound} />
+      </StatusBar>
 
       <Scoreboard rows={rushRows(players, state)} me={myId} unit="shakes to go" best="low" />
 
@@ -149,6 +158,34 @@ export function RushScreen({
         })}
       </ul>
     </div>
+  );
+}
+
+/**
+ * The tune's off switch, in the menu.
+ *
+ * In the menu rather than on the track for the same reason as everything else that is not
+ * the race: the screen is being read mid-shake, and a control small enough to sit in a
+ * corner is a control that gets hit by accident. Nobody needs it *during* a shake anyway —
+ * you decide once, in the room you are in, and it is remembered (`tune.ts`).
+ *
+ * A button with `aria-pressed`, not a checkbox: it acts immediately and has no form around
+ * it, which is what that role is for.
+ */
+function SoundToggle({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }): JSX.Element {
+  return (
+    <>
+      <h3 class="gamemenu__label">Sound</h3>
+      <button
+        class={`btn rush__sound ${on ? 'rush__sound--on' : ''}`}
+        type="button"
+        aria-pressed={on}
+        onClick={() => onChange(!on)}
+      >
+        <span aria-hidden="true">{on ? '🔊' : '🔇'}</span>
+        {on ? 'A note per shake' : 'Silent'}
+      </button>
+    </>
   );
 }
 

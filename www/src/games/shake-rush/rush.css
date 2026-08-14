@@ -225,3 +225,23 @@
   font-size: var(--font-small);
   color: var(--color-text-dim);
 }
+
+/* --- the tune's toggle, in the menu --------------------------------------- */
+
+/*
+ * Reads as its own state, not as a button that might do something: on wears the game's
+ * accent, off is a plain outline. Full width because it sits in the menu sheet's column
+ * with the exit, and a half-width control there looks like it belongs to something else.
+ */
+.rush__sound {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  justify-content: center;
+}
+
+.rush__sound--on {
+  border-color: var(--game-accent, var(--color-accent));
+  color: var(--game-accent, var(--color-accent));
+}

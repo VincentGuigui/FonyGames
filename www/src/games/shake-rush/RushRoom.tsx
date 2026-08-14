@@ -15,6 +15,7 @@ import { GameLobby } from '../../lobby/GameLobby';
 import { detectShakes } from '../../core/sensors/shake';
 import { motionSupport, requestMotion, type MotionSupport } from '../../core/sensors/motion';
 import { applyRush, type RushState } from './game';
+import { createTune, setSoundOn, soundOn, type Tune } from './tune';
 import { RushScreen } from './RushScreen';
 
 /**
@@ -44,6 +45,7 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const [support] = useState<MotionSupport>(motionSupport);
   const [motionOn, setMotionOn] = useState(false);
   const [motionAsked, setMotionAsked] = useState(false);
+  const [sound, setSound] = useState(soundOn);
 
   const onGame = useCallback((msg: ServerMessage) => {
     setState((prev) => applyRush(prev, msg));
@@ -62,6 +64,16 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
 
   const running = state?.phase === 'running';
   const home = !!myId && !!state && state.finished.includes(myId);
+
+  /*
+   * One tune for the life of the page, built on first render rather than passed to
+   * `useRef(createTune())` — that form calls `createTune()` on every render and throws the
+   * result away, which would drop the loaded synth on the floor sixty times a second.
+   */
+  const tuneRef = useRef<Tune | null>(null);
+  if (tuneRef.current === null) tuneRef.current = createTune();
+  /** Stable for the life of the component, so effects can close over it directly. */
+  const tune = tuneRef.current;
 
   const clientRef = useRef(client);
   clientRef.current = client;
@@ -82,7 +94,14 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   useEffect(() => {
     if (!motionOn || !running || home) return;
 
-    const detector = detectShakes();
+    /*
+     * One note per shake, played from the detector's callback rather than from the
+     * interval below: the interval knows how many shakes happened in the window but not
+     * when, so notes fired from it would arrive in bursts of three on a 90 ms grid
+     * instead of on the movement (games/shake-rush/tune.ts).
+     */
+    tune.rewind();
+    const detector = detectShakes(() => tune.step());
     const timer = setInterval(() => {
       const c = clientRef.current;
       if (!c) return;
@@ -97,12 +116,39 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     };
   }, [motionOn, running, home]);
 
+  /*
+   * The referee's position for this runner, handed to the tune so a long race cannot
+   * finish on the wrong note. It corrects only a real divergence — see `RESYNC_SLACK`.
+   */
+  const myAt = myId && state ? state.at[myId] : undefined;
+  useEffect(() => {
+    if (myAt !== undefined) tune.seek(myAt);
+  }, [myAt]);
+
+  useEffect(() => {
+    tune.setMuted(!sound);
+    setSoundOn(sound);
+  }, [sound]);
+
+  /** Dispose the audio graph when the page is done with it, not on every render. */
+  useEffect(() => () => tune.stop(), []);
+
   /** Straight out of the tap — see the file docblock. */
   async function enableMotion(): Promise<void> {
     setMotionAsked(true);
     const granted = await requestMotion();
     setMotionOn(granted);
-    if (!granted) room.setError('No motion access — you can watch, but not race this one.');
+    if (!granted) {
+      room.setError('No motion access — you can watch, but not race this one.');
+      return;
+    }
+    /*
+     * Same gesture, second job: an AudioContext only starts inside a user gesture, and
+     * the first note of the race happens mid-shake, which is not one. Not awaited — the
+     * permission result is what the screen is waiting on, and a slow synth download must
+     * not hold it up.
+     */
+    void tune.arm();
   }
 
   const again = (): void => client?.send({ t: 'start', d: { mode: 'rush', solo } });
@@ -120,6 +166,8 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         accent={card.accent}
         onAgain={again}
         canAgain={room.isHost && enoughPlayers}
+        sound={sound}
+        onSound={setSound}
       />
     );
   }

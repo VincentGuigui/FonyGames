@@ -1,5 +1,6 @@
 import { applyRush, progress, standings, toGo, type RushState } from './game';
 import { shakeCounter } from '../../core/sensors/shake';
+import { MELODY, MELODY_FITS_THE_TRACK, noteFor } from './melody';
 import {
   RUSH_DISTANCE,
   SHAKE_REFRACTORY_MS,
@@ -224,6 +225,27 @@ console.log('\nwhat counts as a shake');
   }
   check('the grip does not change the score', u === f, { u, f });
   check('and both counted', u === 8, u);
+}
+
+/* --- the tune ------------------------------------------------------------- */
+{
+  // One note per shake, and the list is exactly the length of the track, so an honest
+  // runner hears it once and lands on the last note at the line. The length is the whole
+  // contract with `tune.ts`, which only ever asks for `noteFor(i)`.
+  check('the melody is one note per shake of the track', MELODY_FITS_THE_TRACK, MELODY.length);
+  check('every note is a real pitch', MELODY.every((n) => /^[A-G](#|b)?[0-8]$/.test(n)),
+    MELODY.filter((n) => !/^[A-G](#|b)?[0-8]$/.test(n)));
+
+  check('the first shake plays the first note', noteFor(0) === MELODY[0]);
+  check('and the last one the last', noteFor(RUSH_DISTANCE - 1) === MELODY[RUSH_DISTANCE - 1]);
+
+  // Shaking past the line is normal — the server clips progress, not shaking — and the
+  // tune wraps rather than falling silent, because silence mid-shake reads as a fault.
+  check('shaking past the line wraps rather than stopping', noteFor(RUSH_DISTANCE) === MELODY[0]);
+  check('and nonsense reads as the start', noteFor(-4) === MELODY[0] && noteFor(NaN) === MELODY[0]);
+
+  // Not one note repeated: the pitch has to move or there is nothing to hear.
+  check('the tune actually moves', new Set(MELODY).size > 20, new Set(MELODY).size);
 }
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);
