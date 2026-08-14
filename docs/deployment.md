@@ -406,12 +406,62 @@ re-uploads everything.
 | Files land one level too deep | `local-path` names the folder whose *contents* are uploaded. `local-path: dist` is correct; `local-path: .` would publish the whole repo. |
 | Deploy uploads nothing | Almost certainly `sync: delta`, which cannot see generated files (§5). Use `full`. |
 | **Every game says "Connection lost — reconnecting…", but the site itself is fine** | The room server is not there. The site and the Worker deploy in two independent jobs, so the hub can be perfectly current while no Worker has ever been published. Check the run's **☁️ Deploy room server** job: if its `☁️ Publish` step says *skipped*, `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` are missing from that GitHub **Environment**. This is now a failed deploy on `prod` rather than a warning — it was a warning once, and prod ran without a room server because nobody reads a green run's warnings. |
-| `does not export class 'MyDurableObject' … [code: 10064]` | The prod Worker was created in the **dashboard**, whose Durable Object template class is `MyDurableObject`; our code exports `Room`, and Cloudflare will not replace a script while live objects depend on a class that has vanished. The site still deploys, so prod looks healthy while no game can open a room. Two fixes, and the first is the one to take: **(a)** delete the `fonygames-worker` Worker in the dashboard — including its Durable Object namespace when prompted — and re-run the deploy, which recreates it under the same name with `v1 new_sqlite_classes: ["Room"]` applied cleanly. Prod has never run a game, so there is no room state to lose. **(b)** keep the Worker and add a `deleted_classes` migration for `MyDurableObject`, scoped to the `prod` env block. Only do this after checking which migration tag prod has already applied (`npx wrangler deployments list --env prod`, or the dashboard's Durable Objects tab): env-level `migrations` **replace** the inherited list rather than merging, and if the dashboard already claimed the `v1` tag then wrangler skips it and never creates `Room` at all. |
+| `does not export class 'MyDurableObject' … [code: 10064]` | The prod Worker was created in the **dashboard**, whose Durable Object template class is `MyDurableObject`; our code exports `Room`, and Cloudflare will not replace a script while live objects depend on a class that has vanished. The site still deploys, so prod looks healthy while no game can open a room. **Runbook in §6a.** |
 | `https://…workers.dev/health answered 000` | The Worker published but is not reachable at the hostname the site is compiled to use. Most likely its **workers.dev route is disabled** in the Cloudflare dashboard (Worker → Settings → Domains & Routes) — publishing does not enable it. Confirm the name matches `www/src/core/room/config.ts`. |
 | `No room server mapped for <host>` | The site's hostname is not in `www/src/core/room/config.ts`, so the browser would fall back to `ws://127.0.0.1:8787` and no game could connect. Add the mapping. |
 | Raw `.tsx` files on the server | `local-path` is pointing at `www/` (source) instead of `dist/` (build output). |
 | Build fails on a type error | Intended — `npm run build` runs `tsc --noEmit` first, so broken types never ship. |
 | Two deploys race | Shouldn't happen: `concurrency` serialises per branch and never cancels a running sync. |
+
+### 6a. The prod room server will not deploy (error 10064)
+
+The Worker on prod was created in the Cloudflare dashboard rather than by
+`wrangler`, and a dashboard Worker with Durable Objects comes from a template whose
+class is `MyDurableObject`. Our code exports `Room`. Cloudflare refuses to replace a
+script while objects depend on a class the new version does not contain, so every
+`deploy --env prod` fails — and because the site deploys in a separate job, prod stays
+current while no game can open a room.
+
+**Delete the Worker and let CI recreate it.** It has never served a game, so there is
+no room state to lose, and a fresh Worker gets `v1 new_sqlite_classes: ["Room"]`
+applied cleanly with its workers.dev route on by default. The name is unchanged, so
+`www/src/core/room/config.ts` needs no edit.
+
+```sh
+# Needs a CLOUDFLARE_API_TOKEN with Edit Cloudflare Workers, and the account id.
+npm run worker:delete:prod:dry   # confirm it targets fonygames-worker
+npm run worker:delete:prod
+```
+
+Then re-run the failed **☁️ Deploy room server** job, or push to `prod` again. The
+`🩺 Room server answers` step confirms it is actually reachable afterwards; if that
+step fails, the workers.dev route is off (see the row above).
+
+The dashboard route is the same thing by hand: Workers & Pages → `fonygames-worker` →
+Settings → Delete, accepting the Durable Object namespace deletion it warns about.
+
+**The alternative, and why it is second.** You can keep the Worker and add a
+migration that drops the stale class, scoped to the `prod` block in
+`wrangler.jsonc`:
+
+```jsonc
+"migrations": [
+  { "tag": "v1", "new_sqlite_classes": ["Room"] },
+  { "tag": "v2", "deleted_classes": ["MyDurableObject"] }
+]
+```
+
+Two traps make this the worse first move. Env-level `migrations` **replace** the
+inherited list rather than merging, so the whole chain has to be restated — miss `v1`
+and `Room` is never declared as a SQLite class, which is irreversible on the free
+plan (§ the note in `wrangler.jsonc`). And migrations are applied by *tag*: if the
+dashboard already claimed `v1` for its own template, wrangler skips ours and deletes
+the old class without ever creating `Room`. Check what has actually been applied
+first:
+
+```sh
+npx wrangler deployments list --env prod
+```
 
 ## 7. Related
 

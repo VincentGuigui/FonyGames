@@ -21,6 +21,8 @@
     "worker:dev": "wrangler dev",
     "worker:deploy:dev": "wrangler deploy --env dev",
     "worker:deploy:prod": "wrangler deploy --env prod",
+    "worker:delete:prod:dry": "wrangler delete --env prod --dry-run",
+    "worker:delete:prod": "wrangler delete --env prod",
     "test:sling": "esbuild www/src/games/sling-puck/physics.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/sling.test.mjs --log-level=warning && node node_modules/.cache/sling.test.mjs",
     "test:sling-game": "esbuild www/src/games/sling-puck/game.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/slingGame.test.mjs --log-level=warning && node node_modules/.cache/slingGame.test.mjs",
     "test:sling-room": "esbuild worker/slingPuck.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/slingRoom.test.mjs --log-level=warning && node node_modules/.cache/slingRoom.test.mjs",
