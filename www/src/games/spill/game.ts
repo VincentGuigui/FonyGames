@@ -60,6 +60,15 @@ export class SpillGame {
   #now: () => number = () => Date.now();
   #state: SpillState | null = null;
   #held: { dropId: string; size: number; soaksAt: number } | null = null;
+  /**
+   * Who won, once the round is done.
+   *
+   * Kept beside the state rather than in it: `SpillState` is the protocol's shape and the
+   * winner arrives on the `spill-over` frame only. Dropping it — which this file used to
+   * do — meant the end screen had to guess from the levels, and a two-way tie at nil has
+   * no winner in the levels but does have one on the wire.
+   */
+  #winner: PlayerId | null = null;
   #splashes: Splash[] = [];
   #lockedUntil = 0;
   /** Set by the client the moment it flings, so the lock reads as instant. */
@@ -80,6 +89,11 @@ export class SpillGame {
 
   get state(): SpillState | null {
     return this.#state;
+  }
+
+  /** Who won the last round, or null when nobody did. */
+  get winner(): PlayerId | null {
+    return this.#winner;
   }
 
   /** Our seat index, or -1 when we are not seated (a spectator, or no round). */
@@ -157,6 +171,7 @@ export class SpillGame {
       case 'spill-over':
         if (!this.#state) return;
         this.#state = { ...this.#state, phase: 'done', levels: msg.d.levels, air: [] };
+        this.#winner = msg.d.winnerId;
         this.#held = null;
         return;
     }

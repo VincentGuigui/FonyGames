@@ -50,6 +50,13 @@ export type Drawable = {
 
 export class CatMouseGame {
   state: CatMouseState | null = null;
+  /**
+   * How the last round ended. Null until one does.
+   *
+   * `CatMouseState` cannot carry it: the winner here is a side, not a player, and
+   * `lastedMs` arrives on the `cm-over` frame and nowhere else.
+   */
+  result: { catWins: boolean; survivors: PlayerId[]; lastedMs: number } | null = null;
 
   #me: PlayerId | null = null;
   #now: () => number = () => Date.now();
@@ -154,6 +161,12 @@ export class CatMouseGame {
         const s = this.state;
         if (!s || msg.d.roundId !== s.roundId) return;
         this.state = { ...s, phase: 'done' };
+        /*
+         * The result, kept: this is the one game where the winner is a SIDE, so there is
+         * no winning player id to read back off the state — and `lastedMs` exists nowhere
+         * else. The end screen needs both.
+         */
+        this.result = { catWins: msg.d.catWins, survivors: msg.d.survivors, lastedMs: msg.d.lastedMs };
         this.#held = false;
         this.#target = null;
         return;

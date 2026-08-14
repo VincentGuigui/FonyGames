@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import type { Player, PlayerId, RoundResult } from '../../../../shared/protocol';
 import { DUEL_MATCH_TARGET } from '../../../../shared/protocol';
 import { GameMenu } from '../../core/ui/GameMenu';
+import { GameOverScreen } from '../../core/ui/GameOver';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { driftAt } from './drift';
 
@@ -34,15 +35,11 @@ export type DuelPhase = 'idle' | 'armed' | 'fire' | 'burned' | 'result';
  * carry the meaning, so nothing is lost when it cannot be seen
  * (docs/design/ui-guidelines.md §2).
  */
-function rankColour(index: number, total: number): string {
-  if (total <= 1) return 'hsl(140 70% 55%)';
-  // 140° (green) → 0° (red), passing through orange on the way.
-  const hue = 140 * (1 - index / (total - 1));
-  return `hsl(${Math.round(hue)} 75% 55%)`;
-}
 
 export function Duel(props: {
   players: Player[];
+  /** The game's accent, for the end panel — the round screen sets it on its own root. */
+  accent: string;
   me: PlayerId | null;
   phase: DuelPhase;
   result: RoundResult | null;
@@ -63,7 +60,7 @@ export function Duel(props: {
   concept: string;
   rules: string[];
 }): JSX.Element | null {
-  const { players, me, phase, result, onTap, onAgain, isHost, title, concept, rules, target } =
+  const { players, me, phase, result, onTap, onAgain, isHost, title, concept, rules, target, accent } =
     props;
   const { armed, now } = props;
   /*
@@ -208,71 +205,67 @@ export function Duel(props: {
 
   if (phase === 'result' && result) {
     /*
-     * Two different sentences, because they are two different events: taking a round is
-     * one point, and taking the MATCH is the end of the contest. Saying "You won" for both
-     * makes the tenth point look like the ninth.
+     * Two different events, two different endings. Taking a duel is one point and the
+     * match runs on, so the panel offers ONE button — the next duel — because that is the
+     * only thing anybody wants at 6–4. Taking the MATCH is the end of the contest, and
+     * that is the ending with "New match" and a way out.
      */
     const tookMatch = result.matchWinnerId !== null;
+
     const headline = result.noContest
       ? 'No contest'
       : tookMatch
         ? result.matchWinnerId === me
           ? `You win, ${DUEL_MATCH_TARGET}`
           : `${nameOf(result.matchWinnerId ?? '')} takes the match`
-        : result.winnerId === me
-          ? 'You won'
-          : `${nameOf(result.winnerId ?? '')} won`;
+        : undefined;
 
-    // Only valid times take part in the gradient; a false start is not "slow".
-    const scored = result.ranking.filter((r) => r.ms !== null);
+    /*
+     * The score in the column is the TALLY, not the reaction: mid-match "6" is what a
+     * player wants from a glance, and the times are what the round was. So the times go on
+     * one line underneath, where a false start can say so in words rather than as a
+     * missing number.
+     */
+    const times = result.ranking
+      .map((r) => {
+        const said = r.falseStart ? 'too early' : r.ms === null ? 'no tap' : `${r.ms}ms`;
+        return `${nameOf(r.playerId)} ${said}`;
+      })
+      .join(' · ');
 
     return (
-      <div class="duel duel--result">
-        {menu}
-        <h2 class="duel__headline">{headline}</h2>
-        <ol class="scoreline">
-          {result.ranking.map((r) => {
-            const rank = scored.findIndex((s) => s.playerId === r.playerId);
-            const colour =
-              rank === -1 ? 'var(--color-text-dim)' : rankColour(rank, scored.length);
-            return (
-              <li key={r.playerId} class={r.playerId === me ? 'scoreline__me' : ''}>
-                <span class="scoreline__name">{nameOf(r.playerId)}</span>
-                <span class="scoreline__time" style={{ color: colour }}>
-                  {r.falseStart ? (
-                    'too early'
-                  ) : r.ms === null ? (
-                    'no tap'
-                  ) : (
-                    <>
-                      {r.ms}
-                      <span class="scoreline__unit">ms</span>
-                    </>
-                  )}
-                </span>
-                <span class="scoreline__score">{result.scores[r.playerId] ?? 0}</span>
-              </li>
-            );
-          })}
-        </ol>
-        {/*
-          The scores in this frame still show the winning tally, but the server has already
-          cleared what it stores — so "Again" after a match is a new match, and saying so is
-          the difference between a button and a surprise.
-        */}
-        {tookMatch && <p class="duel__sub">First to {DUEL_MATCH_TARGET} takes it. New match next.</p>}
-        {isHost ? (
-          <button class="btn btn--primary btn--big" type="button" onClick={onAgain}>
-            {tookMatch ? 'New match' : 'Again'}
-          </button>
-        ) : (
-          <p class="duel__sub">
-            {tookMatch
-              ? 'Waiting for the host to start a new match…'
-              : 'Waiting for the host to start the next one…'}
-          </p>
-        )}
-      </div>
+      <GameOverScreen
+        accent={accent}
+        title={title}
+        concept={concept}
+        rules={rules}
+        status={tookMatch ? 'Match over' : 'Duel over'}
+        rows={result.ranking.map((r) => ({
+          id: r.playerId,
+          avatar: players.find((p) => p.id === r.playerId)?.avatar ?? '🙂',
+          name: nameOf(r.playerId),
+          value: result.scores[r.playerId] ?? 0,
+          unit: 'points',
+          ...(r.falseStart ? { out: true } : {}),
+        }))}
+        me={me}
+        winner={result.matchWinnerId ?? result.winnerId}
+        {...(headline === undefined ? {} : { headline })}
+        note={
+          tookMatch
+            ? `${times}. First to ${DUEL_MATCH_TARGET} takes it — the next one is a new match.`
+            : times
+        }
+        {...(tookMatch
+          ? { onAgain, againLabel: 'New match' }
+          : { onNext: onAgain, nextLabel: 'Next duel' })}
+        canAct={isHost}
+        waiting={
+          tookMatch
+            ? 'Waiting for the host to start a new match…'
+            : 'Waiting for the host to start the next one…'
+        }
+      />
     );
   }
 

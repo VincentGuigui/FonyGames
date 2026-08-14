@@ -10,6 +10,7 @@
    unstyled — every game already loads this file. */
 @import './statusbar.css';
 @import './scoreboard.css';
+@import './gameover.css';
 
 /* --- rules list, used in three places ------------------------------------ */
 

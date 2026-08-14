@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
+import { GameOverScreen } from '../../core/ui/GameOver';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { progress, standings, toGo, type RushView } from './game';
 
@@ -61,41 +62,42 @@ export function RushScreen({
   const iAmHome = myId ? state.finished.includes(myId) || state.order[0] === myId : false;
 
   if (over) {
-    const winner = ids[0];
+    /*
+     * The result is the shared panel now (core/ui/GameOver.tsx). What used to be here — a
+     * trophy, a placing list and a "Race again" button — was the same three facts in
+     * Shake Rush's own class names, and every other game had its own copy of it.
+     *
+     * The lane list is NOT repeated here. It is the game's picture of the race and it
+     * belongs to the round; once the race is over, the numbers are the result.
+     */
     return (
-      <div class="rush rush--over" style={{ '--game-accent': accent } as JSX.CSSProperties}>
-        <StatusBar status="Finish" title={title} concept={concept} rules={rules}>
-          <SoundToggle on={sound} onChange={onSound} />
-        </StatusBar>
-
-        <p class="rush__trophy" aria-hidden="true">
-          {winner ? (byId.get(winner)?.avatar ?? '🏆') : '🏆'}
-        </p>
-        <p class="rush__winner">
-          {winner === myId ? 'You won' : `${byId.get(winner ?? ('' as PlayerId))?.name ?? 'Someone'} won`}
-        </p>
-
-        <ol class="rush__placing">
-          {ids.map((id, i) => (
-            <li key={id} class={`rush__place ${id === myId ? 'rush__place--me' : ''}`}>
-              <span class="rush__place-n">{i + 1}</span>
-              <span aria-hidden="true">{byId.get(id)?.avatar ?? '🙂'}</span>
-              <span class="rush__place-who">{byId.get(id)?.name ?? 'Someone'}</span>
-              <span class="rush__place-at">
-                {toGo(state.at[id]) === 0 ? 'home' : `${toGo(state.at[id])} short`}
-              </span>
-            </li>
-          ))}
-        </ol>
-
-        {canAgain ? (
-          <button class="btn btn--primary btn--big rush__again" type="button" onClick={onAgain}>
-            Race again
-          </button>
-        ) : (
-          <p class="rush__note">The host starts the next one.</p>
-        )}
-      </div>
+      <GameOverScreen
+        accent={accent}
+        title={title}
+        concept={concept}
+        rules={rules}
+        status="Finish"
+        menu={<SoundToggle on={sound} onChange={onSound} />}
+        rows={ids.map((id) => {
+          const at = state.at[id] ?? 0;
+          const short = toGo(at);
+          return {
+            id,
+            avatar: byId.get(id)?.avatar ?? '🙂',
+            name: byId.get(id)?.name ?? 'Someone',
+            // "home" rather than "0 short": nought to go is the whole point of the race,
+            // and a zero in a column of numbers does not read as having won.
+            value: short === 0 ? 'home' : short,
+            unit: 'short',
+            ...(state.away.includes(id) ? { out: true } : {}),
+          };
+        })}
+        me={myId}
+        winner={ids[0] ?? null}
+        onAgain={onAgain}
+        againLabel="Race again"
+        canAct={canAgain}
+      />
     );
   }
 

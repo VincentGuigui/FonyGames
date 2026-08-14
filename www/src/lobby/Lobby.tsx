@@ -121,6 +121,7 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
           title={game.title}
           concept={game.concept}
           rules={game.rules}
+          accent={game.accent}
         />
         {armedAt && (
           <RulesPanel

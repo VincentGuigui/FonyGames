@@ -5,8 +5,6 @@ import {
   SIEGE_CABBAGES,
   SIEGE_MAX_PLAYERS,
   SIEGE_MIN_PLAYERS,
-  type GoatState,
-  type Player,
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
@@ -15,6 +13,7 @@ import { useRoom, useShareRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { SiegeBoard } from './SiegeBoard';
+import { GameOverScreen } from '../../core/ui/GameOver';
 import { SiegeGame } from './game';
 
 /**
@@ -84,6 +83,41 @@ function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     );
   }
 
+  /*
+   * The result, on the shared end screen (core/ui/GameOver.tsx) rather than as a panel
+   * inside the lobby — see the note in `GameOver.tsx` about finishing looking like leaving.
+   */
+  if (state?.phase === 'done') {
+    const players = room.room?.players ?? [];
+    const byId = new Map(players.map((p) => [p.id, p]));
+    // Most cabbages left wins here — the opposite of Spill and Sling Puck, which is
+    // exactly why the shared panel never sorts anything itself.
+    const ranked = [...state.players].sort((a, b) => (state.cabbages[b] ?? 0) - (state.cabbages[a] ?? 0));
+    return (
+      <GameOverScreen
+        accent={card.accent}
+        title={card.title}
+        concept={card.concept}
+        rules={card.rules}
+        status="Round over"
+        rows={ranked.map((id) => ({
+          id,
+          avatar: byId.get(id)?.avatar ?? '🙂',
+          name: byId.get(id)?.name ?? 'Someone',
+          value: state.cabbages[id] ?? 0,
+          unit: 'left',
+          ...(state.out.includes(id) ? { out: true } : {}),
+        }))}
+        me={myId}
+        winner={game.winner}
+        onAgain={() => client?.send({ t: 'start', d: { mode: 'siege', solo } })}
+        canAct={
+          room.isHost && enoughToStart(room.connected, [SIEGE_MIN_PLAYERS, SIEGE_MAX_PLAYERS], solo)
+        }
+      />
+    );
+  }
+
   return (
     <GameLobby
       card={card}
@@ -104,9 +138,6 @@ function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         const n = state?.cabbages[id];
         return n === undefined ? null : `${n} left`;
       }}
-      {...(state?.phase === 'done'
-        ? { standings: <Standings state={state} players={room.room?.players ?? []} /> }
-        : {})}
     />
   );
 }
@@ -120,29 +151,3 @@ function note(isHost: boolean, connected: number, solo: boolean): string {
   return `${SIEGE_CABBAGES} cabbages each. Last patch standing wins.`;
 }
 
-function Standings({ state, players }: { state: GoatState; players: Player[] }): JSX.Element {
-  const ranked = [...state.players].sort(
-    (a, b) => (state.cabbages[b] ?? 0) - (state.cabbages[a] ?? 0),
-  );
-  return (
-    // `standings` alongside `panel`: it looks like every other panel, but the
-    // result of a round should still be identifiable in the DOM.
-    <section class="panel standings">
-      <h2 class="panel__heading">Result</h2>
-      <ol class="scoreline">
-        {ranked.map((id) => {
-          const p = players.find((q) => q.id === id);
-          return (
-            <li key={id}>
-              <span class="scoreline__name">
-                {p?.avatar} {p?.name ?? '—'}
-              </span>
-              <span class="scoreline__time">{state.cabbages[id] ?? 0}</span>
-              <span class="scoreline__unit">left</span>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}

@@ -48,6 +48,11 @@ export class SiegeGame {
   #me: PlayerId = '';
   #now: () => number = () => Date.now();
   #state: GoatState | null = null;
+  /**
+   * Who won, once the round is done. Kept beside the state because `GoatState` is the
+   * protocol's shape and the winner only ever arrives on the `siege-over` frame.
+   */
+  #winner: PlayerId | null = null;
   #chomps: Chomp[] = [];
 
   identify(me: PlayerId, now: () => number): void {
@@ -57,6 +62,11 @@ export class SiegeGame {
 
   get state(): GoatState | null {
     return this.#state;
+  }
+
+  /** Who won the last round, or null when nobody did. */
+  get winner(): PlayerId | null {
+    return this.#winner;
   }
 
   get playing(): boolean {
@@ -108,6 +118,7 @@ export class SiegeGame {
       case 'siege-over':
         if (!this.#state) return;
         this.#state = { ...this.#state, phase: 'done', cabbages: msg.d.cabbages, air: [] };
+        this.#winner = msg.d.winnerId;
         return;
     }
   }

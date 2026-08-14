@@ -103,7 +103,9 @@ Standard flow (see [../../multiplayer.md](../../multiplayer.md) §3). Specifics:
   without a canvas — and the canvas and frame loop in `Blast.tsx`. Under
   `prefers-reduced-motion` the bomb is drawn and **not** blown up: two thousand pieces
   flying apart is exactly what that setting is asking not to see (§11).
-- **Results**: podium, "Play again" primary.
+- **Results**: the shared end screen ([../../design/game-chrome.md](../../design/game-chrome.md) §8),
+  and it comes AFTER the explosion — the blast is the ending, and cutting to a scoreboard
+  over the top of it is a fix this game has already had once (§4).
 
 ## 5. Inputs & sensors
 

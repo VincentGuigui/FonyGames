@@ -16,6 +16,7 @@ import { detectBumps } from '../../core/sensors/bump';
 import { motionSupport, requestMotion, type MotionSupport } from '../../core/sensors/motion';
 import { applyBomb, type BombState } from './game';
 import { BombScreen } from './BombScreen';
+import { GameOverScreen } from '../../core/ui/GameOver';
 import { BOOM_MS } from './shockwave';
 
 /**
@@ -156,6 +157,42 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         onPass={(to: PlayerId) =>
           client?.send({ t: 'pass', d: { to, roundId: state.roundId } })
         }
+      />
+    );
+  }
+
+  /*
+   * The result, once the explosion has been seen.
+   *
+   * It comes AFTER the `holdingBoom` branch above on purpose: the bomb going off is the
+   * ending, and cutting to a scoreboard over the top of it is what this game spent a fix
+   * on already. Pass the Bomb has no score, so the column says what happened to each
+   * player instead — which is the whole result in a game about being the last one holding
+   * nothing.
+   */
+  if (state && state.phase === 'over') {
+    const players = room.room?.players ?? [];
+    const survivors = players.filter((p) => state.alive.includes(p.id));
+    const out = players.filter((p) => !state.alive.includes(p.id));
+    return (
+      <GameOverScreen
+        accent={card.accent}
+        title={card.title}
+        concept={card.concept}
+        rules={card.rules}
+        status="Boom"
+        rows={[...survivors, ...out].map((p) => ({
+          id: p.id,
+          avatar: p.avatar,
+          name: p.name,
+          value: state.alive.includes(p.id) ? 'survived' : 'blown up',
+          ...(state.alive.includes(p.id) ? {} : { out: true }),
+        }))}
+        me={myId}
+        winner={state.winner}
+        headline={state.winner === null ? 'Everybody blew up' : undefined}
+        onAgain={() => client?.send({ t: 'start', d: { mode: 'bomb', solo } })}
+        canAct={room.isHost && enoughToStart(room.connected, [BOMB_MIN_PLAYERS, BOMB_MAX_PLAYERS], solo)}
       />
     );
   }

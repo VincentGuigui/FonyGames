@@ -5,9 +5,7 @@ import {
   SPILL_LOSE_LEVEL,
   SPILL_MAX_PLAYERS,
   SPILL_MIN_PLAYERS,
-  type Player,
   type ServerMessage,
-  type SpillState,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
 import { soloTesting } from '../../core/solo';
@@ -16,6 +14,7 @@ import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { SeatMap } from './SeatMap';
 import { SpillBoard } from './SpillBoard';
+import { GameOverScreen } from '../../core/ui/GameOver';
 import { SpillGame } from './game';
 import { SPILL_THEME } from './themes';
 
@@ -94,6 +93,44 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
     );
   }
 
+  /*
+   * The result, on the shared end screen (core/ui/GameOver.tsx).
+   *
+   * Until now a finished round dropped back to the LOBBY with a small "Result" panel
+   * pushed down between the room code and the avatar picker — so winning looked like
+   * leaving, and "play again" was a lobby button below two panels of joining furniture.
+   */
+  if (state?.phase === 'done') {
+    const players = room.room?.players ?? [];
+    const byId = new Map(players.map((p) => [p.id, p]));
+    // Least left first: emptying your phone is the win condition, so `low` is good here
+    // and this is one of the two games where sorting the other way would rank the loser.
+    const ranked = [...state.seats].sort((a, b) => (state.levels[a] ?? 0) - (state.levels[b] ?? 0));
+    return (
+      <GameOverScreen
+        accent={card.accent}
+        title={card.title}
+        concept={card.concept}
+        rules={card.rules}
+        status="Round over"
+        rows={ranked.map((id) => ({
+          id,
+          avatar: byId.get(id)?.avatar ?? '🙂',
+          name: byId.get(id)?.name ?? 'Someone',
+          value: state.levels[id] ?? 0,
+          unit: `${SPILL_THEME.words.unitPlural} left`,
+          ...(state.out.includes(id) ? { out: true } : {}),
+        }))}
+        me={myId}
+        winner={game.winner}
+        onAgain={() => client?.send({ t: 'start', d: { mode: 'spill', solo } })}
+        canAct={
+          room.isHost && enoughToStart(room.connected, [SPILL_MIN_PLAYERS, SPILL_MAX_PLAYERS], solo)
+        }
+      />
+    );
+  }
+
   return (
     <GameLobby
       card={card}
@@ -135,9 +172,6 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
           </p>
         </>
       }
-      {...(state?.phase === 'done'
-        ? { standings: <Standings state={state} players={room.room?.players ?? []} /> }
-        : {})}
     />
   );
 }
@@ -151,30 +185,3 @@ function note(isHost: boolean, connected: number, solo: boolean): string {
   return `Empty your phone to win. Reach ${SPILL_LOSE_LEVEL} and you are out.`;
 }
 
-function Standings({ state, players }: { state: SpillState; players: Player[] }): JSX.Element {
-  // Least left first: emptying your phone is the win condition.
-  const ranked = [...state.seats].sort(
-    (a, b) => (state.levels[a] ?? 0) - (state.levels[b] ?? 0),
-  );
-  return (
-    // `standings` alongside `panel`: it looks like every other panel, but the
-    // result of a round should still be identifiable in the DOM.
-    <section class="panel standings">
-      <h2 class="panel__heading">Result</h2>
-      <ol class="scoreline">
-        {ranked.map((id) => {
-          const p = players.find((q) => q.id === id);
-          return (
-            <li key={id}>
-              <span class="scoreline__name">
-                {p?.avatar} {p?.name ?? '—'}
-              </span>
-              <span class="scoreline__time">{state.levels[id] ?? 0}</span>
-              <span class="scoreline__unit">left</span>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}

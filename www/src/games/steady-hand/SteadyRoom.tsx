@@ -16,6 +16,7 @@ import { detectSteady } from '../../core/sensors/steady';
 import { motionSupport, requestMotion, type MotionSupport } from '../../core/sensors/motion';
 import { applySteady, type SteadyState } from './game';
 import { SteadyScreen } from './SteadyScreen';
+import { GameOverScreen } from '../../core/ui/GameOver';
 
 /**
  * Steady Hand's room screen. Spec: docs/specs/games/steady-hand.md
@@ -107,6 +108,41 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
     const granted = await requestMotion();
     setMotionOn(granted);
     if (!granted) room.setError('No motion access — you can watch, but not play this one.');
+  }
+
+  /*
+   * The result, on the shared end screen (core/ui/GameOver.tsx). Steady Hand used to drop
+   * straight back to the lobby with the times hidden in the player list's tags, so the
+   * answer to "how long did I last" was a badge beside somebody's avatar in a joining
+   * screen.
+   */
+  if (state && state.phase === 'over') {
+    const players = room.room?.players ?? [];
+    // Longest survival first — the winner is whoever was still holding when the rest fell.
+    const ranked = [...players].sort((a, b) => (state.times[b.id] ?? 0) - (state.times[a.id] ?? 0));
+    return (
+      <GameOverScreen
+        accent={card.accent}
+        title={card.title}
+        concept={card.concept}
+        rules={card.rules}
+        status="Round over"
+        rows={ranked.map((p) => ({
+          id: p.id,
+          avatar: p.avatar,
+          name: p.name,
+          value: ((state.times[p.id] ?? 0) / 1000).toFixed(1),
+          unit: 's held',
+          // Struck through only for the ones actually knocked out, not for everyone who
+          // is not the winner: a round can end with more than one hand still steady.
+          ...(state.alive.includes(p.id) ? {} : { out: true }),
+        }))}
+        me={myId}
+        winner={state.winner}
+        onAgain={() => client?.send({ t: 'start', d: { mode: 'steady', solo } })}
+        canAct={room.isHost && enoughToStart(room.connected, [STEADY_MIN_PLAYERS, STEADY_MAX_PLAYERS], solo)}
+      />
+    );
   }
 
   if (state && running) {

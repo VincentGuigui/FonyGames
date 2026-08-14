@@ -83,8 +83,8 @@ Recorded for later, not built:
   avatars as runners. Your lane is highlighted and always the one you can find
   without reading. A big number counts your remaining shakes down, because
   "37 to go" is a better motivator than a progress bar.
-- **Finish**: the winner's avatar large, the rest in order behind. "Play again"
-  primary.
+- **Finish**: the shared end screen ([../../design/game-chrome.md](../../design/game-chrome.md) §8)
+  — the winner's avatar, everyone's distance, "Race again" primary.
 
 The screen must be readable while the phone is moving violently, which rules out
 anything small, thin, or dependent on fine detail. Big shapes, big type, high

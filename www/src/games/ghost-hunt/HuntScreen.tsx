@@ -3,6 +3,7 @@ import type { JSX, RefObject } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
 import { HUNT_TARGET_FINDS, RADAR_FOV_DEG } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
+import { GameOverScreen } from '../../core/ui/GameOver';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { heat, leaderOf, ranking, searchTime, type HuntView, type LockState } from './game';
 import { RADAR_PX } from './vision';
@@ -229,6 +230,9 @@ export function HuntResults({
   state,
   players,
   myId,
+  title,
+  concept,
+  rules,
   accent,
   onAgain,
   canAgain,
@@ -236,6 +240,9 @@ export function HuntResults({
   state: HuntView;
   players: Player[];
   myId: PlayerId | undefined;
+  title: string;
+  concept: string;
+  rules: string[];
   /** Same reason as the round screen: this is outside the lobby template too. */
   accent: string;
   onAgain: () => void;
@@ -243,46 +250,38 @@ export function HuntResults({
 }): JSX.Element {
   const byId = new Map(players.map((p) => [p.id, p]));
   const order = ranking(state, players.map((p) => p.id));
-  const winner = order[0];
 
   return (
-    <div class="hunt hunt--over" style={{ '--game-accent': accent } as JSX.CSSProperties}>
-      <p class="hunt__trophy" aria-hidden="true">
-        {winner ? (byId.get(winner)?.avatar ?? '👻') : '👻'}
-      </p>
-      <p class="hunt__winner">
-        {winner === myId ? 'You won' : `${byId.get(winner ?? ('' as PlayerId))?.name ?? 'Someone'} won`}
-      </p>
-
-      <ol class="hunt__placing">
-        {order.map((id, i) => (
-          <li key={id} class={`hunt__place ${id === myId ? 'hunt__place--me' : ''}`}>
-            <span class="hunt__place-n">{i + 1}</span>
-            <span aria-hidden="true">{byId.get(id)?.avatar ?? '🙂'}</span>
-            <span class="hunt__place-who">{byId.get(id)?.name ?? 'Someone'}</span>
-            {/* Both numbers: the count is what ended the round, the time is the score. */}
-            <span class="hunt__place-at">
-              {state.scores[id] ?? 0} in {searchTime(state, id)}
-            </span>
-          </li>
-        ))}
-      </ol>
-
-      {state.best && (
-        <p class="hunt__best">
-          Fastest find: {byId.get(state.best.player)?.name ?? 'Someone'} in{' '}
-          {(state.best.ms / 1000).toFixed(1)}s
-        </p>
-      )}
-
-      {canAgain ? (
-        <button class="btn btn--primary btn--big hunt__again" type="button" onClick={onAgain}>
-          Hunt again
-        </button>
-      ) : (
-        <p class="hunt__note">The host starts the next one.</p>
-      )}
-    </div>
+    <GameOverScreen
+      accent={accent}
+      title={title}
+      concept={concept}
+      rules={rules}
+      status="Hunt over"
+      /*
+       * The score is TIME and the lowest wins, so the number in the column is the time —
+       * but the count is what ended the round, and a table of times with no counts would
+       * make a player who found one ghost quickly look like the winner. The count goes in
+       * the unit, which is the one place it can sit without competing with the figure.
+       */
+      rows={order.map((id) => ({
+        id,
+        avatar: byId.get(id)?.avatar ?? '👻',
+        name: byId.get(id)?.name ?? 'Someone',
+        value: searchTime(state, id),
+        unit: `· ${state.scores[id] ?? 0} found`,
+      }))}
+      me={myId}
+      winner={leaderOf(state, order) ?? null}
+      note={
+        state.best
+          ? `Fastest find: ${byId.get(state.best.player)?.name ?? 'Someone'} in ${(state.best.ms / 1000).toFixed(1)}s`
+          : undefined
+      }
+      onAgain={onAgain}
+      againLabel="Hunt again"
+      canAct={canAgain}
+    />
   );
 }
 

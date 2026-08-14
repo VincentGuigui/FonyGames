@@ -45,7 +45,6 @@ export function GameLobby({
   /** Extra explanation inside the how-to-play panel (Spill's table diagram). */
   aside,
   /** Result of the previous round, shown above the player list. */
-  standings,
   /** Game-specific settings, below the players (Spill's theme picker). */
   extras,
   /**
@@ -69,7 +68,6 @@ export function GameLobby({
   note: string;
   playerTag?: (id: PlayerId) => string | null;
   aside?: ComponentChildren;
-  standings?: ComponentChildren;
   extras?: ComponentChildren;
   soloSupported?: boolean;
 }): JSX.Element {
@@ -138,7 +136,6 @@ export function GameLobby({
         onToggleQr={onToggleQr}
       />
 
-      {standings}
 
       <section class="panel">
         <h2 class="panel__heading">

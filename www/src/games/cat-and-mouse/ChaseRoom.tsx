@@ -5,8 +5,6 @@ import {
   CM_LIVES,
   CM_MAX_PLAYERS,
   CM_MIN_PLAYERS,
-  type CatMouseState,
-  type Player,
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
@@ -15,6 +13,7 @@ import { useRoom, useShareRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { ChaseBoard } from './ChaseBoard';
+import { GameOverScreen } from '../../core/ui/GameOver';
 import { CatMouseGame } from './game';
 
 /**
@@ -89,6 +88,63 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
 
   const players = room.room?.players ?? [];
 
+  /*
+   * The result, on the shared end screen (core/ui/GameOver.tsx).
+   *
+   * The one game whose winner is a SIDE. The cat is listed with the mice — it has no
+   * lives and cannot place, but leaving it out of the result of the round it just played
+   * reads as a missing row — and the headline says which side took it.
+   */
+  if (state?.phase === 'done') {
+    const byId = new Map(players.map((p) => [p.id, p]));
+    const mice = state.actors.filter((a) => a.playerId !== state.catId);
+    const survivors = mice.filter((a) => !a.out);
+    // Most lives left first, then the cat, which is outside the ranking.
+    const ranked = [...mice].sort((a, b) => b.lives - a.lives);
+    const cat = byId.get(state.catId);
+    const catWon = game.result?.catWins ?? survivors.length === 0;
+    // A mouse win is a team win, so the crest goes to whoever survived with the most
+    // lives — and only when exactly one did, the same rule the score panel uses.
+    const bestMouse = ranked.filter((a) => !a.out && a.lives === (ranked[0]?.lives ?? 0));
+    const winner = catWon ? state.catId : (bestMouse.length === 1 ? (bestMouse[0]?.playerId ?? null) : null);
+
+    return (
+      <GameOverScreen
+        accent={card.accent}
+        title={card.title}
+        concept={card.concept}
+        rules={card.rules}
+        status="Round over"
+        rows={[
+          ...ranked.map((a) => ({
+            id: a.playerId,
+            avatar: byId.get(a.playerId)?.avatar ?? '🐭',
+            name: byId.get(a.playerId)?.name ?? 'Someone',
+            value: a.out ? 'caught' : a.lives,
+            unit: 'lives',
+            ...(a.out ? { out: true } : {}),
+          })),
+          {
+            id: state.catId,
+            avatar: cat?.avatar ?? '🐱',
+            name: cat?.name ?? 'The cat',
+            value: 'cat',
+          },
+        ]}
+        me={myId}
+        winner={winner}
+        headline={catWon ? `${cat?.name ?? 'The cat'} caught everyone` : 'The mice got away'}
+        note={
+          game.result
+            ? `The mice lasted ${(game.result.lastedMs / 1000).toFixed(0)}s. Next round the cat is someone else.`
+            : 'Next round the cat is someone else.'
+        }
+        onAgain={() => client?.send({ t: 'start', d: { mode: 'chase', solo } })}
+        canAct={room.isHost && enoughToStart(room.connected, [CM_MIN_PLAYERS, CM_MAX_PLAYERS], solo)}
+      />
+    );
+  }
+
   return (
     <GameLobby
       card={card}
@@ -125,9 +181,6 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
           <p class="howto__aside">The host picks how dragging works.</p>
         )
       }
-      {...(state?.phase === 'done'
-        ? { standings: <Standings state={state} players={players} /> }
-        : {})}
     />
   );
 }
@@ -181,43 +234,3 @@ function DragPicker({
   );
 }
 
-function Standings({
-  state,
-  players,
-}: {
-  state: CatMouseState;
-  players: Player[];
-}): JSX.Element {
-  const mice = state.actors.filter((a) => a.playerId !== state.catId);
-  const survived = mice.filter((a) => !a.out);
-  const cat = players.find((p) => p.id === state.catId);
-
-  // Most lives left first. The cat sits outside the ranking entirely: it has no
-  // lives, and putting it at either end would suggest it placed.
-  const ranked = [...mice].sort((a, b) => b.lives - a.lives);
-
-  return (
-    <section class="panel standings">
-      <h2 class="panel__heading">
-        {survived.length > 0 ? 'The mice got away' : `${cat?.name ?? 'The cat'} caught everyone`}
-      </h2>
-      <ol class="scoreline">
-        {ranked.map((a) => {
-          const p = players.find((q) => q.id === a.playerId);
-          return (
-            <li key={a.playerId}>
-              <span class="scoreline__name">
-                {p?.avatar} {p?.name ?? '—'}
-              </span>
-              <span class="scoreline__time">{a.out ? 'caught' : a.lives}</span>
-              <span class="scoreline__unit">{a.out ? '' : 'left'}</span>
-            </li>
-          );
-        })}
-      </ol>
-      <p class="howto__aside">
-        {cat?.avatar} {cat?.name ?? 'The cat'} was the cat. Next round it is someone else.
-      </p>
-    </section>
-  );
-}

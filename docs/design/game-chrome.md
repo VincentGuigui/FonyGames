@@ -19,8 +19,12 @@ A game customises it only through slots:
 | Slot | Where it lands | Used by |
 | --- | --- | --- |
 | `aside` | inside how-to-play, after the bullets | Spill's table diagram and its no-liquids note |
-| `standings` | above the players | Spill, Goat Siege |
 | `extras` | below the players | Spill's theme picker |
+
+There used to be a `standings` slot as well, and it was a mistake worth recording: four
+games ended a round by dropping back into this lobby with their result panel wedged
+between the room code and the avatar picker. Finishing looked like leaving. The end of a
+round is its own screen now (§8), and the slot is gone.
 
 **A slot can never reorder or replace a panel.** If a game needs something the
 template cannot express, change the template for everyone rather than
@@ -276,3 +280,60 @@ line per game.
 measuring a reaction in milliseconds — a bar across the top would steal taps at the
 edge and give the eye somewhere to be other than the signal. Its scores are on its
 result screen. It keeps the same gear in the same corner as everything else.
+
+## 8. The end of a round
+
+Every game ends on the same screen: `core/ui/GameOver.tsx`, a panel bordered in the
+game's accent.
+
+```
+┌──────────────────────────────┐   border: the game's accent
+│             🦊               │   the winner, centred
+│           You won            │
+│  🦊 Ana              12 left │   everybody, the winner in bold
+│  🐢 Bo                4 left │   your own row tinted
+│      [ Next round ]          │   or [ Play again ] + [ Leave game ]
+└──────────────────────────────┘
+```
+
+### What it replaced, and why that mattered
+
+Nine games had nine endings, in two families:
+
+- **Four dropped back to the lobby** — Spill, Goat Siege, Sling Puck, Cat and Mouse —
+  with a small "Result" panel wedged between the room code and the avatar picker. So
+  finishing a game looked exactly like leaving one, and the thing everybody wants next
+  sat below two panels of joining furniture.
+- **Five grew their own screen**, each with its own trophy, its own placing list and
+  its own class names: `rush__place`, `hunt__place`, `duel`'s `scoreline`, and three
+  more. The same three facts — who won, how everyone did, what happens next — laid out
+  five ways.
+
+### The rules of the panel
+
+- **Avatar, name, score.** The number is the game's accent so it is findable down a
+  column; the unit beside it is not, because colouring the word undoes that. The
+  winner's whole row is bold, your own row is tinted, and anyone out is dimmed *and*
+  struck through — never colour alone.
+- **The component never sorts.** Ranking is each game's own rule and a fiddly one:
+  fewest cabbages loses in Goat Siege and wins in Sling Puck, Ghost Hunt ranks by
+  catches and then by time, Cat and Mouse has a side that cannot place at all. A
+  component that guessed would be wrong in three of nine, silently.
+- **The unit is per row**, so a game can mix "12 left" with "caught", and it is dropped
+  for a row whose value is a word.
+- **Mid-match gets one button**, the next round: Tap Duel at 6–4 does not want to be
+  asked whether to play again. A finished match gets two — play again, and leave.
+- **Leave is a link, not a button.** Leaving the page is what drops the socket and frees
+  the seat, the same reason the gear menu's exit is one.
+- **A non-host is told who they are waiting for, and can still leave.** Not being the
+  host is not a reason to be trapped in a room.
+- The screen keeps the **status bar**, so how-to-play and the way out stay where they
+  are in every other screen of every other game.
+
+### What a game still owns
+
+The row order, the unit, the words on the buttons, and anything that needs a line of
+its own — Ghost Hunt's fastest find, who was the cat, Tap Duel's reaction times. Those
+go in `note`, one line under the list. Pass the Bomb passes its explosion as a child so
+the blast still plays *above* the panel: the bomb going off is the ending, and cutting
+to a scoreboard over the top of it is a fix this game has already had once.

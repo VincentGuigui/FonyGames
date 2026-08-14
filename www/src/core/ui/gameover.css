@@ -1,0 +1,174 @@
+/*
+ * The end of a round, in every game.
+ * Component: core/ui/GameOver.tsx · spec: docs/design/game-chrome.md §8
+ *
+ * Imported by `game-chrome.css`, which every game page already loads — a game must never
+ * have to remember to import this, or the panel arrives unstyled in exactly the game
+ * nobody checked.
+ */
+
+/* The screen the panel sits on. Its own, because half the games' round roots are
+   `position: fixed` boards that would put the result behind the board. */
+.over {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  padding-top: max(var(--space-4), calc(env(safe-area-inset-top) + 4rem));
+  padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  background: var(--color-bg);
+  overflow-y: auto;
+}
+
+/*
+ * The status bar belongs at the TOP, not in the middle of the column.
+ *
+ * `.over` centres its children so the panel lands in the middle of the screen, and the
+ * bar is one of those children — it rode down with the panel and sat halfway up the
+ * page, which reads as part of the result rather than as the game's chrome. Taken out
+ * of the flow and pinned where it is in every other screen.
+ */
+.over > .statusbar {
+  position: absolute;
+  top: max(var(--space-3), env(safe-area-inset-top));
+  left: max(var(--space-3), env(safe-area-inset-left));
+  right: max(var(--space-3), env(safe-area-inset-right));
+}
+
+.gameover {
+  width: 100%;
+  max-width: 26rem;
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  /*
+   * The accent, as a border rather than a fill: the panel is mostly names and numbers and
+   * has to stay readable, and a game's accent is chosen to be loud. Two pixels, so it
+   * reads as the game's colour rather than as a hairline.
+   */
+  border: 2px solid var(--game-accent, var(--color-accent));
+}
+
+.gameover__crest {
+  margin: 0;
+  text-align: center;
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.gameover__headline {
+  margin: var(--space-2) 0 var(--space-4);
+  text-align: center;
+  font-size: var(--font-title);
+  font-weight: 800;
+}
+
+/* --- the scores ---------------------------------------------------------- */
+
+.gameover__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 1px;
+}
+
+/*
+ * Avatar, name, score. The name takes the slack and the score stays on the right edge, so
+ * a column of numbers lines up however long the names are.
+ */
+.gameover__row {
+  display: grid;
+  grid-template-columns: 1.6rem 1fr auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.gameover__row:last-child {
+  border-bottom: 0;
+}
+
+.gameover__avatar {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.gameover__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The number is the game's colour; what it counts is not — the colour is there to make
+   the figure findable in a column, and colouring the word too would undo that. */
+.gameover__value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--game-accent, var(--color-accent));
+}
+
+.gameover__unit {
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
+}
+
+/* The winner's whole line, so it is findable without reading the numbers. */
+.gameover__row--won {
+  font-weight: 800;
+}
+
+/* Your own row is marked as well as the winner's — they are usually not the same row,
+   and "how did I do" is the second question after "who won". */
+.gameover__row--me {
+  background: color-mix(in srgb, var(--game-accent, var(--color-accent)) 12%, transparent);
+  border-radius: var(--radius-sm);
+}
+
+.gameover__row--out .gameover__name,
+.gameover__row--out .gameover__value {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.gameover__note {
+  margin: var(--space-3) 0 0;
+  text-align: center;
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
+}
+
+/* --- what happens next --------------------------------------------------- */
+
+.gameover__actions {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+/* Play again / next round: the game's accent, filled. The one thing to press. */
+.gameover__go {
+  width: 100%;
+  background: var(--game-accent, var(--color-accent));
+  color: var(--color-on-accent);
+  border-color: transparent;
+}
+
+/* Leaving is outlined: it is the other choice, not the one being offered. */
+.gameover__leave {
+  width: 100%;
+  border-color: var(--game-accent, var(--color-accent));
+  text-align: center;
+}
+
+.gameover__waiting {
+  margin: var(--space-4) 0 0;
+  text-align: center;
+  color: var(--color-text-dim);
+}

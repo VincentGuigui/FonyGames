@@ -101,6 +101,11 @@ export class SlingGame {
   #me: PlayerId = '';
   #now: () => number = () => Date.now();
   #state: SlingState | null = null;
+  /**
+   * Who won, once the round is done. Beside the state rather than in it: `SlingState` is
+   * the protocol's shape and the winner rides on the `sling-over` frame alone.
+   */
+  #winner: PlayerId | null = null;
 
   #pucks: Puck[] = [];
   #nextId = 0;
@@ -128,6 +133,11 @@ export class SlingGame {
 
   get state(): SlingState | null {
     return this.#state;
+  }
+
+  /** Who won the last round, or null when nobody did. */
+  get winner(): PlayerId | null {
+    return this.#winner;
   }
 
   get playing(): boolean {
@@ -171,6 +181,7 @@ export class SlingGame {
       case 'sling-over':
         if (!this.#state) return;
         this.#state = { ...this.#state, phase: 'done', pucks: msg.d.pucks };
+        this.#winner = msg.d.winnerId;
         this.#drag = null;
         return;
     }

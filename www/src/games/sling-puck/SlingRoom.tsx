@@ -4,14 +4,13 @@ import type { GameCard } from '../../core/types';
 import {
   SLING_PLAYERS,
   SLING_START_PUCKS,
-  type Player,
   type ServerMessage,
-  type SlingState,
 } from '../../../../shared/protocol';
 import { useRoom, useShareRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { SlingBoard } from './SlingBoard';
+import { GameOverScreen } from '../../core/ui/GameOver';
 import { HeadToHead } from './HeadToHead';
 import { SlingGame } from './game';
 
@@ -81,6 +80,34 @@ function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }):
     );
   }
 
+  /* The result, on the shared end screen (core/ui/GameOver.tsx). */
+  if (state?.phase === 'done') {
+    const players = room.room?.players ?? [];
+    const byId = new Map(players.map((p) => [p.id, p]));
+    // Fewest left first — an empty side is the win here, the opposite of Goat Siege.
+    const ranked = [...state.players].sort((a, b) => (state.pucks[a] ?? 0) - (state.pucks[b] ?? 0));
+    return (
+      <GameOverScreen
+        accent={card.accent}
+        title={card.title}
+        concept={card.concept}
+        rules={card.rules}
+        status="Round over"
+        rows={ranked.map((id) => ({
+          id,
+          avatar: byId.get(id)?.avatar ?? '🙂',
+          name: byId.get(id)?.name ?? 'Someone',
+          value: state.pucks[id] ?? 0,
+          unit: 'left',
+        }))}
+        me={myId}
+        winner={game.winner}
+        onAgain={() => client?.send({ t: 'start', d: { mode: 'sling' } })}
+        canAct={room.isHost && room.connected === SLING_PLAYERS}
+      />
+    );
+  }
+
   return (
     <GameLobby
       card={card}
@@ -113,9 +140,6 @@ function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }):
           </p>
         </>
       }
-      {...(state?.phase === 'done'
-        ? { standings: <Standings state={state} players={room.room?.players ?? []} /> }
-        : {})}
     />
   );
 }
@@ -128,27 +152,3 @@ function note(isHost: boolean, connected: number): string {
   return `${SLING_START_PUCKS} pucks each. First side clear wins.`;
 }
 
-function Standings({ state, players }: { state: SlingState; players: Player[] }): JSX.Element {
-  // Fewest left first — the win condition is an empty side, so low is good here,
-  // the opposite of Goat Siege's cabbages.
-  const ranked = [...state.players].sort((a, b) => (state.pucks[a] ?? 0) - (state.pucks[b] ?? 0));
-  return (
-    <section class="panel standings">
-      <h2 class="panel__heading">Result</h2>
-      <ol class="scoreline">
-        {ranked.map((id) => {
-          const p = players.find((q) => q.id === id);
-          return (
-            <li key={id}>
-              <span class="scoreline__name">
-                {p?.avatar} {p?.name ?? '—'}
-              </span>
-              <span class="scoreline__time">{state.pucks[id] ?? 0}</span>
-              <span class="scoreline__unit">left</span>
-            </li>
-          );
-        })}
-      </ol>
-    </section>
-  );
-}

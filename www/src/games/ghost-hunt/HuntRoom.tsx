@@ -310,6 +310,9 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         state={state}
         players={room.room?.players ?? []}
         myId={myId}
+        title={card.title}
+        concept={card.concept}
+        rules={card.rules}
         accent={card.accent}
         onAgain={again}
         canAgain={room.isHost && enough}
