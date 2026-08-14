@@ -72,8 +72,28 @@ Standard flow (see [../../multiplayer.md](../../multiplayer.md) §3). Specifics:
   real people, not the screen).
 - **Round — non-holder view**: calm dark screen, avatar of the current holder,
   "who's got it" — and a subtle "get ready" if you were the previous holder.
-- **Elimination**: full-screen explosion, vibration, the player's screen turns
-  to spectator with the remaining players list.
+- **Elimination**: the bomb **comes apart**, vibration, then the player's screen turns to
+  spectator with the remaining players list.
+
+  The explosion is a canvas, not an emoji and not a CSS transform. The bomb is drawn
+  once, sampled into a particle per 3×3 block, given one impulse outwards from its middle
+  and then left to fly under gravity and drag. A transform can throw the whole bomb
+  somewhere; it cannot take it apart, and coming apart is the thing being animated — the
+  piece that was the fuse and the piece that was the shell have to go different ways.
+
+  Three numbers decide whether it reads as an explosion, and all three were wrong on the
+  first attempt:
+
+  | | |
+  | --- | --- |
+  | **The canvas is much bigger than the bomb** (the bomb is 46% of it) | A particle that leaves the canvas is clipped and gone. Drawn edge to edge, the pieces had nowhere to fly and the whole thing was over in a quarter of a second, most of it off-canvas |
+  | **The blast radius overshoots the half-diagonal** by 60% | At exactly half the diagonal the corners sit on the rim, where the falloff is zero — the bomb blows its middle out and leaves four corners standing |
+  | **The force is 6 px/frame, not 26** | At 26 the nearest pieces crossed the square in a dozen frames. The bang has to last long enough to be read as one |
+
+  Physics in `www/src/games/pass-the-bomb/shockwave.ts` — no DOM, so all of it is tested
+  without a canvas — and the canvas and frame loop in `Blast.tsx`. Under
+  `prefers-reduced-motion` the bomb is drawn and **not** blown up: two thousand pieces
+  flying apart is exactly what that setting is asking not to see (§11).
 - **Results**: podium, "Play again" primary.
 
 ## 5. Inputs & sensors

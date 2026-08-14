@@ -3,6 +3,7 @@ import type { JSX } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard } from '../../core/ui/Scoreboard';
+import { Blast } from './Blast';
 import type { BombView } from './game';
 
 /** How long the explosion holds the screen before the next bomb view returns. */
@@ -69,10 +70,13 @@ export function BombScreen({
 
   if (boom) {
     return (
-      <div class="boom" role="alert">
-        <p class="boom__blast" aria-hidden="true">
-          💥
-        </p>
+      <div class="boom" role="alert" style={{ '--game-accent': accent } as JSX.CSSProperties}>
+        {/*
+          The bomb, coming apart. Keyed on the victim so a second boom in the same round
+          re-mounts it and runs again — without the key it would play once and then sit
+          there as a cleared canvas for every explosion after the first.
+        */}
+        <Blast key={boom.victim} />
         <p class="boom__who">
           {boom.victim === myId ? 'It went off on you' : `${name(boom.victim)} is out`}
         </p>
@@ -97,7 +101,13 @@ export function BombScreen({
           rules={rules}
         />
 
-        <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" />
+        {/*
+          Top left, not the default bottom left: the holder's screen keeps the tap-to-pass
+          buttons down there, and they are how a player without a motion sensor plays at
+          all. Set on every one of this game's screens rather than only that one, so the
+          panel does not jump corners as the bomb changes hands.
+        */}
+        <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" corner="top-left" />
         <p class="bombscreen__holder-avatar" aria-hidden="true">
           {avatar(state.holder)}
         </p>
@@ -117,7 +127,7 @@ export function BombScreen({
           rules={rules}
         />
 
-        <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" />
+        <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" corner="top-left" />
 
         <p class="bombscreen__icon" aria-hidden="true">
           💣
@@ -163,7 +173,7 @@ export function BombScreen({
         rules={rules}
       />
 
-      <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" />
+      <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" corner="top-left" />
       <p class="bombscreen__holder-avatar" aria-hidden="true">
         {avatar(state.holder)}
       </p>

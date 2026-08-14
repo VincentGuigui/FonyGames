@@ -113,9 +113,18 @@
   color: var(--game-accent, var(--color-accent));
 }
 
+/*
+ * Close and Leave game are the two controls in this sheet, and they wear the game's
+ * accent so the menu belongs to the game it was opened from rather than looking like a
+ * piece of the site that happens to be on top of it.
+ *
+ * Outlined and filled respectively, which is the difference between them: Close puts
+ * you back where you were, Leave ends the round for you.
+ */
 .gamemenu__close {
   padding: 0.4rem 0.9rem;
   font-size: var(--font-small);
+  border-color: var(--game-accent, var(--color-accent));
 }
 
 .gamemenu__label {
@@ -128,6 +137,9 @@
 
 .gamemenu__exit {
   margin-top: var(--space-4);
+  background: var(--game-accent, var(--color-accent));
+  color: var(--color-on-accent);
+  border-color: transparent;
 }
 
 /* --- the pre-round panel ------------------------------------------------- */

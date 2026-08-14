@@ -210,10 +210,16 @@ default corner is not theirs to take:
 | Spill | top left | The throw row owns the bottom, for the same reason |
 | Sling Puck | top right | The bottom half of the screen is the player's own board |
 | Cat and Mouse | top left | Its hint line runs the full width of the bottom |
+| Pass the Bomb | top left | The holder's tap-to-pass buttons are down there, and they are how a player without a motion sensor plays at all |
 
 **The top corners carry a 4rem offset** so they clear the status bar, which starts at the
 same edge and is the same width. Without it the panel lands exactly on the bar: Spill's
 own drop count vanished behind it and Goat Siege's panel sat over the gear.
+
+Pass the Bomb is the reason to set a corner for **every screen a game has**, not only the
+one that happened to be checked: the collision is on the *holder's* screen and the walk
+that found the other three was driving a phone that was watching. A panel that jumped
+corners as the bomb changed hands would be worse than one in the wrong place.
 
 The panel is `pointer-events: none` regardless, so it can never swallow a tap on a
 board played by dragging and flicking. That is a correctness property, not a nicety: a

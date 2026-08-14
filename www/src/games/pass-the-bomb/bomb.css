@@ -20,6 +20,17 @@
   color: var(--color-on-accent);
 }
 
+/*
+ * The holder's screen is full-bleed accent, so the status bar's own colours are wrong on
+ * it: `--color-text-dim` is a light grey picked to sit on the dark page, and on a bright
+ * accent it reads as smudged rather than as text. "You have it" takes the dark
+ * on-accent colour like everything else on this screen.
+ */
+.bombscreen--holder .statusbar__status,
+.bombscreen--holder .statusbar__label {
+  color: var(--color-on-accent);
+}
+
 .bombscreen--watching,
 .bombscreen--out {
   background: var(--color-bg);
@@ -168,10 +179,15 @@
   z-index: 1;
 }
 
-.boom__blast {
-  margin: 0;
-  font-size: clamp(6rem, 40vw, 12rem);
-  line-height: 1;
+/*
+ * The bomb being taken apart (Blast.tsx). A fixed 300px square rather than a viewport
+ * size: the particles are canvas pixels, and a canvas that resizes mid-animation would
+ * throw the whole cloud away to redraw it.
+ */
+.boom__canvas {
+  display: block;
+  max-width: 80vw;
+  max-height: 40vh;
 }
 
 .boom__who {
