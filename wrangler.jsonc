@@ -59,7 +59,25 @@
       }
     },
     "prod": {
-      // Reuses the Worker created in the dashboard, so nothing is orphaned.
+      /*
+       * Reuses the Worker created in the dashboard — which turned out to be the
+       * expensive choice, and is worth recording rather than rediscovering.
+       *
+       * A dashboard-created Worker with Durable Objects comes from a template whose
+       * class is called `MyDurableObject`. Cloudflare refuses to replace a script
+       * while a class its live objects depend on has disappeared, so every
+       * `deploy --env prod` failed with:
+       *
+       *   New version of script does not export class 'MyDurableObject' which is
+       *   depended on by existing Durable Objects [code: 10064]
+       *
+       * The site kept deploying, so prod looked healthy while no game could open a
+       * room. Fix, and why this comment does not simply contain it: the resolution
+       * depends on which migration tag prod has already applied, which is remote
+       * state — see docs/deployment.md §6. A `deleted_classes` migration written
+       * blind can skip creating `Room` entirely.
+       */
+      // Reuses the Worker created in the dashboard.
       "name": "fonygames-worker",
       "durable_objects": {
         "bindings": [{ "name": "ROOM", "class_name": "Room" }]
