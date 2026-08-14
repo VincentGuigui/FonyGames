@@ -84,8 +84,6 @@ export type ClientMessage =
    * the elapsed time could physically hold rather than believed.
    */
   | { t: 'shake'; d: { n: number; roundId: number } }
-  /** Ghost Hunt: I have calibrated my forward and I am ready to start. */
-  | { t: 'anchor'; d: { roundId: number } }
   /**
    * Ghost Hunt: I locked target `index`, `ms` after it appeared.
    *
@@ -826,7 +824,6 @@ const CLIENT_TYPES = new Set([
   'pass',
   'wobble',
   'shake',
-  'anchor',
   'found',
   'fling',
   'catch',
@@ -943,21 +940,35 @@ export const RUSH_AWAY_MS = 3 * RUSH_TICK_MS;
 /* ------------------------------------------------------------------ */
 
 /**
- * How close the aim has to be, and for how long.
+ * How wide the radar sees, how far a ghost roams, and how long you must hold it.
  *
- * The cone is findable by sweeping but too tight to hit by accident — about a
- * dinner plate at two metres — and the dwell is what stops a sweep straight
- * through the target from scoring (spec §2).
+ * The radar is a **window**, not a crosshair: a ghost whose direction is within
+ * `RADAR_FOV_DEG` of your aim is drawn inside the radar disc, at its own place in
+ * there, and the hunt is keeping it in that disc for `GHOST_HOLD_MS` (spec §2).
+ *
+ * `GHOST_ROAM_DEG` is deliberately **larger than the radar's radius**. That one
+ * inequality is the whole game: a ghost roams further than the radar can hold, so
+ * a phone parked on the direction where the ghost started loses it, and following
+ * a slow drift for four seconds is the skill being asked for. Make the roam
+ * smaller than the radius and pointing once and standing still wins.
  */
-export const LOCK_CONE_DEG = 12;
-export const LOCK_DWELL_MS = 600;
+export const RADAR_FOV_DEG = 20;
+export const GHOST_HOLD_MS = 4_000;
+export const GHOST_ROAM_DEG = 26;
+
+/** How long the roam takes to come back on itself. Slow: a drift, not a dodge. */
+export const GHOST_ROAM_MS = 11_000;
 
 /**
  * Consecutive targets are never near each other, so a find always costs a
  * movement. Without it the sequence can put two ghosts a few degrees apart and
  * the second is free.
+ *
+ * It has to clear `RADAR_FOV_DEG + GHOST_ROAM_DEG` (46°) with room to spare, or a
+ * ghost could roam into the radar of a phone that has not moved since the last
+ * find and hand out a free point.
  */
-export const TARGET_MIN_SEPARATION_DEG = 50;
+export const TARGET_MIN_SEPARATION_DEG = 60;
 
 /** Nothing at your feet, nothing behind your head — and see the safety note, §9. */
 export const ELEVATION_MIN_DEG = -40;
@@ -969,10 +980,15 @@ export const HUNT_ROUND_MS = 90_000;
  * The floor on a believable find, and the only thing the server can check.
  *
  * It cannot see where a phone is pointing, so a patched client could claim every
- * target instantly (spec §8). It can see the clock: `LOCK_DWELL_MS` alone is 600,
- * so nothing honest arrives faster than this.
+ * target instantly (spec §8). It can see the clock, and no honest find can beat
+ * the hold.
+ *
+ * The floor sits just **under** `GHOST_HOLD_MS` rather than just over it. A ghost
+ * can be inside the radar the moment it appears — the separation rule keeps its
+ * *home* far away, but it roams — so the fastest honest find is the hold itself,
+ * and a floor above it would reject the luckiest real player in the room.
  */
-export const MIN_FIND_MS = 700;
+export const MIN_FIND_MS = GHOST_HOLD_MS - 200;
 
 /** How often the room state goes out while a round runs. */
 export const HUNT_TICK_MS = 500;

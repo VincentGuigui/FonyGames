@@ -16,13 +16,17 @@ import {
   wrapDeg,
   type Aim,
 } from '../../core/sensors/orientation';
-import { sobel, RING_PX, EDGE_THRESHOLD } from './vision';
-import { dragTo, project, DRAG_SENSITIVITY, FOV_DEG } from './photosphere';
+import { sobel, RADAR_PX, EDGE_THRESHOLD } from './vision';
+import { dragTo, project, DRAG_SENSITIVITY, V_FOV_DEG } from './photosphere';
+import { bearingDeg, ghostAt, offsetDeg, radarSpot } from './radar';
 import {
   ELEVATION_MAX_DEG,
   ELEVATION_MIN_DEG,
-  LOCK_CONE_DEG,
-  LOCK_DWELL_MS,
+  GHOST_HOLD_MS,
+  GHOST_ROAM_DEG,
+  GHOST_ROAM_MS,
+  RADAR_FOV_DEG,
+  TARGET_MIN_SEPARATION_DEG,
   type PlayerId,
   type ServerMessage,
 } from '../../../../shared/protocol';
@@ -122,96 +126,223 @@ console.log('\nangles and directions');
 }
 
 /*
- * The lock. This is the thing that awards a point, and the dwell is what stops a
- * sweep straight through the ghost from scoring (spec §2).
+ * The radar's geometry, which is new and load-bearing: the ghost roams, so "is it on
+ * the dial" is now a moving question and the answer is what awards a point.
  */
-console.log('\nlocking on');
+console.log('\nthe ghost roams, identically for everyone');
+
+{
+  const home: Aim = { azimuth: 30, elevation: 10 };
+
+  check('at birth it is on its home direction, not at the edge of its excursion',
+    angleBetween(ghostAt(home, 0, 0), home) < GHOST_ROAM_DEG, angleBetween(ghostAt(home, 0, 0), home));
+
+  // The inequality the whole game rests on: it roams further than the radar can hold,
+  // so a phone parked where the ghost started loses it and has to follow.
+  check('it roams further than the radar sees', GHOST_ROAM_DEG > RADAR_FOV_DEG);
+
+  let worst = 0;
+  let everLeft = false;
+  for (let t = 0; t <= GHOST_ROAM_MS * 2; t += 50) {
+    const d = angleBetween(ghostAt(home, 0, t), home);
+    worst = Math.max(worst, d);
+    if (d > RADAR_FOV_DEG) everLeft = true;
+  }
+  check('and never further than it says', worst <= GHOST_ROAM_DEG + 1e-6, worst);
+  check('so a still phone does lose it', everLeft);
+
+  // Fairness. Everyone hunts the same ghosts in the same order (spec §2), so two
+  // players on the same index must get the identical path from the identical start —
+  // a roam drawn from Math.random would make this a different race per phone.
+  const one = ghostAt(home, 3, 1234);
+  const two = ghostAt(home, 3, 1234);
+  check('the path is a function of index and age, not of chance',
+    one.azimuth === two.azimuth && one.elevation === two.elevation);
+  const other = ghostAt(home, 4, 1234);
+  check('but a different ghost moves differently', other.azimuth !== one.azimuth);
+
+  // Slow. The hunt is following a drift, not chasing a fly.
+  const step = angleBetween(ghostAt(home, 1, 1000), ghostAt(home, 1, 1100));
+  check('it drifts rather than darts', step < 2, step);
+
+  // A degree of azimuth is a smaller angle the higher you look, so without the cos
+  // correction a ghost near the top of the band would roam a fraction of the distance
+  // and be quietly easier to hold.
+  const low = { azimuth: 0, elevation: 0 };
+  const high = { azimuth: 0, elevation: 65 };
+  let lowMax = 0;
+  let highMax = 0;
+  for (let t = 0; t <= GHOST_ROAM_MS; t += 100) {
+    lowMax = Math.max(lowMax, angleBetween(ghostAt(low, 2, t), low));
+    highMax = Math.max(highMax, angleBetween(ghostAt(high, 2, t), high));
+  }
+  check('and it roams as far up high as on the horizon', Math.abs(lowMax - highMax) < 2,
+    { lowMax, highMax });
+}
+
+console.log('\nwhere it lands on the dial');
+
+{
+  const aim: Aim = { azimuth: 0, elevation: 0 };
+
+  check('dead ahead is the middle', (() => {
+    const spot = radarSpot(aim, aim);
+    return spot !== null && close(spot.x, 0) && close(spot.y, 0);
+  })());
+
+  const right = radarSpot(aim, { azimuth: RADAR_FOV_DEG / 2, elevation: 0 });
+  check('a ghost to the right is to the right', right !== null && close(right.x, 0.5, 1e-9), right);
+  const above = radarSpot(aim, { azimuth: 0, elevation: RADAR_FOV_DEG / 2 });
+  check('and one above is up, in the y that grows upwards',
+    above !== null && close(above.y, 0.5, 1e-9), above);
+
+  check('the rim is on the dial', radarSpot(aim, { azimuth: RADAR_FOV_DEG - 0.01, elevation: 0 }) !== null);
+  check('and a degree past it is not', radarSpot(aim, { azimuth: RADAR_FOV_DEG + 1, elevation: 0 }) === null);
+
+  // Containment is the true angle on the sphere, so it cannot be cheated by
+  // approaching along the diagonal where a flat box would still say "inside".
+  const diagonal = { azimuth: RADAR_FOV_DEG * 0.8, elevation: RADAR_FOV_DEG * 0.8 };
+  check('the dial is round, not square', radarSpot(aim, diagonal) === null);
+
+  // The arrow. This is the only help a player gets when the ghost is behind them, so
+  // it is defined at every distance rather than only on the dial.
+  check('up is zero', close(bearingDeg(aim, { azimuth: 0, elevation: 30 }), 0, 1e-9));
+  check('right is a quarter turn', close(bearingDeg(aim, { azimuth: 40, elevation: 0 }), 90, 1e-9));
+  check('down is half', Math.abs(bearingDeg(aim, { azimuth: 0, elevation: -30 })) === 180);
+  check('left is three quarters', close(bearingDeg(aim, { azimuth: -40, elevation: 0 }), -90, 1e-9));
+  check('and it still answers for a ghost behind you',
+    Number.isFinite(bearingDeg(aim, { azimuth: 150, elevation: 0 })));
+
+  // Read from either end, the same distance.
+  const a: Aim = { azimuth: 10, elevation: 20 };
+  const b: Aim = { azimuth: 20, elevation: 30 };
+  check('the offset is symmetric', close(offsetDeg(a, b).x, -offsetDeg(b, a).x, 1e-9));
+}
+
+/*
+ * The hold. This is the thing that awards a point, and it is what stops a sweep
+ * straight past the ghost from scoring (spec §2).
+ */
+console.log('\nholding a ghost on the dial');
 
 {
   const lock = createLock();
-  const target: Aim = { azimuth: 30, elevation: 20 };
+  const ghost: Aim = { azimuth: 30, elevation: 20 };
   const off: Aim = { azimuth: 120, elevation: 0 };
   const on: Aim = { azimuth: 30, elevation: 20 };
 
-  let s = lock.update(off, target, 0);
-  check('pointing elsewhere is not a lock', !s.locked && s.dwell === 0);
-  check('and the error is reported for the ring', s.error > LOCK_CONE_DEG, s.error);
+  let s = lock.update(off, ghost, 0);
+  check('pointing elsewhere is not a find', !s.locked && s.dwell === 0);
+  check('and the error is reported for the radar', s.error > RADAR_FOV_DEG, s.error);
+  check('the ghost is not drawn on the dial', s.spot === null);
+  check('but the arrow still points at it', s.bearing !== null);
 
-  s = lock.update(on, target, 1000);
-  check('arriving on target starts the dwell', s.dwell === 0 && !s.locked);
+  s = lock.update(on, ghost, 1000);
+  check('it appearing on the dial starts the hold', s.dwell === 0 && !s.locked);
   check('with the error at zero', s.error < 1e-4);
+  check('and now it is drawn', s.spot !== null);
 
-  s = lock.update(on, target, 1000 + LOCK_DWELL_MS / 2);
-  check('half way through the dwell', close(s.dwell, 0.5, 1e-9), s.dwell);
-  check('still not a lock', !s.locked);
+  s = lock.update(on, ghost, 1000 + GHOST_HOLD_MS / 2);
+  check('half way through the hold', close(s.dwell, 0.5, 1e-9), s.dwell);
+  check('still not a find', !s.locked);
 
-  s = lock.update(on, target, 1000 + LOCK_DWELL_MS);
-  check('holding it out the full dwell locks', s.locked === true);
+  s = lock.update(on, ghost, 1000 + GHOST_HOLD_MS);
+  check('keeping it there the full four seconds catches it', s.locked === true);
   check('and the rim is full', s.dwell === 1);
 
-  // One dwell, one point — however many sensor frames land while the phone sits
+  // One hold, one point — however many sensor frames land while the phone sits
   // there. Without the latch a player would score the same ghost sixty times.
-  s = lock.update(on, target, 1000 + LOCK_DWELL_MS + 100);
+  s = lock.update(on, ghost, 1000 + GHOST_HOLD_MS + 100);
   check('but it only fires once', !s.locked);
   check('while still reading as held', s.dwell === 1);
 }
 
 {
-  // A sweep straight through: inside the cone for one frame, then gone.
+  // A sweep straight through: on the dial for a moment, then gone.
   const lock = createLock();
-  const target: Aim = { azimuth: 0, elevation: 0 };
+  const ghost: Aim = { azimuth: 0, elevation: 0 };
   let fired = 0;
-  for (let t = 0; t <= 2000; t += 50) {
-    // Sweeps past at 60°/s, so it is inside a 12° cone for about 200 ms.
+  for (let t = 0; t <= 6000; t += 50) {
+    // 60°/s, so it crosses a 40°-wide dial in about two thirds of a second.
     const azimuth = -60 + (t / 1000) * 60;
-    if (lock.update({ azimuth, elevation: 0 }, target, t).locked) fired++;
+    if (lock.update({ azimuth, elevation: 0 }, ghost, t).locked) fired++;
   }
-  check('a sweep straight through never locks', fired === 0, fired);
+  check('a sweep straight through never catches anything', fired === 0, fired);
 }
 
 {
-  // Leaving the cone and coming back starts the dwell again, rather than resuming.
+  // Losing it and finding it again starts the hold over, rather than resuming.
   const lock = createLock();
-  const target: Aim = { azimuth: 0, elevation: 0 };
-  lock.update({ azimuth: 0, elevation: 0 }, target, 0);
-  lock.update({ azimuth: 0, elevation: 0 }, target, LOCK_DWELL_MS - 100);
-  lock.update({ azimuth: 90, elevation: 0 }, target, LOCK_DWELL_MS - 50);
-  const back = lock.update({ azimuth: 0, elevation: 0 }, target, LOCK_DWELL_MS);
-  check('wandering off discards the progress', back.dwell === 0, back.dwell);
-  const later = lock.update({ azimuth: 0, elevation: 0 }, target, LOCK_DWELL_MS * 2);
+  const ghost: Aim = { azimuth: 0, elevation: 0 };
+  lock.update({ azimuth: 0, elevation: 0 }, ghost, 0);
+  lock.update({ azimuth: 0, elevation: 0 }, ghost, GHOST_HOLD_MS - 100);
+  lock.update({ azimuth: 90, elevation: 0 }, ghost, GHOST_HOLD_MS - 50);
+  const back = lock.update({ azimuth: 0, elevation: 0 }, ghost, GHOST_HOLD_MS);
+  check('letting it off the dial discards the progress', back.dwell === 0, back.dwell);
+  const later = lock.update({ azimuth: 0, elevation: 0 }, ghost, GHOST_HOLD_MS * 2);
   check('and the clock restarts from where it came back', later.locked === true);
 }
 
 {
-  // The edge of the cone counts as inside it: a hard boundary a player cannot see
-  // is better slightly generous than slightly mean.
+  // The rim counts as on the dial: a hard boundary a player cannot see is better
+  // slightly generous than slightly mean.
   const lock = createLock();
-  const target: Aim = { azimuth: 0, elevation: 0 };
-  const edge: Aim = { azimuth: LOCK_CONE_DEG - 0.01, elevation: 0 };
-  lock.update(edge, target, 0);
-  check('the edge of the cone is inside it', lock.update(edge, target, LOCK_DWELL_MS).locked === true);
+  const ghost: Aim = { azimuth: 0, elevation: 0 };
+  const edge: Aim = { azimuth: RADAR_FOV_DEG - 0.01, elevation: 0 };
+  lock.update(edge, ghost, 0);
+  check('the rim is inside the dial', lock.update(edge, ghost, GHOST_HOLD_MS).locked === true);
 
   const outside = createLock();
-  const just: Aim = { azimuth: LOCK_CONE_DEG + 0.5, elevation: 0 };
-  outside.update(just, target, 0);
-  check('and just outside it is not', outside.update(just, target, LOCK_DWELL_MS).locked === false);
+  const just: Aim = { azimuth: RADAR_FOV_DEG + 0.5, elevation: 0 };
+  outside.update(just, ghost, 0);
+  check('and just past it is not', outside.update(just, ghost, GHOST_HOLD_MS).locked === false);
 }
 
 {
-  // No target and no aim must be quiet rather than a lock at "zero degrees off".
+  // The whole point of the roam, played out: hold still and you lose it, follow it and
+  // you get it. This is the check that a roam smaller than the radar would fail.
+  const home: Aim = { azimuth: 0, elevation: 0 };
+
+  const still = createLock();
+  let stillGot = 0;
+  for (let t = 0; t <= GHOST_ROAM_MS; t += 50) {
+    if (still.update(home, ghostAt(home, 0, t), t).locked) stillGot++;
+  }
+  check('a phone that never moves does not catch it', stillGot === 0, stillGot);
+
+  const follows = createLock();
+  let followed = 0;
+  for (let t = 0; t <= GHOST_ROAM_MS; t += 50) {
+    // Aiming straight at it — what following perfectly looks like.
+    if (follows.update(ghostAt(home, 0, t), ghostAt(home, 0, t), t).locked) followed++;
+  }
+  check('a phone that follows it does', followed === 1, followed);
+}
+
+{
+  // The separation rule has to keep the NEXT ghost off the dial of a phone that has
+  // not moved, roam included, or a find hands out a free point.
+  check('a fresh ghost cannot roam onto a stale aim',
+    TARGET_MIN_SEPARATION_DEG > RADAR_FOV_DEG + GHOST_ROAM_DEG,
+    { TARGET_MIN_SEPARATION_DEG, RADAR_FOV_DEG, GHOST_ROAM_DEG });
+}
+
+{
+  // No ghost and no aim must be quiet rather than a find at "zero degrees off".
   const lock = createLock();
   const s = lock.update(null, null, 0);
-  check('nothing to aim at is not a lock', !s.locked && s.dwell === 0);
-  check('and the error is not a number a ring would draw', !Number.isFinite(s.error));
-  const s2 = lock.update({ azimuth: 0, elevation: 0 }, null, LOCK_DWELL_MS * 3);
+  check('nothing to aim at is not a find', !s.locked && s.dwell === 0);
+  check('and the error is not a number a radar would draw', !Number.isFinite(s.error));
+  check('with nothing drawn on the dial', s.spot === null && s.bearing === null);
+  const s2 = lock.update({ azimuth: 0, elevation: 0 }, null, GHOST_HOLD_MS * 3);
   check('nor is a phone aiming at no ghost', !s2.locked);
 }
 
-console.log('\nthe hot/cold ring');
+console.log('\nthe hot/cold radar');
 
 {
   check('dead on is fully hot', heat(0) === 1);
-  check('anywhere inside the cone is fully hot', heat(LOCK_CONE_DEG) === 1);
+  check('anywhere on the dial is fully hot', heat(RADAR_FOV_DEG) === 1);
   check('far away is cold', heat(HOT_FROM_DEG) === 0);
   check('and further is still cold, not negative', heat(179) === 0);
   check('it warms through the approach', heat(30) > 0 && heat(30) < 1, heat(30));
@@ -297,7 +428,7 @@ console.log('\nwho is winning');
 /*
  * The edge detector. Testable without a camera, a canvas or a DOM because it is a
  * pure function over a buffer — which matters, since the alternative way to
- * answer "is the ring showing anything" is to point a phone at a room.
+ * answer "is the radar showing anything" is to point a phone at a room.
  */
 console.log('\nthe edge detector');
 
@@ -338,7 +469,7 @@ console.log('\nthe edge detector');
   check('and not out in the flat', at(out, 2, 8) === 0 && at(out, 14, 8) === 0);
 
   // A gentle gradient is not an edge — otherwise every wall lights up and the
-  // ring is a white disc.
+  // radar is a lit disc.
   sobel(rgba((x) => 100 + x), out, W, H);
   check('a soft gradient is not an edge', lit(out) === 0, lit(out));
 
@@ -355,7 +486,7 @@ console.log('\nthe edge detector');
   sobel(rgba((_, y) => (y === 0 ? 255 : 0)), out, W, H);
   check('the frame edge is not mistaken for a room edge', at(out, 0, 0) === 0);
 
-  check('the ring buffer is square and small enough to filter in JS', RING_PX * RING_PX < 30_000);
+  check('the radar buffer is square and small enough to filter in JS', RADAR_PX * RADAR_PX < 30_000);
   check('and the threshold is above sensor noise', EDGE_THRESHOLD > 30);
 }
 
@@ -376,28 +507,50 @@ console.log('\nthe photosphere');
   check('a quarter turn is a quarter across', close(project({ azimuth: 90, elevation: 0 }).u, 0.75));
   check('and it never leaves the image', project({ azimuth: 359.9, elevation: 0 }).u < 1);
 
+  /*
+   * The finger holds the WORLD, not the camera — drag right and the room comes with
+   * you, so the aim goes left. It shipped the other way round, which is the kind of
+   * bug that reads as "the controls are broken" rather than as an inverted sign.
+   */
   const home = { azimuth: 0, elevation: 0 };
-  check('dragging right looks right', dragTo(home, 100, 0).azimuth > 0);
-  check('dragging up looks up', dragTo(home, 0, -100).elevation > 0);
-  check('by the sensitivity it advertises', close(dragTo(home, 100, 0).azimuth, 100 * DRAG_SENSITIVITY));
+  check('dragging right brings the room right, so the aim goes left',
+    dragTo(home, 100, 0).azimuth < 0);
+  check('dragging down brings the room down, so the aim goes up',
+    dragTo(home, 0, 100).elevation > 0);
+  check('and dragging up looks down', dragTo(home, 0, -100).elevation < 0);
+  check('by the sensitivity it advertises',
+    close(dragTo(home, 100, 0).azimuth, -100 * DRAG_SENSITIVITY));
+  // Both axes, or "it does not go up and down" is a thing only a play test finds.
+  check('both axes actually move', dragTo(home, 40, 40).azimuth !== 0 && dragTo(home, 40, 40).elevation !== 0);
 
   // Azimuth wraps because the sphere is continuous sideways...
-  const far = dragTo({ azimuth: 170, elevation: 0 }, 200, 0);
-  check('the azimuth wraps past the seam rather than piling up', far.azimuth < 0, far.azimuth);
+  const far = dragTo({ azimuth: -170, elevation: 0 }, 200, 0);
+  check('the azimuth wraps past the seam rather than piling up', far.azimuth > 0, far.azimuth);
   check('and stays in range', Math.abs(far.azimuth) <= 180);
 
   // ...but elevation clamps, or a drag rolls you upside down.
-  const up = dragTo(home, 0, -100_000);
+  const up = dragTo(home, 0, 100_000);
   check('you cannot roll over the top', up.elevation <= ELEVATION_MAX_DEG + 15, up.elevation);
-  const down = dragTo(home, 0, 100_000);
+  const down = dragTo(home, 0, -100_000);
   check('nor under the bottom', down.elevation >= ELEVATION_MIN_DEG - 15, down.elevation);
   // The clamp has to sit OUTSIDE the band the ghosts live in, or the ones at the
   // extremes are unreachable by drag.
   check('but every ghost is still reachable',
     up.elevation >= ELEVATION_MAX_DEG && down.elevation <= ELEVATION_MIN_DEG);
 
-  // The view has to be narrower than the sphere or the seam is on screen twice.
-  check('the field of view is a window, not the whole sphere', FOV_DEG > 0 && FOV_DEG < 180);
+  /*
+   * The vertical window has to fit ABOVE a ghost at the top of the band.
+   *
+   * This is the check for the projection bug: the FOV used to be specified across the
+   * screen, so a portrait phone derived a 151° vertical window whose crop was taller
+   * than the image — the vertical crop clamped at every elevation and dragging up and
+   * down did nothing. Half the window plus the highest ghost has to stay under the
+   * zenith, with a little room for the overflow the draw now handles honestly.
+   */
+  check('the window is a window, not the whole sphere', V_FOV_DEG > 0 && V_FOV_DEG < 180);
+  check('and a ghost at the top of the band is nearly centrable',
+    ELEVATION_MAX_DEG + V_FOV_DEG / 2 < 90 + V_FOV_DEG / 3,
+    { V_FOV_DEG, ELEVATION_MAX_DEG });
 }
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);

@@ -284,14 +284,6 @@ export class Room extends DurableObject {
         if (id) await onFound(this.#huntCtx(), id, msg.d.roundId, msg.d.index, msg.d.ms);
         return;
       }
-      /*
-       * Ghost Hunt calibrates entirely on the phone — the anchor is a local offset
-       * that never leaves the device (spec §10) — so there is nothing for the
-       * server to store. The message exists so the lobby can say who is ready.
-       */
-      case 'anchor':
-        return;
-
       case 'pass': {
         const id = this.#idOf(ws);
         if (id) await bombPass(this.#bombCtx(), id, msg.d.roundId, msg.d.to);

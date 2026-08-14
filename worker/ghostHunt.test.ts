@@ -42,6 +42,18 @@ function check(what: string, ok: boolean, detail?: unknown): void {
   console.log(`  FAIL ${what}${detail === undefined ? '' : ` ${JSON.stringify(detail)}`}`);
 }
 
+/**
+ * A believable find: the SERVER's elapsed and the client's claim both have to clear
+ * `MIN_FIND_MS`, so a test that means "an honest find" has to advance the clock by at
+ * least this and claim at least this.
+ *
+ * Named rather than written as 1000, which is what these tests used to say. When the
+ * hold went from 600 ms to four seconds every one of those became a claim the server
+ * must reject — and the index-validation checks below would then have passed because
+ * of the timing rather than because of the index they exist to test.
+ */
+const HONEST = MIN_FIND_MS;
+
 const A = 'a' as PlayerId;
 const B = 'b' as PlayerId;
 const C = 'c' as PlayerId;
@@ -178,7 +190,10 @@ console.log('\nfinding one');
   await onFound(h.ctx, A, 1, 0, 100);
   check('so is one where only the CLIENT claims to be fast', h.state?.players[A]?.score === 0);
 
-  await onFound(h.ctx, A, 1, 0, 900);
+  // Derived from the floor rather than written as a number: the floor moved when the
+  // hold went from 600 ms to four seconds, and a literal here would have quietly
+  // become "a claim the server must reject" while still calling itself honest.
+  await onFound(h.ctx, A, 1, 0, MIN_FIND_MS);
   check('an honest find scores', h.state?.players[A]?.score === 1);
   check('and moves that hunter to the next ghost', h.state?.players[A]?.index === 1);
   check('which is somewhere else entirely',
@@ -196,26 +211,26 @@ console.log('\nfinding it twice, and finding the wrong one');
 {
   const h = harness();
   await startHunt(h.ctx, 1, [A, B]);
-  h.advance(1000);
+  h.advance(HONEST);
 
-  await onFound(h.ctx, A, 1, 0, 1000);
+  await onFound(h.ctx, A, 1, 0, HONEST);
   check('the first find scores', h.state?.players[A]?.score === 1);
 
-  await onFound(h.ctx, A, 1, 0, 1000);
+  await onFound(h.ctx, A, 1, 0, HONEST);
   check('a repeat of the same index does not', h.state?.players[A]?.score === 1);
   check('and does not advance them again', h.state?.players[A]?.index === 1);
 
-  h.advance(1000);
-  await onFound(h.ctx, A, 1, 0, 1000);
+  h.advance(HONEST);
+  await onFound(h.ctx, A, 1, 0, HONEST);
   check('nor does a late lock on the target that has gone', h.state?.players[A]?.score === 1);
 
-  await onFound(h.ctx, A, 1, 5, 1000);
+  await onFound(h.ctx, A, 1, 5, HONEST);
   check('nor one from the future', h.state?.players[A]?.score === 1);
 
-  await onFound(h.ctx, A, 7, 1, 1000);
+  await onFound(h.ctx, A, 7, 1, HONEST);
   check('nor one from another round', h.state?.players[A]?.score === 1);
 
-  await onFound(h.ctx, 'nobody' as PlayerId, 1, 1, 1000);
+  await onFound(h.ctx, 'nobody' as PlayerId, 1, 1, HONEST);
   check('and an unknown player changes nothing', Object.keys(h.state?.players ?? {}).length === 2);
 
   await onFound(h.ctx, B, 1, 1, Number.NaN);
@@ -236,21 +251,21 @@ console.log('\ntwo hunters, one ghost');
   await startHunt(h.ctx, 1, [A, B]);
   const ghost = h.state?.targets[0];
 
-  h.advance(1000);
-  await onFound(h.ctx, A, 1, 0, 1000);
+  h.advance(HONEST);
+  await onFound(h.ctx, A, 1, 0, HONEST);
   check('the fast one scores', h.state?.players[A]?.score === 1);
   check('but B is still hunting the same ghost', h.state?.players[B]?.index === 0);
   check('and it has not moved under them', h.state?.targets[0] === ghost);
 
-  h.advance(1000);
-  await onFound(h.ctx, B, 1, 0, 1000);
+  h.advance(HONEST);
+  await onFound(h.ctx, B, 1, 0, HONEST);
   check('so B scores it too', h.state?.players[B]?.score === 1);
   check('and now moves on', h.state?.players[B]?.index === 1);
   check('to the same next ghost A got', h.state?.targets.length === 2);
 
   // The whole point of a shared sequence: the same puzzle, so it is a fair race.
-  h.advance(1000);
-  await onFound(h.ctx, A, 1, 1, 1000);
+  h.advance(HONEST);
+  await onFound(h.ctx, A, 1, 1, HONEST);
   check('A pulls ahead by finding the next one first', h.state?.players[A]?.score === 2);
   check('while B is still on it', h.state?.players[B]?.index === 1);
   check('and the sequence only extends for the leader', h.state?.targets.length === 3);
@@ -263,12 +278,13 @@ console.log('\nthe round ends');
   await startHunt(h.ctx, 1, [A, B, C]);
 
   // Everyone walks the same sequence from 0, so B's first find is index 0 too.
-  h.advance(1000);
-  await onFound(h.ctx, A, 1, 0, 1000);
-  h.advance(2000);
-  await onFound(h.ctx, B, 1, 0, 2000);
-  h.advance(1000);
-  await onFound(h.ctx, A, 1, 1, 1000);
+  h.advance(HONEST);
+  await onFound(h.ctx, A, 1, 0, HONEST);
+  // Slower than A on purpose, so "the fastest single find" below has a right answer.
+  h.advance(HONEST + 1000);
+  await onFound(h.ctx, B, 1, 0, HONEST + 1000);
+  h.advance(HONEST);
+  await onFound(h.ctx, A, 1, 1, HONEST);
 
   h.advance(HUNT_ROUND_MS);
   const over = await onHuntTick(h.ctx);
@@ -280,11 +296,11 @@ console.log('\nthe round ends');
     check('with the counts', end.d.scores[A] === 2 && end.d.scores[B] === 1, end.d.scores);
     check('and everyone in it, even a blank', end.d.scores[C] === 0);
     check('the fastest single find is called out', end.d.best?.player === A, end.d.best);
-    check('at the time the server measured', end.d.best?.ms === 1000, end.d.best);
+    check('at the time the server measured', end.d.best?.ms === HONEST, end.d.best);
   }
 
-  h.advance(1000);
-  await onFound(h.ctx, A, 1, 2, 1000);
+  h.advance(HONEST);
+  await onFound(h.ctx, A, 1, 2, HONEST);
   check('a find after the end scores nothing', h.state?.players[A]?.score === 2);
 }
 

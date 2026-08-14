@@ -1,22 +1,31 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { JSX } from 'preact';
+import type { JSX, RefObject } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
-import { LOCK_CONE_DEG } from '../../../../shared/protocol';
+import { RADAR_FOV_DEG } from '../../../../shared/protocol';
 import { opponentOf, StatusBar } from '../../core/ui/StatusBar';
 import { heat, ranking, type HuntView, type LockState } from './game';
-import { RING_PX } from './vision';
+import { RADAR_PX } from './vision';
 
 /**
  * The hunt, on one phone. Spec: docs/specs/games/ghost-hunt.md §4
  *
- * The screen is the live camera feed, dimmed, with the **detector ring** in the
- * middle showing the same feed as edges — white outlines on black, the room as a
- * wireframe. Outside the ring, your room. Inside it, the room a ghost lives in.
+ * The screen is the live camera feed — your own room, full bleed — with the
+ * **radar** in the middle of it: a dial showing the same feed traced out as
+ * outlines. Outside the radar, the room. Inside it, the room a ghost lives in.
  *
  * That split does three jobs at once: it gives the hunt somewhere to look, it
- * carries the hot/cold signal in the ring itself so there is no separate meter to
+ * carries the hot/cold signal in the radar itself so there is no separate meter to
  * glance at, and it keeps your eyes up rather than down on a dial — which is a
  * safety property, not a stylistic one (§9).
+ *
+ * Two marks on the dial, and they answer different questions:
+ *
+ * - The **triangle on the rim** always says *which way to turn*. It slides around
+ *   the rim to the ghost's bearing and is the only thing on screen that helps when
+ *   the ghost is behind you.
+ * - The **ghost itself** appears inside the dial once it is within
+ *   `RADAR_FOV_DEG`, at its own place in there, and wanders. Keeping it on the dial
+ *   is the game; the rim fills while you do.
  *
  * The canvases are painted by the caller, which owns the camera and the sphere;
  * this component owns only the layout and the state readout.
@@ -28,13 +37,12 @@ export function HuntScreen({
   lock,
   secondsLeft,
   mode,
+  accent,
   title,
   concept,
   rules,
-  onReAnchor,
-  onSweepInstead,
   backdropRef,
-  ringRef,
+  radarRef,
 }: {
   state: HuntView;
   players: Player[];
@@ -43,25 +51,42 @@ export function HuntScreen({
   secondsLeft: number;
   /** What the backdrop actually is, which changes what the screen may promise. */
   mode: 'camera' | 'sphere' | 'dark';
+  /**
+   * The game's accent, set as `--game-accent` on the root.
+   *
+   * The lobby template does this for its own screens, and the round screen is not
+   * inside it — so without this line every accented thing here fell back to the
+   * site accent and the radar came out orange in a green game.
+   */
+  accent: string;
   title: string;
   concept: string;
   rules: string[];
-  onReAnchor: () => void;
-  /** Switch to the sensor route mid-round. Null when it is not available. */
-  onSweepInstead: (() => void) | null;
-  backdropRef: (el: HTMLCanvasElement | null) => void;
-  ringRef: (el: HTMLCanvasElement | null) => void;
+  /**
+   * Ref **objects**, not callbacks.
+   *
+   * This screen re-renders at sensor rate, and an inline `ref={(el) => …}` is a new
+   * function on every one of those renders, so Preact detaches and re-attaches it each
+   * time. The caller's callback sized the canvas — and setting `canvas.width` clears
+   * it — so the background was wiped roughly 60 times a second, immediately after
+   * being painted. The feed was being drawn correctly and had never once been visible.
+   *
+   * A ref object has a stable identity, so nothing re-runs, and sizing moved to an
+   * effect in the caller where it belongs.
+   */
+  backdropRef: RefObject<HTMLCanvasElement>;
+  radarRef: RefObject<HTMLCanvasElement>;
 }): JSX.Element {
   const byId = new Map(players.map((p) => [p.id, p]));
   const hot = heat(lock.error);
   const mine = myId ? (state.scores[myId] ?? 0) : 0;
-  const near = lock.error <= LOCK_CONE_DEG;
+  const near = lock.error <= RADAR_FOV_DEG;
   const flash = useFoundFlash(mine);
 
   return (
     <div
       class={`hunt hunt--${mode} ${near ? 'hunt--near' : ''} ${flash ? 'hunt--found' : ''}`}
-      style={{ '--hot': hot.toFixed(3) } as JSX.CSSProperties}
+      style={{ '--hot': hot.toFixed(3), '--game-accent': accent } as JSX.CSSProperties}
     >
       <canvas class="hunt__backdrop" ref={backdropRef} aria-hidden="true" />
       <div class="hunt__veil" aria-hidden="true" />
@@ -77,29 +102,59 @@ export function HuntScreen({
         />
       </div>
 
-      <div class="hunt__ringwrap">
-        <div class="hunt__ring" aria-hidden="true">
-          <canvas class="hunt__edges" width={RING_PX} height={RING_PX} ref={ringRef} />
-          {/*
-            The dwell, drawn on the ring's own rim rather than as a bar somewhere
-            else: the thing you are staring at is the thing telling you the answer.
-          */}
-          <svg class="hunt__rim" viewBox="0 0 100 100">
-            <circle class="hunt__rim-track" cx="50" cy="50" r="47" />
-            <circle
-              class="hunt__rim-fill"
-              cx="50"
-              cy="50"
-              r="47"
-              style={{ strokeDasharray: `${(lock.dwell * 295).toFixed(1)} 295` }}
-            />
+      <div class="hunt__radarwrap">
+        <div class="hunt__radar" aria-hidden="true">
+          <canvas class="hunt__edges" width={RADAR_PX} height={RADAR_PX} ref={radarRef} />
+
+          <svg class="hunt__dial" viewBox="-50 -50 100 100">
+            {/*
+              The hold, drawn on the radar's own rim rather than as a bar somewhere
+              else: the thing you are staring at is the thing telling you the answer.
+              Hidden at zero rather than drawn empty — a round-capped arc of length
+              zero still paints a dot, and a dot parked at twelve o'clock reads as an
+              indicator pointing north.
+            */}
+            <circle class="hunt__rim-track" cx="0" cy="0" r="47" />
+            {/*
+              Rotated on its own `g`, not on the whole svg: a dash pattern starts at
+              three o'clock, and the hold should start at twelve — but the arrow below
+              is an absolute bearing from up, so rotating everything together would
+              have it pointing 90° wide.
+            */}
+            {lock.dwell > 0 && (
+              <g transform="rotate(-90)">
+                <circle
+                  class="hunt__rim-fill"
+                  cx="0"
+                  cy="0"
+                  r="47"
+                  style={{ strokeDasharray: `${(lock.dwell * 295).toFixed(1)} 295` }}
+                />
+              </g>
+            )}
+
+            {/*
+              Which way to turn. Rotated about the centre so the triangle travels
+              around the rim, and it stays put rather than vanishing when the ghost
+              is on the dial: the direction is still true, and a mark that
+              disappears at the moment you succeed reads as something breaking.
+            */}
+            {lock.bearing !== null && (
+              <g transform={`rotate(${lock.bearing.toFixed(1)})`}>
+                {/* Apex outward, and outside the rim — see the CSS on why. */}
+                <polygon class="hunt__arrow" points="0,-64 -6,-54 6,-54" />
+              </g>
+            )}
+
+            {/* The ghost, where it actually is on the dial. */}
+            {lock.spot && <Ghost x={lock.spot.x * 40} y={-lock.spot.y * 40} />}
           </svg>
         </div>
 
         {/*
-          The number, and the only channel that works on its own. The ring's size,
-          brightness and colour all say the same thing, but a player who cannot use
-          any of them can still play from this (spec §11).
+          The number, and the only channel that works on its own. The radar's
+          brightness, its colour and the ghost's presence all say the same thing, but
+          a player who cannot use any of them can still play from this (spec §11).
         */}
         <p class="hunt__reading" role="status" aria-live="polite">
           {Number.isFinite(lock.error) ? `${Math.round(lock.error)}° off` : 'looking…'}
@@ -115,32 +170,27 @@ export function HuntScreen({
             </li>
           ))}
         </ul>
-
-        {/*
-          Re-anchoring is free and always available: yaw from a fused orientation
-          estimate wanders, and a player who feels the sphere has slipped needs a
-          way out that is not "lose the round" (spec §3).
-        */}
-        {mode !== 'sphere' && (
-          <button class="btn hunt__reanchor" type="button" onClick={onReAnchor}>
-            Re-centre
-          </button>
-        )}
-
-        {/*
-          And the route can still be changed once the round is under way.
-          The picker lives in the lobby, but a player who follows a link into a room
-          whose host starts immediately never sees it — they are simply put on the
-          route that needs no permission. Making that a one-way door would strand
-          exactly the players who did nothing wrong.
-        */}
-        {mode === 'sphere' && onSweepInstead && (
-          <button class="btn hunt__reanchor" type="button" onClick={onSweepInstead}>
-            Sweep instead
-          </button>
-        )}
       </div>
     </div>
+  );
+}
+
+/**
+ * The ghost on the dial.
+ *
+ * A dome with three scallops along the bottom — the shape everyone draws when asked
+ * to draw a ghost — sized so it fits the dial several times over, because the thing
+ * being judged is whether it is *on* the dial and a blob that fills it would make
+ * that unreadable. `y` is negated by the caller: the dial's y grows downwards and
+ * elevation grows up.
+ */
+function Ghost({ x, y }: { x: number; y: number }): JSX.Element {
+  return (
+    <g class="hunt__ghost" transform={`translate(${x.toFixed(2)} ${y.toFixed(2)})`}>
+      <path d="M0,-9 C5,-9 8,-5 8,0 L8,7 L5.3,4.5 L2.7,7 L0,4.5 L-2.7,7 L-5.3,4.5 L-8,7 L-8,0 C-8,-5 -5,-9 0,-9 Z" />
+      <circle class="hunt__ghost-eye" cx="-2.8" cy="-2.6" r="1.5" />
+      <circle class="hunt__ghost-eye" cx="2.8" cy="-2.6" r="1.5" />
+    </g>
   );
 }
 

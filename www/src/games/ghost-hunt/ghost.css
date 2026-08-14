@@ -1,11 +1,17 @@
 /*
  * Ghost Hunt round screens. Spec: docs/specs/games/ghost-hunt.md §4
  *
- * The whole interface is one split: outside the ring, your room; inside it, the
- * room a ghost lives in. The hot/cold signal lives in the ring itself — it
- * tightens, brightens and takes the accent colour as you close in — so there is
- * no separate meter to look away at, which is a safety property as much as a
- * design one (§9): your eyes stay up.
+ * The whole interface is one split: outside the radar, your room; inside it, the
+ * room a ghost lives in. The hot/cold signal lives in the radar itself — it
+ * brightens and takes the accent colour as you close in — so there is no separate
+ * meter to look away at, which is a safety property as much as a design one (§9):
+ * your eyes stay up.
+ *
+ * Everything the game draws wears `--game-accent`: the radar's edge, the arrow on
+ * its rim, the hold, the ghost, and the traced outlines inside it (those in a
+ * lighter wash, mixed in `vision.ts` because they are canvas pixels). The round
+ * screen sets `--game-accent` on its own root — it is not inside the lobby
+ * template, which is where every other screen inherits it from.
  *
  * `--hot` is 0…1, set on the root by the screen.
  */
@@ -35,20 +41,31 @@
   display: block;
 }
 
-/* Dimmed, so white outlines and white type stay legible over a lit room. */
+/*
+ * Dimmed, so the type over it stays legible.
+ *
+ * Light over the camera and heavier over the panorama, which is the same decision
+ * made twice: the feed IS the playground and a 55% wash turned the room into a
+ * suggestion of a room, while the panorama is bright pastel and white type on it
+ * needs the help. Nowhere near dark enough on either to hide what you are searching.
+ */
 .hunt__veil {
   position: absolute;
   inset: 0;
-  background: rgb(5 7 11 / 0.55);
+  background: rgb(5 7 11 / 0.45);
   /* Decoration, and it covers the whole screen — without this it swallows every
      drag before the photosphere ever sees one. */
   pointer-events: none;
 }
 
-/* Same for the ring and the readout: they sit over the backdrop in the middle of
+.hunt--camera .hunt__veil {
+  background: rgb(5 7 11 / 0.22);
+}
+
+/* Same for the radar and the readout: they sit over the background in the middle of
    the screen, which is exactly where a thumb starts a drag. Only the controls in
-   the bar and the foot take a pointer. */
-.hunt__ringwrap {
+   the bar take a pointer. */
+.hunt__radarwrap {
   pointer-events: none;
 }
 
@@ -57,7 +74,7 @@
 }
 
 .hunt__bar,
-.hunt__ringwrap,
+.hunt__radarwrap,
 .hunt__foot {
   position: relative;
   width: 100%;
@@ -79,9 +96,9 @@
   color: var(--color-text-dim);
 }
 
-/* --- the ring ------------------------------------------------------------ */
+/* --- the radar ----------------------------------------------------------- */
 
-.hunt__ringwrap {
+.hunt__radarwrap {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -89,21 +106,33 @@
   margin: auto 0;
 }
 
-.hunt__ring {
+.hunt__radar {
   position: relative;
   /* About a third of the screen, per the spec. */
   width: min(62vw, 15rem);
   aspect-ratio: 1;
   border-radius: 50%;
-  overflow: hidden;
   /*
-   * Brightness and glow are the hot/cold channel, and they are capped: the ring
+   * NOT `overflow: hidden`, which is what this had: the arrow lives just OUTSIDE the
+   * rim, on dark ground, because drawn inside it it was an accent-coloured triangle on
+   * an accent-coloured rim and could not be seen at all. The canvas clips itself
+   * (`.hunt__edges`), so nothing else needs the disc to be a clipping boundary.
+   */
+  overflow: visible;
+  /*
+   * Brightness and glow are the hot/cold channel, and they are capped: the radar
    * brightens smoothly rather than pulsing, so nothing here goes near the 3 Hz
    * flashing limit (§11).
+   *
+   * The glow is `--game-accent` through `color-mix` rather than a hard-coded green:
+   * the rim above it already took the accent from the variable, so a literal
+   * rgb() here was the one place the game's colour could silently disagree with
+   * itself.
    */
   box-shadow:
     0 0 0 calc(2px + var(--hot, 0) * 4px) var(--game-accent, var(--color-accent)),
-    0 0 calc(var(--hot, 0) * 44px) rgb(52 211 153 / calc(var(--hot, 0) * 0.55));
+    0 0 calc(var(--hot, 0) * 44px)
+      color-mix(in srgb, var(--game-accent, var(--color-accent)) 55%, transparent);
   opacity: calc(0.72 + var(--hot, 0) * 0.28);
   transition: opacity 120ms linear;
 }
@@ -112,19 +141,22 @@
   width: 100%;
   height: 100%;
   display: block;
+  /* The disc. It used to be the parent clipping it; the parent now has to let the
+     arrow out. */
+  border-radius: 50%;
   /* Chunky is the aesthetic: a crisp trace looks like a filter, a coarse one
      looks like equipment. */
   image-rendering: pixelated;
 }
 
-/* The dwell, on the ring's own rim — the thing you are staring at is the thing
-   telling you the answer. */
-.hunt__rim {
+/* Everything drawn ON the radar: the hold, the arrow, the ghost. One SVG, its
+   viewBox centred on the origin so a rotation is just `rotate(deg)`. */
+.hunt__dial {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  transform: rotate(-90deg);
+  overflow: visible;
 }
 
 .hunt__rim-track {
@@ -138,6 +170,41 @@
   stroke: var(--game-accent, var(--color-accent));
   stroke-width: 5;
   stroke-linecap: round;
+}
+
+/*
+ * Which way to turn.
+ *
+ * A triangle rather than the dot this used to be — a dot on a rim says "something
+ * is here", a triangle says "that way", and the dot was in fact the hold arc at
+ * length zero, parked at twelve o'clock and reading as an indicator pointing north
+ * whatever the ghost was doing.
+ */
+.hunt__arrow {
+  fill: var(--game-accent, var(--color-accent));
+  /* A dark edge, because at a glancing bearing the triangle sits against the glow
+     around the rim rather than against the page. */
+  stroke: #05070b;
+  stroke-width: 1.5;
+  paint-order: stroke;
+  /* No transition: it tracks a live bearing, and easing a pointer makes it lag
+     behind the thing it is pointing at. */
+}
+
+/*
+ * The ghost on the dial.
+ *
+ * Accent-coloured and slightly transparent, so the traced room stays visible through
+ * it — it is a reading off an instrument, not a sticker on the glass.
+ */
+.hunt__ghost {
+  fill: var(--game-accent, var(--color-accent));
+  opacity: 0.92;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--game-accent, var(--color-accent)) 70%, transparent));
+}
+
+.hunt__ghost-eye {
+  fill: #05070b;
 }
 
 /* The number: the one channel that works entirely on its own (§11). */
@@ -154,7 +221,7 @@
 
 /* The found beat, fired by the SCORE going up — the server agreeing, not the
    phone guessing. A fade, and reduced-motion turns even that off. */
-.hunt--found .hunt__ring {
+.hunt--found .hunt__radar {
   animation: hunt-found 500ms ease-out;
 }
 
@@ -168,10 +235,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .hunt--found .hunt__ring {
+  .hunt--found .hunt__radar {
     animation: none;
   }
-  .hunt__ring {
+  .hunt__radar {
     transition: none;
   }
 }
@@ -210,10 +277,6 @@
 .hunt__score-n {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-}
-
-.hunt__reanchor {
-  flex: none;
 }
 
 /* --- results -------------------------------------------------------------- */
@@ -334,9 +397,4 @@
   font-weight: 400;
   color: var(--color-text-dim);
   white-space: normal;
-}
-
-.hunt-route__camera {
-  width: 100%;
-  margin-top: var(--space-2);
 }

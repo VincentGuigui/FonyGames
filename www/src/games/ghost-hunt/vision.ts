@@ -1,11 +1,11 @@
 /**
- * The camera feed, and the edge detector that turns it into the ring.
+ * The camera feed, and the edge detector that turns it into the radar.
  * Spec: docs/specs/games/ghost-hunt.md §5.2
  *
  * **The camera is never an input to the game.** The ghost's position comes from
  * the server and the aim from the orientation sensor; the feed is scenery.
  * Nothing here tracks, recognises or analyses anything, and no pixel leaves the
- * page — video element → small canvas → this filter → the ring, thrown away frame
+ * page — video element → small canvas → this filter → the radar, thrown away frame
  * by frame (spec §10).
  *
  * Everything runs on a deliberately small buffer. Edge detection is per-pixel
@@ -16,24 +16,38 @@
  * like equipment.
  */
 
-/** The side of the square buffer the filter works on. */
-export const RING_PX = 160;
+/** The side of the square buffer the filter works on — the radar's own canvas. */
+export const RADAR_PX = 160;
 
 /** Frames a second. The next lever if this is too slow is 12, not resolution. */
-export const RING_FPS = 15;
+export const RADAR_FPS = 15;
 
 /** Gradient magnitude above which a pixel is drawn as an edge. */
 export const EDGE_THRESHOLD = 90;
 
 /**
- * Sobel edge detection, in place, from RGBA to white-on-black RGBA.
+ * The colour the traced outlines are drawn in — a pale wash of the game's accent.
+ *
+ * Not white. White outlines on black read as a generic night-vision filter and, more
+ * to the point, they were the one thing on the screen ignoring the game's own colour
+ * while the radar around them wore it. A light tint of the accent makes the radar and
+ * what is inside it one instrument.
+ *
+ * Kept as three numbers rather than a hex string because it is multiplied per pixel:
+ * this is the accent (#34D399) lifted towards white so it still reads as bright at
+ * the threshold, where an edge is barely there.
+ */
+export const EDGE_RGB = [167, 243, 208] as const;
+
+/**
+ * Sobel edge detection, in place, from RGBA to tinted-on-black RGBA.
  *
  * Written as a pure function over a buffer so it can be tested without a camera,
- * a canvas or a DOM — which matters, because "is the ring showing anything" is
+ * a canvas or a DOM — which matters, because "is the radar showing anything" is
  * otherwise only answerable by pointing a phone at a room.
  *
  * Luminance is the cheap integer approximation rather than the exact coefficients:
- * this feeds a threshold, and nobody can see the difference in a 160-pixel ring.
+ * this feeds a threshold, and nobody can see the difference in a 160-pixel dial.
  */
 export function sobel(
   src: Uint8ClampedArray,
@@ -50,7 +64,7 @@ export function sobel(
   }
 
   out.fill(0);
-  // Opaque everywhere: the ring is a solid black disc with white lines on it, not
+  // Opaque everywhere: the radar is a solid black disc with lines on it, not
   // a translucent one, or the camera feed shows through and the trace disappears.
   for (let p = 3; p < out.length; p += 4) out[p] = 255;
 
@@ -74,12 +88,13 @@ export function sobel(
 
       if (g < threshold) continue;
       // Brightness carries edge strength, so a strong outline reads stronger than
-      // sensor noise that squeaked over the line.
-      const v = Math.min(255, 120 + g);
+      // sensor noise that squeaked over the line — scaled into the tint rather than
+      // written as grey, so a weak edge is a dim green and not a grey one.
+      const v = Math.min(255, 120 + g) / 255;
       const p = i * 4;
-      out[p] = v;
-      out[p + 1] = v;
-      out[p + 2] = v;
+      out[p] = EDGE_RGB[0] * v;
+      out[p + 1] = EDGE_RGB[1] * v;
+      out[p + 2] = EDGE_RGB[2] * v;
     }
   }
 }
@@ -137,7 +152,7 @@ export async function startCamera(): Promise<Camera | null> {
 /**
  * Paint the centre of `source` through the edge filter onto `canvas`.
  *
- * The centre square only, matching what the ring covers, so the filter never
+ * The centre square only, matching what the radar covers, so the filter never
  * touches pixels that are not going to be drawn.
  */
 export function paintEdges(
@@ -150,10 +165,10 @@ export function paintEdges(
   if (!ctx || sw === 0 || sh === 0) return;
 
   const side = Math.min(sw, sh);
-  ctx.drawImage(canvas === source ? canvas : source, (sw - side) / 2, (sh - side) / 2, side, side, 0, 0, RING_PX, RING_PX);
+  ctx.drawImage(canvas === source ? canvas : source, (sw - side) / 2, (sh - side) / 2, side, side, 0, 0, RADAR_PX, RADAR_PX);
 
-  const frame = ctx.getImageData(0, 0, RING_PX, RING_PX);
+  const frame = ctx.getImageData(0, 0, RADAR_PX, RADAR_PX);
   const out = new Uint8ClampedArray(frame.data.length);
-  sobel(frame.data, out, RING_PX, RING_PX);
-  ctx.putImageData(new ImageData(out, RING_PX, RING_PX), 0, 0);
+  sobel(frame.data, out, RADAR_PX, RADAR_PX);
+  ctx.putImageData(new ImageData(out, RADAR_PX, RADAR_PX), 0, 0);
 }

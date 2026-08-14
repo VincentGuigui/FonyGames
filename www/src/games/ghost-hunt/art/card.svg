@@ -4,11 +4,11 @@
     Spec: docs/specs/games/ghost-hunt.md §4
     Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
 
-    A phone held up, its screen a bright ring cut out of the dark with an edge
+    A phone held up, its screen a bright radar cut out of the dark with an edge
     traced shape inside it. Replaces the old Compass Hunt needle, which promised a
     sensor this game deliberately never reads.
 
-    The ring is the whole interface, so it is the whole illustration: outside it,
+    The radar is the whole interface, so it is the whole illustration: outside it,
     the room; inside it, outlines and a ghost. The wireframe is drawn as strokes
     rather than fills so it reads as a trace at 120px, which is the size that
     matters.
@@ -25,18 +25,18 @@
     doubled hyphen inside a comment is illegal and silently kills the whole file.
   -->
 
-  <!-- The phone, held up. Outline only, so the ring is what carries the weight. -->
+  <!-- The phone, held up. Outline only, so the radar is what carries the weight. -->
   <rect x="34" y="8" width="52" height="74" rx="7" fill="none" stroke="#34D399"
         stroke-width="2.5" opacity="0.55"/>
 
-  <!-- The dark screen the ring is cut out of. -->
+  <!-- The dark screen the radar is cut out of. -->
   <rect x="38" y="14" width="44" height="62" rx="4" fill="#0B0F16"/>
 
-  <!-- The detector ring itself. -->
+  <!-- The radar itself. -->
   <circle cx="60" cy="45" r="18" fill="#05070B" stroke="#34D399" stroke-width="3"/>
 
   <!-- Behind it: the room as a wireframe, all edges and no substance. Kept to the
-       edge of the ring and dim, so it reads as structure the ghost is standing in
+       edge of the radar and dim, so it reads as structure the ghost is standing in
        rather than as an object of its own. -->
   <g stroke="#D1FAE5" stroke-width="1.2" fill="none" stroke-linecap="round" opacity="0.45">
     <path d="M45 33 L49 37 L49 57"/>

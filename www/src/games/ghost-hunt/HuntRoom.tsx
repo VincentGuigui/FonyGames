@@ -21,30 +21,37 @@ import {
 } from '../../core/sensors/orientation';
 import { applyHunt, createLock, myIndex, myTarget, type HuntState, type LockState } from './game';
 import { HuntResults, HuntScreen } from './HuntScreen';
-import { paintEdges, startCamera, RING_FPS, RING_PX, type Camera } from './vision';
+import { paintEdges, startCamera, RADAR_FPS, RADAR_PX, type Camera } from './vision';
 import { drawSphere, dragTo, trackDrag } from './photosphere';
+import { ghostAt } from './radar';
 
 /** How you are playing. Chosen in the lobby, not forced by a denial. */
 type Route = 'sensor' | 'sphere';
 
-const IDLE: LockState = { error: Number.POSITIVE_INFINITY, dwell: 0, locked: false };
+const IDLE: LockState = {
+  error: Number.POSITIVE_INFINITY,
+  dwell: 0,
+  locked: false,
+  spot: null,
+  bearing: null,
+};
 
 /**
  * Ghost Hunt's room screen. Spec: docs/specs/games/ghost-hunt.md
  *
- * Two permissions, asked **separately and in this order**: orientation, then
- * camera. Both from a tap, never on load, both remembered when denied
- * (docs/device-capabilities.md §2).
+ * Two routes, and the player picks one in the lobby:
  *
- * The order is the point. A player who has already granted orientation has seen
- * the game work once, which is a far better moment to ask for the alarming
- * permission than the lobby of a game they have never played. And the game is
- * playable after either one, or neither:
+ * - **camera** — orientation for the aim, the live feed as the playground. Both
+ *   permissions are asked for by the one tap that chooses this route, orientation
+ *   first, straight out of the gesture (docs/device-capabilities.md §2).
+ * - **finger** — drag a panorama. No permissions, same hunt, and a real
+ *   alternative rather than a consolation (§5.4).
+ *
+ * Every denial has a landing place, and none of them is "you cannot play":
  *
  * - orientation + camera → the full thing
- * - orientation only     → the same hunt, ring on a dark ground
- * - camera only, or none → the photosphere, which is a real alternative rather
- *                          than a consolation (§5.4) and is offered to everyone
+ * - orientation only     → the same hunt, radar on a dark ground
+ * - neither              → the finger route, which needs nothing
  */
 export function HuntRoom(props: { game: GameCard }): JSX.Element {
   return (
@@ -91,8 +98,8 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const cameraRef = useRef<Camera | null>(null);
   const sphereAimRef = useRef<Aim>({ azimuth: 0, elevation: 0 });
   const lockRef = useRef(createLock());
-  const backdropRef = useRef<HTMLCanvasElement | null>(null);
-  const ringRef = useRef<HTMLCanvasElement | null>(null);
+  const backdropRef = useRef<HTMLCanvasElement>(null);
+  const radarRef = useRef<HTMLCanvasElement>(null);
   const sphereImgRef = useRef<HTMLImageElement | null>(null);
   const stateRef = useRef<HuntState>(null);
   stateRef.current = state;
@@ -128,7 +135,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       const target = myTarget(s, me);
       const index = myIndex(s, me);
 
-      // A new ghost: the dwell starts from nothing, and so does its clock.
+      // A new ghost: the hold starts from nothing, and so does its clock.
       if (index !== indexRef.current) {
         indexRef.current = index;
         shownAtRef.current = now;
@@ -138,7 +145,16 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       const aim =
         route === 'sensor' ? (trackerRef.current?.read().aim ?? null) : sphereAimRef.current;
 
-      const next = lockRef.current.update(aim, target, now);
+      /*
+       * The ghost roams, so what the lock is given is where it is **now** rather
+       * than the direction the server chose. The roam is derived from the index and
+       * the ghost's age on this phone, so every player walks the identical path from
+       * the identical starting point — see `ghostAt` in radar.ts for why that has to
+       * be true rather than merely tidy.
+       */
+      const ghost = target ? ghostAt(target, index, now - shownAtRef.current) : null;
+
+      const next = lockRef.current.update(aim, ghost, now);
       setLock(next);
 
       if (next.locked) {
@@ -148,11 +164,11 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         });
       }
 
-      // The backdrop and the ring, at their own rate — 15 fps of Sobel is the
+      // The background and the radar, at their own rate — 15 fps of Sobel is the
       // budget, and it has nothing to do with how often the aim is evaluated.
-      if (now - lastEdge >= 1000 / RING_FPS) {
+      if (now - lastEdge >= 1000 / RADAR_FPS) {
         lastEdge = now;
-        paint(route, backdropRef.current, ringRef.current, cameraRef.current, sphereImgRef.current, sphereAimRef.current);
+        paint(route, backdropRef.current, radarRef.current, cameraRef.current, sphereImgRef.current, sphereAimRef.current);
       }
 
       setSecondsLeft(Math.max(0, Math.ceil((s.endsAt - (clientRef.current?.now() ?? Date.now())) / 1000)));
@@ -161,6 +177,30 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
   }, [running, route]);
+
+  /*
+   * Size the background canvas once the round screen exists, and again if the window
+   * changes shape.
+   *
+   * This used to live in the canvas's own `ref` callback, which the screen re-created on
+   * every render — so it ran at sensor rate, and since assigning `canvas.width` CLEARS
+   * the canvas, the background was wiped immediately after every paint. The feed was
+   * drawn correctly sixty times a second and shown none of them.
+   */
+  useEffect(() => {
+    if (!running) return;
+    const fit = (): void => {
+      const el = backdropRef.current;
+      if (el) sizeToScreen(el);
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    window.addEventListener('orientationchange', fit);
+    return () => {
+      window.removeEventListener('resize', fit);
+      window.removeEventListener('orientationchange', fit);
+    };
+  }, [running]);
 
   /*
    * The camera is released when the round ends, when the tab is hidden and when
@@ -196,7 +236,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
    * The sphere is dragged, not aimed.
    *
    * Bound to the screen ROOT, not to the canvas it draws onto: the canvas is the
-   * bottom of the stack, and the veil, ring and readout above it were swallowing
+   * bottom of the stack, and the veil, radar and readout above it were swallowing
    * every drag before the sphere saw one. `trackDrag` skips drags that start on a
    * control, so the buttons still work.
    */
@@ -225,33 +265,37 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     };
   }, [route]);
 
-  /** Straight out of the tap — iOS refuses the prompt otherwise, and remembers. */
-  async function enableOrientation(): Promise<void> {
+  /**
+   * "Use your camera to find the ghost" — both permissions, one tap.
+   *
+   * They used to be two buttons, and the second one only appeared after the first
+   * succeeded, so the camera was a thing you discovered rather than a thing you
+   * chose. The choice a player is actually making is *how they want to play*, and
+   * for this route the camera is not an extra: it is the room they are searching.
+   *
+   * Orientation first, straight out of the tap — iOS refuses that prompt outside a
+   * gesture and remembers a denial (docs/device-capabilities.md §2). The camera is
+   * asked for second and is allowed to fail: no camera means a dark ground, which
+   * loses the scenery and not the game (spec §7).
+   */
+  async function enableCameraRoute(): Promise<void> {
     setOrientationAsked(true);
     const granted = await requestOrientation();
     if (!granted) {
-      room.setError('No motion access — you can still play by dragging the view.');
+      room.setError('No motion access — use your finger to explore instead.');
       return;
     }
     trackerRef.current?.stop();
     trackerRef.current = trackOrientation();
     setOrientationOn(true);
     setRoute('sensor');
-  }
 
-  async function enableCamera(): Promise<void> {
     setCameraAsked(true);
     const cam = await startCamera();
     cameraRef.current = cam;
     setCameraOn(!!cam);
-    if (!cam) room.setError('No camera — the ring works on a dark ground instead.');
+    if (!cam) room.setError('No camera — the radar works on a dark ground instead.');
   }
-
-  /** Now is forward. The offset never leaves the phone (spec §10). */
-  const reAnchor = (): void => {
-    trackerRef.current?.anchor();
-    client?.send({ t: 'anchor', d: { roundId: state?.roundId ?? 0 } });
-  };
 
   useEffect(() => () => trackerRef.current?.stop(), []);
 
@@ -281,18 +325,12 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         lock={lock}
         secondsLeft={secondsLeft}
         mode={mode}
+        accent={card.accent}
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        onReAnchor={reAnchor}
-        onSweepInstead={support === 'unsupported' ? null : enableOrientation}
-        backdropRef={(el) => {
-          backdropRef.current = el;
-          if (el) sizeToScreen(el);
-        }}
-        ringRef={(el) => {
-          ringRef.current = el;
-        }}
+        backdropRef={backdropRef}
+        radarRef={radarRef}
       />
     );
   }
@@ -310,9 +348,13 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       canStart={room.isHost && enough}
       startLabel={state ? 'Hunt again' : 'Start the hunt'}
       onStart={() => {
-        // Forward is whatever you are facing when the round begins.
+        /*
+         * Forward is whatever you are facing when the round begins, and this is the
+         * ONLY time it is set. There used to be a Re-centre button on the round
+         * screen; it is gone, so a player who wants a new forward starts a new round.
+         * Reasoning and the drift trade-off that buys: spec §3.
+         */
         trackerRef.current?.anchor();
-        if (route === 'sensor' && !cameraOn && !cameraAsked) void enableCamera();
         again();
       }}
       note={note(room.isHost, room.connected, route, orientationOn, solo)}
@@ -353,9 +395,8 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
             orientationAsked={orientationAsked}
             cameraOn={cameraOn}
             cameraAsked={cameraAsked}
-            onSensor={enableOrientation}
-            onSphere={() => setRoute('sphere')}
-            onCamera={enableCamera}
+            onCameraRoute={enableCameraRoute}
+            onFingerRoute={() => setRoute('sphere')}
           />
         </>
       }
@@ -363,54 +404,96 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   );
 }
 
-/** Paint the backdrop and the ring for whichever route is live. */
+/**
+ * Paint the background and the radar for whichever route is live.
+ *
+ * The **background is the playground**: on the camera route it is the live feed at
+ * full bleed, which is the room you are searching, and on the finger route it is the
+ * panorama you are dragging. The radar is the same picture run through the edge
+ * filter — one source, two treatments, so what is in the radar is always what is in
+ * front of you.
+ */
 function paint(
   route: Route,
   backdrop: HTMLCanvasElement | null,
-  ring: HTMLCanvasElement | null,
+  radar: HTMLCanvasElement | null,
   camera: Camera | null,
   sphere: HTMLImageElement | null,
   aim: Aim,
 ): void {
   if (route === 'sphere' && backdrop && sphere?.complete) {
     drawSphere(backdrop, sphere, sphere.naturalWidth, sphere.naturalHeight, aim);
-    if (ring) paintEdges(ring, backdrop, backdrop.width, backdrop.height);
+    if (radar) paintEdges(radar, backdrop, backdrop.width, backdrop.height);
     return;
   }
 
   if (route === 'sensor' && camera) {
     const v = camera.video;
-    if (backdrop && v.videoWidth > 0) {
-      const ctx = backdrop.getContext('2d');
-      ctx?.drawImage(v, 0, 0, backdrop.width, backdrop.height);
+    if (v.videoWidth > 0) {
+      if (backdrop) coverWith(backdrop, v, v.videoWidth, v.videoHeight);
+      if (radar) paintEdges(radar, v, v.videoWidth, v.videoHeight);
     }
-    if (ring && v.videoWidth > 0) paintEdges(ring, v, v.videoWidth, v.videoHeight);
     return;
   }
 
-  // No feed at all: the ring is a plain dark disc and the hunt is unaffected.
+  // No feed at all: the radar is a plain dark disc and the hunt is unaffected.
   // Losing the scenery must never lose the game (spec §7).
-  if (ring) {
-    const ctx = ring.getContext('2d');
+  if (radar) {
+    const ctx = radar.getContext('2d');
     if (ctx) {
       ctx.fillStyle = '#05070b';
-      ctx.fillRect(0, 0, RING_PX, RING_PX);
+      ctx.fillRect(0, 0, RADAR_PX, RADAR_PX);
     }
   }
 }
 
+/**
+ * Draw a frame across the whole canvas **without stretching it**.
+ *
+ * A camera frame is landscape and the screen is portrait, so the old
+ * `drawImage(v, 0, 0, w, h)` squeezed a 4:3 frame into a 9:19 one — the room came
+ * out as tall thin smears, which reads as a broken filter rather than as your room.
+ * This crops to the centre instead, the same as `object-fit: cover`.
+ */
+function coverWith(
+  canvas: HTMLCanvasElement,
+  source: CanvasImageSource,
+  sw: number,
+  sh: number,
+): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const scale = Math.max(canvas.width / sw, canvas.height / sh);
+  const w = sw * scale;
+  const h = sh * scale;
+  ctx.drawImage(source, (canvas.width - w) / 2, (canvas.height - h) / 2, w, h);
+}
+
 function sizeToScreen(el: HTMLCanvasElement): void {
-  // Deliberately NOT devicePixelRatio: this is a dimmed backdrop behind a
-  // wireframe, and painting three times the pixels for it would cost the ring its
-  // frame budget on exactly the phones that can least afford it.
-  el.width = Math.round(el.clientWidth || window.innerWidth);
-  el.height = Math.round(el.clientHeight || window.innerHeight);
+  // Deliberately NOT devicePixelRatio: this is a background behind a wireframe, and
+  // painting three times the pixels for it would cost the radar its frame budget on
+  // exactly the phones that can least afford it.
+  const w = Math.round(el.clientWidth || window.innerWidth);
+  const h = Math.round(el.clientHeight || window.innerHeight);
+  // Assigning either dimension CLEARS the canvas, even to the value it already holds,
+  // so a resize handler that fires spuriously must not throw away the frame.
+  if (el.width === w && el.height === h) return;
+  el.width = w;
+  el.height = h;
 }
 
 /**
  * How you want to play, chosen rather than fallen back into.
  *
- * The photosphere is offered to everyone from the start, not only after a denial:
+ * Two choices, named by **what you do** rather than by which sensor they use — a
+ * player picking between "Sweep the room" and "Drag to look around" is being asked
+ * to guess which one needs a camera. And each choice now turns on everything it
+ * needs from the one tap: the camera used to be a third button that only appeared
+ * after motion was granted, so the feature this game is built around was something
+ * you discovered rather than something you chose.
+ *
+ * The finger route is offered to everyone from the start, not only after a denial:
  * it is seated, one-handed and quiet, which makes it the accessible way to play
  * rather than a lesser one (spec §11).
  */
@@ -421,9 +504,8 @@ function RoutePicker({
   orientationAsked,
   cameraOn,
   cameraAsked,
-  onSensor,
-  onSphere,
-  onCamera,
+  onCameraRoute,
+  onFingerRoute,
 }: {
   support: OrientationSupport;
   route: Route;
@@ -431,9 +513,8 @@ function RoutePicker({
   orientationAsked: boolean;
   cameraOn: boolean;
   cameraAsked: boolean;
-  onSensor: () => void;
-  onSphere: () => void;
-  onCamera: () => void;
+  onCameraRoute: () => void;
+  onFingerRoute: () => void;
 }): JSX.Element {
   const denied = orientationAsked && !orientationOn;
 
@@ -446,42 +527,35 @@ function RoutePicker({
           class={`btn hunt-route__pick ${route === 'sensor' ? 'hunt-route__pick--on' : ''}`}
           type="button"
           disabled={support === 'unsupported'}
-          onClick={onSensor}
+          onClick={onCameraRoute}
         >
-          <span class="hunt-route__title">Sweep the room</span>
+          <span class="hunt-route__title">Use your camera to find the ghost</span>
           <span class="hunt-route__note">
             {support === 'unsupported'
               ? 'This phone has no motion sensor'
               : denied
-                ? 'Motion was turned down'
-                : orientationOn
-                  ? 'Ready — point where you are facing when the round starts'
-                  : 'Hold the phone up and turn. Needs motion access.'}
+                ? 'Motion was turned down — use your finger instead'
+                : orientationOn && cameraOn
+                  ? 'Ready. Your room is the hunting ground.'
+                  : orientationOn && cameraAsked
+                    ? 'No camera — the radar works on a dark ground'
+                    : orientationOn
+                      ? 'Ready — hold the phone up and turn'
+                      : 'Hold the phone up and turn. Needs motion and the camera.'}
           </span>
         </button>
 
         <button
           class={`btn hunt-route__pick ${route === 'sphere' ? 'hunt-route__pick--on' : ''}`}
           type="button"
-          onClick={onSphere}
+          onClick={onFingerRoute}
         >
-          <span class="hunt-route__title">Drag to look around</span>
+          <span class="hunt-route__title">Use your finger to explore</span>
           <span class="hunt-route__note">
-            Seated and one-handed, in a photo of somewhere else. No permissions, same
-            hunt.
+            Seated and one-handed, in a room somewhere else. No permissions, same hunt.
           </span>
         </button>
       </div>
-
-      {route === 'sensor' && orientationOn && (
-        <button class="btn hunt-route__camera" type="button" onClick={onCamera} disabled={cameraOn}>
-          {cameraOn
-            ? 'Camera on — the ring shows your room'
-            : cameraAsked
-              ? 'No camera — the ring works on a dark ground'
-              : 'Turn on the camera for the full effect'}
-        </button>
-      )}
     </section>
   );
 }
@@ -499,7 +573,9 @@ function note(
   }
   if (connected > HUNT_MAX_PLAYERS) return `${HUNT_MAX_PLAYERS} players is the most this one takes.`;
   if (!isHost) return 'The host starts the hunt.';
-  if (route === 'sensor' && !orientationOn) return 'Turn on motion above, or drag instead.';
+  if (route === 'sensor' && !orientationOn) return 'Pick how you want to play above.';
+  // Worth saying once, plainly: forward is set here and there is no re-centre on the
+  // round screen to fix it with.
   if (route === 'sensor') return 'Face the way you want to call forward, then start.';
   return 'Drag to look around. Ready when you are.';
 }

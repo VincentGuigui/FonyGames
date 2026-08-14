@@ -27,8 +27,21 @@ import { ELEVATION_MAX_DEG, ELEVATION_MIN_DEG } from '../../../../shared/protoco
  * needs: the centre of the screen is exactly the aim.
  */
 
-/** Degrees across the screen. Roughly a phone camera's field of view. */
-export const FOV_DEG = 70;
+/**
+ * Degrees down the screen, not across.
+ *
+ * The vertical is the one that has to be chosen, because it is the one that runs out:
+ * the image ends at the zenith, so a window taller than about 40° cannot be centred
+ * on a ghost at the top of the band (+70°) without asking for rows above the top row.
+ * Pick the vertical and let the horizontal follow from the aspect ratio; pick the
+ * horizontal, as this used to, and a portrait phone derives a **151°** vertical
+ * window, whose crop is taller than the image — which is why vertical dragging used
+ * to do almost nothing. It was not the drag that was broken, it was the projection.
+ *
+ * The overflow is drawn honestly rather than clamped away (see `drawSphere`), so 60°
+ * is a matter of how much empty ceiling shows at the extreme, not of correctness.
+ */
+export const V_FOV_DEG = 60;
 
 /** Degrees per pixel of drag. Slow enough to aim, fast enough to sweep. */
 export const DRAG_SENSITIVITY = 0.22;
@@ -36,16 +49,22 @@ export const DRAG_SENSITIVITY = 0.22;
 /**
  * Where a drag leaves you, clamped so you cannot roll over the poles.
  *
+ * **The finger holds the world, not the camera.** Drag right and the room comes with
+ * you, which means the aim goes *left* — so both axes are the negative of what a
+ * "turn the camera" reading would give. It was written the other way round and every
+ * drag went the wrong way; grab-and-pull is what a photo viewer does and what a hand
+ * expects.
+ *
  * Azimuth wraps — the sphere is continuous sideways — but elevation is clamped a
- * little beyond the band the targets live in, so the player can always see a
- * ghost at the extremes without ever ending up upside down.
+ * little beyond the band the targets live in, so the player can always see a ghost at
+ * the extremes without ever ending up upside down.
  */
 export function dragTo(from: Aim, dx: number, dy: number): Aim {
   return {
-    azimuth: wrapDeg(from.azimuth + dx * DRAG_SENSITIVITY),
+    azimuth: wrapDeg(from.azimuth - dx * DRAG_SENSITIVITY),
     elevation: Math.min(
       ELEVATION_MAX_DEG + 15,
-      Math.max(ELEVATION_MIN_DEG - 15, from.elevation - dy * DRAG_SENSITIVITY),
+      Math.max(ELEVATION_MIN_DEG - 15, from.elevation + dy * DRAG_SENSITIVITY),
     ),
   };
 }
@@ -77,15 +96,37 @@ export function drawSphere(
   if (!ctx || imageW === 0) return;
 
   const { width: cw, height: ch } = canvas;
-  const vFov = FOV_DEG * (ch / cw);
+  const hFov = V_FOV_DEG * (cw / ch);
 
-  const sw = (FOV_DEG / 360) * imageW;
-  const sh = (vFov / 180) * imageH;
+  const sw = (hFov / 360) * imageW;
+  const sh = (V_FOV_DEG / 180) * imageH;
   const { u, v } = project(aim);
   const sx = u * imageW - sw / 2;
-  const sy = Math.min(imageH - sh, Math.max(0, v * imageH - sh / 2));
 
-  ctx.clearRect(0, 0, cw, ch);
+  /*
+   * Vertically the crop is NOT clamped into the image, it is clipped against it.
+   *
+   * Clamping is what a viewer does when it would rather lie than show a gap: look up
+   * at +70° with a 60° window and the crop wants rows above the zenith, so a clamped
+   * version slides the view back down and the middle of the screen stops being the
+   * aim. That is the one property this projection has to keep, because the radar is
+   * drawn from the aim — a ghost dead centre on the dial would appear off-centre in
+   * the room behind it.
+   *
+   * So the missing rows are simply not drawn. Past the ceiling there is nothing to
+   * see, and a band of dark at the top of the screen is the truth.
+   */
+  const sy = v * imageH - sh / 2;
+  const top = Math.max(0, sy);
+  const bottom = Math.min(imageH, sy + sh);
+  if (bottom <= top) return;
+
+  const dy = ((top - sy) / sh) * ch;
+  const dh = ((bottom - top) / sh) * ch;
+  const srcH = bottom - top;
+
+  ctx.fillStyle = '#05070b';
+  ctx.fillRect(0, 0, cw, ch);
 
   // A source rectangle cannot wrap, so a view over the seam is two draws: the
   // tail of the image, then the head, butted together.
@@ -93,14 +134,14 @@ export function drawSphere(
   const overhang = left + sw - imageW;
 
   if (overhang <= 0) {
-    ctx.drawImage(image, left, sy, sw, sh, 0, 0, cw, ch);
+    ctx.drawImage(image, left, top, sw, srcH, 0, dy, cw, dh);
     return;
   }
 
   const firstW = sw - overhang;
   const split = (firstW / sw) * cw;
-  ctx.drawImage(image, left, sy, firstW, sh, 0, 0, split, ch);
-  ctx.drawImage(image, 0, sy, overhang, sh, split, 0, cw - split, ch);
+  ctx.drawImage(image, left, top, firstW, srcH, 0, dy, split, dh);
+  ctx.drawImage(image, 0, top, overhang, srcH, split, dy, cw - split, dh);
 }
 
 /**
@@ -110,7 +151,7 @@ export function drawSphere(
  * view, and there is nothing here to pinch.
  *
  * Attached to the whole screen rather than to the canvas, because the canvas is at
- * the BOTTOM of the stack — the dimming veil, the ring and the readout all sit on
+ * the BOTTOM of the stack — the dimming veil, the radar and the readout all sit on
  * top of it, and the middle of the screen is exactly where a thumb starts. A drag
  * that begins on a real control is left alone so buttons still work.
  */

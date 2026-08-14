@@ -16,13 +16,18 @@ export const CARD: GameCard = {
   slug: 'ghost-hunt',
   title: 'Ghost Hunt',
   pitch: 'Sweep the room for ghosts only your phone can see',
-  concept: 'The ring shows the room as outlines — the ghost hides in there.',
+  concept: 'Only the radar can see them. Sweep the room until one shows up in it.',
+  /*
+   * Three rules, all of them things a player must DO. The traced outlines used to have
+   * a line here and they are a visual effect, not a rule — knowing the radar draws
+   * edges changes nothing about how you play, while "keep it in there" is the game.
+   */
   rules: [
     'Hold your phone up and sweep the room.',
-    'The ring shows edges — find the ghost in it.',
-    'Most ghosts in 90 seconds wins.',
+    'A ghost appears in the radar when you point the right way.',
+    'Keep it in the radar for 4 seconds to catch it. Most ghosts in 90 seconds wins.',
   ],
-  art: { src: art, alt: 'A phone held up, its screen a bright ring of traced edges' },
+  art: { src: art, alt: 'A phone held up, its screen a bright radar of traced edges' },
   accent: '#34D399',
   players: PLAYERS['ghost-hunt'],
   duration: '90 s',
