@@ -168,3 +168,37 @@ number is how they come to disagree.
 
 Enabled in **Sling Puck** and **Goat Siege**. Spill and Tap Duel still show their
 own shapes; they should move to this when next touched.
+
+## 7. The status bar
+
+One row across the top of every game screen. Component:
+`www/src/core/ui/StatusBar.tsx`, styles in `core/ui/statusbar.css`, imported by
+`game-chrome.css` so a game cannot ship it unstyled.
+
+```
+[ my score / status ]        [ opponent ]   [ ☰ ]
+```
+
+Every game had grown its own — `.steady__bar`, `.rush__bar`, `.hunt__bar`,
+`.spill__hud`, and a `hud__row` in three more. The same three things in six
+arrangements, so learning one game's chrome taught you nothing about the next.
+
+**The opponent slot is for two-player rounds only.** With three or more a single
+"them" is a lie, and §6's row already answers "how am I doing against everyone".
+`opponentOf(players, me)` returns a player only when there are exactly two, and
+`fromScores()` applies the same rule to the list the §6 row already builds — so no
+game counts seats itself. `OpponentScores` renders nothing for a single opponent,
+because that one now lives on the bar; showing both was the duplication this rule
+exists to prevent.
+
+This started as a Spill bug. Spill draws every other player **at their real
+bearing** around the table (spill.md §4b), which is the right answer for four and
+the wrong one for two: with a pair, the other score lands wherever the geometry puts
+it rather than anywhere the eye looks. Two-player Spill now skips the ring entirely
+and uses the bar; three or more keeps the ring, which is better information than a
+row of numbers.
+
+**Tap Duel has no status bar, deliberately.** Its round screen is a bare tap target
+measuring a reaction in milliseconds — a bar across the top would steal taps at the
+edge and give the eye somewhere to be other than the signal. Its scores are on its
+result screen. It keeps the same gear in the same corner as everything else.

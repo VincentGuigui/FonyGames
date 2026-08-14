@@ -6,7 +6,7 @@ import type { SlingGame } from './game';
 import { startRenderer, type Renderer } from './render';
 import { toBoard, onBoard } from './layout';
 import { PUCK_RADIUS } from './physics';
-import { GameMenu } from '../../core/ui/GameMenu';
+import { fromScores, StatusBar } from '../../core/ui/StatusBar';
 import { RulesPanel } from '../../core/ui/RulesPanel';
 import { OpponentScores } from '../../core/ui/OpponentScores';
 
@@ -140,13 +140,13 @@ export function SlingBoard({
       />
 
       <div class="sling__hud">
-        <div class="hud__row">
-          <p class="sling__count">
-            <strong>{view.mine}</strong>
-            <span>yours</span>
-          </p>
-          <GameMenu title={title} concept={concept} rules={rules} />
-        </div>
+        <StatusBar
+          score={{ value: view.mine, label: 'yours' }}
+          opponent={fromScores(opponents)}
+          title={title}
+          concept={concept}
+          rules={rules}
+        />
         <OpponentScores unit="pucks" scores={opponents} />
       </div>
 

@@ -4,7 +4,7 @@ import type { Player, PlayerId } from '../../../../shared/protocol';
 import type { RoomClient } from '../../core/room/client';
 import type { SiegeGame } from './game';
 import { startRenderer, type Renderer } from './render';
-import { GameMenu } from '../../core/ui/GameMenu';
+import { fromScores, StatusBar } from '../../core/ui/StatusBar';
 import { RulesPanel } from '../../core/ui/RulesPanel';
 import { OpponentScores } from '../../core/ui/OpponentScores';
 
@@ -96,13 +96,13 @@ export function SiegeBoard({
       <canvas ref={canvasRef} class="siege__canvas" onPointerDown={shoo} />
 
       <div class="siege__hud">
-        <div class="hud__row">
-          <p class="siege__count">
-            <strong>{cabbages}</strong>
-            <span>cabbages</span>
-          </p>
-          <GameMenu title={title} concept={concept} rules={rules} />
-        </div>
+        <StatusBar
+          score={{ value: cabbages, label: 'cabbages' }}
+          opponent={fromScores(opponents)}
+          title={title}
+          concept={concept}
+          rules={rules}
+        />
         <OpponentScores unit="cabbages" scores={opponents} />
       </div>
 

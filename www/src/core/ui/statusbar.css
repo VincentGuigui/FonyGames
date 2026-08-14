@@ -1,0 +1,102 @@
+/*
+ * The one row across the top of every game screen.
+ * Component: core/ui/StatusBar.tsx · spec: docs/design/game-chrome.md §7
+ *
+ * Imported by `game-chrome.css`, which every game page already loads — a game must
+ * never have to remember to import this, or the bar arrives unstyled in exactly the
+ * game nobody checked.
+ *
+ * Sized to be read at a glance mid-round and to survive a 320px screen with a long
+ * name in it: the opponent's name is the only part allowed to shrink, because a
+ * truncated name still identifies them while a truncated score is a lie.
+ */
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+.statusbar__mine {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  /* Takes the slack, so the opponent chip and the menu never drift inward. */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.statusbar__score {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3em;
+  margin: 0;
+  min-width: 0;
+}
+
+.statusbar__value {
+  font-size: var(--font-large);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--game-accent, var(--color-accent));
+}
+
+.statusbar__label,
+.statusbar__status {
+  margin: 0;
+  font-size: var(--font-small);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dim);
+  /* Never push the menu off the edge. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- the other player, in a two-player round only ------------------------ */
+
+.statusbar__them {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-2);
+  background: var(--color-surface);
+  font-size: var(--font-small);
+}
+
+/* Out, away, disconnected — still shown, because a score that vanishes reads as a
+   bug rather than as an elimination. */
+.statusbar__them--dim {
+  opacity: 0.5;
+}
+
+.statusbar__them-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-dim);
+  /* The first thing to give way when the row is tight. */
+  min-width: 0;
+}
+
+.statusbar__them-value {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Under ~360px a name and two numbers do not fit beside the menu. The name goes
+   first: the avatar still says who it is. */
+@media (max-width: 359px) {
+  .statusbar__them-name {
+    display: none;
+  }
+}

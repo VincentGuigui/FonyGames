@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
 import { LOCK_CONE_DEG } from '../../../../shared/protocol';
-import { GameMenu } from '../../core/ui/GameMenu';
+import { opponentOf, StatusBar } from '../../core/ui/StatusBar';
 import { heat, ranking, type HuntView, type LockState } from './game';
 import { RING_PX } from './vision';
 
@@ -67,10 +67,14 @@ export function HuntScreen({
       <div class="hunt__veil" aria-hidden="true" />
 
       <div class="hunt__bar">
-        <p class="hunt__label">
-          {mine} found · {secondsLeft}s
-        </p>
-        <GameMenu title={title} concept={concept} rules={rules} />
+        <StatusBar
+          score={{ value: mine, label: 'found' }}
+          status={`${secondsLeft}s`}
+          opponent={huntOpponent(players, myId, state)}
+          title={title}
+          concept={concept}
+          rules={rules}
+        />
       </div>
 
       <div class="hunt__ringwrap">
@@ -220,4 +224,12 @@ export function HuntResults({
       )}
     </div>
   );
+}
+
+/** How many the other hunter has found, in a two-player round. */
+function huntOpponent(players: Player[], me: PlayerId | undefined, state: HuntView) {
+  const other = opponentOf(players, me);
+  if (!other) return null;
+
+  return { avatar: other.avatar, name: other.name, value: state.scores[other.id] ?? 0 };
 }

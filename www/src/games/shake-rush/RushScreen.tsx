@@ -1,6 +1,6 @@
 import type { JSX } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
-import { GameMenu } from '../../core/ui/GameMenu';
+import { opponentOf, StatusBar } from '../../core/ui/StatusBar';
 import { progress, standings, toGo, type RushView } from './game';
 
 /**
@@ -48,10 +48,7 @@ export function RushScreen({
     const winner = ids[0];
     return (
       <div class="rush rush--over">
-        <div class="rush__bar">
-          <p class="rush__label">Finish</p>
-          <GameMenu title={title} concept={concept} rules={rules} />
-        </div>
+        <StatusBar status="Finish" title={title} concept={concept} rules={rules} />
 
         <p class="rush__trophy" aria-hidden="true">
           {winner ? (byId.get(winner)?.avatar ?? '🏆') : '🏆'}
@@ -86,10 +83,14 @@ export function RushScreen({
 
   return (
     <div class="rush">
-      <div class="rush__bar">
-        <p class="rush__label">{state.finished.length > 0 ? 'Someone is home' : 'Shake'}</p>
-        <GameMenu title={title} concept={concept} rules={rules} />
-      </div>
+      <StatusBar
+        score={{ value: left, label: 'to go' }}
+        status={state.finished.length > 0 ? 'Someone is home' : undefined}
+        opponent={rushOpponent(players, myId, state)}
+        title={title}
+        concept={concept}
+        rules={rules}
+      />
 
       {/*
         The count, not a bar. "37 to go" is a motivator; a bar filling up is
@@ -137,4 +138,17 @@ export function RushScreen({
       </ul>
     </div>
   );
+}
+
+/** How far the other runner still has, in a two-player race. */
+function rushOpponent(players: Player[], me: PlayerId | undefined, state: RushView) {
+  const other = opponentOf(players, me);
+  if (!other) return null;
+
+  return {
+    avatar: other.avatar,
+    name: other.name,
+    value: toGo(state.at[other.id]) === 0 ? 'home' : toGo(state.at[other.id]),
+    dim: state.away.includes(other.id),
+  };
 }

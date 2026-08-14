@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
 import { STEADY_LIVES } from '../../../../shared/protocol';
-import { GameMenu } from '../../core/ui/GameMenu';
+import { opponentOf, StatusBar } from '../../core/ui/StatusBar';
 import { meterFill, type SteadyView } from './game';
 
 /** How long the "you lost a life" beat holds. Shorter than the grace window on purpose. */
@@ -49,12 +49,13 @@ export function SteadyScreen({
     const reason = state.lastOut?.victim === myId ? state.lastOut.reason : 'moved';
     return (
       <div class="steady steady--out">
-        <div class="steady__bar">
-          <p class="steady__label">
-            {reason === 'parked' ? 'Phone put down' : reason === 'left' ? 'You dropped out' : 'You moved'}
-          </p>
-          <GameMenu title={title} concept={concept} rules={rules} />
-        </div>
+        <StatusBar
+          status={reason === 'parked' ? 'Phone put down' : reason === 'left' ? 'You dropped out' : 'You moved'}
+          opponent={them(players, myId, state)}
+          title={title}
+          concept={concept}
+          rules={rules}
+        />
 
         <p class="steady__gone" aria-hidden="true">
           ✋
@@ -79,10 +80,13 @@ export function SteadyScreen({
 
   return (
     <div class={`steady ${hit ? 'steady--hit' : ''}`}>
-      <div class="steady__bar">
-        <p class="steady__label">{state.alive.length} still in</p>
-        <GameMenu title={title} concept={concept} rules={rules} />
-      </div>
+      <StatusBar
+        status={`${state.alive.length} still in`}
+        opponent={them(players, myId, state)}
+        title={title}
+        concept={concept}
+        rules={rules}
+      />
 
       {settling !== null ? (
         <>
@@ -185,4 +189,24 @@ function useSettle(state: SteadyView, now: () => number): number | null {
   }, [state.startsAt, now]);
 
   return left > 0 ? left : null;
+}
+
+/**
+ * The other player's lives, in a two-player round.
+ *
+ * Lives rather than wobble: wobble is a live meter that already has a place on the
+ * screen, while "how many mistakes are they allowed" is the thing you actually want
+ * to know about the only person you are racing.
+ */
+function them(players: Player[], me: PlayerId | undefined, state: SteadyView) {
+  const other = opponentOf(players, me);
+  if (!other) return null;
+
+  const lives = state.lives[other.id] ?? 0;
+  return {
+    avatar: other.avatar,
+    name: other.name,
+    value: lives > 0 ? '●'.repeat(lives) : 'out',
+    dim: !state.alive.includes(other.id),
+  };
 }

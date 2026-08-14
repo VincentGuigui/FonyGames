@@ -4,7 +4,7 @@ import type { Player, PlayerId } from '../../../../shared/protocol';
 import type { RoomClient } from '../../core/room/client';
 import type { SpillGame } from './game';
 import { startRenderer, type Renderer } from './render';
-import { GameMenu } from '../../core/ui/GameMenu';
+import { opponentOf, StatusBar } from '../../core/ui/StatusBar';
 import { RulesPanel } from '../../core/ui/RulesPanel';
 import { SeatMap } from './SeatMap';
 import { screenAngleTo } from '../../../../shared/spillGeometry';
@@ -204,7 +204,14 @@ export function SpillBoard({
         screen — never over the throw row at the bottom.
       */}
       <div class="spill__peers" aria-hidden="true">
-        {seats.map((id, seat) => {
+        {/*
+          Skipped entirely for two, where the status bar carries the other score
+          (core/ui/StatusBar.tsx). This ring places each player at their real
+          bearing, which is the right answer around a table of four and the wrong
+          one for a pair: with two seats the other player lands wherever the
+          geometry puts them rather than anywhere the eye looks for a score.
+        */}
+        {(seats.length === 2 ? [] : seats).map((id, seat) => {
           if (seat === mySeat || mySeat < 0) return null;
           const p = players.find((q) => q.id === id);
           const bearing = screenAngleTo(mySeat, seat, seats.length);
@@ -226,11 +233,13 @@ export function SpillBoard({
       </div>
 
       <div class="spill__hud">
-        <p class="spill__count">
-          <strong>{count}</strong>
-          <span>{theme.words.unitPlural} left</span>
-        </p>
-        <GameMenu title={title} concept={concept} rules={rules}>
+        <StatusBar
+          score={{ value: count, label: `${theme.words.unitPlural} left` }}
+          opponent={spillOpponent(players, me ?? undefined, levels, out)}
+          title={title}
+          concept={concept}
+          rules={rules}
+        >
           {state && me && (
             <>
               <h3 class="gamemenu__label">Where to put your phone</h3>
@@ -246,7 +255,7 @@ export function SpillBoard({
               />
             </>
           )}
-        </GameMenu>
+        </StatusBar>
       </div>
 
       {/*
@@ -296,4 +305,29 @@ export function SpillBoard({
       )}
     </div>
   );
+}
+
+/**
+ * The other player's level, for a two-player round.
+ *
+ * Spill counts *up* to a losing level, so the number in the bar is what they are
+ * carrying — the same thing `spill__peers` shows around a bigger table. Someone
+ * who has been flooded out stays on the bar, dimmed: a score that disappears reads
+ * as a rendering fault rather than as an elimination.
+ */
+function spillOpponent(
+  players: Player[],
+  me: PlayerId | undefined,
+  levels: Record<PlayerId, number>,
+  out: PlayerId[],
+): { avatar: string; name: string; value: number; dim: boolean } | null {
+  const them = opponentOf(players, me);
+  if (!them) return null;
+
+  return {
+    avatar: them.avatar,
+    name: them.name,
+    value: levels[them.id] ?? 0,
+    dim: out.includes(them.id),
+  };
 }

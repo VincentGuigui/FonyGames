@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
-import { GameMenu } from '../../core/ui/GameMenu';
+import { opponentOf, StatusBar } from '../../core/ui/StatusBar';
 import type { BombView } from './game';
 
 /** How long the explosion holds the screen before the next bomb view returns. */
@@ -79,10 +79,13 @@ export function BombScreen({
   if (iAmOut) {
     return (
       <div class="bombscreen bombscreen--out">
-        <div class="bombscreen__bar">
-          <p class="bombscreen__label">You're out — watching</p>
-          <GameMenu title={title} concept={concept} rules={rules} />
-        </div>
+        <StatusBar
+          status={"You're out — watching"}
+          opponent={bombOpponent(players, myId, state)}
+          title={title}
+          concept={concept}
+          rules={rules}
+        />
         <p class="bombscreen__holder-avatar" aria-hidden="true">
           {avatar(state.holder)}
         </p>
@@ -95,10 +98,13 @@ export function BombScreen({
   if (iAmHolder) {
     return (
       <div class="bombscreen bombscreen--holder">
-        <div class="bombscreen__bar">
-          <p class="bombscreen__label">You have it</p>
-          <GameMenu title={title} concept={concept} rules={rules} />
-        </div>
+        <StatusBar
+          status={"You have it"}
+          opponent={bombOpponent(players, myId, state)}
+          title={title}
+          concept={concept}
+          rules={rules}
+        />
 
         <p class="bombscreen__icon" aria-hidden="true">
           💣
@@ -137,10 +143,13 @@ export function BombScreen({
 
   return (
     <div class="bombscreen bombscreen--watching">
-      <div class="bombscreen__bar">
-        <p class="bombscreen__label">{state.alive.length} still in</p>
-        <GameMenu title={title} concept={concept} rules={rules} />
-      </div>
+      <StatusBar
+        status={`${state.alive.length} still in`}
+        opponent={bombOpponent(players, myId, state)}
+        title={title}
+        concept={concept}
+        rules={rules}
+      />
       <p class="bombscreen__holder-avatar" aria-hidden="true">
         {avatar(state.holder)}
       </p>
@@ -181,4 +190,23 @@ function useFreshBoom(state: BombView): { victim: PlayerId } | null {
   if (!over && Date.now() - state.lastBoom.at > BOOM_MS) return null;
 
   return { victim: state.lastBoom.victim };
+}
+
+/**
+ * Who has the bomb, in a two-player round.
+ *
+ * Not a score — Pass the Bomb has none until somebody is out. What the other player
+ * is worth knowing for is whether the thing is in their hands or yours, which is
+ * the whole round compressed into one word.
+ */
+function bombOpponent(players: Player[], me: PlayerId | undefined, state: BombView) {
+  const other = opponentOf(players, me);
+  if (!other) return null;
+
+  return {
+    avatar: other.avatar,
+    name: other.name,
+    value: state.holder === other.id ? 'has it' : 'clear',
+    dim: !state.alive.includes(other.id),
+  };
 }

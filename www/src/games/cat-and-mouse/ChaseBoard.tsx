@@ -5,7 +5,7 @@ import type { RoomClient } from '../../core/room/client';
 import type { CatMouseGame } from './game';
 import { startRenderer, type Renderer } from './render';
 import { toBoard } from './layout';
-import { GameMenu } from '../../core/ui/GameMenu';
+import { fromScores, StatusBar } from '../../core/ui/StatusBar';
 import { RulesPanel } from '../../core/ui/RulesPanel';
 import { OpponentScores } from '../../core/ui/OpponentScores';
 
@@ -145,22 +145,15 @@ export function ChaseBoard({
       />
 
       <div class="chase__hud">
-        <div class="hud__row">
-          {iAmCat ? (
-            <p class="chase__role">
-              <strong>You’re the cat</strong>
-              <span>catch them all</span>
-            </p>
-          ) : (
-            <p class="chase__lives">
-              {/* A number as well as pips — §12 forbids pips alone. */}
-              <strong>{myLives ?? 0}</strong>
-              <span aria-hidden="true">{'●'.repeat(Math.max(0, myLives ?? 0))}</span>
-              <span class="chase__lives-label">lives</span>
-            </p>
-          )}
-          <GameMenu title={title} concept={concept} rules={rules} />
-        </div>
+        {/* A number as well as pips — §12 forbids a count carried by shape alone. */}
+        <StatusBar
+          score={iAmCat ? undefined : { value: myLives ?? 0, label: 'lives' }}
+          status={iAmCat ? 'You’re the cat — catch them all' : '●'.repeat(Math.max(0, myLives ?? 0))}
+          opponent={fromScores(opponents)}
+          title={title}
+          concept={concept}
+          rules={rules}
+        />
         <OpponentScores unit="lives" scores={opponents} />
       </div>
 

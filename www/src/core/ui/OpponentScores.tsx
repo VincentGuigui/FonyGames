@@ -12,7 +12,10 @@ import type { PlayerId } from '../../../../shared/protocol';
  * tried, which is the same reason the rules panel and the gear menu are shared.
  *
  * It renders **nothing** when there are no opponents, so a solo game or a
- * spectator gets no empty strip.
+ * spectator gets no empty strip — and nothing for a SINGLE opponent either, because
+ * a two-player round shows them on the status bar instead (`core/ui/StatusBar.tsx`).
+ * One name in a strip below a bar that has the same name on it is the duplication
+ * this row was written to avoid.
  */
 
 export type OpponentScore = {
@@ -37,7 +40,7 @@ export function OpponentScores({
    */
   unit: string;
 }): JSX.Element | null {
-  if (scores.length === 0) return null;
+  if (scores.length <= 1) return null;
 
   return (
     <ul class="oppscores" aria-label={`Other players' ${unit}`}>

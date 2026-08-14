@@ -1,9 +1,14 @@
 /*
- * Chrome every game shares: the gear menu and the pre-round rules panel.
+ * Chrome every game shares: the status bar, the gear menu and the pre-round rules
+ * panel.
  *
  * One stylesheet rather than one per game, because the whole point is that a
  * player finds the same gear in the same corner in every game.
  */
+
+/* The top row. Imported here so a game page cannot forget it and ship the bar
+   unstyled — every game already loads this file. */
+@import './statusbar.css';
 
 /* --- rules list, used in three places ------------------------------------ */
 

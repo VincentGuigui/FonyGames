@@ -138,8 +138,17 @@ export function Duel(props: {
 
   if (phase === 'idle') return null;
 
-  // Same gear, same corner, same contents as every other game. It sits outside
-  // the tap target so opening the menu can never be scored as a tap.
+  /*
+   * The one game with NO status bar, and it is deliberate.
+   *
+   * Every other game reuses `core/ui/StatusBar.tsx`. Tap Duel's round screen is a
+   * bare tap target measuring a reaction in milliseconds: a bar across the top would
+   * both steal taps at the edge and give the eye somewhere to be other than the
+   * signal. The scores belong on its result screen, where they already are.
+   *
+   * Same gear, same corner, same contents as every other game. It sits outside the
+   * tap target so opening the menu can never be scored as a tap.
+   */
   const menu = (
     <div class="duel__menu">
       <GameMenu title={title} concept={concept} rules={rules} />
