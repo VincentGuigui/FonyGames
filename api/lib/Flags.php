@@ -111,19 +111,28 @@ final class Flags
     /**
      * The JSON everything reads. Matches `PublicFlags` in shared/flags.ts.
      *
-     * **Just the flags — no audit trail, no hint that an admin exists.** This file is
-     * public: the Worker fetches it over HTTPS and the hub is rendered from it, so
-     * anything in it is world-readable. Who changed what and when stays in MySQL.
+     * **Just the flags and the counts — no audit trail, no hint that an admin exists.**
+     * This file is public: the Worker fetches it over HTTPS and the hub is rendered from
+     * it, so anything in it is world-readable. Who changed what and when stays in MySQL.
+     *
+     * `plays` is omitted entirely when nothing has been played, rather than written as an
+     * empty object: `PublicFlags.plays` is optional, and an absent key is the honest shape
+     * for a host that has never counted a round.
      *
      * @param array<string, array<string, mixed>> $flags
+     * @param array<string, int> $plays
      */
-    public static function encode(array $flags): string
+    public static function encode(array $flags, array $plays = []): string
     {
         // An empty map must encode as `{}`, not `[]`. PHP's empty array is
         // ambiguous and json_encode picks the list form, which would make
         // `flags.flags[slug]` a runtime error on the reading side for the one case
         // that happens on a fresh install.
         $payload = ['flags' => $flags === [] ? new stdClass() : $flags];
+
+        if ($plays !== []) {
+            $payload['plays'] = $plays;
+        }
 
         return json_encode(
             $payload,
@@ -192,10 +201,21 @@ final class Flags
             return false;
         }
 
-        // `tempnam()` silently falls back to the system temp dir when $dir is not writable,
-        // and the rename below would then fail as a cross-device move — reported as a
-        // rename problem when it is a permissions one. Catch it here instead.
-        if (dirname($tmp) !== $dir) {
+        /*
+         * `tempnam()` silently falls back to the system temp dir when $dir is not writable,
+         * and the rename below would then fail as a cross-device move — reported as a
+         * rename problem when it is a permissions one. Catch it here instead.
+         *
+         * Compared as REAL paths, not as strings. `config.example.php` suggests
+         * `__DIR__ . '/../flags.json'`, whose dirname is `.../api/..` — textually different
+         * from the `.../dist` that `tempnam()` returns for the same directory, so the
+         * string compare refused every publish and reported "saved, but not published" on a
+         * host where nothing was wrong. Found by publishing through the real endpoint
+         * rather than through a test that had already resolved its own path.
+         */
+        $here = realpath($dir);
+        $there = realpath(dirname($tmp));
+        if ($here === false || $there === false ? dirname($tmp) !== $dir : $here !== $there) {
             @unlink($tmp);
 
             return false;
@@ -222,16 +242,115 @@ final class Flags
     }
 
     /**
-     * Read the published file, for the page renderer.
+     * Read the whole published file: flags **and** play counts.
      *
-     * **Anything wrong ⇒ an empty map**, which every reader treats as "all games
-     * active" (shared/flags.ts). Fail open is the documented rule, and the
-     * consequence is stated there rather than discovered: a flag is not a security
-     * control. A missing file is the normal state of a fresh install, not an error.
+     * One read, both halves, because `index.php` needs both on every request and reading
+     * the file twice would let a publish land between the two — a grid ordered by one
+     * version of the counts and badged from another.
      *
-     * @return array<string, array<string, mixed>>
+     * @return array{flags: array<string, array<string, mixed>>, plays: array<string, int>}
      */
-    public static function read(string $path): array
+    public static function readAll(string $path): array
+    {
+        return ['flags' => self::read($path), 'plays' => self::readPlays($path)];
+    }
+
+    /**
+     * The play counts from the published file, sanitised.
+     *
+     * Same fail-open rule as everything else here: anything wrong is an empty map, which
+     * means no game is hot and the grid keeps its curated order. A count is a merchandising
+     * signal, and there is no state of this file that should cost anyone a playable game.
+     *
+     * @return array<string, int>
+     */
+    public static function readPlays(string $path): array
+    {
+        $decoded = self::decode($path);
+        $plays = $decoded['plays'] ?? null;
+        if (!is_array($plays)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($plays as $slug => $n) {
+            // The slug reaches an ordering decision, not a URL — but it is the same
+            // untrusted string either way, so it gets the same guard.
+            if (!is_string($slug) || self::slug($slug) === null) {
+                continue;
+            }
+            if (!is_int($n) && !(is_string($n) && ctype_digit($n))) {
+                continue;
+            }
+            $count = (int) $n;
+            if ($count > 0) {
+                $out[$slug] = $count;
+            }
+        }
+
+        ksort($out);
+
+        return $out;
+    }
+
+    /**
+     * Which game is HOT: the one played most.
+     *
+     * **Mirrors `hottest()` in shared/flags.ts**, deliberately, the same way `slug()`
+     * mirrors the Worker's guard: the server-rendered grid and the hydrating client have
+     * to reach the same answer from the same numbers, or Preact adopts a grid ordered
+     * differently from the one it would have drawn. `page_test.php` and the TypeScript
+     * harness assert the same table of cases.
+     *
+     * A unique maximum or nothing — a tie means there is no single most-played game.
+     *
+     * @param array<string, int> $plays
+     * @param list<string> $slugs
+     */
+    public static function hottest(array $plays, array $slugs): ?string
+    {
+        $best = null;
+        $top = 0;
+        $tied = false;
+
+        foreach ($slugs as $slug) {
+            $n = $plays[$slug] ?? 0;
+            if (!is_int($n) || $n <= 0) {
+                continue;
+            }
+            if ($n > $top) {
+                $top = $n;
+                $best = $slug;
+                $tied = false;
+            } elseif ($n === $top) {
+                $tied = true;
+            }
+        }
+
+        return $tied ? null : $best;
+    }
+
+    /**
+     * The curated order with the hot game pulled to the front. Mirrors `promote()`.
+     *
+     * @param list<string> $order
+     * @return list<string>
+     */
+    public static function promote(array $order, ?string $hot): array
+    {
+        if ($hot === null || !in_array($hot, $order, true)) {
+            return $order;
+        }
+
+        return array_merge([$hot], array_values(array_filter($order, static fn (string $s): bool => $s !== $hot)));
+    }
+
+    /**
+     * The published file, decoded — or an empty array if anything is wrong.
+     *
+     * @return array<string, mixed>
+     */
+    private static function decode(string $path): array
     {
         if (!is_readable($path)) {
             return [];
@@ -243,7 +362,24 @@ final class Flags
         }
 
         $decoded = json_decode($raw, true);
-        if (!is_array($decoded) || !isset($decoded['flags']) || !is_array($decoded['flags'])) {
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /**
+     * Read the published file, for the page renderer.
+     *
+     * **Anything wrong ⇒ an empty map**, which every reader treats as "all games
+     * active" (shared/flags.ts). Fail open is the documented rule, and the
+     * consequence is stated there rather than discovered: a flag is not a security
+     * control. A missing file is the normal state of a fresh install, not an error.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function read(string $path): array
+    {
+        $decoded = self::decode($path);
+        if (!isset($decoded['flags']) || !is_array($decoded['flags'])) {
             return [];
         }
 

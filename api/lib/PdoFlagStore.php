@@ -8,7 +8,13 @@ require_once __DIR__ . '/Flags.php';
 
 /**
  * The real flag store: two tables, over PDO.
- * Spec: docs/specs/backoffice.md §2b · Schema: db/init.sql
+ * Spec: docs/specs/backoffice.md §2b, §7 · Schema: db/init.sql
+ *
+ * ## The table is `games`, not `game_flags`
+ *
+ * It stopped being only about flags when it gained `plays`: one row per game, carrying
+ * both what the operator decided and what the players did. `db/migrations/0003_games.sql`
+ * renames it in place, so the counts and flags of an existing host survive.
  *
  * ## Why the SQL is boring on purpose
  *
@@ -38,7 +44,7 @@ final class PdoFlagStore implements FlagStore
     public function load(): array
     {
         $rows = $this->db
-            ->query('SELECT slug, availability, is_new, reason FROM game_flags ORDER BY slug')
+            ->query('SELECT slug, availability, is_new, reason FROM games ORDER BY slug')
             ->fetchAll(PDO::FETCH_ASSOC);
 
         $out = [];
@@ -90,20 +96,20 @@ final class PdoFlagStore implements FlagStore
         $this->db->beginTransaction();
 
         try {
-            $exists = $this->db->prepare('SELECT 1 FROM game_flags WHERE slug = ?');
+            $exists = $this->db->prepare('SELECT 1 FROM games WHERE slug = ?');
             $exists->execute([$slug]);
 
             if ($exists->fetchColumn() === false) {
                 $this->db
                     ->prepare(
-                        'INSERT INTO game_flags (slug, availability, is_new, reason, updated_at)
+                        'INSERT INTO games (slug, availability, is_new, reason, updated_at)
                          VALUES (?, ?, ?, ?, ?)',
                     )
                     ->execute([$slug, $availability, $isNew, $reason, $at]);
             } else {
                 $this->db
                     ->prepare(
-                        'UPDATE game_flags
+                        'UPDATE games
                             SET availability = ?, is_new = ?, reason = ?, updated_at = ?
                           WHERE slug = ?',
                     )
@@ -123,6 +129,70 @@ final class PdoFlagStore implements FlagStore
 
             throw $e;
         }
+    }
+
+    public function plays(): array
+    {
+        $rows = $this->db
+            ->query('SELECT slug, plays FROM games WHERE plays > 0 ORDER BY slug')
+            ->fetchAll(PDO::FETCH_ASSOC);
+
+        $out = [];
+        foreach ($rows as $row) {
+            $slug = Flags::slug((string) $row['slug']);
+            if ($slug === null) {
+                continue;
+            }
+            $out[$slug] = (int) $row['plays'];
+        }
+
+        return $out;
+    }
+
+    /**
+     * One more finished round for this game.
+     *
+     * `UPDATE ... SET plays = plays + 1` rather than read-modify-write, so two rooms
+     * finishing at the same instant score two: the increment happens in the server, and
+     * a `SELECT` followed by a `SET plays = ?` would lose one of them.
+     *
+     * A slug with no row yet gets one — the first round a game is ever played is the row's
+     * reason to exist, and requiring the operator to touch a flag first would mean a host
+     * that never opened the admin centre could never count anything. It is created with
+     * default flags, which is what an absent row already means (`Flags::default()`).
+     *
+     * The INSERT is attempted first and a duplicate key is *expected*: it is the race
+     * itself. Catching it and falling through to the UPDATE is what makes two simultaneous
+     * first-ever plays land on one row with a count of two.
+     */
+    public function bump(string $slug): int
+    {
+        if (Flags::slug($slug) === null) {
+            throw new InvalidArgumentException("refusing to count a bad slug: {$slug}");
+        }
+
+        $update = $this->db->prepare('UPDATE games SET plays = plays + 1 WHERE slug = ?');
+        $update->execute([$slug]);
+
+        if ($update->rowCount() === 0) {
+            try {
+                $this->db
+                    ->prepare(
+                        'INSERT INTO games (slug, availability, is_new, reason, updated_at, plays)
+                         VALUES (?, ?, 0, NULL, ?, 1)',
+                    )
+                    ->execute([$slug, Flags::ACTIVE, $this->clock->now()]);
+            } catch (PDOException) {
+                // Somebody else inserted the row between the UPDATE and here. Theirs
+                // counted once; this one still has to.
+                $update->execute([$slug]);
+            }
+        }
+
+        $read = $this->db->prepare('SELECT plays FROM games WHERE slug = ?');
+        $read->execute([$slug]);
+
+        return (int) $read->fetchColumn();
     }
 
     public function history(int $limit = 50): array

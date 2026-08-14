@@ -1,4 +1,4 @@
-import { cardState, DEFAULT_FLAG, flagFor, mayOpenRoom, type GameFlag } from './flags';
+import { cardState, DEFAULT_FLAG, flagFor, hottest, mayOpenRoom, promote, type GameFlag } from './flags';
 
 /**
  * `cardState` — the one function that decides what a player sees on a card.
@@ -110,6 +110,43 @@ console.log('\nthe flag lookup');
   // Worth stating next to the lines above: NEW is a merchandising switch, not a
   // security control, and shared/flags.ts says so.
   check('NEW never gates a room', mayOpenRoom({ spill: flag({ isNew: true }) }, 'spill', empty) === true);
+}
+
+console.log('\nthe hot game');
+
+{
+  /*
+   * Mirrored, case for case, in `api/tests/flags_test.php`. The server orders the grid
+   * and the client hydrates it, so PHP and this file have to answer identically — a grid
+   * ordered two ways is a hydration mismatch on every card after the first.
+   */
+  const all = ['tap-duel', 'spill', 'ghost-hunt'];
+
+  check('the leader wins', hottest({ spill: 3, 'tap-duel': 1 }, all) === 'spill');
+  check('a tie has no winner', hottest({ spill: 3, 'tap-duel': 3 }, all) === null);
+  check('nothing played, nobody hot', hottest({}, all) === null);
+  check('no counts at all is not an error', hottest(undefined, all) === null);
+  check('zero is not a play', hottest({ spill: 0 }, all) === null);
+  check('and neither is a negative', hottest({ spill: -4, 'tap-duel': 1 }, all) === 'tap-duel');
+  // A count survives a game being deleted; promoting it would badge nothing and reorder
+  // nothing, so it is ignored rather than trusted.
+  check('a slug outside the catalogue cannot win', hottest({ 'zone-rush': 99, spill: 1 }, all) === 'spill');
+  // The file is public and hand-editable; nonsense in it must not decide the shelf.
+  check('nonsense is not a count', hottest({ spill: NaN, 'tap-duel': 2 }, all) === 'tap-duel');
+
+  check('the hot game leads the order', promote(all, 'ghost-hunt').join() === 'ghost-hunt,tap-duel,spill');
+  check('and the rest keep theirs', promote(all, 'tap-duel').join() === all.join());
+  check('nothing hot changes nothing', promote(all, null) === all);
+  check('as does a slug not in the order', promote(all, 'zone-rush') === all);
+
+  // HOT replaces NEW rather than stacking with it: one badge slot, and a card claiming
+  // both says nothing.
+  check('the hot card wears HOT', cardState('live', flag({}), false, true).badge === 'hot');
+  check('even when it is also new', cardState('live', flag({ isNew: true }), false, true).badge === 'hot');
+  check('and it is still playable', cardState('live', flag({}), false, true).playable === true);
+  // The other states' badges are caveats, and a caveat outranks a boast.
+  check('a paused game does not boast', cardState('live', flag({ availability: 'disabled' }), false, true).badge === 'paused');
+  check('nor does one that is not built yet', cardState('soon', flag({}), false, true).badge === 'soon');
 }
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);

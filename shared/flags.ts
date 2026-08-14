@@ -29,8 +29,20 @@ export type GameFlag = {
   reason?: string;
 };
 
-/** What `GET /flags` returns. Deliberately just the flags — no audit trail. */
-export type PublicFlags = { flags: Record<string, GameFlag> };
+/**
+ * What the published `flags.json` holds. Deliberately no audit trail.
+ *
+ * `plays` is beside the flags rather than inside a `GameFlag`, and that separation is the
+ * point: a flag is a **decision the operator made**, a play count is something that
+ * happened. Folding a counter into the flag would mean every reader that validates a flag
+ * has to know about a field it must not act on — and the Worker, which enforces
+ * availability, has no business seeing how popular a game is.
+ */
+export type PublicFlags = {
+  flags: Record<string, GameFlag>;
+  /** Rounds finished with a winner, per slug. Absent on a host that has never counted. */
+  plays?: Record<string, number>;
+};
 
 export const DEFAULT_FLAG: GameFlag = { availability: 'active', isNew: false };
 
@@ -78,12 +90,22 @@ export function cardState(
   flag: GameFlag,
   /** dev shows everything with a badge stating what prod would do (spec §2b). */
   showAll: boolean,
+  /**
+   * Is this the most-played game? It wears HOT **instead of** NEW.
+   *
+   * One badge slot, so the two have to be ranked rather than stacked, and HOT wins: NEW
+   * says nobody has tried this yet, HOT says everybody has. A card claiming both is
+   * saying nothing. It applies only to an `active` game — the other states' badges are
+   * caveats, and a paused game announcing how popular it is would be a joke at the
+   * player's expense.
+   */
+  hot = false,
 ): { show: boolean; playable: boolean; badge: string | null } {
   if (status === 'soon') return { show: true, playable: false, badge: 'soon' };
 
   switch (flag.availability) {
     case 'active':
-      return { show: true, playable: true, badge: flag.isNew ? 'new' : null };
+      return { show: true, playable: true, badge: hot ? 'hot' : flag.isNew ? 'new' : null };
     case 'disabled':
       return {
         show: true,
@@ -93,4 +115,54 @@ export function cardState(
     case 'hidden':
       return { show: showAll, playable: showAll, badge: 'hidden' };
   }
+}
+
+/**
+ * Which game is HOT: the one that has been played most.
+ * Spec: docs/specs/hub.md §2
+ *
+ * **A unique maximum, or nothing.** A tie means there is no single most-played game, and
+ * inventing one — by slug order, by catalogue position — would make the badge move for a
+ * reason no player could see. Same rule as the score panel's leader (`core/ui/Scoreboard`),
+ * and for the same reason: a superlative that is not true of exactly one thing is noise.
+ *
+ * Zero plays is never hot. On a fresh host nothing has been played, and the catalogue's
+ * curated order is the honest answer.
+ *
+ * `slugs` bounds the answer to games that actually exist. Counts outlive a deleted game —
+ * the table is keyed by slug and nothing prunes it — and promoting a slug the build does
+ * not know about would silently drop the badge and reorder nothing.
+ */
+export function hottest(plays: Record<string, number> | undefined, slugs: string[]): string | null {
+  if (!plays) return null;
+
+  let best: string | null = null;
+  let top = 0;
+  let tied = false;
+
+  for (const slug of slugs) {
+    const n = plays[slug];
+    if (typeof n !== 'number' || !Number.isFinite(n) || n <= 0) continue;
+    if (n > top) {
+      top = n;
+      best = slug;
+      tied = false;
+    } else if (n === top) {
+      tied = true;
+    }
+  }
+
+  return tied ? null : best;
+}
+
+/**
+ * The catalogue order with the hot game pulled to the front.
+ *
+ * Only the one card moves. The rest keep the curated order from `catalogue()`, because
+ * sorting the whole grid by popularity would bury every new game at the bottom forever —
+ * the shelf would stop being curated and start being a chart.
+ */
+export function promote(order: string[], hot: string | null): string[] {
+  if (hot === null || !order.includes(hot)) return order;
+  return [hot, ...order.filter((slug) => slug !== hot)];
 }

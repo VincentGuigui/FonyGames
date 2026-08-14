@@ -28,9 +28,9 @@ Only things that must **outlive a room**, and none are scheduled yet:
 
 | Candidate | Notes |
 | --- | --- |
-| **Feature flags** ✅ **being built** | The source of truth for which games are playable, written only by the admin centre. Everything *reads* a `flags.json` the writer regenerates, so no reader touches MySQL ([specs/backoffice.md](specs/backoffice.md) §2b) |
+| **Feature flags** ✅ **built** | The source of truth for which games are playable, written only by the admin centre. Everything *reads* a `flags.json` the writer regenerates, so no reader touches MySQL ([specs/backoffice.md](specs/backoffice.md) §2b) |
 | All-time leaderboards | Needs a privacy decision first (what name is stored, for how long) |
-| Aggregate play counts per game | Anonymous counters, useful for ordering the hub |
+| **Aggregate play counts per game** ✅ **built** | One anonymous counter per game — rounds that finished with a winner. Orders the hub and picks the HOT card ([specs/backoffice.md](specs/backoffice.md) §7). Shares the flags' row: one table, `games` |
 | Feedback / bug reports from the about sheet | Low volume |
 | Persisted room results | Only if we ever add "rematch tomorrow" style features |
 
@@ -54,6 +54,11 @@ This is where the **PHP backend earns its place**: it is the only component that
 can talk to MySQL. A DB-backed feature means a small PHP API under `api/`, called
 by the browser (or by the Durable Object over HTTPS at end of round), never a
 direct database connection from the game loop.
+
+The second arrow is no longer hypothetical: `api/played.php` is the Durable
+Object's end-of-round call, and it is fire-and-forget with a short timeout, so a
+database that is slow or gone cannot reach the round it is reporting on
+([specs/backoffice.md](specs/backoffice.md) §7).
 
 **A corollary worth stating, because it looked like a contradiction once.** The
 Worker being unable to reach MySQL does *not* stop MySQL being the source of truth
@@ -84,6 +89,13 @@ Mandatory, from the maintainer:
    that skips silently proves nothing, so no server is a hard failure with the
    command to fix it.
 
+   ⚠️ **The rule points both ways, and `0003_games.sql` is where it bit.** MariaDB
+   has `ALTER TABLE IF EXISTS` and `ADD COLUMN IF NOT EXISTS`; MySQL has neither.
+   The tests run against MariaDB and the host runs MySQL, so the MariaDB spelling
+   would have passed CI and failed on the host. The portable form — a condition
+   read from `information_schema` into a session variable, then `PREPARE` /
+   `EXECUTE` — is what that migration uses to stay idempotent on both.
+
    Two guards worth knowing about: the suite **refuses any database whose name
    does not end in `_test`**, because it truncates every table it knows about;
    and `FONY_TEST_DSN`, when set, is the **only** candidate tried — an earlier
@@ -98,6 +110,7 @@ db/
   migrations/
     0001_flags.sql             applied in filename order, each idempotent
     0002_admin_link.sql
+    0003_games.sql             game_flags -> games, plus the play counter
   migrate.php                  CLI runner
 api/lib/Migrator.php           the runner itself, also driven from the admin page
 ```

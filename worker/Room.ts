@@ -24,6 +24,13 @@ import {
   type ServerMessage,
 } from '../shared/protocol';
 import { PLAYERS } from '../shared/players';
+import { playsUrl, reportPlay, roundKey } from './plays';
+/*
+ * Type-only, so it is erased at build time and the cycle with index.ts (which imports this
+ * class) never exists at runtime. The alternative — a second Env shape declared here —
+ * would be a copy that drifts the first time a var is added.
+ */
+import type { Env } from './index';
 import {
   onBump as bombBump,
   onFuse as bombFuse,
@@ -137,7 +144,7 @@ type Duel = {
   entrants: PlayerId[];
 };
 
-export class Room extends DurableObject {
+export class Room extends DurableObject<Env> {
   /**
    * Ordering token for server->client frames. Clients drop anything not above the highest they
    * have seen, so this must only ever go **up** — for the life of the room, not the life of this
@@ -168,6 +175,16 @@ export class Room extends DurableObject {
     return this.#seq;
   }
   #buckets = new WeakMap<WebSocket, Bucket>();
+
+  /**
+   * The last round this instance counted as played, so one end frame scores once.
+   *
+   * In memory rather than in storage: it guards against a frame being broadcast twice
+   * inside one instance, which is the only way a double count can plausibly happen. A
+   * round cannot end twice across an eviction, so persisting it would be a write per
+   * round to protect against nothing.
+   */
+  #countedRound: string | null = null;
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -828,6 +845,39 @@ export class Room extends DurableObject {
 
   #broadcast(msg: ServerMessage): void {
     for (const ws of this.ctx.getWebSockets()) this.#send(ws, msg);
+    this.#countIfRoundOver(msg);
+  }
+
+  /**
+   * The round that just ended, told to the web host so the hub can order itself.
+   *
+   * Hooked to `#broadcast` rather than to each game's referee: every game already ends by
+   * broadcasting a frame that says who won (`worker/plays.ts`), so this is one place
+   * instead of eight, and a new game is counted the day it broadcasts its end frame
+   * rather than the day somebody remembers to add a call.
+   *
+   * Deliberately not awaited: the result is already on every screen, and a slow or absent
+   * web host must not delay the end of a game. `waitUntil` keeps the object alive long
+   * enough for the request to leave.
+   */
+  #countIfRoundOver(msg: ServerMessage): void {
+    const key = roundKey(msg);
+    if (key === null || key === this.#countedRound) return;
+
+    const url = playsUrl(this.env.FLAGS_URL);
+    if (url === null) return;
+
+    // Marked before the request, not after: a retry of a failed count is a second play as
+    // far as the database is concerned, and an over-count is worse than a lost one.
+    this.#countedRound = key;
+
+    this.ctx.waitUntil(
+      (async () => {
+        const slug = (await this.ctx.storage.get<string>('game')) ?? null;
+        if (slug === null) return;
+        await reportPlay(slug, { url, token: this.env.PLAYS_TOKEN });
+      })(),
+    );
   }
 
   /* ---------------------------------------------------------------- */

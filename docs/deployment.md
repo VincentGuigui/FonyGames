@@ -118,9 +118,23 @@ not read anywhere, so anything still set under `CF_*` is dead and can be deleted
 | `DB_USER` | MySQL account for that database | site (admin config) |
 | `DB_PASS` | Its password | site (admin config) |
 | `MAIL_FROM` | Envelope sender for the magic link. Optional — defaults to `noreply@guigui.fr` | site (admin config) |
+| `PLAYS_TOKEN` | Shared with the Worker so only it may count a finished round. **Optional**, see below | site (admin config) |
 
 The Cloudflare pair is **optional until set**: `worker-deploy` detects them missing and
 skips with a warning rather than failing, so the site keeps deploying either way.
+
+`PLAYS_TOKEN` is optional in a different sense: without it the play counter still works,
+it is simply unauthenticated ([specs/backoffice.md](specs/backoffice.md) §7). Setting it
+takes **two** steps, because two systems have to agree on the value — the repository
+secret, which the deploy writes into `api/config.php`, and the Worker's own secret:
+
+```sh
+wrangler secret put PLAYS_TOKEN --env dev     # then paste the same value
+wrangler secret put PLAYS_TOKEN --env prod
+```
+
+Set one side only and counting stops: the endpoint requires the header the Worker is not
+sending. Both or neither.
 
 The admin values are written by the deploy into `api/config.php` on the host, so a
 rebuilt host is reproducible from CI alone and there is no manual step on the server.

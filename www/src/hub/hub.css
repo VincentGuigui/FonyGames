@@ -145,6 +145,19 @@
   border-color: transparent;
 }
 
+/*
+ * HOT: the most-played game, on the card that has been pulled to the front.
+ *
+ * Warmer than NEW and never both at once (`cardState`) — two shouting badges on one grid
+ * would each make the other quieter. Red-on-cream rather than the site accent, so the
+ * one card wearing it is distinguishable from the accent used everywhere else.
+ */
+.game-card__badge--hot {
+  color: #2b0f06;
+  background: linear-gradient(180deg, #ffb347, #ff5f2e);
+  border-color: transparent;
+}
+
 .game-card__body {
   padding: var(--space-2) var(--space-3) var(--space-3);
 }

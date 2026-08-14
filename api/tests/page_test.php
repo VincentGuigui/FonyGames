@@ -26,14 +26,16 @@ function fakeCards(): array
     foreach (['tap-duel', 'spill', 'ghost-tag'] as $slug) {
         foreach (['active', 'disabled', 'hidden'] as $availability) {
             foreach ([0, 1] as $isNew) {
-                foreach ([0, 1] as $showAll) {
-                    $key = "{$availability}:{$isNew}:{$showAll}";
-                    // A hidden game is absent on prod and present on dev, which is what
-                    // cardState() decides and what ssr.mjs bakes in.
-                    $absent = $availability === 'hidden' && $showAll === 0;
-                    $cards[$slug][$key] = $absent
-                        ? ''
-                        : "<li data-slug=\"{$slug}\" data-key=\"{$key}\">%%REASON%%</li>";
+                foreach ([0, 1] as $hot) {
+                    foreach ([0, 1] as $showAll) {
+                        $key = "{$availability}:{$isNew}:{$hot}:{$showAll}";
+                        // A hidden game is absent on prod and present on dev, which is what
+                        // cardState() decides and what ssr.mjs bakes in.
+                        $absent = $availability === 'hidden' && $showAll === 0;
+                        $cards[$slug][$key] = $absent
+                            ? ''
+                            : "<li data-slug=\"{$slug}\" data-key=\"{$key}\">%%REASON%%</li>";
+                    }
                 }
             }
         }
@@ -56,17 +58,49 @@ $reversed = Page::grid(['ghost-tag', 'spill', 'tap-duel'], fakeCards(), [], fals
 preg_match_all('/data-slug="([^"]+)"/', $reversed, $m2);
 check('and it follows the order it was handed', $m2[1] === ['ghost-tag', 'spill', 'tap-duel'], $m2[1]);
 
+group('the most-played game is pulled to the front and badged');
+
+/*
+ * The counts are data PHP owns, and they are the ONE thing allowed to reorder the grid
+ * (hub.md §2). Everything else about the order still comes from the build.
+ *
+ * The client applies the same two rules to the same numbers (`hottest`/`promote` in
+ * shared/flags.ts) before hydrating this markup — so these cases are duplicated in the
+ * TypeScript harness, deliberately, the same way the slug guard is.
+ */
+$hot = Page::grid(ORDER, fakeCards(), [], false, ['ghost-tag' => 4, 'spill' => 1]);
+preg_match_all('/data-slug="([^"]+)"/', $hot, $m3);
+check('the hot game leads', $m3[1] === ['ghost-tag', 'tap-duel', 'spill'], $m3[1]);
+check('and it gets the hot variant', str_contains($hot, 'data-slug="ghost-tag" data-key="active:0:1:0"'), $hot);
+check('while the rest stay cold', substr_count($hot, ':0:0:0"') === 2, $hot);
+
+// A tie is not a winner: two games on the same count leaves the curated order alone.
+$tie = Page::grid(ORDER, fakeCards(), [], false, ['ghost-tag' => 4, 'spill' => 4]);
+preg_match_all('/data-slug="([^"]+)"/', $tie, $m4);
+check('a tie promotes nobody', $m4[1] === ORDER, $m4[1]);
+check('and badges nobody', !str_contains($tie, ':1:0"'), $tie);
+
+// Zero is "never played", not "played least".
+$zero = Page::grid(ORDER, fakeCards(), [], false, ['ghost-tag' => 0]);
+preg_match_all('/data-slug="([^"]+)"/', $zero, $m5);
+check('zero plays is not hot', $m5[1] === ORDER, $m5[1]);
+
+// Counts outlive a deleted game; promoting one would drop the badge and reorder nothing.
+$gone = Page::grid(ORDER, fakeCards(), [], false, ['a-game-that-was-deleted' => 99, 'spill' => 2]);
+preg_match_all('/data-slug="([^"]+)"/', $gone, $m6);
+check('a count for a game the build never saw is ignored', $m6[1] === ['spill', 'tap-duel', 'ghost-tag'], $m6[1]);
+
 group('a flag selects the variant');
 
 $grid = Page::grid(ORDER, fakeCards(), ['spill' => ['availability' => 'disabled', 'isNew' => false]], false);
-check('a disabled game gets the disabled variant', str_contains($grid, 'data-key="disabled:0:0"'), $grid);
-check('and the others stay active', substr_count($grid, 'data-key="active:0:0"') === 2);
+check('a disabled game gets the disabled variant', str_contains($grid, 'data-key="disabled:0:0:0"'), $grid);
+check('and the others stay active', substr_count($grid, 'data-key="active:0:0:0"') === 2);
 
 $grid = Page::grid(ORDER, fakeCards(), ['spill' => ['availability' => 'active', 'isNew' => true]], false);
-check('isNew picks its own variant', str_contains($grid, 'data-key="active:1:0"'));
+check('isNew picks its own variant', str_contains($grid, 'data-key="active:1:0:0"'));
 
 $grid = Page::grid(ORDER, fakeCards(), ['spill' => ['availability' => 'active', 'isNew' => false]], true);
-check('showAll picks its own variant', str_contains($grid, 'data-key="active:0:1"'));
+check('showAll picks its own variant', str_contains($grid, 'data-key="active:0:0:1"'));
 
 group('a hidden game is ABSENT, not merely dimmed');
 
@@ -78,16 +112,16 @@ check('nothing for it reaches the document on prod', !str_contains($prod, 'data-
 check('the other two are still there', substr_count($prod, '<li ') === 2, $prod);
 
 $dev = Page::grid(ORDER, fakeCards(), $flags, true);
-check('but dev shows it, badged', str_contains($dev, 'data-key="hidden:0:1"'), $dev);
+check('but dev shows it, badged', str_contains($dev, 'data-key="hidden:0:0:1"'), $dev);
 
 group('the flags fail open, exactly as everything else does');
 
 $grid = Page::grid(ORDER, fakeCards(), ['spill' => ['availability' => 'banana']], false);
-check('an availability outside the enum renders as active', str_contains($grid, 'data-key="active:0:0"'));
+check('an availability outside the enum renders as active', str_contains($grid, 'data-key="active:0:0:0"'));
 check('rather than vanishing', substr_count($grid, '<li ') === 3, $grid);
 
 $grid = Page::grid(ORDER, fakeCards(), [], false);
-check('no flags at all means every game active', substr_count($grid, 'data-key="active:0:0"') === 3);
+check('no flags at all means every game active', substr_count($grid, 'data-key="active:0:0:0"') === 3);
 
 $grid = Page::grid(['tap-duel', 'a-game-the-build-never-saw'], fakeCards(), [], false);
 check('a slug with no rendered variant is skipped, not invented', substr_count($grid, '<li ') === 1, $grid);
@@ -126,11 +160,17 @@ check('and it is still valid JSON that round-trips', json_decode(
     true,
 )['flags']['spill']['reason'] === '</script><img src=x onerror=alert(1)>');
 
+$withPlays = Page::flagsScript([], false, ['spill' => 7]);
+// The client orders the grid from these before it hydrates, so they have to be in the
+// page — not fetched afterwards, which would reorder the cards after paint.
+check('the counts are inlined for the client', str_contains($withPlays, '"plays":{"spill":7}'), $withPlays);
+
 $empty = Page::flagsScript([], false);
 // PHP's empty array encodes as `[]`; the client does `parsed.flags[slug]`, which on an
 // array is a different kind of nothing. It must be an object.
 check('an empty map is an object, not an array', str_contains($empty, '"flags":{}'), $empty);
 check('showAll is a real boolean', str_contains($empty, '"showAll":false'));
+check('and so is an empty count map', str_contains($empty, '"plays":{}'), $empty);
 
 group('the page is assembled without authoring markup');
 

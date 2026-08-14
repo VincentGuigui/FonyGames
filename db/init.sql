@@ -12,13 +12,18 @@
 -- on shared hosting is somebody else's decision and can change under you.
 
 -- ---------------------------------------------------------------------------
--- Feature flags — the source of truth. docs/specs/backoffice.md §2b
+-- One row per game: what the operator decided, and what the players did.
+-- docs/specs/backoffice.md §2b, §7
 --
 -- Everything READS a flat flags.json that PHP regenerates on every write here; no
 -- reader touches this table. The Worker could not reach it anyway
 -- (docs/database.md §3), which is the constraint that shaped the whole design.
+--
+-- Called `games` since 0003. It was `game_flags` while flags were all it held; the
+-- play counter made that name a lie, and a table named after one of its columns is
+-- a name that has to change again the next time.
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS game_flags (
+CREATE TABLE IF NOT EXISTS games (
   -- The same shape worker/router.ts and Flags::slug() enforce: ^[a-z][a-z0-9-]{0,31}$
   slug         VARCHAR(32)  NOT NULL,
   -- Deliberately NOT an ENUM. Adding a fourth state to an ENUM is a schema
@@ -30,6 +35,10 @@ CREATE TABLE IF NOT EXISTS game_flags (
   -- string would render as a blank badge.
   reason       VARCHAR(120)     NULL DEFAULT NULL,
   updated_at   BIGINT       NOT NULL,
+  -- Rounds that finished with a winner. Incremented by the Worker through
+  -- api/played.php; the hub orders the catalogue by it and badges the top one HOT.
+  -- UNSIGNED because a negative play count is not a state that exists.
+  plays        INT UNSIGNED NOT NULL DEFAULT 0,
   PRIMARY KEY (slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

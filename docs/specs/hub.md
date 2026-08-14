@@ -35,9 +35,26 @@ play something in under ten seconds.
 - **Card anatomy and copy rules**: see
   [../design/ui-guidelines.md](../design/ui-guidelines.md) §3. One illustration,
   one catchy sentence, no exceptions.
-- Cards are ordered: `live` first (most-played-looking order is fine — a fixed
-  curated order for now), then `new`, then `soon` (dimmed, not tappable, no
-  link). The order comes from `ORDER` in `games/registry.ts`, one entry per status.
+- Cards are ordered: `live` first, then `soon` (dimmed, not tappable, no link).
+  The order comes from `ORDER` in `games/registry.ts`, one entry per status.
+- **The most-played game leads, wearing HOT.** One card moves — the rest keep the
+  curated order. A shelf sorted entirely by popularity stops being curated and
+  becomes a chart, with every new game buried at the bottom forever; lifting the
+  single most-played one is the whole of the "what is everyone playing" signal
+  without that. The counts come from `plays` in the published `flags.json`
+  ([backoffice.md](backoffice.md) §7).
+- **HOT replaces NEW** on that card. There is one badge slot, so the two are
+  ranked rather than stacked: NEW says nobody has tried this yet, HOT says
+  everybody has, and a card claiming both says nothing. A paused or unbuilt game
+  never wears it — those badges are caveats, and a caveat outranks a boast.
+- **A tie badges nobody**, and moves nobody. Two games on the same count means
+  there is no single most-played game, and picking one by slug order would make
+  the badge move for a reason no player could see. Same rule as the score panel's
+  leader ([../design/game-chrome.md](../design/game-chrome.md) §6).
+- The rule lives in `hottest()`/`promote()` in `shared/flags.ts`, and is
+  **re-implemented in PHP** (`Flags::hottest`) because the server renders the grid
+  and the client hydrates it — the two must agree exactly or Preact re-orders the
+  page after paint. Both are asserted against the same table of cases.
 - **Runtime feature flags** can additionally grey out or hide a card; see
   [backoffice.md](backoffice.md) §2b. They are orthogonal to `status`, and the
   first paint is **already correct**: PHP applies them while rendering the page and

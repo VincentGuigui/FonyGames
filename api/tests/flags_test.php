@@ -172,6 +172,36 @@ check('a later write is timestamped later', $history[0]['at'] === 1_005_000, $hi
 
 check('history is bounded', count($store->history(2)) === 2);
 
+group('a finished round is counted, and the count is published');
+
+/*
+ * The counter is the one thing in this table a player can move, and it moves through the
+ * Worker rather than the admin centre (docs/specs/backoffice.md §7). Two properties are
+ * worth asserting rather than eyeballing: the increment survives a row that does not
+ * exist yet, and it lands in the published file — because the hub reads the file, so a
+ * count that is not published has not happened.
+ */
+check('an unplayed catalogue has no counts', $store->plays() === [], $store->plays());
+
+check('the first play creates the row', $store->bump('ghost-hunt') === 1);
+check('and the second increments it', $store->bump('ghost-hunt') === 2);
+$store->bump('spill');
+check('counts come back per slug', $store->plays() === ['ghost-hunt' => 2, 'spill' => 1], $store->plays());
+
+// A game that has been counted must keep whatever the operator set. The bump writes one
+// column; it is not a flag change, and it leaves no audit row.
+$before = count($store->history());
+check('counting does not disturb the flag', $store->load()['spill']['availability'] === Flags::DISABLED, $store->load());
+check('and writes no audit row', count($store->history()) === $before);
+
+$threwCount = false;
+try {
+    $store->bump('../etc/passwd');
+} catch (InvalidArgumentException) {
+    $threwCount = true;
+}
+check('the store refuses to count a bad slug', $threwCount);
+
 group('the file can never be behind the database');
 
 $dir = tempDir();
@@ -215,6 +245,20 @@ check('no temp files are left behind', $leftovers === [], $leftovers);
 
 check('the published file is world-readable', (fileperms($path) & 0044) === 0044, decoct(fileperms($path)));
 
+/*
+ * A path with `..` in it publishes.
+ *
+ * `config.example.php` suggests `__DIR__ . '/../flags.json'`, and the guard that catches
+ * tempnam falling back to the system temp directory used to compare `dirname($path)` to
+ * `dirname($tmp)` as STRINGS: `.../api/..` never equals `.../dist`, so every publish was
+ * refused and the operator was told "saved, but not published" with nothing wrong. The
+ * suite missed it because every test here had already resolved its own path.
+ */
+$viaParent = $dir . '/sub/../flags-dotdot.json';
+mkdir($dir . '/sub');
+check('a path through a parent segment still publishes', Flags::publish($viaParent, '{"flags":{}}') === true);
+check('and the file is where it was asked for', is_readable($dir . '/flags-dotdot.json'));
+
 group('reading the file fails open, always');
 
 file_put_contents($path, '{"flags":{"spill":{"availabil');
@@ -239,3 +283,39 @@ group('republish repairs a file that failed to write');
 check('the file is gone', !file_exists($path));
 check('republish reports success', $service->republish() === true);
 check('and restores it from the store', Flags::read($path) === $service->all(), Flags::read($path));
+
+group('the counts reach the published file');
+
+$counted = $service->count('ghost-hunt');
+check('the round is counted', $counted['plays'] >= 1, $counted);
+check('and published in the same call', $counted['published'] === true, $counted);
+check('so the file carries it', Flags::readPlays($path)['ghost-hunt'] === $counted['plays'], Flags::readPlays($path));
+
+// A flag change must not blank the counts, which is why publish() reads them from the
+// store rather than from whatever the caller was holding.
+$service->update('ghost-hunt', ['availability' => Flags::ACTIVE]);
+check('a later flag change keeps them', Flags::readPlays($path)['ghost-hunt'] === $counted['plays'], Flags::readPlays($path));
+
+file_put_contents($path, '{"flags":{},"plays":{"spill":"12","../evil":9,"tap-duel":0,"goat-siege":-3}}');
+$read = Flags::readPlays($path);
+check('a numeric string is read', ($read['spill'] ?? null) === 12, $read);
+check('a bad slug is dropped', !array_key_exists('../evil', $read), $read);
+check('zero and negative counts are not counts', !isset($read['tap-duel']) && !isset($read['goat-siege']), $read);
+
+file_put_contents($path, '{"flags":{}}');
+check('a file with no counts reads as none', Flags::readPlays($path) === []);
+
+group('hottest is a unique maximum, or nothing');
+
+// Mirrored, case for case, in the TypeScript harness — the server orders the grid and
+// the client hydrates it, so the two must answer identically (Page::grid).
+$all = ['tap-duel', 'spill', 'ghost-hunt'];
+check('the leader wins', Flags::hottest(['spill' => 3, 'tap-duel' => 1], $all) === 'spill');
+check('a tie has no winner', Flags::hottest(['spill' => 3, 'tap-duel' => 3], $all) === null);
+check('nothing played, nobody hot', Flags::hottest([], $all) === null);
+check('zero is not a play', Flags::hottest(['spill' => 0], $all) === null);
+check('a slug outside the catalogue cannot win', Flags::hottest(['zone-rush' => 99, 'spill' => 1], $all) === 'spill');
+check('the hot game leads the order', Flags::promote($all, 'ghost-hunt') === ['ghost-hunt', 'tap-duel', 'spill']);
+check('the rest keep theirs', Flags::promote($all, 'tap-duel') === $all);
+check('and nothing hot changes nothing', Flags::promote($all, null) === $all);
+check('as does a slug that is not in the order', Flags::promote($all, 'zone-rush') === $all);

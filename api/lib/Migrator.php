@@ -152,7 +152,7 @@ final class Migrator
     public function installed(): bool
     {
         try {
-            $this->db->query('SELECT 1 FROM game_flags LIMIT 1');
+            $this->db->query('SELECT 1 FROM games LIMIT 1');
 
             return true;
         } catch (PDOException $e) {

@@ -13,11 +13,14 @@ import { JoinByCode } from '../core/ui/JoinByCode';
  */
 export function Hub({
   flags = {},
+  plays,
   showAll = false,
   grid,
 }: {
   /** From the server-rendered page, inlined — never fetched (docs/specs/seo.md §4). */
   flags?: Record<string, GameFlag>;
+  /** Rounds played per slug, inlined the same way. Orders the grid and picks HOT. */
+  plays?: Record<string, number> | undefined;
   showAll?: boolean;
   /**
    * Replaces the grid. Used **only** by the build's shell render, which needs a page
@@ -48,7 +51,7 @@ export function Hub({
         </p>
       )}
 
-      {grid ?? <HubGrid flags={flags} showAll={showAll} />}
+      {grid ?? <HubGrid flags={flags} plays={plays} showAll={showAll} />}
 
       <footer class="hub__footer">
         <p>

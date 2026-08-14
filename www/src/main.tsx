@@ -42,29 +42,38 @@ if (!root) throw new Error('#app missing from index.html');
  * Anything malformed means an empty map — every game active, the same fail-open rule as
  * everywhere else (`shared/flags.ts`).
  */
-function inlinedFlags(): { flags: Record<string, GameFlag>; showAll: boolean } {
+function inlinedFlags(): {
+  flags: Record<string, GameFlag>;
+  plays: Record<string, number>;
+  showAll: boolean;
+} {
   const node = document.getElementById('fony-flags');
-  if (!node?.textContent) return { flags: {}, showAll: false };
+  if (!node?.textContent) return { flags: {}, plays: {}, showAll: false };
 
   try {
     const parsed = JSON.parse(node.textContent) as {
       flags?: Record<string, GameFlag>;
+      plays?: Record<string, number>;
       showAll?: boolean;
     };
     return {
       flags: typeof parsed.flags === 'object' && parsed.flags !== null ? parsed.flags : {},
+      // The play counts the server ordered the grid with. Taken from the page rather
+      // than fetched for the same reason as the flags — and because a count that
+      // arrived later would reorder the cards under the player's thumb.
+      plays: typeof parsed.plays === 'object' && parsed.plays !== null ? parsed.plays : {},
       showAll: parsed.showAll === true,
     };
   } catch {
-    return { flags: {}, showAll: false };
+    return { flags: {}, plays: {}, showAll: false };
   }
 }
 
-const { flags, showAll } = inlinedFlags();
+const { flags, plays, showAll } = inlinedFlags();
 
 // `firstElementChild`, not `innerHTML`: whitespace between tags is a text node, so a
 // server-rendered page and a blank one both have child nodes but only one has an element.
 const serverRendered = root.firstElementChild !== null;
 const mount = serverRendered ? hydrate : render;
 
-mount(<Hub flags={flags} showAll={showAll} />, root);
+mount(<Hub flags={flags} plays={plays} showAll={showAll} />, root);

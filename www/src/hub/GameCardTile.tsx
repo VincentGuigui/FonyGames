@@ -32,13 +32,16 @@ export function GameCardTile({
   game,
   flag = DEFAULT_FLAG,
   showAll = false,
+  hot = false,
 }: {
   game: GameCard;
   flag?: GameFlag;
   /** dev shows every game with a badge stating what prod would do (spec §2b). */
   showAll?: boolean;
+  /** The most-played game. Decided by the grid, not here — see `hottest`. */
+  hot?: boolean;
 }): JSX.Element | null {
-  const view = cardState(game.status, flag, showAll);
+  const view = cardState(game.status, flag, showAll, hot);
 
   // A hidden game is not rendered at all — not hidden with CSS, which would still put
   // its title and its link in the document for anyone who looked.
@@ -57,10 +60,17 @@ export function GameCardTile({
    *
    * `view.badge` already folds together build-time `status` and the runtime flag on the
    * stricter reading — a `soon` game says `soon` whatever the flag says, and a disabled
-   * one says its reason. The class only needs to know whether to shout: NEW is the one
-   * badge that is an invitation, the rest are caveats.
+   * one says its reason. The class only needs to know whether to shout: HOT and NEW are
+   * invitations, the rest are caveats.
    */
-  const badgeKind = view.badge === 'new' ? 'new' : view.badge === 'soon' ? 'soon' : 'paused';
+  const badgeKind =
+    view.badge === 'hot'
+      ? 'hot'
+      : view.badge === 'new'
+        ? 'new'
+        : view.badge === 'soon'
+          ? 'soon'
+          : 'paused';
 
   const inner = (
     <>

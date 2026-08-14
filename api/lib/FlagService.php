@@ -38,6 +38,36 @@ final class FlagService
     }
 
     /**
+     * Finished rounds per slug.
+     *
+     * @return array<string, int>
+     */
+    public function plays(): array
+    {
+        return $this->store->plays();
+    }
+
+    /**
+     * Count one finished round and republish.
+     *
+     * Republishing on every round is deliberate and affordable: the hub reads the file,
+     * not the database (docs/database.md §3), so a count that is not published has not
+     * happened as far as any player is concerned. The write is one atomic rename of a
+     * small file, against rounds that arrive a few a minute at most.
+     *
+     * Returns the new total and whether the file was rewritten, so a caller can report a
+     * counted-but-unpublished round rather than claiming success.
+     *
+     * @return array{plays: int, published: bool}
+     */
+    public function count(string $slug): array
+    {
+        $total = $this->store->bump($slug);
+
+        return ['plays' => $total, 'published' => $this->republish()];
+    }
+
+    /**
      * Apply a patch to one slug.
      *
      * Returns null for a slug that fails the sanitiser, so the caller answers 400
@@ -83,9 +113,14 @@ final class FlagService
         return $this->publish($this->store->load());
     }
 
-    /** @param array<string, array<string, mixed>> $flags */
+    /**
+     * @param array<string, array<string, mixed>> $flags
+     */
     private function publish(array $flags): bool
     {
-        return Flags::publish($this->publishPath, Flags::encode($flags));
+        // The counts come from the store even when the caller already had the flags: the
+        // published file is a snapshot of both halves, and writing it from a stale count
+        // would undo every round played since the caller loaded its flags.
+        return Flags::publish($this->publishPath, Flags::encode($flags, $this->store->plays()));
     }
 }

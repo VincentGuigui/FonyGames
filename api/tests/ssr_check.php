@@ -46,8 +46,10 @@ if (!is_readable($generated)) {
     $wanted = [];
     foreach (Flags::STATES as $availability) {
         foreach ([false, true] as $isNew) {
-            foreach ([false, true] as $showAll) {
-                $wanted[] = Page::variantKey($availability, $isNew, $showAll);
+            foreach ([false, true] as $hot) {
+                foreach ([false, true] as $showAll) {
+                    $wanted[] = Page::variantKey($availability, $isNew, $hot, $showAll);
+                }
             }
         }
     }
@@ -78,15 +80,33 @@ if (!is_readable($generated)) {
     $firstSlug = $built['order'][0];
     check(
         'a disabled variant still carries the reason sentinel',
-        str_contains((string) ($built['cards'][$firstSlug]['disabled:0:0'] ?? ''), Page::REASON_SENTINEL)
-            || ($built['cards'][$firstSlug]['disabled:0:0'] ?? '') === '',
-        $built['cards'][$firstSlug]['disabled:0:0'] ?? null,
+        str_contains((string) ($built['cards'][$firstSlug]['disabled:0:0:0'] ?? ''), Page::REASON_SENTINEL)
+            || ($built['cards'][$firstSlug]['disabled:0:0:0'] ?? '') === '',
+        $built['cards'][$firstSlug]['disabled:0:0:0'] ?? null,
     );
 
     // And a real end-to-end assembly against the real strings.
     $real = Page::grid($built['order'], $built['cards'], [], false);
     check('the real cards assemble into a non-empty grid', strlen($real) > 1000, strlen($real));
     check('and every one of them rendered', substr_count($real, '<li ') === count($built['order']), substr_count($real, '<li '));
+
+    /*
+     * The hot card, against the real markup. `hottest()` picks the second slug, so this
+     * fails if the promotion is a no-op — and the badge check fails if the generated hot
+     * variant is the same string as the cold one, which is what a forgotten `hot` prop in
+     * ssr.mjs would produce.
+     */
+    $first = $built['order'][0];
+    $second = $built['order'][1];
+    $withHot = Page::grid($built['order'], $built['cards'], [], false, [$second => 3]);
+    check(
+        'the most-played card is rendered first',
+        strpos($withHot, "/{$second}/") < strpos($withHot, "/{$first}/"),
+        ['hot' => $second, 'was first' => $first],
+    );
+    check('and it wears the HOT badge', substr_count($withHot, 'game-card__badge--hot') === 1,
+        substr_count($withHot, 'game-card__badge--hot'));
+    check('while the cold grid has none', !str_contains($real, 'game-card__badge--hot'));
 }
 
 // Standalone, so it prints its own verdict. Named `ssr_check.php` rather than

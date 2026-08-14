@@ -116,7 +116,7 @@ request dist/index.php
 hydration has nothing to correct.
 
 - **The variants are enumerated mechanically.** For each card, for each
-  `availability` × `isNew` × `showAll` combination — twelve — call `cardState()` from
+  `availability` × `isNew` × `hot` × `showAll` combination — twenty-four — call `cardState()` from
   [`shared/flags.ts`](../../shared/flags.ts) and render the real component with the
   result. A `hidden` game on prod is the empty string, so it is **absent from the
   document** rather than dimmed with CSS, which would still put its title and its link
@@ -132,6 +132,16 @@ hydration has nothing to correct.
 - **The order comes from the build**, recorded alongside the variants. `hub.md` §2
   requires a curated order, and iterating the flags map instead would quietly replace it
   with whatever order the JSON happened to be written in.
+- **One exception to that, and it is a rule rather than a drift**: the most-played game
+  is lifted to the front and rendered from its `hot` variant (`hub.md` §2). PHP decides
+  it because PHP holds the counts, and `HubGrid.tsx` applies the identical rule to the
+  identical numbers before hydrating — `Flags::hottest`/`promote` against
+  `hottest`/`promote` in `shared/flags.ts`, each asserted against the same table of
+  cases. A grid the server ordered one way and the client another is a mismatch on every
+  card after the first.
+  Half of those twenty-four variants are byte-identical to their twin, because only an
+  `active` card wears HOT. That redundancy is deliberate: `index.php` asks for a key
+  without first having to know which combinations collapse.
 - A `disabled` card's reason is the one runtime string, injected with a single
   `str_replace` into a placeholder the build left behind. It is
   HTML-escaped on the way in; it is operator-supplied text landing in a page.
@@ -141,6 +151,9 @@ hydration has nothing to correct.
 - **Missing or unparseable `flags.json` ⇒ every game `active`.** The same
   fail-open rule as everywhere else, and for the same reason: a broken file must
   not blank the catalogue.
+- **The play counts are inlined with them**, in the same payload, for the same reason:
+  the client orders the grid from those numbers, and counts arriving in a later fetch
+  would re-order the cards after paint — under a thumb already on its way to one.
 - **The flags are inlined into the page.** So the client's first render matches
   the server's byte for byte, `hydrate()` is a real hydration rather than a
   patch-up, and **the hub makes no flag request at all** — which also removes the

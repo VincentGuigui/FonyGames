@@ -41,4 +41,17 @@ interface FlagStore
      * @return list<array<string, mixed>>
      */
     public function history(int $limit = 50): array;
+
+    /**
+     * Finished rounds per slug, for the games that have any.
+     *
+     * Only non-zero counts: a zero is indistinguishable from "never played" to every
+     * reader, and shipping it would put thirteen zeroes in a public file for nothing.
+     *
+     * @return array<string, int>
+     */
+    public function plays(): array;
+
+    /** Count one finished round, returning the game's new total. */
+    public function bump(string $slug): int;
 }

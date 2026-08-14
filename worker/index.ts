@@ -20,10 +20,20 @@ export type Env = {
    * (docs/specs/backoffice.md §2b). Per environment, so the dev Worker reads dev's
    * flags.
    *
-   * **This Worker has no secrets at all.** It used to hold six, for an admin centre
-   * that now lives in PHP.
+   * It is also where the play counter's URL comes from — `api/played.php` sits beside
+   * this file on the same host, so it is derived rather than configured (`plays.ts`).
    */
   FLAGS_URL?: string;
+  /**
+   * Shared with the web host's `plays_token`, so only this Worker may count a finished
+   * round (`worker/plays.ts`, `api/played.php`). **Optional**: unset means the counter
+   * endpoint is open, which is a deliberate trade recorded in `api/played.php` — the
+   * catalogue bounds the damage to which card wears HOT.
+   *
+   * The only secret this Worker has ever had, and it buys nothing but a badge. It is NOT
+   * the admin token, which is break-glass access to everything.
+   */
+  PLAYS_TOKEN?: string;
 };
 
 /**

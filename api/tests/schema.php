@@ -28,7 +28,7 @@ declare(strict_types=1);
  */
 
 /** Every table `db/init.sql` creates. Truncated between tests, so the list must be exact. */
-const TEST_TABLES = ['flag_audit', 'game_flags', 'admin_link', 'admin_link_attempt'];
+const TEST_TABLES = ['flag_audit', 'games', 'admin_link', 'admin_link_attempt'];
 
 /**
  * Where to connect.

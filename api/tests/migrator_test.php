@@ -236,8 +236,8 @@ check('and no connection was handed back', $unreachable === null);
  * proves the code checks the state and does not just re-catch everything.
  */
 $installed = testDbSecond('installed2');
-$installed->exec('CREATE TABLE IF NOT EXISTS game_flags (slug VARCHAR(64) PRIMARY KEY) ENGINE=InnoDB');
-check('a real game_flags table reports installed', (new Migrator($installed, tempDir('mig-i')))->installed() === true);
+$installed->exec('CREATE TABLE IF NOT EXISTS games (slug VARCHAR(64) PRIMARY KEY) ENGINE=InnoDB');
+check('a real games table reports installed', (new Migrator($installed, tempDir('mig-i')))->installed() === true);
 
-$installed->exec('DROP TABLE game_flags');
+$installed->exec('DROP TABLE games');
 check('and dropping it reports not-installed again', (new Migrator($installed, tempDir('mig-i2')))->installed() === false);

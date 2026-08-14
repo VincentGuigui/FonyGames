@@ -179,6 +179,10 @@ jobs:
         CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         CLOUDFLARE_ANALYTICS_TOKEN: ${{ secrets.CLOUDFLARE_ANALYTICS_TOKEN }}
         MAIL_FROM: ${{ secrets.MAIL_FROM }}
+        # Optional. Shared with the Worker's PLAYS_TOKEN secret so only it may count a
+        # finished round (api/played.php). Absent means the counter endpoint is open,
+        # which still cannot invent games — see the trade recorded in that file.
+        PLAYS_TOKEN: ${{ secrets.PLAYS_TOKEN }}
       run: |
         # Masked FIRST, before the value is used anywhere: ::add-mask:: only redacts
         # lines written after it, so masking at the end of the step would leave every
@@ -188,6 +192,9 @@ jobs:
         if [ -z "$ADMIN_PATH" ]; then
           echo "::notice::ADMIN_PATH not set — removing the admin placeholder rather than"\
                "publishing it under a guessable name."
+          # This also removes api/played.php, so a host with no admin counts no plays and
+          # the hub keeps its curated order. Correct: the counter writes to a database
+          # this host has not been given, and api/ has no config.php to reach it with.
           rm -rf dist/ops-placeholder dist/api
           exit 0
         fi
@@ -230,6 +237,7 @@ jobs:
             "admin_path:$ADMIN_PATH" "site_origin:$SITE_ORIGIN" \
             "cloudflare_account_id:$CLOUDFLARE_ACCOUNT_ID" \
             "cloudflare_analytics_token:$CLOUDFLARE_ANALYTICS_TOKEN" \
+            "plays_token:$PLAYS_TOKEN" \
             "mail_from:${MAIL_FROM:-noreply@guigui.fr}"
           do
             key="${pair%%:*}"

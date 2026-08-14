@@ -34,17 +34,21 @@ final class Page
      * one coupling between them, and `page_test.php` asserts every key the renderer emits
      * is one this function can ask for.
      */
-    public static function variantKey(string $availability, bool $isNew, bool $showAll): string
+    public static function variantKey(string $availability, bool $isNew, bool $hot, bool $showAll): string
     {
-        return $availability . ':' . ($isNew ? '1' : '0') . ':' . ($showAll ? '1' : '0');
+        return $availability . ':' . ($isNew ? '1' : '0') . ':' . ($hot ? '1' : '0') . ':' . ($showAll ? '1' : '0');
     }
 
     /**
-     * The grid, in the curated order the build recorded.
+     * The grid, in the curated order the build recorded — with the hot card moved up.
      *
-     * **Order comes from the build, never from PHP.** `docs/specs/hub.md` §2 requires a
-     * curated order; sorting here — or iterating the flags map — would quietly replace it
-     * with something alphabetical.
+     * **Order comes from the build, with exactly one exception.** `docs/specs/hub.md` §2
+     * requires a curated order, and sorting here — or iterating the flags map — would
+     * quietly replace it with something alphabetical. What is allowed is `Flags::promote()`
+     * lifting the single most-played game to the front, which is a rule the spec now
+     * states and which `HubGrid.tsx` applies identically on the client. Identically
+     * matters: the client hydrates this markup, and a grid ordered two ways is a mismatch
+     * on every card after the first.
      *
      * A slug with no variant is skipped rather than guessed at: that means the build and
      * the flags disagree about which games exist, and inventing markup for it is how a
@@ -53,12 +57,14 @@ final class Page
      * @param list<string> $order
      * @param array<string, array<string, string>> $cards
      * @param array<string, array<string, mixed>> $flags
+     * @param array<string, int> $plays
      */
-    public static function grid(array $order, array $cards, array $flags, bool $showAll): string
+    public static function grid(array $order, array $cards, array $flags, bool $showAll, array $plays = []): string
     {
         $out = '';
+        $hot = Flags::hottest($plays, $order);
 
-        foreach ($order as $slug) {
+        foreach (Flags::promote($order, $hot) as $slug) {
             $variants = $cards[$slug] ?? null;
             if (!is_array($variants)) {
                 continue;
@@ -71,7 +77,12 @@ final class Page
                 // game is playable, never that it vanishes.
                 : Flags::ACTIVE;
 
-            $html = $variants[self::variantKey($availability, ($flag['isNew'] ?? false) === true, $showAll)] ?? '';
+            $html = $variants[self::variantKey(
+                $availability,
+                ($flag['isNew'] ?? false) === true,
+                $slug === $hot,
+                $showAll,
+            )] ?? '';
             if ($html === '') {
                 // Legitimately empty: a hidden game on prod is absent from the document
                 // rather than hidden with CSS, which would still put its title and link
@@ -108,10 +119,17 @@ final class Page
      * `\u003C`/`\u003E`, which `JSON.parse` turns straight back into the same characters
      * — so the payload is unchanged and the element cannot be closed early.
      */
-    public static function flagsScript(array $flags, bool $showAll): string
+    public static function flagsScript(array $flags, bool $showAll, array $plays = []): string
     {
         $json = json_encode(
-            ['flags' => $flags === [] ? new stdClass() : $flags, 'showAll' => $showAll],
+            [
+                'flags' => $flags === [] ? new stdClass() : $flags,
+                // The counts the grid above was ordered with. Inlined rather than fetched:
+                // a count arriving after paint would reorder the cards under a thumb
+                // already on its way to one.
+                'plays' => $plays === [] ? new stdClass() : $plays,
+                'showAll' => $showAll,
+            ],
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG,
         );
 
@@ -136,6 +154,7 @@ final class Page
         string $gridItems,
         array $flags,
         bool $showAll,
+        array $plays = [],
     ): string {
         $grid = $gridOpen . $gridItems . $gridClose;
         $body = str_replace(self::GRID_MARKER, $grid, $shell);
@@ -144,7 +163,7 @@ final class Page
 
         // Before </head>, so the payload is parsed before the module script runs and
         // `main.tsx` never has to wait for anything.
-        return str_replace('</head>', '  ' . self::flagsScript($flags, $showAll) . "\n  </head>", $html);
+        return str_replace('</head>', '  ' . self::flagsScript($flags, $showAll, $plays) . "\n  </head>", $html);
     }
 
     /**
@@ -154,12 +173,12 @@ final class Page
      * rather than from sniffing the hostname. A hostname test would be one string away
      * from showing prod's hidden games to the world.
      *
-     * @return array{0: array<string, array<string, mixed>>, 1: bool}
+     * @return array{0: array<string, array<string, mixed>>, 1: bool, 2: array<string, int>}
      */
     public static function context(array $config): array
     {
-        $flags = Flags::read((string) ($config['flags_path'] ?? ''));
+        $both = Flags::readAll((string) ($config['flags_path'] ?? ''));
 
-        return [$flags, ($config['show_all'] ?? false) === true];
+        return [$both['flags'], ($config['show_all'] ?? false) === true, $both['plays']];
     }
 }

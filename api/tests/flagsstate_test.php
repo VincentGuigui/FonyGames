@@ -11,7 +11,7 @@ require_once __DIR__ . '/../lib/App.php';
  *
  * This exists because the first version conflated two states and was actively misleading.
  *
- * **Nothing populates `game_flags`.** An absent row *means* the default — `active`, not new
+ * **Nothing populates `games`.** An absent row *means* the default — `active`, not new
  * — so a row only appears the first time a game is changed. An empty table with no published
  * file is therefore a **working, untouched install**, and the old wording called it a
  * failure: *"flags.json is missing — the Worker is failing open"*. True in the letter, and it

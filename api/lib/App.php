@@ -59,6 +59,13 @@ final class App
             'db_pass' => (string) ($loaded['db_pass'] ?? ''),
             'admin_email' => (string) ($loaded['admin_email'] ?? ''),
             'admin_token' => (string) ($loaded['admin_token'] ?? ''),
+            /*
+             * Shared with the Worker, so only it can count a finished round
+             * (api/played.php). Empty means the endpoint is open — see the trade recorded
+             * there. Never the admin token: that one is break-glass access to everything,
+             * and handing it to a Worker would put it in a second system's secret store.
+             */
+            'plays_token' => (string) ($loaded['plays_token'] ?? ''),
             'admin_path' => (string) ($loaded['admin_path'] ?? ''),
             // Where a magic link points. From config rather than from
             // `$_SERVER['HTTP_HOST']`, deliberately: a poisoned Host header would
@@ -247,7 +254,7 @@ final class App
             /*
              * Two very different situations, and conflating them was misleading.
              *
-             * NOTHING POPULATES `game_flags` — an absent row *means* the default, `active`
+             * NOTHING POPULATES `games` — an absent row *means* the default, `active`
              * and not new, so a row only appears the first time a game is changed. An empty
              * table with no file is therefore a **working, untouched install**, and the
              * old wording called that a failure.

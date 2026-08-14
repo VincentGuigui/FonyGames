@@ -28,6 +28,11 @@ return [
     // `openssl rand -hex 32`.
     'admin_token' => 'not-a-real-token',
 
+    // Shared with the Worker's PLAYS_TOKEN secret, so only it can count a finished round
+    // (api/played.php). Blank is allowed and means the counter endpoint is open: the
+    // catalogue still bounds it to real games, so the worst case is a wrong HOT badge.
+    'plays_token' => '',
+
     // The hidden directory the admin page was renamed to, and the origin it is on.
     // Both come from the deploy: the link is built from these rather than from
     // $_SERVER['HTTP_HOST'], so a poisoned Host header cannot mail the operator a link

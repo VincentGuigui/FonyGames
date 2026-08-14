@@ -141,7 +141,7 @@ applies to the writer's neighbour rather than to the writer. The Worker never
 touches MySQL — it reads a file over HTTPS, which is the topology database.md §3
 already sanctions. See [../roadmap.md](../roadmap.md) for the full decision row.
 
-### Nothing populates `game_flags`, and that is the design
+### Nothing populates `games`, and that is the design
 
 An **absent row means the default** — `active`, not new. A row appears the first time
 you change that game, and disappears from nobody's concern if you never do. So a
@@ -254,23 +254,19 @@ handler above its own `require`, and `api/preflight.php` covers the one case the
 
 ## 3. Where the data lives
 
-MySQL's **first real use is the feature flags** (§2b), not the counters. The flags
-need no new wire path: PHP is both the writer and the publisher.
+MySQL's **first real use is the feature flags** (§2b). The play counter (§7) is
+the second, and it shares the row: one table, `games`, holding what the operator
+decided and what the players did.
 
-If the counters in §2 are ever built, they follow the topology already fixed in
-[database.md](../database.md) §3 — the Durable Object cannot reach the database:
+The counter follows the topology fixed in [database.md](../database.md) §3 — the
+Durable Object cannot reach the database:
 
 ```
-Room DO ──end of round, HTTPS──> PHP endpoint ──> MySQL
+Room DO ──end of round, HTTPS──> api/played.php ──> MySQL ──> flags.json ──> the hub
 ```
 
-Off the gameplay path, so a slow database can never affect a round. The open
-question is not the topology; it is how that endpoint is authenticated, and §2
-lays out what each answer costs.
-
-Building it therefore triggers the rules in [database.md](../database.md) §4: an
-`init.sql`, idempotent migrations under `db/migrations/`, and local MariaDB as
-the test target.
+Off the gameplay path, and nothing waits for it: the result is already on every
+screen before the request leaves.
 
 ## 4. Access — a hidden URL and a magic link
 
@@ -459,3 +455,81 @@ sentence is already true of the feature flags in §2b: there is nothing here to
 protect. The lobby shows a notice whenever the flag is on, because the flag is sticky
 and set in another tab — otherwise a round that starts with one player looks like a
 bug in the game rather than a switch somebody left on.
+
+## 7. Play counts — the HOT card
+
+**One number per game: rounds that finished with a winner.** It orders the hub —
+the most-played game leads and wears HOT ([hub.md](hub.md) §2) — and it is the
+only thing in this system a *player* can move.
+
+### The path a count takes
+
+```
+Room DO  ──POST {slug}──>  api/played.php  ──>  games.plays += 1
+                                            └─> flags.json republished
+                                                        └─> index.php orders the grid
+```
+
+The Durable Object is the only thing that knows a round ended, and MySQL is the
+only thing that can remember it across rooms; they cannot speak directly
+([database.md](../database.md) §3). So the Object posts and PHP writes — the shape
+that section has always specified, now actually built.
+
+**The endpoint is derived, not configured.** `api/played.php` sits beside
+`flags.json` on the same host, so the Worker builds its URL from `FLAGS_URL`
+(`worker/plays.ts`). One var, so a dev Worker cannot end up counting into
+production because somebody updated one setting and not the other.
+
+**Nothing waits for it.** The result is on every screen before the request leaves,
+the call is fire-and-forget with a short timeout, and a host that is down, slow or
+has no schema yet costs nothing but a count.
+
+### What counts as a game played
+
+Read off the end frame each game already broadcasts, in `endsRound()`
+(`worker/plays.ts`), so a game is counted the day it broadcasts an end frame
+rather than the day somebody remembers to add a call.
+
+| Game | Counted when |
+| --- | --- |
+| Tap Duel | the **match** is won (`matchWinnerId`), not each duel — a match is to ten, and counting duels would make one evening look like ten |
+| Pass the Bomb | a `boom` leaves exactly one player standing |
+| Steady Hand | there is a `winner` |
+| Ghost Hunt | somebody caught at least one ghost |
+| Shake Rush | the leader travelled at all |
+| Spill · Goat Siege · Sling Puck | there is a `winnerId` |
+| Cat and Mouse | the cat won, or a mouse survived |
+
+**A round nobody won is not a game played.** Everyone leaving, a duel both players
+false-started, a hunt with no catches: they happened, but counting them would make
+an abandoned game look popular.
+
+### Why it is a separate endpoint, and what stops it being a vandalism tool
+
+`index.php` is entirely privileged and lives under the secret `ADMIN_PATH`
+directory. The Worker cannot know that path — it is secret precisely so nothing
+finds it — so the counter is its own file at a fixed public URL holding exactly one
+capability.
+
+Two things bound it:
+
+- **The catalogue is the allowlist.** Only a slug the build rendered a card for can
+  be counted, so nothing can create rows and the table stays one row per game
+  however the endpoint is used.
+- **`plays_token`, when set, is required** — in `config.php` and as the Worker's
+  `PLAYS_TOKEN` secret. Left empty, the endpoint is open, and the worst anyone can
+  do is make their favourite game wear HOT. That is a deliberate trade: a counter
+  that refuses to count until a secret is deployed is a feature that silently does
+  nothing on every host the operator has not been back to.
+
+It writes one column of one row and leaves **no audit row**: the change log is for
+decisions the operator made, and this is not one.
+
+### A counted game gets a flag row
+
+`bump()` creates a row for a game nobody has ever configured, because the first
+round it is played is that row's reason to exist. The row carries default flags —
+`active`, not new — which is exactly what an absent row already meant, so nothing
+about the game's behaviour changes. It does mean a played game now appears in
+`flags.json` with its defaults, where before the file listed only what the operator
+had touched.
