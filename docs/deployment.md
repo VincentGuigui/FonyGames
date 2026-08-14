@@ -85,24 +85,23 @@ credential must never open prod.
 repository secrets: a repository-level secret of the same name is visible to any job,
 including on branches that must not deploy.
 
-**Two pairs of Cloudflare secrets, and they are not interchangeable.** The names are
-close enough to be worth stating outright:
+**Three Cloudflare secrets, one prefix, one account id.**
 
-| You want to | Set |
-| --- | --- |
-| Deploy the room server | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` |
-| Show the usage panel in the admin centre | `CF_ANALYTICS_TOKEN` + `CF_ACCOUNT_ID` |
+| Secret | Scope | Used by |
+| --- | --- | --- |
+| `CLOUDFLARE_ACCOUNT_ID` | — | both, and set **once** |
+| `CLOUDFLARE_API_TOKEN` | **Edit Cloudflare Workers** | `wrangler`, to deploy the room server |
+| `CLOUDFLARE_ANALYTICS_TOKEN` | **Account Analytics: Read** | the admin centre's usage panel, via `config.php` |
 
-The two account ids hold the **same value**; they are separate secrets because they
-are consumed by different things — one by `wrangler` at deploy time, the other written
-into the host's `config.php` for a read-only analytics query (§3.3). The tokens are
-deliberately *not* the same: one is **Edit Cloudflare Workers**, the other is read-only
-analytics, and §3.3 explains why the deploy token is not widened to cover both.
+The two tokens stay separate on purpose — the deploy token is not widened to cover a
+read-only query (§3.3). The account id is **one secret**, because it is one value.
 
-There is no `CF_API_TOKEN`. It appeared only as a shell variable inside the
-worker-deploy job, aliasing `CLOUDFLARE_API_TOKEN`, and has been renamed to match its
-secret — `CF_ACCOUNT_ID` as a local alias for `CLOUDFLARE_ACCOUNT_ID` collided with the
-real, different `CF_ACCOUNT_ID` secret in the other job.
+It used to be two, under two conventions: `CLOUDFLARE_ACCOUNT_ID` for the deploy and
+`CF_ACCOUNT_ID` for the analytics call, holding the same string. The worker job also
+aliased its secrets into shell variables called `CF_API_TOKEN` / `CF_ACCOUNT_ID`, so
+`CF_ACCOUNT_ID` meant two different things twenty lines apart and reading the workflow
+could not tell you which secret to set. Renamed with **no fallback**: the old names are
+not read anywhere, so anything still set under `CF_*` is dead and can be deleted.
 
 | Secret | Contents | Used by |
 | --- | --- | --- |
@@ -110,12 +109,11 @@ real, different `CF_ACCOUNT_ID` secret in the other job.
 | `FTPUSER` | SSH/SFTP account login | site |
 | `FTPPWD` | SSH/SFTP account password | site |
 | `CLOUDFLARE_API_TOKEN` | **Edit Cloudflare Workers** token | room server — **required on `prod`**, see below |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account id | room server — **required on `prod`**, see below |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account id | room server **and** the usage panel — one secret, both jobs |
 | `ADMIN_PATH` | Folder name the admin page is deployed under, e.g. `ops-7f3a91` | site (§3.4) |
 | `ADMIN_EMAIL` | The one address a magic link may be sent to | site (admin config) |
 | `ADMIN_TOKEN` | Break-glass bearer, **and what the deploy uses to apply migrations** (§3.7). `openssl rand -hex 32` | site (admin config) |
-| `CF_ANALYTICS_TOKEN` | Read-only analytics token for the usage panel (§3.3) | site (admin config) |
-| `CF_ACCOUNT_ID` | Cloudflare account id, for the same call — **the same value as `CLOUDFLARE_ACCOUNT_ID`, under a second name**; see below | site (admin config) |
+| `CLOUDFLARE_ANALYTICS_TOKEN` | **Account Analytics: Read** token for the usage panel (§3.3) | site (admin config) |
 | `DB_DSN` | PDO DSN, e.g. `mysql:host=localhost;dbname=fonygames;charset=utf8mb4` | site (admin config) |
 | `DB_USER` | MySQL account for that database | site (admin config) |
 | `DB_PASS` | Its password | site (admin config) |
@@ -163,7 +161,7 @@ automated way to verify it ([specs/backoffice.md](specs/backoffice.md) §5).
 | --- | --- |
 | Account → **Account Analytics** → **Read** | The FonyGames account |
 
-Nothing else. Its value goes into `CF_ANALYTICS_TOKEN`.
+Nothing else. Its value goes into `CLOUDFLARE_ANALYTICS_TOKEN`.
 
 **Do not widen the deploy token instead.** `CLOUDFLARE_API_TOKEN` is *Edit Cloudflare
 Workers* and deliberately cannot read analytics; a token that can both deploy and read

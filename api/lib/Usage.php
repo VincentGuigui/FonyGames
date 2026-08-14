@@ -12,7 +12,7 @@ declare(strict_types=1);
  *
  * ## Read-only, server-side, and no new shared secret
  *
- * `CF_ANALYTICS_TOKEN` is scoped to *Account Analytics: Read* and is used by PHP only, so
+ * `CLOUDFLARE_ANALYTICS_TOKEN` is scoped to *Account Analytics: Read* and is used by PHP only, so
  * it never reaches a browser. It is deliberately NOT the deploy token: a token that can
  * both publish a Worker and read everything is a bigger blast radius for nothing
  * (docs/deployment.md §3.3).

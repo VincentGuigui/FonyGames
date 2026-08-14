@@ -176,8 +176,8 @@ jobs:
         DB_DSN: ${{ secrets.DB_DSN }}
         DB_USER: ${{ secrets.DB_USER }}
         DB_PASS: ${{ secrets.DB_PASS }}
-        CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
-        CF_ANALYTICS_TOKEN: ${{ secrets.CF_ANALYTICS_TOKEN }}
+        CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        CLOUDFLARE_ANALYTICS_TOKEN: ${{ secrets.CLOUDFLARE_ANALYTICS_TOKEN }}
         MAIL_FROM: ${{ secrets.MAIL_FROM }}
       run: |
         # Masked FIRST, before the value is used anywhere: ::add-mask:: only redacts
@@ -228,7 +228,8 @@ jobs:
             "db_dsn:$DB_DSN" "db_user:$DB_USER" "db_pass:$DB_PASS" \
             "admin_email:$ADMIN_EMAIL" "admin_token:$ADMIN_TOKEN" \
             "admin_path:$ADMIN_PATH" "site_origin:$SITE_ORIGIN" \
-            "cf_account_id:$CF_ACCOUNT_ID" "cf_analytics_token:$CF_ANALYTICS_TOKEN" \
+            "cloudflare_account_id:$CLOUDFLARE_ACCOUNT_ID" \
+            "cloudflare_analytics_token:$CLOUDFLARE_ANALYTICS_TOKEN" \
             "mail_from:${MAIL_FROM:-noreply@guigui.fr}"
           do
             key="${pair%%:*}"
@@ -438,12 +439,9 @@ jobs:
     # state, and blocking it buys nothing.
     - name: 🔐 Check Cloudflare credentials
       id: creds
-      #
-      # The shell names match the SECRET names deliberately. They used to be
-      # shortened to CF_API_TOKEN / CF_ACCOUNT_ID, and `CF_ACCOUNT_ID` is *also* a
-      # real and different secret twenty lines up — it configures the admin centre's
-      # analytics panel, not the deploy. One identifier meaning two things in two
-      # jobs is a question waiting to be asked, so it is no longer abbreviated.
+      # The shell names match the SECRET names, and every Cloudflare secret in this
+      # workflow now uses the CLOUDFLARE_ prefix. There used to be two conventions and
+      # two account-id secrets holding the same value — see docs/deployment.md §3.
       env:
         CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

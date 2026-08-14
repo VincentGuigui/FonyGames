@@ -339,15 +339,15 @@ it as text.
 | --- | --- |
 | `ADMIN_EMAIL` | The one address a link may be sent to |
 | `ADMIN_TOKEN` | Break-glass bearer for `curl`, above |
-| `CF_ANALYTICS_TOKEN` | Read-only analytics token, for the usage panel |
-| `CF_ACCOUNT_ID` | Account id for the same call |
+| `CLOUDFLARE_ANALYTICS_TOKEN` | Read-only analytics token, for the usage panel |
+| `CLOUDFLARE_ACCOUNT_ID` | Account id — the same secret the room server deploy uses |
 
 **No `ADMIN_SESSION_KEY`** — PHP's own session handling replaces the tokens it
 signed. **No `MAIL_SECRET`** — see §5. And **no Wrangler secrets at all**: the
 Worker's only remaining interest in any of this is reading `flags.json`, which is
 public.
 
-`CF_ANALYTICS_TOKEN` moving to the server side is a straight improvement: it is
+`CLOUDFLARE_ANALYTICS_TOKEN` moving to the server side is a straight improvement: it is
 read by PHP and never reaches a browser.
 
 ### What is deliberately absent

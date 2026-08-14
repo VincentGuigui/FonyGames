@@ -37,8 +37,8 @@ return [
 
     // Cloudflare usage panel. Read-only analytics token — never the deploy token
     // (docs/deployment.md §3.3). Blank is fine: the panel says "unavailable".
-    'cf_account_id' => '',
-    'cf_analytics_token' => '',
+    'cloudflare_account_id' => '',
+    'cloudflare_analytics_token' => '',
 
     // Where the published flags land. The web root, one level above api/.
     'flags_path' => __DIR__ . '/../flags.json',

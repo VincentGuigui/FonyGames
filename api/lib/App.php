@@ -65,8 +65,8 @@ final class App
             // otherwise mail the operator a link to somebody else's site carrying a
             // valid token. The deploy knows which host it is deploying to.
             'site_origin' => (string) ($loaded['site_origin'] ?? ''),
-            'cf_account_id' => (string) ($loaded['cf_account_id'] ?? ''),
-            'cf_analytics_token' => (string) ($loaded['cf_analytics_token'] ?? ''),
+            'cloudflare_account_id' => (string) ($loaded['cloudflare_account_id'] ?? ''),
+            'cloudflare_analytics_token' => (string) ($loaded['cloudflare_analytics_token'] ?? ''),
             // The published file, in the web root. `api/` sits one level below it.
             'flags_path' => (string) ($loaded['flags_path'] ?? dirname($dir) . '/flags.json'),
             'mail_from' => (string) ($loaded['mail_from'] ?? 'noreply@guigui.fr'),
@@ -155,8 +155,8 @@ final class App
     public function usage(): Usage
     {
         return new Usage(
-            (string) $this->config['cf_account_id'],
-            (string) $this->config['cf_analytics_token'],
+            (string) $this->config['cloudflare_account_id'],
+            (string) $this->config['cloudflare_analytics_token'],
         );
     }
 
