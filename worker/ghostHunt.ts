@@ -10,6 +10,7 @@ import {
   type PlayerId,
   type ServerMessage,
 } from '../shared/protocol';
+import { enoughToStart } from '../shared/players';
 
 /**
  * Ghost Hunt. Spec: docs/specs/games/ghost-hunt.md
@@ -139,9 +140,10 @@ export async function startHunt(
   ctx: Ctx,
   roundId: number,
   connected: PlayerId[],
+  /** Solo test mode — see `enoughToStart` in shared/players.ts. */
+  solo = false,
 ): Promise<boolean> {
-  if (connected.length < HUNT_MIN_PLAYERS) return false;
-  if (connected.length > HUNT_MAX_PLAYERS) return false;
+  if (!enoughToStart(connected.length, [HUNT_MIN_PLAYERS, HUNT_MAX_PLAYERS], solo)) return false;
 
   const now = ctx.now();
   const players: Record<PlayerId, HuntPlayer> = {};

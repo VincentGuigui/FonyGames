@@ -7,6 +7,8 @@ import {
   type PlayerId,
   type ServerMessage,
 } from '../../../../shared/protocol';
+import { enoughToStart } from '../../../../shared/players';
+import { soloTesting } from '../../core/solo';
 import { useRoom, useShareRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
@@ -51,6 +53,12 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     }
     setState((prev) => applyBomb(prev, msg, Date.now()));
   }, []);
+
+  /*
+   * Read once per render rather than per click: it changes only when the admin
+   * centre writes it, which cannot happen while this page is open.
+   */
+  const solo = soloTesting();
 
   const room = useRoom(code, card.slug, onGame);
   const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
@@ -137,14 +145,10 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       showQr={showQr}
       onShare={share}
       onToggleQr={toggleQr}
-      canStart={
-        room.isHost &&
-        room.connected >= BOMB_MIN_PLAYERS &&
-        room.connected <= BOMB_MAX_PLAYERS
-      }
+      canStart={room.isHost && enoughToStart(room.connected, [BOMB_MIN_PLAYERS, BOMB_MAX_PLAYERS], solo)}
       startLabel={state ? 'Play again' : 'Start round'}
-      onStart={() => client?.send({ t: 'start', d: { mode: 'bomb' } })}
-      note={note(room.isHost, room.connected)}
+      onStart={() => client?.send({ t: 'start', d: { mode: 'bomb', solo } })}
+      note={note(room.isHost, room.connected, solo)}
       playerTag={(id) => {
         if (!state) return null;
         if (state.winner === id) return 'won';
@@ -236,8 +240,8 @@ function MotionPrimer({
   );
 }
 
-function note(isHost: boolean, connected: number): string {
-  if (connected < BOMB_MIN_PLAYERS) {
+function note(isHost: boolean, connected: number, solo: boolean): string {
+  if (!solo && connected < BOMB_MIN_PLAYERS) {
     const missing = BOMB_MIN_PLAYERS - connected;
     return `Need ${missing} more player${missing === 1 ? '' : 's'} — it takes ${BOMB_MIN_PLAYERS} to pass a bomb around.`;
   }

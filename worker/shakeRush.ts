@@ -9,6 +9,7 @@ import {
   type PlayerId,
   type ServerMessage,
 } from '../shared/protocol';
+import { enoughToStart } from '../shared/players';
 
 /**
  * Shake Rush. Spec: docs/specs/games/shake-rush.md
@@ -102,9 +103,10 @@ export async function startRush(
   ctx: Ctx,
   roundId: number,
   connected: PlayerId[],
+  /** Solo test mode — see `enoughToStart` in shared/players.ts. */
+  solo = false,
 ): Promise<boolean> {
-  if (connected.length < RUSH_MIN_PLAYERS) return false;
-  if (connected.length > RUSH_MAX_PLAYERS) return false;
+  if (!enoughToStart(connected.length, [RUSH_MIN_PLAYERS, RUSH_MAX_PLAYERS], solo)) return false;
 
   const now = ctx.now();
   const players: Record<PlayerId, RushPlayer> = {};

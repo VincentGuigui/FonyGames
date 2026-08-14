@@ -14,6 +14,7 @@ import {
   type PlayerId,
   type ServerMessage,
 } from '../shared/protocol';
+import { enoughToStart, lastStanding } from '../shared/players';
 
 /**
  * Steady Hand. Spec: docs/specs/games/steady-hand.md
@@ -63,6 +64,16 @@ export type Steady = {
   tickAt: number;
   alive: PlayerId[];
   players: Record<PlayerId, SteadyPlayer>;
+  /**
+   * Started in solo test mode, so "last one standing" does not end the round.
+   *
+   * Alone you ARE the last one standing at kick-off, so the round would finish in the
+   * tick it began and there would be nothing to look at — which is the whole point of
+   * the mode (`enoughToStart` in shared/players.ts). The time cap still ends it and
+   * nothing else changes. Stored on the ROUND rather than read from a flag, so a round
+   * that began solo stays solo even if somebody joins halfway through.
+   */
+  solo: boolean;
   phase: 'running' | 'done';
 };
 
@@ -116,9 +127,10 @@ export async function startSteady(
   ctx: Ctx,
   roundId: number,
   connected: PlayerId[],
+  /** Solo test mode — see `enoughToStart` in shared/players.ts. */
+  solo = false,
 ): Promise<boolean> {
-  if (connected.length < STEADY_MIN_PLAYERS) return false;
-  if (connected.length > STEADY_MAX_PLAYERS) return false;
+  if (!enoughToStart(connected.length, [STEADY_MIN_PLAYERS, STEADY_MAX_PLAYERS], solo)) return false;
 
   const now = ctx.now();
   const players: Record<PlayerId, SteadyPlayer> = {};
@@ -136,6 +148,7 @@ export async function startSteady(
     alive: [...connected],
     players,
     phase: 'running',
+    solo,
   };
 
   await ctx.save(s);
@@ -257,7 +270,7 @@ export async function onSteadyTick(ctx: Ctx): Promise<boolean> {
     }
   }
 
-  if (s.alive.length <= 1 || now >= s.endsAt) {
+  if (lastStanding(s.alive.length, s.solo) || now >= s.endsAt) {
     await finish(ctx, s, now);
     return true;
   }
@@ -304,7 +317,7 @@ async function eliminate(
 
   if (deferFinish) return;
 
-  if (s.alive.length <= 1) {
+  if (lastStanding(s.alive.length, s.solo)) {
     await finish(ctx, s, now);
     return;
   }

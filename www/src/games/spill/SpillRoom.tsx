@@ -9,6 +9,8 @@ import {
   type ServerMessage,
   type SpillState,
 } from '../../../../shared/protocol';
+import { enoughToStart } from '../../../../shared/players';
+import { soloTesting } from '../../core/solo';
 import { useRoom, useShareRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
@@ -56,6 +58,12 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
     [game],
   );
 
+  /*
+   * Read once per render rather than per click: it changes only when the admin
+   * centre writes it, which cannot happen while this page is open.
+   */
+  const solo = soloTesting();
+
   const room = useRoom(code, card.slug, onGame);
   const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
   const client = room.client;
@@ -97,11 +105,11 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
       onShare={share}
       onToggleQr={toggleQr}
       canStart={
-        room.isHost && room.connected >= SPILL_MIN_PLAYERS && room.connected <= SPILL_MAX_PLAYERS
+        room.isHost && enoughToStart(room.connected, [SPILL_MIN_PLAYERS, SPILL_MAX_PLAYERS], solo)
       }
       startLabel={state ? 'Play again' : 'Start round'}
-      onStart={() => client?.send({ t: 'start', d: { mode: 'spill' } })}
-      note={note(room.isHost, room.connected)}
+      onStart={() => client?.send({ t: 'start', d: { mode: 'spill', solo } })}
+      note={note(room.isHost, room.connected, solo)}
       playerTag={(id) => {
         const i = state?.seats.indexOf(id) ?? -1;
         return i < 0 ? null : `seat ${i + 1}`;
@@ -134,9 +142,9 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
   );
 }
 
-function note(isHost: boolean, connected: number): string {
+function note(isHost: boolean, connected: number, solo: boolean): string {
   if (!isHost) return 'The host starts the round.';
-  if (connected < SPILL_MIN_PLAYERS) return 'Waiting for one more player…';
+  if (!solo && connected < SPILL_MIN_PLAYERS) return 'Waiting for one more player…';
   if (connected > SPILL_MAX_PLAYERS) {
     return `Spill is ${SPILL_MIN_PLAYERS}–${SPILL_MAX_PLAYERS} players — beyond that the ring gets too crowded to aim.`;
   }

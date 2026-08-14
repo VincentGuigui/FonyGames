@@ -15,6 +15,7 @@ import {
   type PlayerId,
   type ServerMessage,
 } from '../shared/protocol';
+import { enoughToStart, lastStanding } from '../shared/players';
 
 /**
  * Pass the Bomb — `classic` mode. Spec: docs/specs/games/pass-the-bomb.md
@@ -42,6 +43,16 @@ export type Bomb = {
   mutedUntil: Record<PlayerId, number>;
   /** Hard cap on the whole round (safety rule). */
   endsAt: number;
+  /**
+   * Started in solo test mode, so "last one standing" does not end the round.
+   *
+   * Alone you ARE the last one standing at kick-off, so the round would finish in the
+   * tick it began and there would be nothing to look at — which is the whole point of
+   * the mode (`enoughToStart` in shared/players.ts). The time cap still ends it and
+   * nothing else changes. Stored on the ROUND rather than read from a flag, so a round
+   * that began solo stays solo even if somebody joins halfway through.
+   */
+  solo: boolean;
   phase: 'running' | 'done';
 };
 
@@ -64,11 +75,12 @@ export async function startBomb(
   ctx: Ctx,
   roundId: number,
   connected: PlayerId[],
+  /** Solo test mode — see `enoughToStart` in shared/players.ts. */
+  solo = false,
 ): Promise<boolean> {
   // Both ends, from shared/players.ts. The maximum was missing, so a ninth and tenth
   // player could join and start a round the card had promised was 3-8.
-  if (connected.length < BOMB_MIN_PLAYERS) return false;
-  if (connected.length > BOMB_MAX_PLAYERS) return false;
+  if (!enoughToStart(connected.length, [BOMB_MIN_PLAYERS, BOMB_MAX_PLAYERS], solo)) return false;
 
   const now = ctx.now();
   const holder = connected[Math.floor(Math.random() * connected.length)] as PlayerId;
@@ -85,6 +97,7 @@ export async function startBomb(
     mutedUntil: {},
     endsAt: now + BUMP_ROUND_CAP_MS,
     phase: 'running',
+    solo,
   };
 
   await ctx.save(bomb);
@@ -227,7 +240,7 @@ export async function onFuse(ctx: Ctx): Promise<boolean> {
   });
 
   // Last player standing, or the safety cap hit — either way we stop.
-  if (bomb.alive.length <= 1 || now >= bomb.endsAt) {
+  if (lastStanding(bomb.alive.length, bomb.solo) || now >= bomb.endsAt) {
     bomb.phase = 'done';
     await ctx.save(bomb);
     return true;
@@ -261,7 +274,7 @@ export async function onPlayerGone(ctx: Ctx, playerId: PlayerId): Promise<void> 
   bomb.alive = bomb.alive.filter((p) => p !== playerId);
   delete bomb.pending[playerId];
 
-  if (bomb.alive.length <= 1) {
+  if (lastStanding(bomb.alive.length, bomb.solo)) {
     bomb.phase = 'done';
     await ctx.save(bomb);
     ctx.broadcast({

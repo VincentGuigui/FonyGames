@@ -7,6 +7,7 @@ import { AvatarPicker, CodeCard, ConnectionBanner, PlayerList } from './parts';
 import { HowToPlay } from '../core/ui/HowToPlay';
 import { Disclosure } from '../core/ui/Disclosure';
 import { ArrivedByLink } from './arrival';
+import { soloTesting } from '../core/solo';
 
 /**
  * The lobby, identical for every game.
@@ -47,6 +48,12 @@ export function GameLobby({
   standings,
   /** Game-specific settings, below the players (Spill's theme picker). */
   extras,
+  /**
+   * Can this game be started alone? Sling Puck cannot — it is two phones facing each
+   * other across a gap, so a solo board has no opposite half — and it is the only one,
+   * which is why the default is yes and only it opts out.
+   */
+  soloSupported = true,
 }: {
   card: GameCard;
   code: string;
@@ -64,8 +71,15 @@ export function GameLobby({
   aside?: ComponentChildren;
   standings?: ComponentChildren;
   extras?: ComponentChildren;
+  soloSupported?: boolean;
 }): JSX.Element {
   const arrivedByLink = useContext(ArrivedByLink);
+  /*
+   * Not a prop. Solo testing is a fact about the BROWSER, not about this game or this
+   * room, and threading it through seven call sites would invite one of them to pass
+   * something different from what its start button actually sends.
+   */
+  const solo = soloTesting();
 
   return (
     <div class="lobby" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
@@ -82,6 +96,25 @@ export function GameLobby({
       {room.error && (
         <p class="lobby__error" role="alert">
           {room.error}
+        </p>
+      )}
+
+      {/*
+        Said on the lobby, not only in the admin centre, because the flag is sticky and
+        set in another tab — the round that starts with one player would otherwise look
+        like a bug in the game rather than a switch someone left on.
+      */}
+      {solo && soloSupported && (
+        <p class="lobby__solo" role="note">
+          Solo testing is on: you can start on your own, and a round that would normally end
+          when one player is left runs to its clock instead. Everything else is the real game.
+        </p>
+      )}
+
+      {solo && !soloSupported && (
+        <p class="lobby__solo" role="note">
+          Solo testing is on, but not for this one — it is two phones facing each other across
+          a gap, so there is no board to render alone. It still needs a second player.
         </p>
       )}
 

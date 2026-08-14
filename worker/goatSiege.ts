@@ -13,6 +13,7 @@ import {
   type PlayerId,
   type ServerMessage,
 } from '../shared/protocol';
+import { enoughToStart, lastStanding } from '../shared/players';
 import { splitLanes } from '../shared/goatSplit';
 
 /**
@@ -41,6 +42,16 @@ export type Siege = {
   /** Bumped per goat so the split lanes differ without Math.random on clients. */
   nextSeed: number;
   endsAt: number;
+  /**
+   * Started in solo test mode, so "last one standing" does not end the round.
+   *
+   * Alone you ARE the last one standing at kick-off, so the round would finish in the
+   * tick it began and there would be nothing to look at — which is the whole point of
+   * the mode (`enoughToStart` in shared/players.ts). The time cap still ends it and
+   * nothing else changes. Stored on the ROUND rather than read from a flag, so a round
+   * that began solo stays solo even if somebody joins halfway through.
+   */
+  solo: boolean;
   phase: 'running' | 'done';
 };
 
@@ -77,8 +88,10 @@ export async function startSiege(
   ctx: Ctx,
   roundId: number,
   connected: PlayerId[],
+  /** Solo test mode — see `enoughToStart` in shared/players.ts. */
+  solo = false,
 ): Promise<boolean> {
-  if (connected.length < SIEGE_MIN_PLAYERS || connected.length > SIEGE_MAX_PLAYERS) {
+  if (!enoughToStart(connected.length, [SIEGE_MIN_PLAYERS, SIEGE_MAX_PLAYERS], solo)) {
     return false;
   }
 
@@ -101,6 +114,7 @@ export async function startSiege(
     // The cap runs from the start of play, not from the panel.
     endsAt: now + preround + SIEGE_ROUND_CAP_MS,
     phase: 'running',
+    solo,
   };
 
   await ctx.save(siege);
@@ -222,7 +236,7 @@ export async function tick(ctx: Ctx): Promise<boolean> {
   }
 
   const left = standing(s);
-  if (left.length <= 1) {
+  if (lastStanding(left.length, s.solo)) {
     await finish(ctx, s, left[0] ?? null);
     return true;
   }
@@ -248,7 +262,7 @@ export async function onPlayerGone(ctx: Ctx, playerId: PlayerId): Promise<void> 
   }
 
   const left = standing(s);
-  if (left.length <= 1) {
+  if (lastStanding(left.length, s.solo)) {
     await finish(ctx, s, left[0] ?? null);
     return;
   }

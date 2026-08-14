@@ -14,6 +14,7 @@
 
 import { catalogue } from './games/registry';
 import { cardState, DEFAULT_FLAG, type FlagState, type GameFlag } from '../../shared/flags';
+import { setSoloTesting, soloTesting } from './core/solo';
 import './core/ui/theme.css';
 import './ops.css';
 
@@ -241,6 +242,7 @@ function render(state: State): void {
   }
 
   root!.append(list);
+  root!.append(soloPanel());
 
   if (state.history.length > 0) {
     const log = el('section', 'ops__log');
@@ -274,6 +276,67 @@ function render(state: State): void {
   panel.append(el('p', 'ops__note', 'checking…'));
   root!.append(panel);
   void loadUsage(panel);
+}
+
+/**
+ * Solo testing: start a round alone, to look at a game.
+ * Spec: docs/specs/backoffice.md §6 · the rule it relaxes: `enoughToStart` in
+ * shared/players.ts
+ *
+ * It lives here and nowhere else because *here* is the one page you can only reach by
+ * signing in, and the switch it flips is a per-browser one (see core/solo.ts). Nothing
+ * is sent to the server: the flag is read by the lobby of whichever game you open next,
+ * in this browser, and the referee is told at start time.
+ *
+ * The copy is deliberate about the two things it does NOT do. It changes no rule other
+ * than the minimum head-count and "last one standing", and it is not a permission —
+ * anyone can set the same key from a console and all they win is the ability to play by
+ * themselves.
+ */
+function soloPanel(): HTMLElement {
+  const panel = el('section', 'ops__log');
+  panel.append(el('h2', 'ops__subtitle', 'solo testing'));
+  panel.append(
+    el(
+      'p',
+      'ops__note',
+      'Start any game on your own, in this browser, to see how it renders. Nothing else' +
+        ' changes: every rule, timer and score is the one the game normally uses, and a' +
+        ' round that would normally end when one player is left simply runs to its clock.',
+    ),
+  );
+
+  const said = el('p', 'ops__note');
+
+  const toggle = el('button', 'ops__choice', 'solo start');
+  const paint = (on: boolean): void => {
+    toggle.classList.toggle('is-on', on);
+    toggle.setAttribute('aria-pressed', String(on));
+    said.textContent = on
+      ? 'On. Open a game and Start round is enabled with one player.'
+      : 'Off. Games need their usual minimum.';
+  };
+  paint(soloTesting());
+
+  toggle.addEventListener('click', () => {
+    const next = !soloTesting();
+    setSoloTesting(next);
+    // Read back rather than trusting the write: in private mode the setter is a no-op,
+    // and a button that lights up while nothing happened is the worst of both.
+    paint(soloTesting());
+    if (soloTesting() !== next) said.textContent = 'This browser refuses to store it — private mode?';
+  });
+
+  const controls = el('div', 'ops__controls');
+  controls.append(toggle);
+  panel.append(controls, said);
+
+  // Named, because the alternative is discovering it on the one game where the button
+  // stays dead. Sling Puck is two phones facing each other across a gap; a solo board
+  // has no opposite half, so there is nothing to render alone.
+  panel.append(el('p', 'ops__slug', 'Sling Puck is excluded — it needs a second phone to have a board at all.'));
+
+  return panel;
 }
 
 type Schema = {

@@ -13,6 +13,7 @@ import {
   type PlayerId,
   type ServerMessage,
 } from '../shared/protocol';
+import { enoughToStart } from '../shared/players';
 import { CM_CENTRE, clampToFloor, dist, maxStep, truncate } from '../shared/catMouse';
 
 /**
@@ -137,8 +138,10 @@ export async function startCatMouse(
   roundId: number,
   connected: PlayerId[],
   drag: 'direct' | 'capped',
+  /** Solo test mode — see `enoughToStart` in shared/players.ts. */
+  solo = false,
 ): Promise<boolean> {
-  if (connected.length < CM_MIN_PLAYERS || connected.length > CM_MAX_PLAYERS) {
+  if (!enoughToStart(connected.length, [CM_MIN_PLAYERS, CM_MAX_PLAYERS], solo)) {
     return false;
   }
 

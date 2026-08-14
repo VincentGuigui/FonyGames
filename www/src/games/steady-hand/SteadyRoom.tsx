@@ -7,6 +7,8 @@ import {
   STEADY_TICK_MS,
   type ServerMessage,
 } from '../../../../shared/protocol';
+import { enoughToStart } from '../../../../shared/players';
+import { soloTesting } from '../../core/solo';
 import { useRoom, useShareRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
@@ -44,6 +46,12 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
   const onGame = useCallback((msg: ServerMessage) => {
     setState((prev) => applySteady(prev, msg, Date.now()));
   }, []);
+
+  /*
+   * Read once per render rather than per click: it changes only when the admin
+   * centre writes it, which cannot happen while this page is open.
+   */
+  const solo = soloTesting();
 
   const room = useRoom(code, card.slug, onGame);
   const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
@@ -115,8 +123,7 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
     );
   }
 
-  const enoughPlayers =
-    room.connected >= STEADY_MIN_PLAYERS && room.connected <= STEADY_MAX_PLAYERS;
+  const enoughPlayers = enoughToStart(room.connected, [STEADY_MIN_PLAYERS, STEADY_MAX_PLAYERS], solo);
 
   return (
     <GameLobby
@@ -130,8 +137,8 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughPlayers}
       startLabel={state ? 'Play again' : 'Start round'}
-      onStart={() => client?.send({ t: 'start', d: { mode: 'steady' } })}
-      note={note(room.isHost, room.connected, motionOn)}
+      onStart={() => client?.send({ t: 'start', d: { mode: 'steady', solo } })}
+      note={note(room.isHost, room.connected, motionOn, solo)}
       playerTag={(id) => {
         if (!state) return null;
         if (state.winner === id) return 'won';
@@ -226,8 +233,8 @@ function MotionPrimer({
   );
 }
 
-function note(isHost: boolean, connected: number, motionOn: boolean): string {
-  if (connected < STEADY_MIN_PLAYERS) {
+function note(isHost: boolean, connected: number, motionOn: boolean, solo: boolean): string {
+  if (!solo && connected < STEADY_MIN_PLAYERS) {
     const missing = STEADY_MIN_PLAYERS - connected;
     return `Need ${missing} more player${missing === 1 ? '' : 's'} — being still alone proves nothing.`;
   }

@@ -94,6 +94,7 @@ function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }):
       startLabel={state ? 'Play again' : 'Start round'}
       onStart={() => client?.send({ t: 'start', d: { mode: 'sling' } })}
       note={note(room.isHost, room.connected)}
+      soloSupported={false}
       playerTag={(id) => {
         const n = state?.pucks[id];
         return n === undefined ? null : `${n} left`;

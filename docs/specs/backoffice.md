@@ -406,3 +406,56 @@ the stricter reading.
 - Is a UI needed at all for v1, or a JSON endpoint plus the Cloudflare dashboard?
   Now that there is a session mechanism, a small UI is cheap — but the honest
   answer for *health and usage* alone was always the dashboard.
+
+## 6. Solo testing — starting a game on your own
+
+Every game needs at least two phones, which is correct for playing and hostile to
+looking. Checking whether a screen renders, whether a new accent reads on a real
+handset, or whether a lobby copy change fits meant rounding up a second device every
+time. This is the switch that stops that.
+
+**A toggle in the admin centre, under `solo testing`.** Turn it on and the next game
+you open lets you start alone.
+
+### What it changes — exactly two things
+
+1. **The minimum player count.** `enoughToStart(connected, limits, solo)` in
+   [`shared/players.ts`](../../shared/players.ts) accepts one player instead of the
+   game's minimum. **The maximum still applies**, and so does everything else about
+   the room.
+2. **"Last one standing."** Steady Hand, Pass the Bomb, Goat Siege and Spill end a
+   round when one player is left. Alone you are the last one standing before the
+   round has drawn a frame, so it would finish in the tick it started. In a solo
+   round the threshold drops to *nobody* left — `lastStanding(left, solo)`.
+
+Note the second one is a **lowered threshold, not a deleted condition**. Writing it
+as `!solo && left <= 1` reads correctly and is wrong: a solo round whose only player
+is eliminated then runs on with nobody in it, and Pass the Bomb draws its next holder
+from an empty array and broadcasts an `undefined` player id. `worker/solo.test.ts`
+asserts both directions, and that mutation fails it.
+
+Nothing else moves. No score, no timing, no difficulty curve, no elimination rule —
+a solo round is the real game with one player in it, which is the only version of it
+worth looking at.
+
+### Sling Puck is excluded
+
+It is two phones laid end to end with a gap between them; a solo board has no
+opposite half. Supporting it would mean inventing a second player rather than
+relaxing a rule, so `startSling` still requires exactly two. The lobby says so on
+screen when the flag is on, rather than leaving a dead Start button to be discovered.
+
+### Where the switch lives, and why it is not a permission
+
+The admin centre is PHP behind a magic-link session; the game pages are static files
+talking to a Worker and have no session of their own. There is no shared login to
+consult — but there **is** the browser you signed in with, so the admin page writes
+`fony.solo` to `localStorage` ([`www/src/core/solo.ts`](../../www/src/core/solo.ts))
+and the game lobbies read it, sending `solo: true` with `start`.
+
+That is a convenience, not a control. Anyone can set the same key from a console, and
+what they win is the ability to play by themselves in their own room. The same
+sentence is already true of the feature flags in §2b: there is nothing here to
+protect. The lobby shows a notice whenever the flag is on, because the flag is sticky
+and set in another tab — otherwise a round that starts with one player looks like a
+bug in the game rather than a switch somebody left on.

@@ -52,3 +52,55 @@ export const PLAYERS = {
 } as const satisfies Record<string, PlayerLimits>;
 
 export type GameSlug = keyof typeof PLAYERS;
+
+/**
+ * Solo test mode: one operator, one phone, no game rules bent except the two that
+ * make a solo round impossible to look at.
+ * Spec: docs/specs/backoffice.md §6
+ *
+ * The admin centre turns this on for the browser that has signed in (`core/solo.ts`),
+ * and the phone sends `solo: true` with `start`. It exists for one reason — seeing a
+ * game **render** without rounding up a room full of people — and it changes exactly
+ * two things, both stated here so nobody has to go looking:
+ *
+ * 1. **The minimum player count**, below. Every other limit still applies, including
+ *    the maximum.
+ * 2. **"Last one standing"** ends a round in Steady Hand, Pass the Bomb, Goat Siege
+ *    and Spill. Alone you *are* the last one standing at kick-off, so the round would
+ *    finish in the same tick it began and there would be nothing to look at. In a solo
+ *    round the threshold drops to nobody left — see `lastStanding` below, which is
+ *    where that distinction matters. The round's own time cap still ends it either way.
+ *
+ * Nothing else moves. No score, no timing, no elimination rule, no difficulty curve —
+ * a solo round is the real game with one player in it, which is the only way looking
+ * at it tells you anything true.
+ *
+ * **This is not a security control**, and the same is already written about the
+ * feature flags: a crafted client can send `solo: true`, and what it gets is the
+ * ability to play alone in its own room. There is nothing to protect.
+ */
+export function enoughToStart(connected: number, limits: PlayerLimits, solo = false): boolean {
+  const [min, max] = limits;
+  if (connected > max) return false;
+
+  return connected >= (solo ? 1 : min);
+}
+
+/**
+ * "Last one standing" — the second, and only other, thing solo mode moves.
+ *
+ * Ordinarily a round is over when one player is left: there is nobody to play against.
+ * Alone that is true at kick-off, so the round would finish in the tick it started and
+ * there would be nothing to look at — hence the relaxation.
+ *
+ * What it does **not** do is remove the condition. Solo lowers the threshold from one
+ * to **zero**, so a round whose only player has been eliminated still ends. Writing it
+ * as `!solo && left <= 1` instead — the obvious version — leaves a round with nobody
+ * in it running to its cap, and in Pass the Bomb it then draws the next holder from an
+ * empty list and hands the room an `undefined` player id.
+ *
+ * The cap always ends a round regardless; this is only the early exit.
+ */
+export function lastStanding(left: number, solo: boolean): boolean {
+  return left <= (solo ? 0 : 1);
+}

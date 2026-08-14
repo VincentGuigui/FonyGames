@@ -9,6 +9,8 @@ import {
   type Player,
   type ServerMessage,
 } from '../../../../shared/protocol';
+import { enoughToStart } from '../../../../shared/players';
+import { soloTesting } from '../../core/solo';
 import { useRoom, useShareRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
@@ -54,6 +56,12 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
     [game],
   );
 
+  /*
+   * Read once per render rather than per click: it changes only when the admin
+   * centre writes it, which cannot happen while this page is open.
+   */
+  const solo = soloTesting();
+
   const room = useRoom(code, card.slug, onGame);
   const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
   const client = room.client;
@@ -90,10 +98,10 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
       showQr={showQr}
       onShare={share}
       onToggleQr={toggleQr}
-      canStart={room.isHost && room.connected >= CM_MIN_PLAYERS && room.connected <= CM_MAX_PLAYERS}
+      canStart={room.isHost && enoughToStart(room.connected, [CM_MIN_PLAYERS, CM_MAX_PLAYERS], solo)}
       startLabel={state ? 'Play again' : 'Start round'}
-      onStart={() => client?.send({ t: 'start', d: { mode: 'chase', drag } })}
-      note={note(room.isHost, room.connected)}
+      onStart={() => client?.send({ t: 'start', d: { mode: 'chase', drag, solo } })}
+      note={note(room.isHost, room.connected, solo)}
       playerTag={(id) => {
         const a = state?.actors.find((q) => q.playerId === id);
         if (!a) return null;
@@ -123,9 +131,9 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
   );
 }
 
-function note(isHost: boolean, connected: number): string {
+function note(isHost: boolean, connected: number, solo: boolean): string {
   if (!isHost) return 'The host starts the round.';
-  if (connected < CM_MIN_PLAYERS) return 'Waiting for one more…';
+  if (!solo && connected < CM_MIN_PLAYERS) return 'Waiting for one more…';
   if (connected > CM_MAX_PLAYERS) return `Cat and Mouse is ${CM_MIN_PLAYERS}–${CM_MAX_PLAYERS} players.`;
   return `One cat, ${CM_LIVES} lives each. Survive the clock and the mice win.`;
 }

@@ -259,7 +259,7 @@ export class Room extends DurableObject {
         });
         return;
       case 'start':
-        await this.#onStart(ws, msg.d.mode, msg.d.drag);
+        await this.#onStart(ws, msg.d.mode, msg.d.drag, msg.d.solo === true);
         return;
       case 'tap':
         await this.#onTap(ws, msg.d);
@@ -482,6 +482,12 @@ export class Room extends DurableObject {
     ws: WebSocket,
     mode: string,
     drag?: 'direct' | 'capped',
+    /**
+     * Solo test mode. Relaxes the minimum player count and the "last one standing"
+     * end condition, and nothing else — `enoughToStart` in shared/players.ts lists
+     * both and says why it is not a permission.
+     */
+    solo = false,
   ): Promise<void> {
     const id = this.#idOf(ws);
     const hostId = (await this.ctx.storage.get<PlayerId>('hostId')) ?? null;
@@ -522,16 +528,16 @@ export class Room extends DurableObject {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
       const ids = ready.map((p) => p.id);
-      if (mode === 'bomb') await startBomb(this.#bombCtx(), roundId, ids);
-      else if (mode === 'steady') await startSteady(this.#steadyCtx(), roundId, ids);
-      else if (mode === 'rush') await startRush(this.#rushCtx(), roundId, ids);
-      else if (mode === 'hunt') await startHunt(this.#huntCtx(), roundId, ids);
-      else if (mode === 'spill') await startSpill(this.#spillCtx(), roundId, ids);
-      else if (mode === 'siege') await startSiege(this.#siegeCtx(), roundId, ids);
+      if (mode === 'bomb') await startBomb(this.#bombCtx(), roundId, ids, solo);
+      else if (mode === 'steady') await startSteady(this.#steadyCtx(), roundId, ids, solo);
+      else if (mode === 'rush') await startRush(this.#rushCtx(), roundId, ids, solo);
+      else if (mode === 'hunt') await startHunt(this.#huntCtx(), roundId, ids, solo);
+      else if (mode === 'spill') await startSpill(this.#spillCtx(), roundId, ids, solo);
+      else if (mode === 'siege') await startSiege(this.#siegeCtx(), roundId, ids, solo);
       else if (mode === 'sling') await startSling(this.#slingCtx(), roundId, ids);
       // `direct` is the default because it needs no explanation: grab your icon
       // and it follows your finger. `capped` is the deliberate choice.
-      else await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct');
+      else await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct', solo);
       await this.#rearm(players);
       return;
     }

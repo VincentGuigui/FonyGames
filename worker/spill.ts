@@ -18,6 +18,7 @@ import {
   type SpillDrop,
   type SpillState,
 } from '../shared/protocol';
+import { enoughToStart, lastStanding } from '../shared/players';
 import { aimSeat, wrapAngle } from '../shared/spillGeometry';
 
 /**
@@ -47,6 +48,16 @@ export type Spill = {
   held: Record<string, { by: PlayerId; size: number; soaksAt: number }>;
   nextDrop: number;
   endsAt: number;
+  /**
+   * Started in solo test mode, so "last one standing" does not end the round.
+   *
+   * Alone you ARE the last one standing at kick-off, so the round would finish in the
+   * tick it began and there would be nothing to look at — which is the whole point of
+   * the mode (`enoughToStart` in shared/players.ts). The time cap still ends it and
+   * nothing else changes. Stored on the ROUND rather than read from a flag, so a round
+   * that began solo stays solo even if somebody joins halfway through.
+   */
+  solo: boolean;
   phase: 'running' | 'done';
 };
 
@@ -71,8 +82,10 @@ export async function startSpill(
   ctx: Ctx,
   roundId: number,
   connected: PlayerId[],
+  /** Solo test mode — see `enoughToStart` in shared/players.ts. */
+  solo = false,
 ): Promise<boolean> {
-  if (connected.length < SPILL_MIN_PLAYERS || connected.length > SPILL_MAX_PLAYERS) {
+  if (!enoughToStart(connected.length, [SPILL_MIN_PLAYERS, SPILL_MAX_PLAYERS], solo)) {
     return false;
   }
 
@@ -98,6 +111,7 @@ export async function startSpill(
     // The cap runs from the start of play, not from the panel.
     endsAt: now + preround + SPILL_ROUND_CAP_MS,
     phase: 'running',
+    solo,
   };
 
   await ctx.save(spill);
@@ -329,7 +343,7 @@ async function settle(ctx: Ctx, s: Spill): Promise<boolean> {
   }
 
   const left = alive(s);
-  if (left.length <= 1) {
+  if (lastStanding(left.length, s.solo)) {
     await finish(ctx, s, left[0] ?? null);
     return true;
   }

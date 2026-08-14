@@ -6,6 +6,8 @@ import {
   HUNT_MIN_PLAYERS,
   type ServerMessage,
 } from '../../../../shared/protocol';
+import { enoughToStart } from '../../../../shared/players';
+import { soloTesting } from '../../core/solo';
 import { useRoom, useShareRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
@@ -66,6 +68,12 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const onGame = useCallback((msg: ServerMessage) => {
     setState((prev) => applyHunt(prev, msg));
   }, []);
+
+  /*
+   * Read once per render rather than per click: it changes only when the admin
+   * centre writes it, which cannot happen while this page is open.
+   */
+  const solo = soloTesting();
 
   const room = useRoom(code, card.slug, onGame);
   const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
@@ -247,8 +255,8 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
 
   useEffect(() => () => trackerRef.current?.stop(), []);
 
-  const again = (): void => client?.send({ t: 'start', d: { mode: 'hunt' } });
-  const enough = room.connected >= HUNT_MIN_PLAYERS && room.connected <= HUNT_MAX_PLAYERS;
+  const again = (): void => client?.send({ t: 'start', d: { mode: 'hunt', solo } });
+  const enough = enoughToStart(room.connected, [HUNT_MIN_PLAYERS, HUNT_MAX_PLAYERS], solo);
   const mode: 'camera' | 'sphere' | 'dark' =
     route === 'sphere' ? 'sphere' : cameraOn ? 'camera' : 'dark';
 
@@ -307,7 +315,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         if (route === 'sensor' && !cameraOn && !cameraAsked) void enableCamera();
         again();
       }}
-      note={note(room.isHost, room.connected, route, orientationOn)}
+      note={note(room.isHost, room.connected, route, orientationOn, solo)}
       extras={
         <>
           <section class="panel hunt-safety" role="note">
@@ -478,8 +486,14 @@ function RoutePicker({
   );
 }
 
-function note(isHost: boolean, connected: number, route: Route, orientationOn: boolean): string {
-  if (connected < HUNT_MIN_PLAYERS) {
+function note(
+  isHost: boolean,
+  connected: number,
+  route: Route,
+  orientationOn: boolean,
+  solo: boolean,
+): string {
+  if (!solo && connected < HUNT_MIN_PLAYERS) {
     const missing = HUNT_MIN_PLAYERS - connected;
     return `Need ${missing} more player${missing === 1 ? '' : 's'} — hunting alone proves nothing.`;
   }

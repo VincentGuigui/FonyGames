@@ -52,7 +52,19 @@ export type ClientMessage =
    * host setting, not a game mode, and `hoard` or `blackout` would each want the
    * same choice (cat-and-mouse.md §6). Ignored by every other game.
    */
-  | { t: 'start'; d: { mode: string; drag?: 'direct' | 'capped' } }
+  | {
+      t: 'start';
+      d: {
+        mode: string;
+        drag?: 'direct' | 'capped';
+        /**
+         * Solo test mode — start with one player, for looking at a game rather than
+         * playing it. Set by a browser that has signed into the admin centre; the
+         * two rules it relaxes are listed on `enoughToStart` in shared/players.ts.
+         */
+        solo?: boolean;
+      };
+    }
   /** Finger down, at the client's clock-corrected server time. */
   | { t: 'tap'; d: { at: number; roundId: number } }
   /** This phone felt a knock. The SERVER pairs two of these into a contact. */

@@ -7,6 +7,8 @@ import {
   RUSH_TICK_MS,
   type ServerMessage,
 } from '../../../../shared/protocol';
+import { enoughToStart } from '../../../../shared/players';
+import { soloTesting } from '../../core/solo';
 import { useRoom, useShareRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
@@ -46,6 +48,12 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const onGame = useCallback((msg: ServerMessage) => {
     setState((prev) => applyRush(prev, msg));
   }, []);
+
+  /*
+   * Read once per render rather than per click: it changes only when the admin
+   * centre writes it, which cannot happen while this page is open.
+   */
+  const solo = soloTesting();
 
   const room = useRoom(code, card.slug, onGame);
   const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
@@ -97,8 +105,8 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     if (!granted) room.setError('No motion access — you can watch, but not race this one.');
   }
 
-  const again = (): void => client?.send({ t: 'start', d: { mode: 'rush' } });
-  const enoughPlayers = room.connected >= RUSH_MIN_PLAYERS && room.connected <= RUSH_MAX_PLAYERS;
+  const again = (): void => client?.send({ t: 'start', d: { mode: 'rush', solo } });
+  const enoughPlayers = enoughToStart(room.connected, [RUSH_MIN_PLAYERS, RUSH_MAX_PLAYERS], solo);
 
   if (state && (running || state.phase === 'over')) {
     return (
@@ -128,7 +136,7 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       canStart={room.isHost && enoughPlayers}
       startLabel="Start the race"
       onStart={again}
-      note={note(room.isHost, room.connected, motionOn)}
+      note={note(room.isHost, room.connected, motionOn, solo)}
       extras={
         <>
           {/*
@@ -219,8 +227,8 @@ function MotionPrimer({
   );
 }
 
-function note(isHost: boolean, connected: number, motionOn: boolean): string {
-  if (connected < RUSH_MIN_PLAYERS) {
+function note(isHost: boolean, connected: number, motionOn: boolean, solo: boolean): string {
+  if (!solo && connected < RUSH_MIN_PLAYERS) {
     const missing = RUSH_MIN_PLAYERS - connected;
     return `Need ${missing} more player${missing === 1 ? '' : 's'} — a race of one is just shaking.`;
   }
