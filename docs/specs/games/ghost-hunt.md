@@ -56,12 +56,40 @@ deranged from outside, which is the correct outcome.
    on the radar's rim points the way, which is the only help when it is behind you.
 4. Get within `RADAR_FOV` of the ghost and **it appears in the radar**, at its own
    place on the dial. It roams from its home while it is there.
-5. Keep it on the dial for `GHOST_HOLD_MS` → **caught**, +1, and the next ghost is
-   somewhere else. Let it off the dial and the hold starts again from nothing.
-6. After 90 s, most caught wins. Ties broken by total time-to-catch.
+5. Keep it on the dial for `GHOST_HOLD_MS` → **caught**, and the next ghost is somewhere
+   else. Let it off the dial and the hold starts again from nothing.
+6. The round ends the moment **anybody reaches `HUNT_TARGET_FINDS`**.
 
-**Win condition:** most ghosts caught in the round.
-**Scoring:** 1 point per ghost caught; the round winner takes the round.
+**Win condition:** the **lowest total search time**, among players who caught the most.
+**Scoring:** the score IS the time — every catch adds the seconds it took, and the
+smallest number wins.
+
+### A race to five, not a count inside ninety seconds
+
+This replaced "most found in 90 s" on 2026-08-14, and the two are different games. A fixed
+window makes the last few seconds worth nothing and ends every round at the same moment
+whatever anyone did; a target means the round ends **because somebody won it**. The clock
+is still there as a backstop so a room that cannot find anything does not hunt forever,
+which is why the card says *to 5 ghosts* rather than a duration.
+
+### Why the score is a time, and why time alone cannot rank
+
+The score is the seconds spent searching, summed over a player's catches, and the lowest
+wins — a hunter who found five ghosts in twenty seconds beat one who took a minute.
+
+But **time alone is not a ranking**, and getting this wrong is the trap: a player who has
+caught nothing has spent no time, so sorting on time puts whoever has barely played at the
+top. So the order is **count first, then time**:
+
+| | |
+| --- | --- |
+| `ranking()` | most caught, then lowest total. The winner necessarily has the most, because reaching the target is what ended the round |
+| `leaderOf()` | the same rule, and `null` when nobody has caught anything or two players are level on both |
+| The panel | shows the time, and is handed the leader explicitly — it ranks one value in one direction, and this is two values in opposite directions (`core/ui/Scoreboard.tsx`) |
+| A player with nothing | reads **—**, not `0.0s`. A zero in a column where low is good is a lie |
+
+`www/src/games/ghost-hunt/game.test.ts` asserts the trap directly: a player last on count
+and first on time must not be first overall.
 
 | Constant | Value | Why |
 | --- | --- | --- |
@@ -72,7 +100,8 @@ deranged from outside, which is the correct outcome.
 | `TARGET_MIN_SEPARATION` | 60° | Consecutive homes are never near each other, so a catch always costs a movement. Must clear `RADAR_FOV + GHOST_ROAM` (46°) |
 | `ELEVATION_RANGE` | −40°…+70° | Nothing at your feet, nothing directly behind your head |
 | `MIN_FIND_MS` | `GHOST_HOLD_MS − 200` | The server's floor on a believable claim (§8) |
-| `ROUND_MS` | 90 000 | At four seconds a catch plus the search, ~5–10 catches |
+| `HUNT_TARGET_FINDS` | 5 | Catches that end the round. First there wins it |
+| `ROUND_MS` | 90 000 | The **backstop**, not the rule: it stops a room that finds nothing from hunting forever |
 
 ### The one inequality: `GHOST_ROAM > RADAR_FOV`
 
@@ -180,6 +209,13 @@ That split is the whole interface, and it does three jobs at once:
 - **It keeps your eyes up.** You are looking at the room, through the phone,
   rather than down at a dial — which matters for §9.
 
+**No degrees readout.** There used to be an "N° off" number under the dial, and it was
+removed on 2026-08-14 at the maintainer's request. It cost §11 the one channel that worked
+without sight, which is recorded there rather than quietly dropped — what is left is the
+arrow, the ghost on the dial and the radar's brightness, all of them visual. The status bar
+carries progress towards the target (`3/5`) instead, which is the number that decides when
+the round stops.
+
 Three marks on the dial, and they answer different questions:
 
 | Mark | Says | When |
@@ -206,7 +242,8 @@ the time left, and everyone else's count.
 - **The catch**: the rim comes full and the radar gives one pulse. Fired by the
   **score going up** — the server agreeing — rather than by the phone's own hold
   completing, so nothing is ever celebrated that the referee then refuses.
-- **Results**: catch counts, fastest single catch called out.
+- **Results**: each player's catches **and their total search time**, ordered by the rule
+  in §2, with the fastest single catch called out.
 
 ## 5. Inputs & sensors
 
@@ -457,9 +494,15 @@ the accessible way to play rather than a lesser one (§5.4):
 
 - The **photosphere** is seated, one-handed, quiet, needs no permission at all,
   and is available to anyone from the lobby — not only after a denial.
-- The signal is carried **four ways at once**: the arrow's direction, the ghost's
-  presence on the dial, the radar's brightness and colour, and a number in degrees.
-  No single channel is required, and the number alone is enough to play.
+- The signal is carried **three ways**: the arrow's direction, the ghost's presence on the
+  dial, and the radar's brightness and colour. All three are visual.
+
+  There was a fourth — a number in degrees under the dial — and it was the only one that
+  worked without sight. It was removed on 2026-08-14 at the maintainer's request, and this
+  game is now **not playable without sight**: aiming a phone at a direction you cannot see
+  reported to you has no non-visual channel left. Recorded here rather than dropped
+  silently; the fix, if it is wanted back, is a screen-reader-only reading rather than the
+  visible number, since that is what §11 needed from it.
 - Vibration is an addition, never the only channel.
 - `RADAR_FOV`, `GHOST_ROAM` and `GHOST_HOLD_MS` are the difficulty knobs, and they
   move independently: a gentler mode would widen the dial and slow the roam rather

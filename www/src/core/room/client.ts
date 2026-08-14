@@ -33,6 +33,8 @@ export type RoomEvents = {
     fireAt: number,
     startsAt: number,
     target: { x: number; y: number },
+    /** How fast the target drifts this round — the server's, so every phone agrees. */
+    speed: number,
   ) => void;
   /** You tapped before the signal. Sent only to the offender. */
   falseStart: (roundId: number) => void;
@@ -197,7 +199,7 @@ export class RoomClient {
       case 'arm':
         if (msg.s <= this.#seq) return;
         this.#seq = msg.s;
-        this.#handlers.arm?.(msg.d.roundId, msg.d.fireAt, msg.d.startsAt, msg.d.target);
+        this.#handlers.arm?.(msg.d.roundId, msg.d.fireAt, msg.d.startsAt, msg.d.target, msg.d.speed);
         return;
 
       case 'false-start':

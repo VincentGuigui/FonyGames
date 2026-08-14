@@ -141,8 +141,16 @@ export type RoundResult = {
   /** Fastest valid reaction first; false starts and no-shows last. */
   ranking: Reaction[];
   winnerId: PlayerId | null;
-  /** Cumulative points this session, keyed by player id. */
+  /** Points in the current match, keyed by player id. */
   scores: Record<PlayerId, number>;
+  /**
+   * Who reached `DUEL_MATCH_TARGET` with this round, or null while the match runs.
+   *
+   * The scores in this same frame still show the winning tally, but the server has already
+   * cleared what it stores — so the next round starts a new match, and this is how the
+   * screen knows to say so.
+   */
+  matchWinnerId: PlayerId | null;
   /** True when nobody produced a valid tap. */
   noContest: boolean;
 };
@@ -298,6 +306,16 @@ export type ServerMessage =
         fireAt: number;
         startsAt: number;
         target: { x: number; y: number };
+        /**
+         * How fast the target drifts this round — see `driftSpeed`.
+         *
+         * Sent rather than derived, even though every phone could compute it from the
+         * scores it has: a phone that joined mid-match has not seen those results, and a
+         * target moving at a different speed on one screen hands that player either an
+         * easier round or an impossible one. Everything about this target is on the wire
+         * for exactly that reason (spec §4).
+         */
+        speed: number;
       };
     }
   /** Only the offender is told, and only they see it. */
@@ -362,6 +380,15 @@ export type ServerMessage =
         index: Record<PlayerId, number>;
         endsAt: number;
         scores: Record<PlayerId, number>;
+        /**
+         * Time spent searching, per player, in ms — the SCORE, and lowest wins.
+         *
+         * Cumulative across their finds and measured by the server, so it cannot be
+         * beaten by a client with a generous clock. A player with nothing found yet has
+         * no time, which is not the same as having a fast one: see `ranking` in
+         * ghost-hunt/game.ts for why the two must never be compared.
+         */
+        totals: Record<PlayerId, number>;
       };
     }
   /** Ghost Hunt: round over. `best` is the fastest single find, if there was one. */
@@ -371,6 +398,7 @@ export type ServerMessage =
       d: {
         roundId: number;
         scores: Record<PlayerId, number>;
+        totals: Record<PlayerId, number>;
         best: { player: PlayerId; ms: number } | null;
       };
     }
@@ -600,6 +628,38 @@ export const WIN_SCORE = 3;
  * top-right corner where the gear lives — a target under the menu button would
  * be a target you cannot tap without opening the menu.
  */
+/**
+ * Points that take the match. First there wins it.
+ *
+ * A duel is one tap, so a single round is a coin toss between two quick people; ten of
+ * them is a contest. The rounds themselves are unchanged — this is the number that says
+ * when to stop.
+ */
+export const DUEL_MATCH_TARGET = 10;
+
+/**
+ * How fast the target drifts, as a multiple of the base leg speed, given how many rounds
+ * this match has already decided.
+ *
+ * **Slow at first and faster with every point scored.** The first duel of a match is
+ * nearly a still target — a fair test of reaction and nothing else — and by the tenth the
+ * thumb has to follow something that is genuinely moving. That ramp is the difficulty
+ * curve of a match, and it costs nothing: the drift is a pure function of elapsed time
+ * (`drift.ts`), so scaling the time scales the speed.
+ *
+ * Capped, because the walk is legs of a fixed length: past about twice speed the target
+ * changes direction faster than a hand can react, which stops being harder and starts
+ * being arbitrary.
+ */
+export const DRIFT_SPEED_START = 0.55;
+export const DRIFT_SPEED_STEP = 0.15;
+export const DRIFT_SPEED_MAX = 2.2;
+
+export function driftSpeed(roundsDecided: number): number {
+  const n = Number.isFinite(roundsDecided) && roundsDecided > 0 ? roundsDecided : 0;
+  return Math.min(DRIFT_SPEED_MAX, DRIFT_SPEED_START + n * DRIFT_SPEED_STEP);
+}
+
 export const TARGET_MIN_X = 0.2;
 export const TARGET_MAX_X = 0.8;
 export const TARGET_MIN_Y = 0.3;
@@ -974,6 +1034,23 @@ export const TARGET_MIN_SEPARATION_DEG = 60;
 export const ELEVATION_MIN_DEG = -40;
 export const ELEVATION_MAX_DEG = 70;
 
+/**
+ * The round closes as soon as **anybody** has caught this many.
+ *
+ * A race to a fixed number rather than a count inside a fixed window, which is what this
+ * was. The two are different games: a window makes the last few seconds worth nothing and
+ * ends every round at the same moment whatever anyone did, while a target means the round
+ * ends because somebody won it.
+ */
+export const HUNT_TARGET_FINDS = 5;
+
+/**
+ * The safety cap, and it is now only that.
+ *
+ * A round normally ends when someone reaches `HUNT_TARGET_FINDS`. This stops a room that
+ * cannot find anything from hunting forever, so it is a backstop rather than the rule —
+ * the card's "90 s" is a worst case, not a duration.
+ */
 export const HUNT_ROUND_MS = 90_000;
 
 /**

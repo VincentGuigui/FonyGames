@@ -23,6 +23,8 @@ export type HuntView = {
   index: Record<PlayerId, number>;
   endsAt: number;
   scores: Record<PlayerId, number>;
+  /** Time spent searching, per player, in ms. The score — and lowest wins. */
+  totals: Record<PlayerId, number>;
   phase: 'running' | 'over';
   best: { player: PlayerId; ms: number } | null;
   seq: number;
@@ -44,6 +46,7 @@ export function applyHunt(state: HuntState, msg: ServerMessage): HuntState {
         index: msg.d.index,
         endsAt: msg.d.endsAt,
         scores: msg.d.scores,
+        totals: msg.d.totals,
         phase: 'running',
         best: null,
         seq: msg.s,
@@ -53,7 +56,14 @@ export function applyHunt(state: HuntState, msg: ServerMessage): HuntState {
     case 'hunt-end': {
       if (!state || msg.d.roundId !== state.roundId) return state;
       if (msg.s <= state.seq) return state;
-      return { ...state, phase: 'over', scores: msg.d.scores, best: msg.d.best, seq: msg.s };
+      return {
+        ...state,
+        phase: 'over',
+        scores: msg.d.scores,
+        totals: msg.d.totals,
+        best: msg.d.best,
+        seq: msg.s,
+      };
     }
 
     default:
@@ -166,7 +176,50 @@ export function createLock() {
   };
 }
 
-/** Everyone, best score first. Ties keep room order, which is stable. */
+/**
+ * Everyone, best first: **most caught, then the lowest time**.
+ *
+ * Both parts, in that order, and the order is the whole point. The score is the time spent
+ * searching and the lowest wins — but a player who has found nothing has spent no time, so
+ * ranking on time alone crowns whoever played least. Count first makes the comparison
+ * honest: among players who caught the same number, the fastest is ahead.
+ *
+ * Ties on both keep room order, which is stable.
+ */
 export function ranking(state: HuntView, players: PlayerId[]): PlayerId[] {
-  return [...players].sort((a, b) => (state.scores[b] ?? 0) - (state.scores[a] ?? 0));
+  return [...players].sort((a, b) => {
+    const byCount = (state.scores[b] ?? 0) - (state.scores[a] ?? 0);
+    if (byCount !== 0) return byCount;
+    return (state.totals[a] ?? 0) - (state.totals[b] ?? 0);
+  });
+}
+
+/**
+ * Who is winning, or null when nobody has caught anything yet.
+ *
+ * Handed to the score panel rather than letting it work this out: it ranks on one value in
+ * one direction, and this game's rule is two values in opposite directions. A panel told to
+ * bold the lowest time would bold the player who has not started.
+ */
+export function leaderOf(state: HuntView, players: PlayerId[]): PlayerId | null {
+  const withFinds = players.filter((id) => (state.scores[id] ?? 0) > 0);
+  if (withFinds.length === 0) return null;
+  const [first, second] = ranking(state, withFinds);
+  if (first === undefined) return null;
+  // Only when one player is actually ahead: level on both count and time is a tie, and a
+  // tie has no leader (core/ui/Scoreboard.tsx).
+  if (
+    second !== undefined &&
+    (state.scores[first] ?? 0) === (state.scores[second] ?? 0) &&
+    (state.totals[first] ?? 0) === (state.totals[second] ?? 0)
+  ) {
+    return null;
+  }
+  return first;
+}
+
+/** A search time for the panel — `null` for a player who has not caught one yet. */
+export function searchTime(state: HuntView, id: PlayerId): string {
+  if ((state.scores[id] ?? 0) === 0) return '—';
+  return `${((state.totals[id] ?? 0) / 1000).toFixed(1)}s`;
 }

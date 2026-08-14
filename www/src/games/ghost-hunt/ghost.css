@@ -62,9 +62,8 @@
   background: rgb(5 7 11 / 0.22);
 }
 
-/* Same for the radar and the readout: they sit over the background in the middle of
-   the screen, which is exactly where a thumb starts a drag. Only the controls in
-   the bar take a pointer. */
+/* Same for the radar: it sits over the background in the middle of the screen, which is
+   exactly where a thumb starts a drag. Only the controls in the bar take a pointer. */
 .hunt__radarwrap {
   pointer-events: none;
 }
@@ -74,8 +73,7 @@
 }
 
 .hunt__bar,
-.hunt__radarwrap,
-.hunt__foot {
+.hunt__radarwrap {
   position: relative;
   width: 100%;
 }
@@ -207,18 +205,6 @@
   fill: #05070b;
 }
 
-/* The number: the one channel that works entirely on its own (§11). */
-.hunt__reading {
-  margin: 0;
-  font-size: var(--font-large);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-
-.hunt--near .hunt__reading {
-  color: var(--game-accent, var(--color-accent));
-}
-
 /* The found beat, fired by the SCORE going up — the server agreeing, not the
    phone guessing. A fade, and reduced-motion turns even that off. */
 .hunt--found .hunt__radar {
@@ -241,42 +227,6 @@
   .hunt__radar {
     transition: none;
   }
-}
-
-/* --- the foot ------------------------------------------------------------ */
-
-.hunt__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.hunt__board {
-  display: flex;
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.hunt__score {
-  display: flex;
-  align-items: center;
-  gap: 0.25em;
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-2);
-  background: rgb(5 7 11 / 0.6);
-  font-size: var(--font-small);
-}
-
-.hunt__score--me {
-  box-shadow: inset 0 0 0 2px var(--game-accent, var(--color-accent));
-}
-
-.hunt__score-n {
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
 }
 
 /* --- results -------------------------------------------------------------- */

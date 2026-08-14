@@ -11,6 +11,8 @@ import {
   RATE_LIMIT_WINDOW_MS,
   MIN_HUMAN_REACTION_MS,
   preroundFor,
+  driftSpeed,
+  DUEL_MATCH_TARGET,
   randomTarget,
   RECONNECT_GRACE_MS,
   isClientMessage,
@@ -555,6 +557,19 @@ export class Room extends DurableObject {
     // place — a per-client position would decide the round by luck.
     const target = randomTarget();
 
+    /*
+     * How fast it drifts, from how many rounds this match has already decided.
+     *
+     * The sum of the scores rather than a round counter: `roundId` is the room's, shared
+     * with every other game, so a room that played six rounds of Spill would start its
+     * first duel at top speed. A no-contest awards nobody a point and so does not make the
+     * next round harder, which is right — nothing was decided.
+     */
+    const decided = Object.values(
+      (await this.ctx.storage.get<Record<PlayerId, number>>('scores')) ?? {},
+    ).reduce((a, b) => a + b, 0);
+    const speed = driftSpeed(decided);
+
     await this.ctx.storage.put('roundId', roundId);
     await this.#saveDuel({
       roundId,
@@ -566,7 +581,7 @@ export class Room extends DurableObject {
       entrants: ready.map((p) => p.id),
     });
 
-    this.#broadcast({ t: 'arm', s: this.#nextSeq(), d: { roundId, fireAt, startsAt, target } });
+    this.#broadcast({ t: 'arm', s: this.#nextSeq(), d: { roundId, fireAt, startsAt, target, speed } });
 
     // The server owns the timer, not the host — so a host dropping mid-duel
     // cannot stall it. This alarm resolves the duel if nobody taps.
@@ -637,7 +652,17 @@ export class Room extends DurableObject {
     const winnerId = winner?.playerId ?? null;
     if (winnerId) scores[winnerId] = (scores[winnerId] ?? 0) + 1;
 
-    await this.ctx.storage.put('scores', scores);
+    /*
+     * The match is to `DUEL_MATCH_TARGET`. Reaching it wins it, and clears the board.
+     *
+     * The result frame still carries the winning tally — the screen has to be able to say
+     * "10–7" — but what is STORED is reset, so the next `Again` starts a fresh match from
+     * nil rather than continuing past the finish line. Without this the match target would
+     * be an announcement rather than a rule: play would carry on to eleven and twelve, and
+     * the drift ramp would be pinned at its cap forever.
+     */
+    const matchOver = Object.values(scores).some((n) => n >= DUEL_MATCH_TARGET);
+    await this.ctx.storage.put('scores', matchOver ? {} : scores);
     await this.#saveDuel({ ...duel, phase: 'done' });
 
     this.#broadcast({
@@ -648,6 +673,9 @@ export class Room extends DurableObject {
         ranking: ranking.filter((r) => players.has(r.playerId)),
         winnerId,
         scores,
+        // Who took the match, or null when it is still running. The screen needs to say
+        // something different for the tenth point than for the ninth.
+        matchWinnerId: matchOver ? (winnerId ?? null) : null,
         noContest: winnerId === null,
       },
     });

@@ -47,7 +47,8 @@ const REF_ASPECT = 844 / 390;
 /**
  * Legs to walk before giving up.
  *
- * The armed window is at most `FIRE_MAX_MS` (6 s), so nine legs is the real ceiling.
+ * The armed window is at most `FIRE_MAX_MS` (6 s) and the drift runs at up to
+ * `DRIFT_SPEED_MAX`, so about twenty legs is the real ceiling.
  * The cap is here because `elapsed` comes from a clock: a phone that wakes from sleep
  * with a stale offset could ask for a preposterous time, and this loop must not be the
  * thing that hangs the frame.
@@ -79,22 +80,31 @@ function angle(seed: number, i: number): number {
  * The target's position `elapsed` ms into the armed window.
  *
  * Pure. Same inputs, same answer, on every phone and in the test harness.
+ *
+ * `speed` scales the CLOCK rather than the leg length, which is what makes the ramp free:
+ * the walk is already a function of elapsed time, so running that clock faster covers the
+ * same path more quickly and turns corners sooner. Scaling the leg length instead would
+ * have made a fast target take longer strides in the same rhythm, which reads as teleporting
+ * rather than as hurrying. The server sends it (`driftSpeed` in protocol.ts) so no two
+ * phones can disagree.
  */
 export function driftAt(
   origin: { x: number; y: number },
   seed: number,
   elapsedMs: number,
+  speed = 1,
 ): { x: number; y: number } {
   let x = origin.x;
   let y = origin.y;
-  if (!(elapsedMs > 0)) return { x, y };
+  const walked = elapsedMs * (Number.isFinite(speed) && speed > 0 ? speed : 1);
+  if (!(walked > 0)) return { x, y };
 
-  const legs = Math.min(MAX_LEGS, Math.floor(elapsedMs / DRIFT_LEG_MS));
+  const legs = Math.min(MAX_LEGS, Math.floor(walked / DRIFT_LEG_MS));
   for (let i = 0; i <= legs; i++) {
     // The last leg is only partly walked — that is what makes this continuous
     // rather than a jump every 700 ms.
     const part =
-      i < legs ? 1 : Math.min(1, (elapsedMs - legs * DRIFT_LEG_MS) / DRIFT_LEG_MS);
+      i < legs ? 1 : Math.min(1, (walked - legs * DRIFT_LEG_MS) / DRIFT_LEG_MS);
     const a = angle(seed, i);
     x = fold(x + Math.cos(a) * DRIFT_LEG * part, TARGET_MIN_X, TARGET_MAX_X);
     y = fold(y + (Math.sin(a) * DRIFT_LEG * part) / REF_ASPECT, TARGET_MIN_Y, TARGET_MAX_Y);

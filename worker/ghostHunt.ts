@@ -5,6 +5,7 @@ import {
   HUNT_MIN_PLAYERS,
   HUNT_ROUND_MS,
   HUNT_TICK_MS,
+  HUNT_TARGET_FINDS,
   MIN_FIND_MS,
   TARGET_MIN_SEPARATION_DEG,
   type PlayerId,
@@ -39,6 +40,14 @@ export type HuntPlayer = {
   shownAt: number;
   /** Fastest single find, or 0 if none. */
   best: number;
+  /**
+   * Time spent searching, in ms, summed over every find — **the score, and lowest wins**.
+   *
+   * Server-measured, like `best`: a total built from numbers the client chose is a
+   * leaderboard of whoever lies best. A player with nothing found has a total of zero,
+   * which is why nothing may rank on this alone — see `ranking` in ghost-hunt/game.ts.
+   */
+  total: number;
 };
 
 export type Hunt = {
@@ -147,7 +156,7 @@ export async function startHunt(
 
   const now = ctx.now();
   const players: Record<PlayerId, HuntPlayer> = {};
-  for (const id of connected) players[id] = { score: 0, index: 0, shownAt: now, best: 0 };
+  for (const id of connected) players[id] = { score: 0, index: 0, shownAt: now, best: 0, total: 0 };
 
   const s: Hunt = {
     roundId,
@@ -228,9 +237,23 @@ export async function onFound(
   // The server's own elapsed, not the client's: a fastest-find board built from
   // numbers the client chose is a board of whoever lies best.
   if (p.best === 0 || elapsed < p.best) p.best = elapsed;
+  p.total += elapsed;
 
   p.index += 1;
   p.shownAt = now;
+
+  /*
+   * The target reached: this player has won and the round is over.
+   *
+   * Checked here rather than on the tick, for the same reason the crossing in Shake Rush
+   * is: the tick is up to `HUNT_TICK_MS` behind, and "who got to five first" is the one
+   * thing in this game worth being exact about.
+   */
+  if (p.score >= HUNT_TARGET_FINDS) {
+    await finish(ctx, s);
+    return;
+  }
+
   targetAt(ctx, s, p.index);
 
   await ctx.save(s);
@@ -275,10 +298,12 @@ export async function onHuntTick(ctx: Ctx): Promise<boolean> {
 
 async function finish(ctx: Ctx, s: Hunt): Promise<void> {
   const scores: Record<PlayerId, number> = {};
+  const totals: Record<PlayerId, number> = {};
   let best: { player: PlayerId; ms: number } | null = null;
 
   for (const [id, p] of Object.entries(s.players)) {
     scores[id] = p.score;
+    totals[id] = p.total;
     if (p.best > 0 && (!best || p.best < best.ms)) best = { player: id, ms: p.best };
   }
 
@@ -287,15 +312,17 @@ async function finish(ctx: Ctx, s: Hunt): Promise<void> {
   ctx.broadcast({
     t: 'hunt-end',
     s: ctx.nextSeq(),
-    d: { roundId: s.roundId, scores, best },
+    d: { roundId: s.roundId, scores, totals, best },
   });
 }
 
 function broadcast(ctx: Ctx, s: Hunt): void {
   const scores: Record<PlayerId, number> = {};
+  const totals: Record<PlayerId, number> = {};
   const index: Record<PlayerId, number> = {};
   for (const [id, p] of Object.entries(s.players)) {
     scores[id] = p.score;
+    totals[id] = p.total;
     index[id] = p.index;
   }
 
@@ -311,6 +338,7 @@ function broadcast(ctx: Ctx, s: Hunt): void {
       index,
       endsAt: s.endsAt,
       scores,
+      totals,
     },
   });
 }

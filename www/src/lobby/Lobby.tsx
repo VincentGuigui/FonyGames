@@ -42,6 +42,8 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
     roundId: number;
     startsAt: number;
     fireAt: number;
+    /** The drift speed for this round. Slow early in a match, faster with each point. */
+    speed: number;
   } | null>(null);
   /** Where the target will appear. From the server, so it is the same for all. */
   const [target, setTarget] = useState<{ x: number; y: number } | null>(null);
@@ -53,14 +55,14 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
   useEffect(() => {
     if (!client) return;
 
-    client.on('arm', (roundId, fireAt, startsAt, where) => {
+    client.on('arm', (roundId, fireAt, startsAt, where, speed) => {
       roundRef.current = roundId;
       setResult(null);
       setPhase('armed');
       setTarget(where);
       // The server sends both times and guarantees fireAt > startsAt, so the
       // signal can never land behind the panel.
-      setArmedAt({ roundId, startsAt, fireAt });
+      setArmedAt({ roundId, startsAt, fireAt, speed });
       // Scheduled against SERVER time, so every screen flips at the same true
       // instant however different the pings are (tap-duel.md §6).
       const delay = Math.max(0, fireAt - client.now());

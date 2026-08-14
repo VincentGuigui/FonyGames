@@ -2,9 +2,11 @@ import {
   applyHunt,
   createLock,
   heat,
+  leaderOf,
   myIndex,
   myTarget,
   ranking,
+  searchTime,
   HOT_FROM_DEG,
   type HuntState,
 } from './game';
@@ -353,7 +355,16 @@ console.log('\nthe hot/cold radar');
 
 console.log('\nthe frames');
 
-const hunt = (s: number, over: Partial<{ index: Record<string, number>; scores: Record<string, number>; roundId: number; targets: Aim[] }> = {}): ServerMessage => ({
+const hunt = (
+  s: number,
+  over: Partial<{
+    index: Record<string, number>;
+    scores: Record<string, number>;
+    totals: Record<string, number>;
+    roundId: number;
+    targets: Aim[];
+  }> = {},
+): ServerMessage => ({
   t: 'hunt',
   s,
   d: {
@@ -362,6 +373,7 @@ const hunt = (s: number, over: Partial<{ index: Record<string, number>; scores: 
     index: over.index ?? { a: 0, b: 0, c: 0 },
     endsAt: 90_000,
     scores: over.scores ?? { a: 0, b: 0, c: 0 },
+    totals: over.totals ?? { a: 0, b: 0, c: 0 },
   },
 });
 
@@ -391,7 +403,12 @@ check('and an index past the sequence is quiet, not a crash',
 st = applyHunt(st, {
   t: 'hunt-end',
   s: 3,
-  d: { roundId: 1, scores: { a: 4, b: 2, c: 0 }, best: { player: B, ms: 900 } },
+  d: {
+    roundId: 1,
+    scores: { a: 4, b: 2, c: 0 },
+    totals: { a: 40_000, b: 18_000, c: 0 },
+    best: { player: B, ms: 900 },
+  },
 });
 check('over', st?.phase === 'over');
 check('with the final counts', st?.scores['a'] === 4);
@@ -399,7 +416,7 @@ check('and the fastest find called out', st?.best?.player === B);
 
 {
   const before = st;
-  st = applyHunt(st, { t: 'hunt-end', s: 2, d: { roundId: 1, scores: {}, best: null } });
+  st = applyHunt(st, { t: 'hunt-end', s: 2, d: { roundId: 1, scores: {}, totals: {}, best: null } });
   check('a stale result cannot blank the scores', st?.scores['a'] === 4);
   check('nor cause a render', st === before);
 }
@@ -417,12 +434,67 @@ console.log('\na new round wipes the last one');
   check('and a frame from the finished round is dropped', applyHunt(next, hunt(9)) === before);
 }
 
+/*
+ * Who is winning, which is now a rule with TWO parts and they pull opposite ways: the
+ * score is time spent searching and the lowest wins, but only among players who have
+ * caught the same number. A single sort on either value alone gets it wrong, and gets it
+ * wrong in a way that looks plausible on the screen you happen to be looking at.
+ */
 console.log('\nwho is winning');
 
 {
-  const board = applyHunt(null, hunt(1, { scores: { a: 2, b: 7, c: 5 } }));
-  check('most found first', ranking(board!, [A, B, C]).join() === 'b,c,a');
-  check('a player who left the room is not drawn', ranking(board!, [A, C]).join() === 'c,a');
+  const board = applyHunt(null, hunt(1, {
+    scores: { a: 2, b: 7, c: 5 },
+    totals: { a: 10_000, b: 60_000, c: 30_000 },
+  }))!;
+  check('most caught first', ranking(board, [A, B, C]).join() === 'b,c,a');
+  check('a player who left the room is not drawn', ranking(board, [A, C]).join() === 'c,a');
+
+  // THE check. A ranks last on count and FIRST on time — because they have barely played.
+  // A sort on time alone would crown them.
+  check('and the fewest seconds does not win on its own', ranking(board, [A, B, C])[0] === B);
+}
+
+{
+  // Level on count: now the time decides, and the LOWEST is ahead.
+  const board = applyHunt(null, hunt(1, {
+    scores: { a: 3, b: 3, c: 3 },
+    totals: { a: 30_000, b: 12_000, c: 21_000 },
+  }))!;
+  check('on level counts the fastest is first', ranking(board, [A, B, C]).join() === 'b,c,a');
+  check('and the leader is that player', leaderOf(board, [A, B, C]) === B);
+}
+
+{
+  // Nobody has caught anything: there is no leader, and in particular it is not whoever
+  // has the lowest time — everybody's time is nil.
+  const empty = applyHunt(null, hunt(1))!;
+  check('a round nobody has scored in has no leader', leaderOf(empty, [A, B, C]) === null);
+  check('and every time reads as a dash, not 0.0s', searchTime(empty, A) === '—');
+
+  const tied = applyHunt(null, hunt(1, {
+    scores: { a: 2, b: 2, c: 0 },
+    totals: { a: 20_000, b: 20_000, c: 0 },
+  }))!;
+  check('a dead heat has no leader either', leaderOf(tied, [A, B, C]) === null);
+
+  const clear = applyHunt(null, hunt(1, {
+    scores: { a: 2, b: 2, c: 0 },
+    totals: { a: 20_000, b: 19_000, c: 0 },
+  }))!;
+  check('a second between them is a leader', leaderOf(clear, [A, B, C]) === B);
+  // And a player with nothing found can never be it, however little time they have spent.
+  check('never the player who has not started', leaderOf(clear, [A, B, C]) !== C);
+}
+
+{
+  const board = applyHunt(null, hunt(1, {
+    scores: { a: 3, b: 0, c: 1 },
+    totals: { a: 42_300, b: 0, c: 8_000 },
+  }))!;
+  check('a time is shown to a tenth', searchTime(board, A) === '42.3s', searchTime(board, A));
+  check('and rounds rather than truncating', searchTime(board, C) === '8.0s', searchTime(board, C));
+  check('while nothing caught is still a dash', searchTime(board, B) === '—');
 }
 
 /*

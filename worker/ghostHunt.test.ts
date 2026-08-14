@@ -13,6 +13,7 @@ import {
   ELEVATION_MAX_DEG,
   ELEVATION_MIN_DEG,
   HUNT_ROUND_MS,
+  HUNT_TARGET_FINDS,
   HUNT_TICK_MS,
   MIN_FIND_MS,
   TARGET_MIN_SEPARATION_DEG,
@@ -269,6 +270,59 @@ console.log('\ntwo hunters, one ghost');
   check('A pulls ahead by finding the next one first', h.state?.players[A]?.score === 2);
   check('while B is still on it', h.state?.players[B]?.index === 1);
   check('and the sequence only extends for the leader', h.state?.targets.length === 3);
+}
+
+/*
+ * The round now ENDS at the target, and the score is the time spent getting there.
+ *
+ * Both halves are new and both are the kind of thing that would ship looking fine: a round
+ * that never closes early just feels long, and a total that counts nothing is a zero, which
+ * looks like a fast time rather than an absent one.
+ */
+console.log('\nfive catches closes it');
+
+{
+  const h = harness();
+  await startHunt(h.ctx, 1, [A, B]);
+
+  for (let i = 0; i < HUNT_TARGET_FINDS; i++) {
+    h.advance(HONEST);
+    await onFound(h.ctx, A, 1, i, HONEST);
+  }
+
+  check('reaching the target ends the round', h.state?.phase === 'done', h.state?.phase);
+  check('with that player on the target', h.state?.players[A]?.score === HUNT_TARGET_FINDS);
+  check('and it did not wait for the tick', h.state?.endsAt !== undefined && h.now < h.state.endsAt);
+
+  const end = h.last('hunt-end');
+  check('a result went out', end?.t === 'hunt-end');
+  if (end?.t === 'hunt-end') {
+    // The SCORE: time spent searching, summed, measured by the server.
+    check('carrying the search times', end.d.totals[A] === HONEST * HUNT_TARGET_FINDS, end.d.totals);
+    check('and nothing for the player who found nothing', end.d.totals[B] === 0, end.d.totals);
+  }
+
+  // One more claim after the end changes nothing.
+  h.advance(HONEST);
+  await onFound(h.ctx, A, 1, HUNT_TARGET_FINDS, HONEST);
+  check('and a find after it is ignored', h.state?.players[A]?.score === HUNT_TARGET_FINDS);
+}
+
+{
+  // The total is cumulative and server-measured — a client claiming a small `ms` cannot
+  // make its own total look better, because the server uses its own elapsed.
+  const h = harness();
+  await startHunt(h.ctx, 1, [A, B]);
+
+  h.advance(HONEST + 5_000);
+  await onFound(h.ctx, A, 1, 0, HONEST);
+  check('the total is the SERVER elapsed, not the claim',
+    h.state?.players[A]?.total === HONEST + 5_000, h.state?.players[A]);
+
+  h.advance(HONEST);
+  await onFound(h.ctx, A, 1, 1, HONEST);
+  check('and it accumulates', h.state?.players[A]?.total === HONEST * 2 + 5_000, h.state?.players[A]);
+  check('while a player who has found nothing has none', h.state?.players[B]?.total === 0);
 }
 
 console.log('\nthe round ends');

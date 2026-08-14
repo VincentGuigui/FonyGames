@@ -34,7 +34,8 @@ which is exactly why it goes first.
 5. First valid tap **on the target** wins. Tapping anywhere before the signal —
    the target included — is a **false start** and knocks you out of that duel.
 6. Results show everyone's reaction time, fastest first.
-7. Play again keeps the room and the scores.
+7. Play again keeps the room and the scores — until somebody reaches
+   `DUEL_MATCH_TARGET`, which **takes the match** and starts the next one from nil.
 
 **The signal is scheduled after the panel, not merely displayed after it.**
 `fireAt` is `startsAt + FIRE_MIN..MAX`, both sent on `arm`. This is the one game
@@ -42,7 +43,33 @@ where a covered screen would cost you the round through no fault of your own, so
 the server moves the signal rather than the client hoping the panel is gone.
 
 **Win condition:** fastest valid reaction in the duel.
-**Scoring:** 1 point per duel won; the session is first to 3.
+**Scoring:** 1 point per duel won. **The match is first to `DUEL_MATCH_TARGET` (10).**
+
+### The match is to ten, and the target speeds up on the way
+
+A duel is one tap, so a single round between two quick people is close to a coin toss.
+Ten of them is a contest, and the number is on the card's rules rather than left to be
+discovered.
+
+The target **drifts slowly in the first duel of a match and faster with every point
+scored** — `driftSpeed(roundsDecided)` in protocol.ts, from `DRIFT_SPEED_START` (0.55) to
+a cap at `DRIFT_SPEED_MAX` (2.2). That ramp is the difficulty curve of a match: the
+opening duel is nearly a still target and a fair test of reaction alone, and by the tenth
+the thumb has to follow something genuinely moving.
+
+Three things about it are deliberate:
+
+| | |
+| --- | --- |
+| It scales the **clock**, not the leg length | The drift is already a pure function of elapsed time (§4), so running that clock faster covers the same path sooner and turns corners sooner. Longer strides in the same rhythm would read as teleporting |
+| The speed is **sent on `arm`** | Every phone could compute it from the scores, but a phone that joined mid-match has not seen those results — and a target moving at a different speed on one screen hands that player an easier round or an impossible one |
+| It counts **points, not rounds** | A no-contest decides nothing, so it does not make the next duel harder. `roundId` was rejected for the same reason from the other end: it is the room's counter, shared with every other game, so a room that played six rounds of Spill would open its first duel at top speed |
+
+**Reaching ten clears the stored scores.** The result frame still carries the winning
+tally — the screen has to be able to say 10–7 — but what the server keeps is reset, so
+`Again` after a match is a new match. Without that, the target would be an announcement
+rather than a rule: play would carry on past ten and the drift ramp would sit pinned at
+its cap forever.
 
 ### Timing
 

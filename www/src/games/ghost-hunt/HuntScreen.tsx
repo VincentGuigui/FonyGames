@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX, RefObject } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
-import { RADAR_FOV_DEG } from '../../../../shared/protocol';
+import { HUNT_TARGET_FINDS, RADAR_FOV_DEG } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard } from '../../core/ui/Scoreboard';
-import { heat, ranking, type HuntView, type LockState } from './game';
+import { heat, leaderOf, ranking, searchTime, type HuntView, type LockState } from './game';
 import { RADAR_PX } from './vision';
 
 /**
@@ -92,8 +92,13 @@ export function HuntScreen({
       <div class="hunt__veil" aria-hidden="true" />
 
       <div class="hunt__bar">
+        {/*
+          Progress towards the target rather than a bare count: the round ends when
+          somebody reaches it, so "3" means nothing without the 5 beside it. The clock is
+          the safety cap, not the rule (spec §2).
+        */}
         <StatusBar
-          score={{ value: mine, label: 'found' }}
+          score={{ value: `${mine}/${HUNT_TARGET_FINDS}`, label: 'caught' }}
           status={`${secondsLeft}s`}
           title={title}
           concept={concept}
@@ -150,31 +155,27 @@ export function HuntScreen({
           </svg>
         </div>
 
-        {/*
-          The number, and the only channel that works on its own. The radar's
-          brightness, its colour and the ghost's presence all say the same thing, but
-          a player who cannot use any of them can still play from this (spec §11).
-        */}
-        <p class="hunt__reading" role="status" aria-live="polite">
-          {Number.isFinite(lock.error) ? `${Math.round(lock.error)}° off` : 'looking…'}
-        </p>
       </div>
 
       {/*
-        The scores used to be a row of avatar-and-number chips along the foot of this
-        screen, capped at four players and unlabelled. The shared panel is that, with
-        names, at any head count, and identical in every other game — so the row is
-        gone rather than sitting above it saying the same thing twice.
+        The score is the time spent searching, and the LOWEST wins.
+        
+        `leader` is passed rather than `best="low"`: a player who has caught nothing has
+        spent no time, so the lowest number on the panel is often somebody who has not
+        started. `leaderOf` ranks on count first and then on time, which is the rule
+        (game.ts) — and a player with nothing yet reads "—" rather than a flattering 0.0s.
       */}
       <Scoreboard
         rows={players.map((p) => ({
           id: p.id,
           avatar: p.avatar,
           name: p.name,
-          value: state.scores[p.id] ?? 0,
+          value: searchTime(state, p.id),
         }))}
         me={myId}
-        unit="ghosts"
+        unit="seconds searching"
+        best="none"
+        leader={leaderOf(state, players.map((p) => p.id))}
       />
     </div>
   );
@@ -228,12 +229,15 @@ export function HuntResults({
   state,
   players,
   myId,
+  accent,
   onAgain,
   canAgain,
 }: {
   state: HuntView;
   players: Player[];
   myId: PlayerId | undefined;
+  /** Same reason as the round screen: this is outside the lobby template too. */
+  accent: string;
   onAgain: () => void;
   canAgain: boolean;
 }): JSX.Element {
@@ -242,7 +246,7 @@ export function HuntResults({
   const winner = order[0];
 
   return (
-    <div class="hunt hunt--over">
+    <div class="hunt hunt--over" style={{ '--game-accent': accent } as JSX.CSSProperties}>
       <p class="hunt__trophy" aria-hidden="true">
         {winner ? (byId.get(winner)?.avatar ?? '👻') : '👻'}
       </p>
@@ -256,8 +260,9 @@ export function HuntResults({
             <span class="hunt__place-n">{i + 1}</span>
             <span aria-hidden="true">{byId.get(id)?.avatar ?? '🙂'}</span>
             <span class="hunt__place-who">{byId.get(id)?.name ?? 'Someone'}</span>
+            {/* Both numbers: the count is what ended the round, the time is the score. */}
             <span class="hunt__place-at">
-              {state.scores[id] ?? 0} found
+              {state.scores[id] ?? 0} in {searchTime(state, id)}
             </span>
           </li>
         ))}

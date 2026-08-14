@@ -13,6 +13,9 @@ import {
   driftAt,
 } from './drift';
 import {
+  driftSpeed,
+  DRIFT_SPEED_MAX,
+  DRIFT_SPEED_START,
   FIRE_MAX_MS,
   TARGET_MAX_X,
   TARGET_MAX_Y,
@@ -137,7 +140,74 @@ function absurdClocks(): void {
     driftAt(ORIGIN, 4, -1).x === ORIGIN.x && driftAt(ORIGIN, 4, -1).y === ORIGIN.y);
 }
 
-for (const t of [deterministic, continuous, staysOnScreen, absurdClocks]) {
+/**
+ * The ramp: slow at the start of a match, faster with every point scored.
+ *
+ * The speed scales the CLOCK, so "faster" means the same path covered sooner — which is
+ * both the cheap implementation and the thing that has to be true for every phone to agree
+ * on where the target is. The server sends the number precisely so nobody derives a
+ * different one.
+ */
+function speedsUp(): void {
+  console.log('\nthe target speeds up through a match');
+
+  check('the first duel of a match is the slowest', driftSpeed(0) === DRIFT_SPEED_START);
+  check('and every point makes the next one faster', driftSpeed(1) > driftSpeed(0));
+  check('monotonically', driftSpeed(5) > driftSpeed(4) && driftSpeed(9) > driftSpeed(5));
+  // Legs are a fixed length, so past a point the target changes direction faster than a
+  // hand can react — which is not harder, it is arbitrary.
+  check('but it is capped', driftSpeed(500) === DRIFT_SPEED_MAX);
+  check('and the last duel of a match is inside the cap', driftSpeed(9) <= DRIFT_SPEED_MAX);
+  // The first round of a match must be slower than the old fixed speed, or "slow at first"
+  // is not true of the only round every player definitely sees.
+  check('the opening target is slower than a plain one', driftSpeed(0) < 1);
+  check('nonsense is not a speed', driftSpeed(Number.NaN) === DRIFT_SPEED_START);
+  check('nor is a negative one', driftSpeed(-4) === DRIFT_SPEED_START);
+
+  // Scaling the clock: twice the speed reaches the same place in half the time.
+  const fast = driftAt(ORIGIN, 5, 1_000, 2);
+  const slow = driftAt(ORIGIN, 5, 2_000, 1);
+  check('double speed is the same path at double rate',
+    Math.abs(fast.x - slow.x) < 1e-9 && Math.abs(fast.y - slow.y) < 1e-9, { fast, slow });
+
+  /*
+   * And it covers more ground in the same time, which is the whole point.
+   *
+   * Measured as PATH LENGTH, not as distance from the origin: the walk folds off the edges
+   * of its box, so a faster target can easily have bounced back nearer the start. The first
+   * version of this check compared distance-from-origin and failed against a perfectly
+   * working ramp.
+   */
+  const walked = (speed: number): number => {
+    let total = 0;
+    let prev = driftAt(ORIGIN, 6, 0, speed);
+    for (let t = 16; t <= 3_000; t += 16) {
+      const q = driftAt(ORIGIN, 6, t, speed);
+      total += Math.hypot(q.x - prev.x, q.y - prev.y);
+      prev = q;
+    }
+    return total;
+  };
+  const early = walked(driftSpeed(0));
+  const late = walked(driftSpeed(9));
+  check('a late-match target covers more ground in the same time', late > early * 2, { early, late });
+
+  check('omitting the speed is the old behaviour',
+    driftAt(ORIGIN, 8, 1_234, 1).x === driftAt(ORIGIN, 8, 1_234).x);
+
+  // The box still holds at speed: a fast target that could leave the screen would be
+  // unhittable rather than hard.
+  for (const sp of [DRIFT_SPEED_START, 1, DRIFT_SPEED_MAX, 99]) {
+    for (const t of [0, 800, 6_000, 1e9]) {
+      const q = driftAt(ORIGIN, 9, t, sp);
+      check(`speed ${sp} at t=${t} stays in the box`,
+        q.x >= TARGET_MIN_X - 1e-9 && q.x <= TARGET_MAX_X + 1e-9 &&
+        q.y >= TARGET_MIN_Y - 1e-9 && q.y <= TARGET_MAX_Y + 1e-9, q);
+    }
+  }
+}
+
+for (const t of [deterministic, continuous, staysOnScreen, absurdClocks, speedsUp]) {
   t();
 }
 

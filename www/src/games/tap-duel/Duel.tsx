@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
 import type { Player, PlayerId, RoundResult } from '../../../../shared/protocol';
+import { DUEL_MATCH_TARGET } from '../../../../shared/protocol';
 import { GameMenu } from '../../core/ui/GameMenu';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { driftAt } from './drift';
@@ -53,7 +54,7 @@ export function Duel(props: {
    * The round's timing, for the drift: it runs from `startsAt` and freezes at
    * `fireAt`. Null outside a live round.
    */
-  armed: { roundId: number; startsAt: number; fireAt: number } | null;
+  armed: { roundId: number; startsAt: number; fireAt: number; speed: number } | null;
   /** Server-corrected clock. The drift is a function of server time, not local time. */
   now: () => number;
   /** Only the host may start the next duel. */
@@ -107,7 +108,7 @@ export function Duel(props: {
     // still lands on the same relative spot on every phone — which is the whole point
     // of drift.ts being deterministic.
     const place = (at: number): void => {
-      const p = driftAt(start, armed.roundId, at - armed.startsAt);
+      const p = driftAt(start, armed.roundId, at - armed.startsAt, armed.speed);
       const dx = (p.x - start.x) * window.innerWidth;
       const dy = (p.y - start.y) * window.innerHeight;
       el.style.transform = `translate(calc(-50% + ${dx.toFixed(1)}px), calc(-50% + ${dy.toFixed(1)}px))`;
@@ -206,11 +207,21 @@ export function Duel(props: {
   }
 
   if (phase === 'result' && result) {
+    /*
+     * Two different sentences, because they are two different events: taking a round is
+     * one point, and taking the MATCH is the end of the contest. Saying "You won" for both
+     * makes the tenth point look like the ninth.
+     */
+    const tookMatch = result.matchWinnerId !== null;
     const headline = result.noContest
       ? 'No contest'
-      : result.winnerId === me
-        ? 'You won'
-        : `${nameOf(result.winnerId ?? '')} won`;
+      : tookMatch
+        ? result.matchWinnerId === me
+          ? `You win, ${DUEL_MATCH_TARGET}`
+          : `${nameOf(result.matchWinnerId ?? '')} takes the match`
+        : result.winnerId === me
+          ? 'You won'
+          : `${nameOf(result.winnerId ?? '')} won`;
 
     // Only valid times take part in the gradient; a false start is not "slow".
     const scored = result.ranking.filter((r) => r.ms !== null);
@@ -244,12 +255,22 @@ export function Duel(props: {
             );
           })}
         </ol>
+        {/*
+          The scores in this frame still show the winning tally, but the server has already
+          cleared what it stores — so "Again" after a match is a new match, and saying so is
+          the difference between a button and a surprise.
+        */}
+        {tookMatch && <p class="duel__sub">First to {DUEL_MATCH_TARGET} takes it. New match next.</p>}
         {isHost ? (
           <button class="btn btn--primary btn--big" type="button" onClick={onAgain}>
-            Again
+            {tookMatch ? 'New match' : 'Again'}
           </button>
         ) : (
-          <p class="duel__sub">Waiting for the host to start the next one…</p>
+          <p class="duel__sub">
+            {tookMatch
+              ? 'Waiting for the host to start a new match…'
+              : 'Waiting for the host to start the next one…'}
+          </p>
         )}
       </div>
     );

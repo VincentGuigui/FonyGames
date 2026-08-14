@@ -78,13 +78,27 @@ export type Me = PlayerId | null | undefined;
  * with the most cabbages left is not a thing that can happen, but a game where it
  * could should still not call them the best.
  */
-export function arrange(rows: ScoreRow[], me: Me, best: BestIs): ArrangedRow[] {
+export function arrange(
+  rows: ScoreRow[],
+  me: Me,
+  best: BestIs,
+  /**
+   * The leader, when the game knows better than this file does.
+   *
+   * `best` ranks one value in one direction, which covers every game but Ghost Hunt:
+   * there the score is time spent searching and the lowest wins, **but only among
+   * players who have caught the same number of ghosts** — a player who has found
+   * nothing has spent no time, so `'low'` would bold whoever had not started. A game
+   * whose rule needs two values passes the answer in.
+   */
+  leader?: PlayerId | null,
+): ArrangedRow[] {
   const mine = rows.filter((r) => r.id === me);
   const others = rows.filter((r) => r.id !== me);
   const ordered = [...mine, ...others];
 
-  const leader = leaderOf(rows, best);
-  return ordered.map((r) => ({ ...r, me: r.id === me, best: leader !== null && r.id === leader }));
+  const ahead = leader === undefined ? leaderOf(rows, best) : leader;
+  return ordered.map((r) => ({ ...r, me: r.id === me, best: ahead !== null && r.id === ahead }));
 }
 
 /** The single player in front, or null when there is a tie, no ranking, or no scores. */
@@ -108,6 +122,7 @@ export function Scoreboard({
   me,
   unit,
   best = 'high',
+  leader,
   corner = 'bottom-left',
 }: {
   rows: ScoreRow[];
@@ -119,13 +134,15 @@ export function Scoreboard({
    */
   unit: string;
   best?: BestIs;
+  /** An explicit leader, for a game whose rule is not one value in one direction. */
+  leader?: PlayerId | null;
   corner?: ScoreCorner;
 }): JSX.Element | null {
   if (rows.length < 2) return null;
 
   return (
     <ul class={`scores scores--${corner}`} aria-label={`Scores, in ${unit}`}>
-      {arrange(rows, me, best).map((r) => (
+      {arrange(rows, me, best, leader).map((r) => (
         <li
           key={r.id}
           class={
