@@ -1,12 +1,13 @@
-import { noteFor } from './melody';
+import { MELODY, noteFor } from './melody';
 
 /**
  * One note per shake. Spec: docs/specs/games/shake-rush.md §5b
  *
- * The runner is not just counting to a hundred and twenty, they are playing a tune — and
- * the tune is the progress bar you can hear, which is the point of it: the screen is
- * unreadable while a phone is being shaken hard, so the ear takes over. The pitch climbs
- * through the track (`melody.ts`), so "nearly home" is audible without looking.
+ * The runner is not just counting to a hundred, they are playing a tune — and the tune is
+ * the progress bar you can hear, which is the point of it: the screen is unreadable while a
+ * phone is being shaken hard, so the ear takes over. The song runs twice through across the
+ * track (`melody.ts`), so how far in you are is audible without looking, and the second
+ * time round says the line is close.
  *
  * ## Tone.js, and why it is loaded late
  *
@@ -29,10 +30,23 @@ import { noteFor } from './melody';
  * a runner shaking unevenly should hear it. The only scheduling rule is that each note is
  * strictly after the last — Tone throws on two `triggerAttackRelease` calls at the same
  * instant, and two axes crossing inside one millisecond is normal.
+ *
+ * The one exception is the finish. The song is eight notes longer than the track
+ * (`melody.ts`), and `finish()` plays that tail **in time**, on its own — so crossing the
+ * line and the tune landing are one event, and nobody has to keep shaking a race they have
+ * already won to hear how it ends.
  */
 
 /** Shortest gap between notes. Below this Tone complains and the ear hears one note anyway. */
 const MIN_GAP_S = 0.03;
+
+/**
+ * The beat of the automatic ending, in seconds.
+ *
+ * Slower than a hard shake and faster than a walk: the tail is a cadence, not a race, and
+ * it has to finish while the finish screen is still the thing being looked at.
+ */
+const FINISH_GAP_S = 0.22;
 
 /** How long a note rings. Short: at eight shakes a second, anything longer is a chord. */
 const NOTE_LEN = '16n';
@@ -53,6 +67,11 @@ export type Tune = {
   arm: () => Promise<void>;
   /** Play the note for the next shake and advance. */
   step: () => void;
+  /**
+   * The runner is home: play whatever is left of the song, in time, and stop taking
+   * shakes. Safe to call twice — the ending plays once.
+   */
+  finish: () => void;
   /** The server's position for this runner; pulls the tune back if it has drifted. */
   seek: (at: number) => void;
   /** Back to the first note — a new race starts the tune again. */
@@ -75,6 +94,8 @@ export function createTune(): Tune {
   let index = 0;
   let muted = false;
   let dead = false;
+  /** Set by `finish()`. Further shakes are silent — the song is over, not paused. */
+  let ended = false;
   /** The Tone module and its synth, once loaded. `null` until then. */
   let audio: { tone: typeof import('tone'); synth: import('tone').PolySynth } | null = null;
   let loading: Promise<void> | null = null;
@@ -109,11 +130,11 @@ export function createTune(): Tune {
     return loading;
   }
 
-  function play(note: string): void {
+  function play(note: string, gap = MIN_GAP_S): void {
     if (!audio || muted || dead) return;
     // Strictly increasing, or Tone throws — see the docblock.
     const now = audio.tone.now();
-    const at = Math.max(now, lastAt + MIN_GAP_S);
+    const at = Math.max(now, lastAt + gap);
     lastAt = at;
     try {
       audio.synth.triggerAttackRelease(note, NOTE_LEN, at);
@@ -127,11 +148,28 @@ export function createTune(): Tune {
     arm,
 
     step(): void {
+      if (ended) return;
       play(noteFor(index));
       index += 1;
     },
 
+    finish(): void {
+      if (ended) return;
+      ended = true;
+      /*
+       * Scheduled all at once rather than through a timer: Tone's clock is the audio
+       * clock, so the ending keeps its beat even while the finish screen is doing its
+       * own work, and nothing has to be cancelled if the page goes away mid-cadence.
+       *
+       * From `index`, not from the line: a runner who kept shaking past the finish has
+       * already heard part of the tail, and replaying it would stutter.
+       */
+      for (let i = index; i < MELODY.length; i++) play(MELODY[i] as string, FINISH_GAP_S);
+      index = MELODY.length;
+    },
+
     seek(at: number): void {
+      if (ended) return;
       if (!Number.isFinite(at) || at < 0) return;
       const server = Math.floor(at);
       if (Math.abs(server - index) <= RESYNC_SLACK) return;
@@ -140,6 +178,7 @@ export function createTune(): Tune {
 
     rewind(): void {
       index = 0;
+      ended = false;
     },
 
     setMuted(next: boolean): void {

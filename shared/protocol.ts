@@ -982,8 +982,14 @@ export const RUSH_BROADCAST_MS = 100;
  */
 export const SHAKE_RATE_CAP = 8;
 
-/** The finish line, in shakes. A guess pending a play test (spec §12). */
-export const RUSH_DISTANCE = 120;
+/**
+ * The finish line, in shakes.
+ *
+ * A hundred: roughly twenty seconds of honest shaking, and the length the tune is cut to
+ * — the song runs twice through in a hundred and eight notes, so a runner crossing the
+ * line is eight notes from the end and hears those played for them (spec §5b).
+ */
+export const RUSH_DISTANCE = 100;
 
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const RUSH_MIN_PLAYERS = PLAYERS['shake-rush'][0];

@@ -61,7 +61,7 @@ refractory period, so one reversal cannot be counted twice.
 | `SHAKE_THRESHOLD` | 14 m/s² above baseline | Above a walking jiggle, below a comfortable shake |
 | `SHAKE_REFRACTORY_MS` | 90 ms | ~5.5 reversals/s is already a fast human |
 | `SHAKE_RATE_CAP` | 8 /s | Anything above this is counted as 8 (§8) |
-| `RUSH_DISTANCE` | 120 shakes | ~25–35 s of honest effort. **A guess — needs a play test** |
+| `RUSH_DISTANCE` | 100 shakes | ~20–30 s of honest effort, and the length the tune is cut to (§5b) |
 
 ## 3. Modes / variations
 
@@ -130,8 +130,8 @@ channel, and §11 already accepts that this game asks a lot of the body.
 
 | Piece | File | What it owns |
 | --- | --- | --- |
-| The melody | `www/src/games/shake-rush/melody.ts` | Exactly `RUSH_DISTANCE` note names, and `noteFor(shakes)` |
-| The synth | `www/src/games/shake-rush/tune.ts` | Tone.js, the AudioContext, mute, and the note index |
+| The melody | `www/src/games/shake-rush/melody.ts` | `PHRASE`, the song; `MELODY`, the phrase twice; `noteFor(shakes)` |
+| The synth | `www/src/games/shake-rush/tune.ts` | Tone.js, the AudioContext, mute, the note index, and the ending |
 | The moment | `core/sensors/shake.ts` `detectShakes(onShake)` | Fires the instant a shake is counted |
 
 **One note per shake, fired from the detector — not from the send interval.** The
@@ -139,13 +139,25 @@ interval batches into `RUSH_TICK_MS` frames (§6), so notes played from it would
 arrive in bursts of three on a 90 ms grid instead of on the movement. That is why
 `detectShakes()` takes a callback at all.
 
-**The melody is exactly `RUSH_DISTANCE` long**, so an honest runner hears it once
-and lands on the last note as they cross the line; `game.test.ts` enforces the
-length. Shaking past the line wraps rather than falling silent — the server clips
-progress, not shaking, and silence mid-shake reads as the sound breaking. The
-local note index is corrected against the server's position only when the two
-diverge by more than a few notes (`RESYNC_SLACK`); correcting on every frame would
-drag the tune backwards ten times a second.
+**The song runs twice across the track**: fifty-four notes, played through twice,
+is a hundred and eight for a hundred shakes. Hearing the phrase come round again
+is what says the line is close, which a single pass through a longer tune does not.
+
+**The eight notes left over are the ending, and the game plays them for you.**
+Crossing the line calls `tune.finish()`, which schedules the rest of the song in
+time (`FINISH_GAP_S`) — so arriving and the tune landing are one event, and nobody
+has to keep shaking a race they have already won to hear how it ends. Further
+shakes are silent after that: the song is over, not paused.
+
+`game.test.ts` holds the two bounds that matter — there must be *something* left at
+the line, or the tune loops back to its opening mid-run, and not much, or a
+finisher listens to playback long after the result is on screen.
+
+Shaking past the end of the whole song wraps rather than falling silent — the
+server clips progress, not shaking, and silence mid-shake reads as the sound
+breaking. The local note index is corrected against the server's position only when
+the two diverge by more than a few notes (`RESYNC_SLACK`); correcting on every frame
+would drag the tune backwards ten times a second.
 
 **Tone.js is loaded from the permission tap**, not with the page: it is ~200 KB of
 synthesiser, and the same gesture is needed anyway to resume an AudioContext, which
@@ -153,10 +165,15 @@ every browser starts suspended. A player who never grants motion never downloads
 it. Anything that fails on the way — a blocked context, a chunk that will not load
 — leaves the race playable and silent rather than broken.
 
-**Replacing the tune is one file.** Swap the array in `melody.ts` for any melody
-you have the right to use, keep it `RUSH_DISTANCE` long, and nothing else changes.
-The melody shipped is original: a recognisable film theme was asked for, and
-transcribing a copyrighted composition into the repository is copying it.
+**Replacing the tune is one file.** Swap `PHRASE` in `melody.ts` for any melody you
+have the right to use, keeping it a bit under half the track so the doubling still
+lands near the line, and nothing else changes.
+
+The notes shipped are the ones the owner supplied, in their own notation —
+`A-B  ^D-B  ^F# ^F# ^E` and so on, where `^` is the octave above the base. The base
+is **A4**, not A3: a phone speaker has almost nothing below ~300 Hz, so the lower
+octave was audible in a room and gone in a pocket. The hyphens grouped notes into
+beats and are dropped, because here a shake *is* the beat.
 
 Sound is **on by default** with a toggle in the game menu, remembered in
 `localStorage`. In the menu rather than on the track, because a control small
@@ -264,8 +281,10 @@ room.
 
 ## 12. Open questions
 
-- `RUSH_DISTANCE` 120 — is ~30 s the right length? Long enough to be funny,
-  short enough that arms survive best-of-three.
+- `RUSH_DISTANCE` 100 — is ~20–25 s the right length? Long enough to be funny,
+  short enough that arms survive best-of-three. It is now also a musical number:
+  the song runs twice in a hundred and eight notes, so changing the track length
+  means re-cutting the tune (§5b).
 - Should a runner **slow down** when you stop, rather than freezing? Decay would
   punish pacing and reward continuous effort, which is funnier but crueller.
 - Is one lane per player readable at 8 players on a 390 px screen, or does it

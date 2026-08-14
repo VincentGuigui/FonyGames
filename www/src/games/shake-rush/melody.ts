@@ -4,69 +4,83 @@ import { RUSH_DISTANCE } from '../../../../shared/protocol';
  * The tune, one note per shake.
  * Spec: docs/specs/games/shake-rush.md §5b · played by `tune.ts`
  *
- * Exactly `RUSH_DISTANCE` notes, so an honest runner hears the whole thing once and it
- * lands on the last note as they cross the line. That is the only rule this file has, and
- * `game.test.ts` enforces it — a list of the wrong length would either repeat or cut off,
- * and neither reads as a finish.
+ * ## The shape: a phrase, twice, and eight notes over
+ *
+ * `PHRASE` is the song — fifty-four notes, six lines of it. `MELODY` is that phrase
+ * **twice**, so a hundred and eight notes for a hundred shakes. The eight left over are
+ * not a mistake and not padding: they are the end of the song, and `tune.ts` plays them
+ * by itself the moment a runner crosses the line (`finish()`). Reaching the finish and
+ * hearing the tune land is one event rather than two, and nobody has to keep shaking an
+ * already-won race to hear how it ends.
+ *
+ * That is why the old invariant — "exactly `RUSH_DISTANCE` notes" — is gone. The song
+ * decides its own length; the track is a hundred shakes because that is the race
+ * (`shared/protocol.ts`). The only thing that must hold is that there is a **little** left
+ * over at the line rather than a lot, which `game.test.ts` checks: a phrase that came up
+ * short would loop back to the start mid-run, and one that ran way over would leave a
+ * finisher listening to a minute of automatic playback.
  *
  * ## Replacing it
  *
- * This is the one file to touch. Swap the array for any melody you have the right to use,
- * keep it `RUSH_DISTANCE` long, and nothing else changes: `tune.ts` only ever asks for
- * `MELODY[i]` and does not care what is in it.
+ * This is the one file to touch. Swap `PHRASE` for any melody you have the right to use;
+ * `tune.ts` only ever asks for `MELODY[i]` and does not care what is in it. Keep it a bit
+ * under half the track so the doubling still lands near the line.
  *
- * Note names are scientific pitch — `D4` is middle D, `C#5` a semitone above the C above
- * it. Tone.js parses them directly.
+ * Note names are scientific pitch — `A4` is the A above middle C, `C#5` the C sharp above
+ * that. Tone.js parses them directly.
  *
- * **The melody below is original, written for this game.** A recognisable film theme was
- * asked for and is not here: those are copyrighted compositions, and transcribing one into
- * a repository is copying it. A tune out of copyright, or one you wrote, drops straight in.
+ * ## Reading the notation it came from
  *
- * ## What it is
+ * Written down as `A-B  ^D-B  ^F# ^F# ^E`, where `^` is the octave above the base. The
+ * base is **A4** rather than A3: a phone speaker has almost nothing below ~300 Hz, and the
+ * lower octave was audible in a room and gone in a pocket. So the whole song sits in
+ * A4–A5, which is where a small speaker is loudest.
  *
- * D harmonic minor, five sections of twenty-four, each starting higher than the last —
- * so the pitch climbs as the runner does and the last stretch is the shrillest. It is
- * arpeggios rather than steps because at up to eight notes a second (`SHAKE_RATE_CAP`) a
- * stepwise line turns to mush, while a leaping one stays legible.
+ * Hyphens in the source grouped notes into beats. They are dropped here, because a shake
+ * IS the beat — the runner's arm is the rhythm section.
  */
-export const MELODY: readonly string[] = [
-  // 1 — down low, the first quarter of the track.
-  'D3', 'F3', 'A3', 'D4', 'C4', 'A3', 'F3', 'A3',
-  'G3', 'Bb3', 'D4', 'G4', 'F4', 'D4', 'Bb3', 'D4',
-  'A3', 'C#4', 'E4', 'A4', 'G4', 'E4', 'C#4', 'E4',
 
-  // 2 — the same shape an octave up.
-  'D4', 'F4', 'A4', 'D5', 'C5', 'A4', 'F4', 'A4',
-  'G4', 'Bb4', 'D5', 'G5', 'F5', 'D5', 'Bb4', 'D5',
-  'A4', 'C#5', 'E5', 'A5', 'G5', 'E5', 'C#5', 'E5',
+/** The song. Six lines: 7, 9, 11, 7, 9, 11. */
+export const PHRASE: readonly string[] = [
+  // A-B  ^D-B  ^F# ^F# ^E
+  'A4', 'B4', 'D5', 'B4', 'F#5', 'F#5', 'E5',
 
-  // 3 — stepwise for contrast, a breath before the last third.
-  'D4', 'E4', 'F4', 'G4', 'A4', 'Bb4', 'C#5', 'D5',
-  'C#5', 'Bb4', 'A4', 'G4', 'F4', 'E4', 'D4', 'E4',
-  'F4', 'G4', 'A4', 'Bb4', 'C#5', 'D5', 'E5', 'F5',
+  // A-B  ^D-B  ^E ^E  ^D-^C#-B
+  'A4', 'B4', 'D5', 'B4', 'E5', 'E5', 'D5', 'C#5', 'B4',
 
-  // 4 — climbing.
-  'A4', 'D5', 'F5', 'A5', 'G5', 'F5', 'D5', 'F5',
-  'Bb4', 'D5', 'G5', 'Bb5', 'A5', 'G5', 'D5', 'G5',
-  'C#5', 'E5', 'A5', 'C#6', 'Bb5', 'A5', 'E5', 'A5',
+  // A-B  ^D-B  ^D  ^E-^C#  A  A-^E  ^D
+  'A4', 'B4', 'D5', 'B4', 'D5', 'E5', 'C#5', 'A4', 'A4', 'E5', 'D5',
 
-  // 5 — the run in. Drops back once so the final rise has somewhere to come from.
-  'D5', 'F5', 'A5', 'D6', 'C#6', 'A5', 'F5', 'A5',
-  'G4', 'Bb4', 'D5', 'G5', 'F5', 'D5', 'Bb4', 'D5',
-  'A4', 'C#5', 'E5', 'A5', 'G5', 'E5', 'C#5', 'D6',
+  // A-B  ^D-B  ^F#  ^F# ^E
+  'A4', 'B4', 'D5', 'B4', 'F#5', 'F#5', 'E5',
+
+  // A-B  ^D-B  ^A  ^C#-^D-^C#-B
+  'A4', 'B4', 'D5', 'B4', 'A5', 'C#5', 'D5', 'C#5', 'B4',
+
+  // A-B  ^D-B  ^D ^E ^C#-A  A  ^E  ^D
+  'A4', 'B4', 'D5', 'B4', 'D5', 'E5', 'C#5', 'A4', 'A4', 'E5', 'D5',
 ];
+
+/** The phrase, twice through. One note per shake, from the off. */
+export const MELODY: readonly string[] = [...PHRASE, ...PHRASE];
+
+/**
+ * How many notes are still unplayed when a runner reaches the line.
+ *
+ * `tune.ts` plays exactly these, on its own, at the finish. Negative would mean the song
+ * runs out before the race does — see the test.
+ */
+export const NOTES_AFTER_THE_LINE = MELODY.length - RUSH_DISTANCE;
 
 /**
  * The note for a runner `shakes` into the race, wrapping if they overshoot.
  *
- * Wrapping rather than falling silent: the count can run past the line — the server clips
- * progress, not shaking — and a tune that stops while a player is still shaking reads as
- * the sound breaking.
+ * Wrapping rather than falling silent: the count can run past the end of the song — the
+ * server clips progress, not shaking — and a tune that stops while a player is still
+ * shaking reads as the sound breaking. In practice the wrap is rarely heard, because the
+ * eight notes past the line are the ending and a finisher gets them either way.
  */
 export function noteFor(shakes: number): string {
   const i = Number.isFinite(shakes) && shakes > 0 ? Math.floor(shakes) : 0;
   return MELODY[i % MELODY.length] as string;
 }
-
-/** The one invariant, exported so the test does not restate the number. */
-export const MELODY_FITS_THE_TRACK = MELODY.length === RUSH_DISTANCE;

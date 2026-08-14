@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
 import {
+  RUSH_DISTANCE,
   RUSH_MAX_PLAYERS,
   RUSH_MIN_PLAYERS,
   RUSH_TICK_MS,
@@ -63,7 +64,18 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const myId = room.me?.id;
 
   const running = state?.phase === 'running';
-  const home = !!myId && !!state && state.finished.includes(myId);
+  /*
+   * At the line — by distance, not by being listed in `finished`.
+   *
+   * The two are usually the same frame and sometimes are not: when the first runner home
+   * also ends the race, the only frame that arrives can be `rush-end`, whose `finished`
+   * list the client never saw. Reading the distance answers the same question from data
+   * every frame carries, which matters here because this flag both stops the sending loop
+   * and triggers the tune's ending — and an ending that plays for everyone except the
+   * winner of a race won outright is the exact wrong failure.
+   */
+  const home =
+    !!myId && !!state && (state.finished.includes(myId) || (state.at[myId] ?? 0) >= RUSH_DISTANCE);
 
   /*
    * One tune for the life of the page, built on first render rather than passed to
@@ -115,6 +127,17 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       detector.stop();
     };
   }, [motionOn, running, home]);
+
+  /**
+   * Home: the tune plays its own ending.
+   *
+   * The song is a few notes longer than the track (`melody.ts`), so crossing the line and
+   * the tune landing are one event. Without this a finisher would either hear the song cut
+   * off mid-phrase or have to keep shaking a race they had already won.
+   */
+  useEffect(() => {
+    if (home) tune.finish();
+  }, [home]);
 
   /*
    * The referee's position for this runner, handed to the tune so a long race cannot
