@@ -60,25 +60,54 @@
 }
 
 .bombscreen__icon {
-  margin: auto 0 0;
-  font-size: clamp(5rem, 34vw, 10rem);
+  display: block;
+  font-size: clamp(4rem, 26vw, 8rem);
   line-height: 1;
 }
 
 /*
- * "PASS IT" is the whole interface. It is sized to be read at arm's length while your arms are
- * moving, which is why it is set in viewport units rather than a fixed step.
+ * "PASS IT" is the whole interface, and it is a BUTTON — the bomb and the words are its
+ * label, so the thing that says what to do is the thing that does it.
+ *
+ * Sized to be read at arm's length while your arms are moving, which is why it is set in
+ * viewport units rather than a fixed step. It fills the middle of the screen so it cannot
+ * be missed by a thumb in a hurry, and it is the game's own accent on a dark plate rather
+ * than a button-shaped rectangle on an accent background, which at this size would look
+ * like a hole in the screen.
  */
 .bombscreen__shout {
-  margin: var(--space-3) 0 0;
+  margin: auto 0;
+  width: 100%;
+  max-width: 22rem;
+  min-height: 45vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
   font-size: clamp(2.5rem, 15vw, 5rem);
   font-weight: 800;
   letter-spacing: 0.02em;
   line-height: 0.95;
+  color: var(--color-on-accent);
+  background: rgb(0 0 0 / 0.12);
+  border: 3px solid var(--color-on-accent);
+  border-radius: var(--radius-lg);
+}
+
+.bombscreen__shout:active {
+  transform: scale(0.98);
+  background: rgb(0 0 0 / 0.2);
+}
+
+/* Alone in a round: there is nowhere to pass it, and a live-looking button would lie. */
+.bombscreen__shout:disabled {
+  opacity: 0.6;
 }
 
 .bombscreen__how {
-  margin: var(--space-3) 0 auto;
+  margin: var(--space-3) 0 0;
   max-width: 22rem;
   font-size: var(--font-small);
   opacity: 0.85;
@@ -100,46 +129,6 @@
   margin: var(--space-2) 0 auto;
   color: var(--color-text-dim);
   font-size: var(--font-small);
-}
-
-/* --- the tap route ------------------------------------------------------- */
-
-/*
- * Folded away, but never absent (spec §11). On the accent background the summary has to read as
- * tappable without a button's weight, or it competes with PASS IT.
- */
-.bombscreen__tap {
-  width: 100%;
-  max-width: 22rem;
-  margin-top: var(--space-3);
-}
-
-.bombscreen__tap-summary {
-  min-height: var(--tap-target);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-small);
-  font-weight: 700;
-  text-decoration: underline;
-  cursor: pointer;
-  list-style: none;
-}
-
-.bombscreen__tap-summary::-webkit-details-marker {
-  display: none;
-}
-
-.bombscreen__targets {
-  display: grid;
-  gap: var(--space-2);
-  margin: var(--space-2) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.bombscreen__target {
-  width: 100%;
 }
 
 /* --- the explosion ------------------------------------------------------- */

@@ -46,7 +46,20 @@ Reference algorithm (implemented once in `core/sensors/bump.ts`):
 2. Compute magnitude `m = √(x²+y²+z²)`, subtract a rolling baseline (≈ 9.81 plus
    hand jitter) to get `Δ`.
 3. Candidate spike when `Δ > BUMP_THRESHOLD` (start at **12 m/s²**, tune per
-   device class) and the previous 150 ms was calm.
+   device class) **on a rising edge** — the previous sample was under the line and the
+   jump between the two is at least `BUMP_JERK` (7 m/s²). Sustained agitation is rejected
+   separately: over the line for more than half of the last 500 ms is a phone being waved,
+   and nothing it reports is a knock.
+
+   > This step used to read "and the previous 150 ms was calm", where anything above half
+   > the threshold counted as not-calm. **It was wrong, and it broke the gesture.** You
+   > *swing* a phone to meet another one; the swing is 6–10 m/s² of ordinary movement, so
+   > the run-up disqualified the knock at the end of it — and both phones had to pass the
+   > same test within a quarter of a second, so the failure compounded. Replayed against
+   > the same synthetic traces, the old rule scored **0** for a knock at the end of a swing
+   > and 1 for the same knock out of dead stillness. What separates a contact from a swing
+   > is not stillness beforehand, it is how fast the reading changes: a contact arrives in
+   > one or two samples, a swung arm ramps over ten.
 4. Send `{t:'bump', at: <clientTs>}` to the server, throttled to 1 per 300 ms.
 5. **The server pairs bumps**: two players in the same room whose bump
    timestamps (clock-corrected) fall within **±250 ms** are a confirmed contact.

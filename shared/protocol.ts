@@ -693,7 +693,12 @@ export const BUMP_QUOTA_WINDOW_MS = 10_000;
 export const BUMP_MUTE_MS = 3_000;
 
 /**
- * Pass the Bomb needs three players to be a game rather than a duel.
+ * Two is a game.
+ *
+ * It was three, on the reasoning that two players is a duel rather than a party game. In
+ * practice that is the number that stops a round happening at all: two phones on a table
+ * is the commonest way this gets played, and refusing it sends people to another game.
+ * With two, one boom ends the round — which is short, and short is fine.
  *
  * These per-game limits are **derived from `players.ts`**, which is the one place
  * they are written, so a card and its referee cannot promise different numbers.

@@ -119,6 +119,8 @@ export function BombScreen({
   }
 
   if (iAmHolder) {
+    const others = state.alive.filter((id) => id !== myId);
+
     return (
       <div class="bombscreen bombscreen--holder" style={{ '--game-accent': accent } as JSX.CSSProperties}>
         <StatusBar
@@ -130,37 +132,42 @@ export function BombScreen({
 
         <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" corner="top-left" />
 
-        <p class="bombscreen__icon" aria-hidden="true">
-          💣
-        </p>
-        <p class="bombscreen__shout">PASS IT</p>
-        <p class="bombscreen__how">
-          {muted
-            ? 'Too much shaking — hold still a moment.'
-            : canBump
-              ? 'Knock your phone gently against someone else’s.'
-              : 'No motion sensor on this phone — pass with a tap.'}
-        </p>
-
         {/*
-          The tap route is always here, for anyone (spec §11 makes it the accessible mode
-          rather than a consolation for a denied permission). It is folded away by default so
-          it does not become what the holder stares at.
+          PASS IT is the BUTTON, not a headline over one.
+          
+          It used to be a `<p>`, with the tap route folded into a `<details>` underneath
+          reading "Pass with a tap instead" — so the biggest thing on the screen, the thing
+          that says what to do, did nothing when you hit it, and the control that worked was
+          a small underlined line below the fold. Every player taps the big words.
+
+          It passes to a RANDOM other player rather than asking which one. Picking a name is
+          a decision nobody wants while holding a lit bomb, and the physical game does not
+          let you choose either — you turn and knock the nearest phone.
         */}
-        <details class="bombscreen__tap">
-          <summary class="bombscreen__tap-summary">Pass with a tap instead</summary>
-          <ul class="bombscreen__targets">
-            {state.alive
-              .filter((id) => id !== myId)
-              .map((id) => (
-                <li key={id}>
-                  <button class="btn bombscreen__target" type="button" onClick={() => onPass(id)}>
-                    <span aria-hidden="true">{avatar(id)}</span> {name(id)}
-                  </button>
-                </li>
-              ))}
-          </ul>
-        </details>
+        <button
+          class="btn bombscreen__shout"
+          type="button"
+          disabled={others.length === 0}
+          onClick={() => {
+            const to = others[Math.floor(Math.random() * others.length)];
+            if (to) onPass(to);
+          }}
+        >
+          <span class="bombscreen__icon" aria-hidden="true">
+            💣
+          </span>
+          PASS IT
+        </button>
+
+        <p class="bombscreen__how">
+          {others.length === 0
+            ? 'Nobody to pass it to — this one is yours.'
+            : muted
+              ? 'Too much shaking — hold still a moment.'
+              : canBump
+                ? 'Knock your phone against someone else’s, or hit PASS IT.'
+                : 'No motion sensor on this phone — hit PASS IT.'}
+        </p>
       </div>
     );
   }

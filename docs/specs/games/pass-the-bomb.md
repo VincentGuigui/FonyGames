@@ -8,7 +8,7 @@
 | **Slug** | `pass-the-bomb` |
 | **Catchy sentence** | *Smash phones together to pass the bomb before it blows* |
 | **Illustration** | `www/src/games/pass-the-bomb/art/card.svg` — two phones tapping corner to corner, a cartoon bomb with a lit fuse jumping between them |
-| **Players** | 3–8 |
+| **Players** | 2–8 |
 | **Round length** | 1–2 min |
 | **Inputs** | motion (bump), touch (fallback) |
 | **Accent colour** | `#FF5A36` |
@@ -67,9 +67,10 @@ Standard flow (see [../../multiplayer.md](../../multiplayer.md) §3). Specifics:
 
 - **Lobby**: mode picker, player circle with avatars, big room code + QR, and
   the safety line (§9) shown *before* the permission primer.
-- **Round — holder view**: full-bleed accent-red screen, bomb illustration,
-  "PASS IT" in huge type, list of nearby players is *not* shown (you look at
-  real people, not the screen).
+- **Round — holder view**: full-bleed accent-red screen, and **"PASS IT" in huge type
+  IS the button** — bomb and words together, filling the middle of the screen, passing to
+  a random other player. No list of who is near you (you look at real people, not the
+  screen), and nothing to choose.
 - **Round — non-holder view**: calm dark screen, avatar of the current holder,
   "who's got it" — and a subtle "get ready" if you were the previous holder.
 - **Elimination**: the bomb **comes apart**, vibration, then the player's screen turns to
@@ -111,7 +112,8 @@ Standard flow (see [../../multiplayer.md](../../multiplayer.md) §3). Specifics:
 
 - Bump detection uses the shared algorithm and thresholds in
   [../../device-capabilities.md](../../device-capabilities.md) §3
-  (`BUMP_THRESHOLD` 12 m/s², 300 ms throttle, ±250 ms server pairing window).
+  (`BUMP_THRESHOLD` 12 m/s² on a rising edge, `BUMP_JERK` 7 m/s², 300 ms throttle,
+  ±250 ms server pairing window).
 - Only the **holder's** bump is authoritative for transfer direction; the
   receiver's bump is the confirmation. A transfer needs both.
 - Motion listeners are active only during a round and are removed on
@@ -121,8 +123,8 @@ Standard flow (see [../../multiplayer.md](../../multiplayer.md) §3). Specifics:
 
 | Missing | Behaviour |
 | --- | --- |
-| Motion denied / unavailable on one player | That player gets a "TAP TO PASS" button; they choose a target from the player list and the target confirms with a tap. Slower on purpose, but playable. The lobby marks them with a 👆 icon so nobody thinks they're cheating |
-| Motion denied by *everyone* | Offer `tap-only` variant of the round (same rules, target-and-confirm passing) |
+| Motion denied / unavailable on one player | Nothing special: **PASS IT is a button for everyone**, always (§4). It passes to a random other player |
+| Motion denied by *everyone* | The round plays as a tapping game. No separate variant is needed — the button is the same one everybody has |
 | No vibration (iOS) | Screen flash + sound carry all the tension cues |
 
 ## 6. Networking
@@ -134,7 +136,7 @@ Server is authoritative for: who holds the bomb, the fuse, eliminations, score.
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
 | `bump` | client → server | `{at, roundId}` | I felt a bump. `at` is **server** time — the phone converts from `performance.now()` before sending, or it could never pair |
-| `pass` | client → server | `{to, roundId}` | Tap fallback, **one step**: only the holder may send it and the target does not confirm |
+| `pass` | client → server | `{to, roundId}` | The PASS IT button, **one step**: only the holder may send it and the target does not confirm. The phone picks `to` at random from the other live players |
 | `bomb` | server → clients | `{roundId, holder, alive[]}` | The bomb is now here |
 | `boom` | server → clients | `{roundId, victim, alive[]}` | Fuse expired |
 | `calm-down` | server → **one** client | `{untilServerTime}` | Your bumps are muted for spamming (§8) |
@@ -142,7 +144,11 @@ Server is authoritative for: who holds the bomb, the fuse, eliminations, score.
 Two deliberate differences from the original sketch:
 
 - **One-step pass, not request-and-confirm.** A receiver confirmation adds a round trip and a way
-  to strand the bomb if the target never taps. The holder chooses and it moves.
+  to strand the bomb if the target never taps. The holder presses, and it moves.
+- **The holder does not choose who gets it.** PASS IT picks a random other live player. Choosing
+  from a list is a decision nobody wants while holding a lit bomb, and the physical game does not
+  offer one either — you turn and knock the nearest phone. The server still validates the target,
+  so a phone that sends a name of its own is checked exactly as before.
 - **No `round-end` frame.** The round is over when a `boom` leaves one player or none, and the
   phone derives it (`www/src/games/pass-the-bomb/game.ts`). A client waiting for an explicit end
   frame would wait forever — which is worth stating plainly, because the sketch promised one.
@@ -160,7 +166,7 @@ new one (`seq` increments; late `bomb` messages with a lower `seq` are dropped).
 | Fuse expires while a transfer is in flight | The holder at the moment the server's fuse timer fires is the victim; in-flight pairing is discarded |
 | Two players bump the holder at once | Earliest clock-corrected timestamp wins; the other bump is consumed and ignored |
 | A player bumps someone who already holds a bomb (`double` mode) | Allowed; that's the joke |
-| Fewer than 3 players at start | Start button disabled with "Need one more player" |
+| Fewer than 2 players at start | Start button disabled with "Need one more player" |
 | Down to 2 players | Final duel: fuse floor applies, no shrink |
 | Tab backgrounded | Player marked `away`; if they hold the bomb, treated as disconnect after 3 s |
 
@@ -182,7 +188,7 @@ Shown in the lobby, before the permission primer, and re-shown in the countdown:
 > running, no throwing.**
 
 Enforced limits: a round is hard-capped at 5 minutes; the game refuses to start
-if fewer than 3 players are connected.
+if fewer than 2 players are connected.
 
 ## 10. Data & privacy
 
@@ -192,9 +198,11 @@ room's lifetime and is discarded when the room dies.
 
 ## 11. Accessibility
 
-- The mechanic is physical by nature; the **tap fallback (§5) is the accessible
-  mode** and is always available, not only when a permission is denied — any
-  player can enable it from the lobby.
+- The mechanic is physical by nature; **PASS IT is a real button on the holder's
+  screen** and always has been the accessible mode — it needs no permission, no
+  lobby setting and no menu. It used to be a headline with the actual control folded
+  into a `<details>` underneath it, which is a fallback nobody could find: the biggest
+  thing on the screen said what to do and did nothing when pressed.
 - All tension cues exist in three channels (sound, vibration, visual); any one
   of them alone is enough to play.
 - Explosion flash respects `prefers-reduced-motion` (fade instead of strobe) and
