@@ -73,9 +73,21 @@
 }
 
 .hunt__bar,
+.hunt__aim,
 .hunt__radarwrap {
+  /*
+   * Above the backdrop, which is `position: absolute; inset: 0` and therefore covers
+   * everything painted before it. The bar and the dial were already listed here; the
+   * turn/drag toggle was not, and the backdrop swallowed every tap on it — Playwright
+   * called it exactly right: "canvas intercepts pointer events".
+   */
   position: relative;
   width: 100%;
+}
+
+.hunt__aim {
+  /* It is a pill, not a full-width row: `width` above is for the two block elements. */
+  width: auto;
 }
 
 .hunt__bar {
@@ -251,14 +263,48 @@
   gap: var(--space-2);
 }
 
+/*
+ * Icon on the left, the two lines of copy beside it — a grid rather than a column, so the
+ * note wraps under the title and not under the icon.
+ */
 .hunt-route__pick {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.15em;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'icon title'
+    'icon note';
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: 0.15em;
   padding: var(--space-3);
   text-align: left;
   height: auto;
+}
+
+.hunt-route__icon {
+  grid-area: icon;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-sm);
+  /* Dim until chosen: the icon is a label, and two lit icons would both look picked. */
+  color: var(--color-text-dim);
+  background: rgb(255 255 255 / 0.06);
+}
+
+.hunt-route__pick--on .hunt-route__icon {
+  color: var(--game-accent, var(--color-accent));
+  background: color-mix(in srgb, var(--game-accent, var(--color-accent)) 18%, transparent);
+}
+
+.hunt-route__title {
+  grid-area: title;
+}
+
+.hunt-route__note {
+  grid-area: note;
 }
 
 .hunt-route__pick--on {
@@ -274,4 +320,46 @@
   font-weight: 400;
   color: var(--color-text-dim);
   white-space: normal;
+}
+
+/* --- turn or drag, in the virtual room ------------------------------------ */
+
+/*
+ * Only the sphere route shows this: the camera route has no choice to offer, because the
+ * picture on screen is wherever the phone is pointing.
+ *
+ * Above the radar and inside the round screen's own column, so it never overlaps the dial
+ * — the one thing on this screen that must not be covered.
+ */
+.hunt__aim {
+  display: flex;
+  gap: var(--space-2);
+  align-self: center;
+  padding: var(--space-1);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.45);
+}
+
+.hunt__aim-pick {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target);
+  padding: 0 var(--space-3);
+  border-radius: 999px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
+  font-weight: 700;
+}
+
+/* The chosen one wears the accent, filled — the same language as every other picker. */
+.hunt__aim-pick--on {
+  background: var(--game-accent, var(--color-accent));
+  color: var(--color-on-accent);
+}
+
+.hunt__aim-label {
+  letter-spacing: 0.02em;
 }

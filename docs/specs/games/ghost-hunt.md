@@ -228,9 +228,24 @@ The outlines are drawn in a **lighter wash of the accent**, not white
 (`EDGE_RGB` in `vision.ts`). White read as a generic night-vision filter and was the
 one thing on screen ignoring the game's own colour while the radar around it wore it.
 
-**No buttons on the round screen.** Not a shortage of ideas — see §3 on the removed
-Re-centre. Also on screen, small and out of the way: degrees to the ghost, your score,
-the time left, and everyone else's count.
+**The dial is a WINDOW onto the screen behind it, at the same scale.** It used to squeeze
+the largest square it could take from the source — the whole 480 of a 640×480 camera
+frame — into its 160-pixel buffer, while the backdrop behind it was that same frame
+scaled to *cover* a tall phone screen and therefore showing barely a third of the width.
+The result was the same chair twice, at two sizes, a few centimetres apart: the dial
+looked like a smaller, wider photograph of the room rather than a lens held up to it.
+`paintEdges` now takes the window that corresponds to the dial's own diameter on screen
+(`dialWindow` in `HuntRoom.tsx`), so what is inside the dial is exactly what is behind it.
+
+**The ground under the outlines is translucent** (`EDGE_GROUND_ALPHA`, ~55%), not a solid
+black disc. Opaque was right while the two pictures disagreed — one of them had to be
+hidden. Now that they line up, letting the room show faintly through makes the dial read
+as one instrument instead of a hole cut in the screen.
+
+**One control on the round screen, and only in the virtual room**: the Turn/Drag toggle
+(§5.4), a pill above the dial. The camera route has none — see §3 on the removed
+Re-centre. Also on screen, small and out of the way: your score, the time left, and
+everyone else's count.
 
 - **Lobby**: shared template, the camera + orientation primer (§5.3), the safety
   line (§9), and one line saying what the game does with the camera — *nothing
@@ -291,10 +306,24 @@ tracked, recognised or analysed for gameplay. That keeps §10 short and honest.
 
 The lobby asks one question — *how do you want to play* — with two answers:
 
-| Choice | What it turns on |
-| --- | --- |
-| **Use your camera to find the ghost** | Orientation for the aim, and the camera as the playground. Both, from the one tap |
-| **Use your finger to explore** | Nothing. The panorama route (§5.4) |
+| Choice | Icon | What it turns on |
+| --- | --- | --- |
+| **Use your camera to find the ghost** — the default | a camera | Orientation for the aim, and the camera as the playground. Both, from the one tap |
+| **Find the ghost in a virtual room** | a framed panorama | Nothing. The photosphere route (§5.4) |
+
+**The camera is the default choice**, because it is the game: the pitch, the card and
+the whole of §2 are about turning around in your own room. The photosphere used to be
+what a player got by doing nothing, which made the seated alternative the norm.
+
+Defaulting to it grants nothing — a permission still needs a tap. **The Start button is
+that tap** when nobody has pressed the picker: it asks, then anchors, then starts. If
+orientation is refused there, the round still begins, in the virtual room with a finger,
+because that needs nothing and is a real way to play.
+
+Each choice carries an icon on its left, so the two are told apart before either is
+read — a camera, and a picture frame with a horizon in it. Drawn inline
+(`games/ghost-hunt/icons.tsx`) rather than as emoji: 📷 and 🖼️ are tofu on a device
+missing the glyph, and neither can show what actually separates the modes.
 
 Both permissions come from the **one tap that picks the camera route**, orientation
 first so it is still inside the gesture — iOS refuses that prompt outside one and
@@ -313,20 +342,42 @@ Every outcome has a landing place, and none of them is "you cannot play":
 | --- | --- |
 | Orientation + camera | The full game (§4) |
 | Orientation only | The same hunt, radar on a plain dark ground instead of the feed. Loses the atmosphere, keeps the game |
-| Neither | The finger route, which needs nothing |
+| Neither | The virtual room, which needs nothing |
 
-**The route cannot be changed once the round is running.** There used to be a "Sweep
-instead" button on the round screen for a player who had been put on the finger route
-by a host starting immediately. It is gone for the same reason as Re-centre (§3): a
-round screen is a phone held up in a moving room, and swapping input method halfway
-through a 90-second round is not something to do by accident. The picker is in the
-lobby, and the next round is never far away.
+**The PLACE cannot be changed once the round is running** — camera or virtual room is
+settled in the lobby. There used to be a "Sweep instead" button on the round screen, and
+it is gone for the same reason as Re-centre (§3): a round screen is a phone held up in a
+moving room, and swapping the whole playground halfway through 90 seconds is not
+something to do by accident.
 
-### 5.4 The touch fallback: a photosphere
+**How you look around inside the virtual room can be changed**, and that is a different
+question — see §5.4. It swaps nothing about the scenery, the ghost or the score.
 
-Without orientation the hunt cannot be aimed, so it is **dragged** instead: a 360°
-photosphere image fills the screen and you swipe to look around it, exactly as
-you would a panorama viewer. The ghost has the same home direction in that image as
+### 5.4 The virtual room: a photosphere, turned or dragged
+
+A 360° photosphere fills the screen and you look around it exactly as you would a
+panorama viewer.
+
+**Two ways to look, and a toggle on the round screen to swap between them:**
+
+| Mode | Icon | What it is |
+| --- | --- | --- |
+| **Turn** | a phone drawn in slight perspective, four arrows curving around it | The orientation sensor drives the view, as it does on the camera route. Standing up, in a room you would rather not point a camera at |
+| **Drag** | a pointing finger with four straight arrows | A thumb drags the panorama. Seated, one-handed, quiet — the accessible way to play (§11) |
+
+Drag is the default, because it is the mode that needs nothing. Switching to **Turn**
+asks for orientation from the toggle's own tap, and **anchors forward at that moment**
+rather than at the start of the round: the player has been dragging, so where they are
+physically facing has nothing to do with where they are looking in the sphere.
+
+> A granted permission is not a sensor. Outside iOS there is no prompt to refuse, so
+> `requestOrientation()` answers yes on a laptop and on a phone with the sensor off, and
+> no `deviceorientation` event ever arrives. Turn therefore gives the phone
+> `SENSOR_GRACE_MS` (1.2 s) to produce a reading and hands the room back to the finger if
+> it does not — otherwise the view freezes under a toggle claiming the phone is driving.
+
+The ghost has the same home direction in that image as it does in a room, the radar
+works identically, and the round is the same length. The ghost has the same home direction in that image as
 it does in a room, the radar works identically, and the round is the same length.
 
 **The finger holds the world, not the camera.** Drag right and the room comes with

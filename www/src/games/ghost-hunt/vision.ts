@@ -40,7 +40,19 @@ export const EDGE_THRESHOLD = 90;
 export const EDGE_RGB = [167, 243, 208] as const;
 
 /**
- * Sobel edge detection, in place, from RGBA to tinted-on-black RGBA.
+ * How opaque the ground under the trace is, 0–255.
+ *
+ * Not 255. The radar used to be a solid black disc, on the reasoning that letting the feed
+ * through would drown the outlines — true when the disc showed a WIDER view than the
+ * screen behind it, because then the two pictures disagreed and the eye had to pick one.
+ * Now that the disc is a window onto the same view at the same scale (`paintEdges`), the
+ * feed underneath lines up with the trace on top of it and reads as one lens rather than
+ * two pictures. At ~55% the room is a suggestion and the outlines still carry.
+ */
+export const EDGE_GROUND_ALPHA = 140;
+
+/**
+ * Sobel edge detection, in place, from RGBA to tinted-on-translucent RGBA.
  *
  * Written as a pure function over a buffer so it can be tested without a camera,
  * a canvas or a DOM — which matters, because "is the radar showing anything" is
@@ -64,9 +76,9 @@ export function sobel(
   }
 
   out.fill(0);
-  // Opaque everywhere: the radar is a solid black disc with lines on it, not
-  // a translucent one, or the camera feed shows through and the trace disappears.
-  for (let p = 3; p < out.length; p += 4) out[p] = 255;
+  // Translucent ground, opaque edges — see EDGE_GROUND_ALPHA. Written per pixel here and
+  // raised to 255 for the pixels that turn out to be edges, below.
+  for (let p = 3; p < out.length; p += 4) out[p] = EDGE_GROUND_ALPHA;
 
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
@@ -90,11 +102,13 @@ export function sobel(
       // Brightness carries edge strength, so a strong outline reads stronger than
       // sensor noise that squeaked over the line — scaled into the tint rather than
       // written as grey, so a weak edge is a dim green and not a grey one.
-      const v = Math.min(255, 120 + g) / 255;
+      const v = Math.min(255, 150 + g) / 255;
       const p = i * 4;
       out[p] = EDGE_RGB[0] * v;
       out[p + 1] = EDGE_RGB[1] * v;
       out[p + 2] = EDGE_RGB[2] * v;
+      // An edge is the one thing on this canvas that is fully there.
+      out[p + 3] = 255;
     }
   }
 }
@@ -152,19 +166,34 @@ export async function startCamera(): Promise<Camera | null> {
 /**
  * Paint the centre of `source` through the edge filter onto `canvas`.
  *
- * The centre square only, matching what the radar covers, so the filter never
- * touches pixels that are not going to be drawn.
+ * ## The window has to match the screen behind it
+ *
+ * `windowPx` is how much of the source the dial covers, in SOURCE pixels, and getting it
+ * wrong is the bug this parameter exists for. It used to take the largest centre square
+ * available — the whole 480 of a 640×480 frame — and squeeze it into the 160-pixel dial,
+ * while the background behind it was the same frame scaled to COVER a tall phone screen,
+ * showing barely a third of that width. So the radar showed a wider, smaller version of
+ * the room than the room it was sitting on: the same chair appeared twice, at two sizes,
+ * a few centimetres apart.
+ *
+ * The caller passes the window that corresponds to the dial's own size on screen, so what
+ * is inside the dial is exactly what would be behind it. Defaults to the old behaviour for
+ * a caller that has no screen to measure.
  */
 export function paintEdges(
   canvas: HTMLCanvasElement,
   source: CanvasImageSource,
   sw: number,
   sh: number,
+  windowPx?: number,
 ): void {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx || sw === 0 || sh === 0) return;
 
-  const side = Math.min(sw, sh);
+  // Clamped to what there is: a dial bigger than the frame shows the whole frame rather
+  // than sampling past its edge, which would smear the border pixels outwards.
+  const side = Math.max(16, Math.min(windowPx ?? Math.min(sw, sh), sw, sh));
+  ctx.clearRect(0, 0, RADAR_PX, RADAR_PX);
   ctx.drawImage(canvas === source ? canvas : source, (sw - side) / 2, (sh - side) / 2, side, side, 0, 0, RADAR_PX, RADAR_PX);
 
   const frame = ctx.getImageData(0, 0, RADAR_PX, RADAR_PX);

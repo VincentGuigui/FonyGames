@@ -6,6 +6,7 @@ import { StatusBar } from '../../core/ui/StatusBar';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { heat, leaderOf, ranking, searchTime, type HuntView, type LockState } from './game';
+import { DragFingerIcon, TurnPhoneIcon } from './icons';
 import { RADAR_PX } from './vision';
 
 /**
@@ -45,6 +46,8 @@ export function HuntScreen({
   rules,
   backdropRef,
   radarRef,
+  aiming,
+  onAiming,
 }: {
   state: HuntView;
   players: Player[];
@@ -78,6 +81,12 @@ export function HuntScreen({
    */
   backdropRef: RefObject<HTMLCanvasElement>;
   radarRef: RefObject<HTMLCanvasElement>;
+  /**
+   * How you are looking around, in the virtual room only — absent on the camera route,
+   * where there is no choice to offer: the picture is wherever the phone is pointing.
+   */
+  aiming?: 'sensor' | 'drag' | undefined;
+  onAiming?: ((next: 'sensor' | 'drag') => void) | undefined;
 }): JSX.Element {
   const hot = heat(lock.error);
   const mine = myId ? (state.scores[myId] ?? 0) : 0;
@@ -106,6 +115,35 @@ export function HuntScreen({
           rules={rules}
         />
       </div>
+
+      {aiming && onAiming && (
+        /*
+         * Turn the phone, or drag it — the virtual room can be looked around either way,
+         * and which one suits depends on where the player is sitting rather than on what
+         * their phone can do. On the round screen rather than in the lobby because it is
+         * the kind of thing you change once you have tried the other one.
+         */
+        <div class="hunt__aim" role="group" aria-label="How to look around">
+          <button
+            class={`btn hunt__aim-pick ${aiming === 'sensor' ? 'hunt__aim-pick--on' : ''}`}
+            type="button"
+            aria-pressed={aiming === 'sensor'}
+            onClick={() => onAiming('sensor')}
+          >
+            <TurnPhoneIcon />
+            <span class="hunt__aim-label">Turn</span>
+          </button>
+          <button
+            class={`btn hunt__aim-pick ${aiming === 'drag' ? 'hunt__aim-pick--on' : ''}`}
+            type="button"
+            aria-pressed={aiming === 'drag'}
+            onClick={() => onAiming('drag')}
+          >
+            <DragFingerIcon />
+            <span class="hunt__aim-label">Drag</span>
+          </button>
+        </div>
+      )}
 
       <div class="hunt__radarwrap">
         <div class="hunt__radar" aria-hidden="true">

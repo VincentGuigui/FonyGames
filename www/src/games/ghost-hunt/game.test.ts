@@ -18,7 +18,7 @@ import {
   wrapDeg,
   type Aim,
 } from '../../core/sensors/orientation';
-import { sobel, RADAR_PX, EDGE_THRESHOLD } from './vision';
+import { sobel, EDGE_GROUND_ALPHA, RADAR_PX, EDGE_THRESHOLD } from './vision';
 import { dragTo, project, DRAG_SENSITIVITY, V_FOV_DEG } from './photosphere';
 import { bearingDeg, ghostAt, offsetDeg, radarSpot } from './radar';
 import {
@@ -532,7 +532,13 @@ console.log('\nthe edge detector');
 
   sobel(rgba(() => 128), out, W, H);
   check('a flat wall has no edges', lit(out) === 0, lit(out));
-  check('and it is still opaque, not see-through', out[3] === 255);
+  /*
+   * The ground is translucent now, not opaque. It was a solid black disc while the radar
+   * showed a wider view than the screen behind it — two disagreeing pictures, so one had
+   * to be hidden. The dial is a window onto the same view at the same scale now, so the
+   * feed showing faintly through lines up with the trace instead of fighting it.
+   */
+  check('the ground is translucent, not a black disc', out[3] === EDGE_GROUND_ALPHA, out[3]);
 
   // A hard vertical boundary down the middle: the classic thing a room is full of.
   sobel(rgba((x) => (x < 8 ? 20 : 220)), out, W, H);
@@ -553,6 +559,9 @@ console.log('\nthe edge detector');
   sobel(rgba((x) => (x < 8 ? 0 : 255)), hard, W, H);
   check('a stronger edge is drawn brighter', at(hard, 7, 8) >= at(soft, 7, 8), [at(hard, 7, 8), at(soft, 7, 8)]);
   check('and nothing exceeds white', at(hard, 7, 8) <= 255);
+  // Whatever the ground does, an edge is fully there — a half-visible outline on a
+  // half-visible ground is nothing at all.
+  check('an edge itself is opaque', hard[(8 * W + 7) * 4 + 3] === 255 || hard[(8 * W + 8) * 4 + 3] === 255);
 
   // The border is never sampled, because a 3x3 window has no neighbours there.
   sobel(rgba((_, y) => (y === 0 ? 255 : 0)), out, W, H);

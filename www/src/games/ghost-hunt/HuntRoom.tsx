@@ -22,11 +22,35 @@ import {
 import { applyHunt, createLock, myIndex, myTarget, type HuntState, type LockState } from './game';
 import { HuntResults, HuntScreen } from './HuntScreen';
 import { paintEdges, startCamera, RADAR_FPS, RADAR_PX, type Camera } from './vision';
+import { CameraIcon, RoomImageIcon } from './icons';
 import { drawSphere, dragTo, trackDrag } from './photosphere';
 import { ghostAt } from './radar';
 
 /** How you are playing. Chosen in the lobby, not forced by a denial. */
-type Route = 'sensor' | 'sphere';
+/**
+ * Where the hunt happens: your own room through the camera, or a photosphere.
+ *
+ * Renamed from `'sensor' | 'sphere'`, which named one route after its INPUT and the other
+ * after its scenery — and that pairing is exactly what stopped being true when the virtual
+ * room learnt to be aimed with the phone as well as with a finger. A route is a place now;
+ * how you look around inside it is `Aiming`.
+ */
+type Route = 'camera' | 'sphere';
+
+/**
+ * How you look around, which only the virtual room lets you choose.
+ *
+ * The camera route has no choice to make: the picture on screen is wherever the phone is
+ * pointing, so dragging it would be dragging the room.
+ */
+type Aiming = 'sensor' | 'drag';
+
+/**
+ * How long the phone gets to prove it has an orientation sensor before the finger takes
+ * the room back. Long enough for a first event at any sane rate, short enough that a
+ * player who tapped the wrong thing is not left looking at a frozen room.
+ */
+const SENSOR_GRACE_MS = 1_200;
 
 const IDLE: LockState = {
   error: Number.POSITIVE_INFINITY,
@@ -64,7 +88,17 @@ export function HuntRoom(props: { game: GameCard }): JSX.Element {
 function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
   const [state, setState] = useState<HuntState>(null);
   const [support] = useState<OrientationSupport>(orientationSupport);
-  const [route, setRoute] = useState<Route>('sphere');
+  /*
+   * The camera is the default, because it is the game: the pitch, the card and the whole
+   * of §2 are about turning around in your own room. The virtual room is the seated
+   * alternative, and it used to be what a player got by doing nothing.
+   *
+   * Defaulting to it does NOT grant anything — a permission still needs a tap, and the
+   * Start button is that tap when nobody has pressed the picker (see `onStart`).
+   */
+  const [route, setRoute] = useState<Route>('camera');
+  /** Virtual room only: turn the phone, or drag with a finger. */
+  const [aiming, setAiming] = useState<Aiming>('drag');
   const [orientationOn, setOrientationOn] = useState(false);
   const [orientationAsked, setOrientationAsked] = useState(false);
   const [cameraOn, setCameraOn] = useState(false);
@@ -108,6 +142,14 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const meRef = useRef(myId);
   meRef.current = myId;
 
+  /**
+   * Is the phone doing the aiming?
+   *
+   * Always on the camera route — the picture IS where the phone points — and on the
+   * virtual room only when the player has switched to it.
+   */
+  const bySensor = route === 'camera' || aiming === 'sensor';
+
   /** The index whose dwell is in progress, so a new ghost starts from cold. */
   const indexRef = useRef(-1);
   /** When the current ghost appeared on THIS phone, for the find time. */
@@ -142,8 +184,11 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         lockRef.current.reset();
       }
 
-      const aim =
-        route === 'sensor' ? (trackerRef.current?.read().aim ?? null) : sphereAimRef.current;
+      /*
+       * One question — is the phone doing the aiming — asked the same way for both routes.
+       * The camera route always is; the virtual room is when the player has switched it on.
+       */
+      const aim = bySensor ? (trackerRef.current?.read().aim ?? null) : sphereAimRef.current;
 
       /*
        * The ghost roams, so what the lock is given is where it is **now** rather
@@ -168,7 +213,14 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       // budget, and it has nothing to do with how often the aim is evaluated.
       if (now - lastEdge >= 1000 / RADAR_FPS) {
         lastEdge = now;
-        paint(route, backdropRef.current, radarRef.current, cameraRef.current, sphereImgRef.current, sphereAimRef.current);
+        paint(
+          route,
+          backdropRef.current,
+          radarRef.current,
+          cameraRef.current,
+          sphereImgRef.current,
+          bySensor ? (trackerRef.current?.read().aim ?? sphereAimRef.current) : sphereAimRef.current,
+        );
       }
 
       setSecondsLeft(Math.max(0, Math.ceil((s.endsAt - (clientRef.current?.now() ?? Date.now())) / 1000)));
@@ -176,7 +228,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
 
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [running, route]);
+  }, [running, route, bySensor]);
 
   /*
    * Size the background canvas once the round screen exists, and again if the window
@@ -242,11 +294,11 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
    */
   useEffect(() => {
     const root = backdropRef.current?.parentElement;
-    if (!root || route !== 'sphere' || !running) return;
+    if (!root || route !== 'sphere' || aiming !== 'drag' || !running) return;
     return trackDrag(root, (dx, dy) => {
       sphereAimRef.current = dragTo(sphereAimRef.current, dx, dy);
     });
-  }, [route, running]);
+  }, [route, aiming, running]);
 
   /* The panorama is fetched only when somebody actually chooses the fallback. */
   useEffect(() => {
@@ -278,23 +330,76 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
    * asked for second and is allowed to fail: no camera means a dark ground, which
    * loses the scenery and not the game (spec §7).
    */
-  async function enableCameraRoute(): Promise<void> {
+  async function enableCameraRoute(): Promise<boolean> {
     setOrientationAsked(true);
     const granted = await requestOrientation();
     if (!granted) {
       room.setError('No motion access — use your finger to explore instead.');
-      return;
+      return false;
     }
     trackerRef.current?.stop();
     trackerRef.current = trackOrientation();
     setOrientationOn(true);
-    setRoute('sensor');
+    setRoute('camera');
 
     setCameraAsked(true);
     const cam = await startCamera();
     cameraRef.current = cam;
     setCameraOn(!!cam);
     if (!cam) room.setError('No camera — the radar works on a dark ground instead.');
+    // The camera is allowed to fail; the orientation is not, and it is the one this
+    // answer is about — the round is playable on a dark ground, not without an aim.
+    return true;
+  }
+
+  /**
+   * Turn the phone, or drag — in the virtual room only.
+   *
+   * Straight out of the toggle's tap, because switching TO the sensor may need the
+   * orientation permission and iOS refuses that prompt outside a gesture. A refusal
+   * leaves the finger in charge and says so, rather than leaving a room that no longer
+   * responds to anything.
+   */
+  async function switchAiming(next: Aiming): Promise<void> {
+    if (next === 'drag') {
+      setAiming('drag');
+      return;
+    }
+
+    if (!orientationOn) {
+      setOrientationAsked(true);
+      const granted = await requestOrientation();
+      if (!granted) {
+        room.setError('No motion access — keep using your finger.');
+        return;
+      }
+      trackerRef.current?.stop();
+      trackerRef.current = trackOrientation();
+      setOrientationOn(true);
+    }
+    /*
+     * Forward is set here, not at the start of the round: the player has been dragging,
+     * so whatever they are physically facing has nothing to do with where they are
+     * looking in the sphere. Anchoring now makes "straight ahead" the way the phone is
+     * pointing at the moment they hand it the job.
+     */
+    trackerRef.current?.anchor();
+    setAiming('sensor');
+
+    /*
+     * A granted permission is not a sensor.
+     *
+     * `requestOrientation()` answers true on anything that is not iOS — including a
+     * laptop, and including a phone whose sensor is off — because there is no prompt to
+     * refuse. So the permission says yes, no `deviceorientation` event ever arrives, and
+     * the view freezes with a toggle claiming the phone is in charge. Give it a moment to
+     * produce a reading, and hand the room back to the finger if it does not.
+     */
+    setTimeout(() => {
+      if (trackerRef.current?.ready()) return;
+      setAiming('drag');
+      room.setError('This phone is not reporting movement — keep using your finger.');
+    }, SENSOR_GRACE_MS);
   }
 
   useEffect(() => () => trackerRef.current?.stop(), []);
@@ -335,6 +440,9 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         rules={card.rules}
         backdropRef={backdropRef}
         radarRef={radarRef}
+        {...(route === 'sphere'
+          ? { aiming, onAiming: (next: Aiming) => void switchAiming(next) }
+          : {})}
       />
     );
   }
@@ -352,6 +460,25 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       canStart={room.isHost && enough}
       startLabel={state ? 'Hunt again' : 'Start the hunt'}
       onStart={() => {
+        /*
+         * The camera route is the default, so most players reach this button without
+         * having pressed the picker — and a permission needs a tap. This IS a tap, so it
+         * asks here rather than starting a round whose aim can never move.
+         *
+         * `void`, not awaited: `enableCameraRoute` anchors and starts the round itself
+         * once it knows what it was given.
+         */
+        if (route === 'camera' && !orientationOn) {
+          void enableCameraRoute().then((ok) => {
+            // Turned down: the virtual room needs nothing and is a real way to play, so
+            // the round still starts — seated, with a finger, as the error line says.
+            if (!ok) setRoute('sphere');
+            trackerRef.current?.anchor();
+            again();
+          });
+          return;
+        }
+
         /*
          * Forward is whatever you are facing when the round begins, and this is the
          * ONLY time it is set. There used to be a Re-centre button on the round
@@ -427,15 +554,27 @@ function paint(
 ): void {
   if (route === 'sphere' && backdrop && sphere?.complete) {
     drawSphere(backdrop, sphere, sphere.naturalWidth, sphere.naturalHeight, aim);
-    if (radar) paintEdges(radar, backdrop, backdrop.width, backdrop.height);
+    // The backdrop is already in screen pixels, so the dial's window is its own size.
+    if (radar) paintEdges(radar, backdrop, backdrop.width, backdrop.height, dialWindow(radar, 1));
     return;
   }
 
-  if (route === 'sensor' && camera) {
+  if (route === 'camera' && camera) {
     const v = camera.video;
     if (v.videoWidth > 0) {
       if (backdrop) coverWith(backdrop, v, v.videoWidth, v.videoHeight);
-      if (radar) paintEdges(radar, v, v.videoWidth, v.videoHeight);
+      if (radar) {
+        /*
+         * The same scale the backdrop is drawn at, so the dial is a window onto the room
+         * behind it rather than a second, wider picture of the same room — see
+         * `paintEdges`. Without a backdrop to measure against there is nothing to match,
+         * so the filter falls back to its own default.
+         */
+        const scale = backdrop
+          ? Math.max(backdrop.width / v.videoWidth, backdrop.height / v.videoHeight)
+          : null;
+        paintEdges(radar, v, v.videoWidth, v.videoHeight, scale ? dialWindow(radar, scale) : undefined);
+      }
     }
     return;
   }
@@ -449,6 +588,20 @@ function paint(
       ctx.fillRect(0, 0, RADAR_PX, RADAR_PX);
     }
   }
+}
+
+/**
+ * How much of the source the dial covers, in source pixels.
+ *
+ * `scale` is how many screen pixels one source pixel becomes on the backdrop, so dividing
+ * the dial's on-screen diameter by it gives the window that lands exactly under the dial.
+ * `clientWidth` is zero for a canvas that has not been laid out yet — the first frame or
+ * two of a round — and a zero window would sample nothing, so it falls back to the dial's
+ * own buffer size.
+ */
+function dialWindow(radar: HTMLCanvasElement, scale: number): number {
+  const onScreen = radar.clientWidth || RADAR_PX;
+  return onScreen / scale;
 }
 
 /**
@@ -528,11 +681,15 @@ function RoutePicker({
 
       <div class="hunt-route">
         <button
-          class={`btn hunt-route__pick ${route === 'sensor' ? 'hunt-route__pick--on' : ''}`}
+          class={`btn hunt-route__pick ${route === 'camera' ? 'hunt-route__pick--on' : ''}`}
           type="button"
           disabled={support === 'unsupported'}
           onClick={onCameraRoute}
         >
+          {/* An icon per mode, so the two are told apart before either is read. */}
+          <span class="hunt-route__icon">
+            <CameraIcon />
+          </span>
           <span class="hunt-route__title">Use your camera to find the ghost</span>
           <span class="hunt-route__note">
             {support === 'unsupported'
@@ -554,9 +711,13 @@ function RoutePicker({
           type="button"
           onClick={onFingerRoute}
         >
-          <span class="hunt-route__title">Use your finger to explore</span>
+          <span class="hunt-route__icon">
+            <RoomImageIcon />
+          </span>
+          <span class="hunt-route__title">Find the ghost in a virtual room</span>
           <span class="hunt-route__note">
-            Seated and one-handed, in a room somewhere else. No permissions, same hunt.
+            Somewhere else entirely. Look around by turning the phone or dragging — you
+            can swap mid-hunt — and it needs no permissions.
           </span>
         </button>
       </div>
@@ -577,9 +738,9 @@ function note(
   }
   if (connected > HUNT_MAX_PLAYERS) return `${HUNT_MAX_PLAYERS} players is the most this one takes.`;
   if (!isHost) return 'The host starts the hunt.';
-  if (route === 'sensor' && !orientationOn) return 'Pick how you want to play above.';
+  if (route === 'camera' && !orientationOn) return 'Camera and motion are asked for when you start.';
   // Worth saying once, plainly: forward is set here and there is no re-centre on the
   // round screen to fix it with.
-  if (route === 'sensor') return 'Face the way you want to call forward, then start.';
-  return 'Drag to look around. Ready when you are.';
+  if (route === 'camera') return 'Face the way you want to call forward, then start.';
+  return 'Look around the virtual room. Ready when you are.';
 }
