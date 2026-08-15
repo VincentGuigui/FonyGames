@@ -35,9 +35,8 @@ Everyone is standing in a circle, arms out, shrieking. That's the game.
 5. A new fuse starts with the remaining players, shorter each time.
 6. Last player standing wins the round.
 
-**Win condition:** be the last player not eliminated.
-**Scoring:** 1 point per player eliminated after you; a session is best of 3
-rounds (mode-dependent).
+**Win condition (round):** be the last player not eliminated.
+**Win condition (match):** see §2.2 — the round is not the game.
 
 ### 2.1 Fuse
 
@@ -49,6 +48,31 @@ rounds (mode-dependent).
   acceleration curve is normalised to the drawn duration so it leaks no exact
   timing.
 - A transfer does **not** reset the fuse. That is the whole game.
+
+### 2.2 The match
+
+A round is one bomb. A **match** is what people sit down to play, and it comes in two
+shapes because two players and six players are not the same game:
+
+| Players | Shape | Ends when |
+| --- | --- | --- |
+| **2** (and solo test) | **Three lives each.** One boom costs the victim a life and **ends the round** — with two people there is nobody left to pass to, so elimination *is* the ending and a "last one standing" match would be one explosion long | somebody reaches nil |
+| **3–8** | The classic round above, players out one at a time until one is left. **Five of those** | five rounds are played |
+
+The standings ride on every `bomb` and `boom` frame (`BombMatch`), so a phone that reloads
+or misses a frame draws the same board as everyone else. They are carried across rounds by
+the referee, whose only memory is the round it last saved — and they belong to **the people
+who started them**: somebody joining or leaving between rounds starts a new match rather
+than putting a player on a board they were not there for.
+
+The end screen follows from `done`: mid-match it offers **Next round** and nothing else,
+and the last one offers play again beside a way out
+([../../design/game-chrome.md](../../design/game-chrome.md) §8). The column is the match —
+lives left, or rounds won — because that is what anyone leans over to read; who took the
+round just played is the headline above it.
+
+One consequence worth stating: the hub's play counter counts the **match**, not the round
+(`worker/plays.ts`), for the same reason it counts a Tap Duel match rather than each duel.
 
 ## 3. Modes / variations
 
@@ -112,8 +136,8 @@ Standard flow (see [../../multiplayer.md](../../multiplayer.md) §3). Specifics:
 
 - Bump detection uses the shared algorithm and thresholds in
   [../../device-capabilities.md](../../device-capabilities.md) §3
-  (`BUMP_THRESHOLD` 12 m/s² on a rising edge, `BUMP_JERK` 7 m/s², 300 ms throttle,
-  ±250 ms server pairing window).
+  (`BUMP_THRESHOLD` 9 m/s² of movement **in any direction** on a rising edge, `BUMP_JERK`
+  5 m/s², 300 ms throttle, ±250 ms server pairing window).
 - Only the **holder's** bump is authoritative for transfer direction; the
   receiver's bump is the confirmation. A transfer needs both.
 - Motion listeners are active only during a round and are removed on
@@ -137,8 +161,8 @@ Server is authoritative for: who holds the bomb, the fuse, eliminations, score.
 | --- | --- | --- | --- |
 | `bump` | client → server | `{at, roundId}` | I felt a bump. `at` is **server** time — the phone converts from `performance.now()` before sending, or it could never pair |
 | `pass` | client → server | `{to, roundId}` | The PASS IT button, **one step**: only the holder may send it and the target does not confirm. The phone picks `to` at random from the other live players |
-| `bomb` | server → clients | `{roundId, holder, alive[]}` | The bomb is now here |
-| `boom` | server → clients | `{roundId, victim, alive[]}` | Fuse expired |
+| `bomb` | server → clients | `{roundId, holder, alive[], match}` | The bomb is now here |
+| `boom` | server → clients | `{roundId, victim, alive[], over, match}` | Fuse expired. `over` says whether that was the end of the round |
 | `calm-down` | server → **one** client | `{untilServerTime}` | Your bumps are muted for spamming (§8) |
 
 Two deliberate differences from the original sketch:
@@ -149,9 +173,12 @@ Two deliberate differences from the original sketch:
   from a list is a decision nobody wants while holding a lit bomb, and the physical game does not
   offer one either — you turn and knock the nearest phone. The server still validates the target,
   so a phone that sends a name of its own is checked exactly as before.
-- **No `round-end` frame.** The round is over when a `boom` leaves one player or none, and the
-  phone derives it (`www/src/games/pass-the-bomb/game.ts`). A client waiting for an explicit end
-  frame would wait forever — which is worth stating plainly, because the sketch promised one.
+- **No `round-end` frame — but `boom` carries `over`.** There is still no separate end frame, so
+  a client waiting for one would wait forever. What changed is that the phone no longer *derives*
+  the ending by counting heads: "a boom that leaves one player or none" was right for the
+  elimination rounds and wrong for the other two ways a round ends — a two-player round finishes
+  after one boom with both players still standing on lives, and the five-minute safety cap
+  finishes one with a whole circle left.
 
 **Latency tolerance:** transfers are decided server-side within the ±250 ms
 pairing window, so a 150 ms link never loses a pass. The bomb never renders on
@@ -168,6 +195,8 @@ new one (`seq` increments; late `bomb` messages with a lower `seq` are dropped).
 | A player bumps someone who already holds a bomb (`double` mode) | Allowed; that's the joke |
 | Fewer than 2 players at start | Start button disabled with "Need one more player" |
 | Down to 2 players | Final duel: fuse floor applies, no shrink |
+| Somebody joins or leaves between rounds | The match starts again with the new room; standings are not carried onto a board a player was not there for (§2.2) |
+| A player walks out mid-round, leaving one | Round over, and the match with it — the next round would be a different set of people anyway |
 | Tab backgrounded | Player marked `away`; if they hold the bomb, treated as disconnect after 3 s |
 
 ## 8. Anti-cheat

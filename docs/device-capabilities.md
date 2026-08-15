@@ -43,13 +43,22 @@ acceleration spike on both devices at nearly the same instant.
 Reference algorithm (implemented once in `core/sensors/bump.ts`):
 
 1. Read `devicemotion` `accelerationIncludingGravity`, ~60 Hz.
-2. Compute magnitude `m = √(x²+y²+z²)`, subtract a rolling baseline (≈ 9.81 plus
-   hand jitter) to get `Δ`.
-3. Candidate spike when `Δ > BUMP_THRESHOLD` (start at **12 m/s²**, tune per
-   device class) **on a rising edge** — the previous sample was under the line and the
-   jump between the two is at least `BUMP_JERK` (7 m/s²). Sustained agitation is rejected
-   separately: over the line for more than half of the last 500 ms is a phone being waved,
-   and nothing it reports is a knock.
+2. Keep a rolling baseline **vector** (the resting reading, ≈ gravity in whichever
+   direction the phone is held) and take `Δ = |a − baseline|` — how far the reading has
+   MOVED, in any direction.
+
+   > This step used to compare **magnitudes**: `Δ = | |a| − baseline |`. That reads as the
+   > direction-agnostic choice and is the opposite of one, because gravity dominates the
+   > vector and a knock arriving *sideways* adds to it at right angles. A 6 m/s² tap across
+   > an upright phone shows up as √(9.81² + 6²) − 9.81 ≈ **1.7** on the magnitude and as the
+   > full 6 on the vector — so the gentle corner-to-corner knock this game asks for was
+   > being thrown away by trigonometry, while the same knock along the phone's length
+   > registered fine. The answer was the right measurement, not a lower threshold.
+3. Candidate spike when `Δ > BUMP_THRESHOLD` (**9 m/s²**, tune per device class) **on a
+   rising edge** — the previous sample was under the line and the jump between the two is
+   at least `BUMP_JERK` (5 m/s²). Sustained agitation is rejected separately: over the line
+   for more than half of the last 500 ms is a phone being waved, and nothing it reports is
+   a knock.
 
    > This step used to read "and the previous 150 ms was calm", where anything above half
    > the threshold counted as not-calm. **It was wrong, and it broke the gesture.** You
@@ -71,8 +80,11 @@ Reference algorithm (implemented once in `core/sensors/bump.ts`):
 Anti-cheat: shaking wildly produces many spikes — the 300 ms throttle plus the
 pairing requirement plus a per-round bump quota make spamming useless.
 
-> ⚠️ **`BUMP_THRESHOLD` has never been validated on a real phone.** 12 m/s² is
-> an educated guess. The detector in `www/src/core/sensors/bump.ts` is covered
+> ⚠️ **`BUMP_THRESHOLD` has never been validated on a real phone.** 9 m/s² is
+> an educated guess — lowered from 12 along with the vector change above, on the
+> reasoning that the spec asks people to tap phones *gently* and a false positive
+> costs nothing on its own (the referee still needs two phones to report one within
+> 250 ms of each other). The detector in `www/src/core/sensors/bump.ts` is covered
 > by **synthetic** traces (knock, double-knock, sustained shaking, stillness,
 > walking) — useful for the logic, worthless for the constant. Recording real
 > traces from an actual handset and re-tuning is a prerequisite for calling any
