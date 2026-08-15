@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { JSX, VNode } from 'preact';
 import type { GameCard } from '../core/types';
 import { readRoomHash } from '../core/room/useRoom';
+import { useHeldPhone } from '../core/screen';
 import { NoSuchRoom } from './NoSuchRoom';
 import { ArrivedByLink } from './arrival';
 import { RoomChoice } from './RoomChoice';
@@ -31,6 +32,16 @@ export function RoomGate({
   game: GameCard;
   children: (code: string) => VNode;
 }): JSX.Element {
+  /*
+   * Keep the screen awake and upright for as long as a game page is open.
+   *
+   * Here rather than in each game because this is the one component all nine pass through
+   * (lobby and round alike), and rather than in each ROUND screen because a lobby is
+   * exactly where a phone sits untouched on a table waiting for friends to join.
+   * Best effort on both counts — see core/screen.ts.
+   */
+  useHeldPhone();
+
   const [hash, setHash] = useState(readRoomHash);
   const [entered, setEntered] = useState<Entered | null>(() => {
     const initial = readRoomHash();
@@ -93,6 +104,7 @@ export function RoomGate({
     return (
       <ArrivedByLink.Provider value={entered.byLink}>
         {children(entered.code)}
+        <Upright />
       </ArrivedByLink.Provider>
     );
   }
@@ -107,4 +119,31 @@ export function RoomGate({
   if (hash.kind === 'invalid') return <NoSuchRoom card={game} />;
 
   return <RoomChoice card={game} onEnter={enter} />;
+}
+
+/**
+ * "Turn your phone back", for the phones the orientation API cannot reach.
+ *
+ * Always rendered on a game page and shown by CSS alone (`.upright` in game-chrome.css),
+ * only when the viewport is both landscape and short — a phone on its side, never a desktop
+ * window. `screen.orientation.lock()` is asked for first and is the better answer, but iOS
+ * Safari does not have it and Android Chrome only honours it in fullscreen, so on most
+ * phones this notice IS the feature.
+ *
+ * It covers rather than pauses: the round is still running underneath, the socket is still
+ * open, and nothing is lost by the two seconds it takes to turn the phone back.
+ */
+function Upright(): JSX.Element {
+  return (
+    <div class="upright" role="alert">
+      <p class="upright__icon" aria-hidden="true">
+        🔄
+      </p>
+      <p class="upright__say">Turn your phone upright</p>
+      <p class="upright__note">
+        These games are played in portrait — the round is still going, it just does not fit
+        sideways.
+      </p>
+    </div>
+  );
 }

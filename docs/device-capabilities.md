@@ -101,6 +101,47 @@ corner. Cases on."*
 - **Safety**: GPS games display, before every round, *"Watch where you're going.
   Don't play near traffic. Never run."* Rounds have a hard time cap.
 
+## 5b. The screen: awake, and upright
+
+Both are handled once, in `lobby/RoomGate.tsx` — the one component every game page passes
+through — by `useHeldPhone()` in `core/screen.ts`. Not per game: that would be nine copies
+of two lines and a tenth game that forgot.
+
+### Awake
+
+`navigator.wakeLock.request('screen')` for as long as a game page is open, lobby included:
+a lobby is exactly where a phone sits untouched on a table while friends join, and every
+game is played with the thumbs doing something an idle timer does not count as activity —
+turning on the spot, holding still, watching a bomb in somebody else's hands.
+
+> **Re-acquiring is the whole job.** The browser releases the lock every time the page
+> stops being visible — a tab switch, a notification shade, a glance at another app — and
+> does **not** restore it on the way back. A one-shot `request()` keeps the screen alive
+> until the first interruption and then silently stops, which looks identical to a working
+> one in a screenshot and shows up a week later as "my phone keeps going dark". So there is
+> a `visibilitychange` listener, and it is what `screen.test.ts` spends most of its
+> assertions on.
+
+Silent everywhere it is unavailable — Safari before 16.4, any page over plain HTTP, a
+refused request. A round must never fail to start over a wake lock.
+
+### Upright
+
+Two halves, because neither is enough:
+
+| Half | Where it works | Where it does nothing |
+| --- | --- | --- |
+| `screen.orientation.lock('portrait')` | Android Chrome, installed or fullscreen | **iOS Safari has no such API**, and Chrome rejects it outside fullscreen |
+| The `.upright` notice — "turn your phone upright" | Everywhere, it is CSS | Nowhere, but it asks rather than enforces |
+
+The API is asked for first and is the better answer when it is honoured; on most phones the
+notice IS the feature. Its media query is deliberately narrow — `(orientation: landscape)
+and (max-height: 500px)` — so a phone on its side gets it and a wide desktop window does
+not, which is a distinction `orientation: landscape` alone does not make.
+
+The notice **covers, it does not pause**: the round is still running underneath and the
+socket is still open. Nothing is lost by the two seconds it takes to turn the phone back.
+
 ## 6. Privacy
 
 - Coordinates, motion samples and mic levels are **relayed, never stored**. They

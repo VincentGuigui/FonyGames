@@ -252,3 +252,59 @@
   white-space: nowrap;
   border: 0;
 }
+
+
+/* --- turn the phone back -------------------------------------------------- */
+
+/*
+ * The half of "stay upright" that works everywhere.
+ * Component: lobby/RoomGate.tsx (`useHeldPhone`) · rules: docs/device-capabilities.md §5
+ *
+ * `screen.orientation.lock('portrait')` is asked for first and is the better answer when it
+ * is available — but Android Chrome only honours it for an installed app or a fullscreen
+ * page, and **iOS Safari has no such API at all**. On an iPhone the API half is a no-op, so
+ * without this the feature would be a line of code that does nothing for half the players.
+ *
+ * The query is deliberately narrow: landscape AND short. A desktop browser window is also
+ * "landscape" and must not get this — 500px is above any phone on its side and below any
+ * laptop, so a wide window at 1200x800 is unaffected while an iPhone at 844x390 is not.
+ */
+.upright {
+  display: none;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .upright {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    text-align: center;
+    background: var(--color-bg);
+  }
+
+  /* The page underneath keeps running — the round has not stopped, and this is a notice
+     rather than a pause. It is simply not something to play sideways. */
+  .upright__icon {
+    font-size: 3rem;
+    line-height: 1;
+  }
+
+  .upright__say {
+    margin: 0;
+    font-size: var(--font-title);
+    font-weight: 800;
+  }
+
+  .upright__note {
+    margin: 0;
+    max-width: 26rem;
+    color: var(--color-text-dim);
+    font-size: var(--font-small);
+  }
+}
