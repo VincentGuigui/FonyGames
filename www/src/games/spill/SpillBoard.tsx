@@ -91,6 +91,10 @@ export function SpillBoard({
         const dy = g.y - g.y0;
         if (Math.hypot(dx, dy) < DRAG_SLOP_PX) return null;
         const angle = Math.atan2(dx, -dy);
+        // No ray for a drag that would not be thrown. This is the whole feedback for
+        // the forward cone: aim behind you and the line vanishes, so the refusal
+        // happens while the finger is still down rather than as a lost turn.
+        if (!game.throwable(angle)) return null;
         const hit = game.target(angle);
         return { angle, hit, bounces: game.seatCount === 2 && hit !== null };
       },
@@ -170,8 +174,10 @@ export function SpillBoard({
       return;
     }
 
-    const { angle, speed } = game.fling(dx, dy, e.timeStamp - g.t0, rect.height);
-    send(angle, speed);
+    // Null for a drag that pointed backwards or along the side — not a throw, so
+    // nothing leaves, nothing is spent, and the next flick is free to be a real one.
+    const flick = game.fling(dx, dy, e.timeStamp - g.t0, rect.height);
+    if (flick) send(flick.angle, flick.speed);
   }
 
   const state = game.state;

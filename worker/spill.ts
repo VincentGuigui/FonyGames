@@ -19,7 +19,7 @@ import {
   type SpillState,
 } from '../shared/protocol';
 import { enoughToStart, lastStanding } from '../shared/players';
-import { aimSeat, wrapAngle } from '../shared/spillGeometry';
+import { aimSeat, clampFlick } from '../shared/spillGeometry';
 
 /**
  * Spill — the referee. Spec: docs/specs/games/spill.md
@@ -178,10 +178,18 @@ export async function onFling(
   // Clamped, never rejected — an honest player with a fast screen must not be
   // punished for a cheat's signature (spec §9).
   const v = clamp(speed, SPILL_SPEED_MIN, SPILL_SPEED_MAX);
+  /*
+   * And the same for the direction: water goes up the table, never backwards or along the
+   * side (`SPILL_FLICK_CONE`). The phone refuses that gesture outright and never sends it,
+   * so anything out of the cone arriving here came from a client of somebody's own making —
+   * folded back to the nearest legal heading rather than dropped, for the same reason the
+   * speed is.
+   */
+  const heading = clampFlick(angle);
   // Half a screen height to the edge, at v heights per second.
   const exitMs = clamp((0.5 / v) * 1000, SPILL_LOCK_MIN_MS, SPILL_LOCK_MAX_MS);
 
-  let to = aimSeat(seat, angle, s.seats.length);
+  let to = aimSeat(seat, heading, s.seats.length);
   // A seat whose player is out — or who walked off — is a hole in the ring.
   if (to !== null) {
     const target = s.seats[to];
@@ -193,7 +201,7 @@ export async function onFling(
     dropId,
     from: seat,
     to,
-    angle: wrapAngle(angle),
+    angle: heading,
     size,
     launchedAt: now,
     leavesAt: now + exitMs,

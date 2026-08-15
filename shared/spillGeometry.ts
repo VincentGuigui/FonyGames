@@ -41,6 +41,40 @@ export function flickBearing(k: number, screenAngle: number, n: number): number 
   return (2 * Math.PI * k) / n + Math.PI + screenAngle;
 }
 
+/**
+ * How far off straight ahead a flick may point: 80°, either side.
+ *
+ * **You throw water away from you, up the table.** Backwards is your own lap and sideways is
+ * the floor, and neither is a shot anybody means to take — but a drag is a drag, and a
+ * flick that curled back under the thumb used to launch a drop into nothing and cost the
+ * thrower the drop, the lock, and the second it took to work out what had happened.
+ *
+ * 80° is wide, on purpose. Every seat is across the table from every other one, so the
+ * furthest a legitimate aim ever needs to point is 90° − 180°/n — 45° with a full table of
+ * four — and the two-player bounce game lives out at the edges of the cone, where a shallow
+ * angle means more bounces off the side walls. The cone rules out the gesture nobody meant;
+ * it is not trying to have an opinion about aim.
+ */
+export const SPILL_FLICK_CONE = (80 * Math.PI) / 180;
+
+/** Is this a throw up the table, rather than into your own lap? */
+export function forwardFlick(screenAngle: number): boolean {
+  return Math.abs(wrapAngle(screenAngle)) <= SPILL_FLICK_CONE;
+}
+
+/**
+ * The same angle, folded back into the cone.
+ *
+ * The referee's backstop, and only that: the phone refuses a backwards drag outright, so a
+ * flick that arrives out of the cone came from a client that made it up. Clamped rather
+ * than rejected, in line with how `speed` is handled — the answer to a strange number is
+ * the nearest legal one, not a lost turn (spec §9).
+ */
+export function clampFlick(screenAngle: number): number {
+  const a = wrapAngle(screenAngle);
+  return Math.max(-SPILL_FLICK_CONE, Math.min(SPILL_FLICK_CONE, a));
+}
+
 /** How far off a perfect flick may be and still land on a phone. */
 export function aimTolerance(n: number): number {
   return (SPILL_AIM_FRACTION * Math.PI) / n;

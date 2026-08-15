@@ -12,6 +12,7 @@ import {
   type ServerMessage,
 } from '../shared/protocol';
 import {
+  SPILL_FLICK_CONE,
   SPILL_NOMINAL_ASPECT,
   bounceArriving,
   bounceLeaving,
@@ -190,7 +191,8 @@ async function aimingAndLock(): Promise<void> {
   check('the target takes the water', h.state().levels[C] === SPILL_START_LEVEL + 2);
   check('the thrower is 2 lighter', h.state().levels[A] === SPILL_START_LEVEL - 2);
 
-  // A wild flick backwards misses the table entirely.
+  // A wild flick backwards is folded into the forward cone (the phone would not have sent
+  // it at all) and, at the edge of it, still misses everyone.
   await onFling(h.ctx, A, 1, Math.PI, 3);
   const wild = h.last('drop');
   check('a backwards flick hits nothing', wild?.d.to === null, wild?.d);
@@ -371,6 +373,34 @@ async function cheating(): Promise<void> {
   await onFling(h.ctx, B, 1, Number.NaN, 3);
   check('NaN angle is ignored', h.sent.length === sent);
   check('B has not lost water to a bad frame', h.state().levels[B] === SPILL_START_LEVEL);
+
+  /*
+   * The forward cone, from the referee's side. The phone refuses a backwards drag before it
+   * is ever sent (`SpillGame.fling` returns null), so what arrives here out of the cone came
+   * from a client somebody wrote themselves — and the answer is the nearest legal heading
+   * rather than a lost turn, exactly as it is for an impossible speed above.
+   */
+  const cone = harness();
+  await startSpill(cone.ctx, 1, [A, B]);
+  cone.advance(PREROUND_MS + 1);
+
+  await onFling(cone.ctx, A, 1, Math.PI, 3);
+  const back = cone.last('drop')!;
+  check('a flick behind you is folded to the edge of the cone',
+    Math.abs(back.d.angle) <= SPILL_FLICK_CONE + 1e-9, back.d.angle);
+  check('and stays behind nothing — it is a forward throw now',
+    Math.abs(back.d.angle - SPILL_FLICK_CONE) < 1e-9, back.d.angle);
+
+  cone.advance(2000);
+  await onFling(cone.ctx, A, 1, -Math.PI / 2, 3);
+  const side = cone.last('drop')!;
+  check('and the same on the other side', Math.abs(side.d.angle + SPILL_FLICK_CONE) < 1e-9, side.d.angle);
+
+  cone.advance(2000);
+  // Inside the cone nothing is touched: the wide angles are the two-player bounce game.
+  await onFling(cone.ctx, A, 1, 1.2, 3);
+  const wide = cone.last('drop')!;
+  check('a wide but forward flick is left exactly as thrown', Math.abs(wide.d.angle - 1.2) < 1e-9, wide.d.angle);
 }
 
 

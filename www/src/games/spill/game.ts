@@ -13,6 +13,7 @@ import {
   aimSeat,
   bounceArriving,
   bounceLeaving,
+  forwardFlick,
   screenAngleTo,
 } from '../../../../shared/spillGeometry';
 
@@ -210,17 +211,28 @@ export class SpillGame {
   /* ------------------------- what we send -------------------------- */
 
   /**
-   * Turn a drag into a flick. `dx`/`dy` are the gesture in CSS pixels, `dt` its
-   * duration in ms, `h` the canvas height — speed goes on the wire in screen
-   * heights per second so the server never needs to know how big this phone is.
+   * Turn a drag into a flick, or **null** for one that was not a throw.
+   *
+   * `dx`/`dy` are the gesture in CSS pixels, `dt` its duration in ms, `h` the
+   * canvas height — speed goes on the wire in screen heights per second so the
+   * server never needs to know how big this phone is.
+   *
+   * A drag pointing backwards or along the side of the screen is not thrown at
+   * all (`SPILL_FLICK_CONE`): you throw water *up the table*, and folding a
+   * backwards flick round to forwards would launch a drop the player did not
+   * mean to throw, at a target they did not choose. The aim preview is gated on
+   * the same test, so the ray disappears while the finger is still down — the
+   * refusal is visible before the release, not after it.
    */
-  fling(dx: number, dy: number, dt: number, h: number): { angle: number; speed: number } {
-    const dist = Math.hypot(dx, dy);
-    const seconds = Math.max(dt, 16) / 1000;
-    const speed = Math.max(SPILL_SPEED_MIN, Math.min(SPILL_SPEED_MAX, dist / h / seconds));
+  fling(dx: number, dy: number, dt: number, h: number): { angle: number; speed: number } | null {
     // Screen angle is measured clockwise from the top of the screen, which is
     // the convention shared/spillGeometry.ts expects.
     const angle = Math.atan2(dx, -dy);
+    if (!forwardFlick(angle)) return null;
+
+    const dist = Math.hypot(dx, dy);
+    const seconds = Math.max(dt, 16) / 1000;
+    const speed = Math.max(SPILL_SPEED_MIN, Math.min(SPILL_SPEED_MAX, dist / h / seconds));
     // Lock immediately rather than waiting for the echo: on a slow link the
     // button would otherwise stay live long enough to double-fling.
     this.#optimisticLock = this.#now() + 250;
@@ -231,7 +243,13 @@ export class SpillGame {
   target(angle: number): number | null {
     const seat = this.seat;
     if (seat < 0) return null;
+    if (!forwardFlick(angle)) return null;
     return aimSeat(seat, angle, this.seatCount);
+  }
+
+  /** Would a flick at this angle be thrown at all? The aim preview asks first. */
+  throwable(angle: number): boolean {
+    return forwardFlick(angle);
   }
 
   /** Straight at a named seat — the tap-a-seat fallback (spec §11). */

@@ -55,6 +55,20 @@ closest to it, and delivers the drop there if the error is within
 (and, pleasingly, still leaves your phone — a wild flick is a free way to lose
 water, which keeps wild flicks tempting rather than punished).
 
+**A flick only goes forward.** `SPILL_FLICK_CONE` is 80° either side of straight
+up the screen; a drag pointing backwards or along the side of the screen is **not
+thrown at all** — nothing leaves, nothing is spent, and the aim ray disappears
+while the finger is still down so the refusal is seen before the release rather
+than after it. You throw water away from you, up the table; behind you is your own
+lap and the floor, and a drag that curls back under the thumb is a slip, not a
+shot. The cone is wide on purpose: every seat is across the table from every
+other one, so the widest aim anyone ever needs is `90° − 180°/N` (45° at a full
+table of four), and the two-player bounce game lives out at the edges where a
+shallow angle means more bounces. The referee **clamps** rather than refuses, in
+line with how it treats an impossible speed — an angle out of the cone can only
+come from a client that made it up, and the answer to a strange number is the
+nearest legal one.
+
 Layouts: **2** = facing each other, **3** = triangle, **4** = square.
 
 #### As built
@@ -143,8 +157,8 @@ The geometry (`shared/spillGeometry.ts`):
   agree on something only one of them can measure. Nothing new goes on the wire:
   the flick angle already there is enough for both to compute their own half.
 - A drop that **missed** the table has no path to the other side, so it still
-  just sails off along its angle. Flicking backwards is still how you throw water
-  on the floor.
+  just sails off along its angle — off the top or off a side, having bounced. What
+  it can no longer do is go *backwards*: that gesture is not a throw (§2).
 
 The aim preview draws the bounces too. A preview that showed a straight line
 would be showing the player something that is not going to happen.
