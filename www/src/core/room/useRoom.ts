@@ -44,8 +44,8 @@ export function roomFromHash(raw: string): RoomHash {
    * for a field being typed into and wrong here, because it is lossy in two ways: it drops
    * characters outside the alphabet and truncates to length.
    *
-   * That combination silently rewrote damaged links into valid ones. `#lobby` lost its `O`
-   * and became room `LBBY`; an over-long hash was truncated to a shorter valid code. Both
+   * That combination silently rewrote damaged links into valid ones. `#lobby` was truncated
+   * to five characters; an over-long hash was truncated to a shorter valid code. Both
    * are the failure this whole three-way answer exists to prevent — a link that arrived
    * damaged dropping the player into a *different* room, alone, with nothing left to
    * compare. Found by `hash.test.ts` on the day it was written.
@@ -53,10 +53,10 @@ export function roomFromHash(raw: string): RoomHash {
    * Two transformations ARE forgiven, and neither is a guess:
    *
    * - **Case**, because some clients lowercase a URL in transit.
-   * - **The grouping dash, in exactly the position we print it.** `ABC-DEF` is the form
+   * - **The grouping dash, in exactly the position we print it.** `TAK-OBE` is the form
    *   shown on the code card, so somebody typing what they can see is not sending a
    *   damaged link; there is exactly one code it can mean. Anything else containing a
-   *   dash — `AB-C`, `A-BCDEF`, `ABC-DE` — is still invalid, because accepting those
+   *   dash — `TA-K`, `T-AKOBE`, `TAK-OB` — is still invalid, because accepting those
    *   would be back to repairing rather than reading.
    */
   const upper = trimmed.toUpperCase();

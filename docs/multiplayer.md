@@ -7,9 +7,10 @@
 
 - A game session = a **room**. Rooms are ephemeral, in memory, and disappear
   shortly after the last player leaves (grace period: 60 s for reconnects).
-- A room is identified by a **6-character code**, displayed as two groups of
-  three — `ABC-DEF` (uppercase, no ambiguous
-  characters: no `O`, `0`, `I`, `1`).
+- A room is identified by a **6-letter code**, displayed as two groups of three
+  — `TAK-OBE` (uppercase, no digits). Each group alternates vowels and consonants,
+  so a code is two syllables and can be said rather than spelled
+  ([specs/join.md](specs/join.md) §0).
 - Joining is possible three ways, all equivalent:
   1. **Link**: `/<game-slug>/#<CODE>` — shared via any messaging app.
   2. **QR code**: shown big on the host's screen, scanned with the camera app.

@@ -54,7 +54,17 @@ export function JoinByCode({
     setCode(value);
 
     if (!isRoomCode(value)) {
-      setError(`A room code is ${ROOM_CODE_LENGTH} letters or numbers.`);
+      /*
+       * Two different mistakes, and telling somebody "a code is six letters" when they have
+       * typed six letters is no help at all. The second message names the likely slip: a
+       * code reads as two syllables, so a letter heard wrong is usually a vowel where a
+       * consonant belongs.
+       */
+      setError(
+        value.length === ROOM_CODE_LENGTH
+          ? `${formatRoomCode(value)} is not a room code — codes read as two syllables, like TAK-OBE.`
+          : `A room code is ${ROOM_CODE_LENGTH} letters, in two groups of three.`,
+      );
       return;
     }
 
@@ -85,13 +95,13 @@ export function JoinByCode({
       </label>
       <div class="join__row">
         {/*
-          The field shows the grouped form, `ABC-DEF`, while `code` stays the bare six
+          The field shows the grouped form, `TAK-OBE`, while `code` stays the bare six
           characters — the dash is presentation and must never reach a URL. `maxLength`
           counts the dash, hence +1.
 
           The value is written back on every keystroke so the dash appears as the fourth
           character is typed. `normaliseRoomCode` drops the dash on the way in, so a
-          pasted `ABC-DEF`, `abcdef` or `ABC DEF` all arrive the same.
+          pasted `TAK-OBE`, `takobe` or `TAK OBE` all arrive the same.
         */}
         <input
           id="room-code"
@@ -103,7 +113,7 @@ export function JoinByCode({
           autocapitalize="characters"
           spellcheck={false}
           maxLength={ROOM_CODE_LENGTH + 1}
-          placeholder="ABC-DEF"
+          placeholder="TAK-OBE"
           value={formatRoomCode(code)}
           disabled={checking}
           aria-describedby={error ? 'join-error' : undefined}

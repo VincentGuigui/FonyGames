@@ -50,7 +50,7 @@ export function CodeCard({
     <section class="code-card">
       <p class="code-card__label">Room code</p>
       {/*
-        Grouped for reading — `ABC-DEF`. The dash is presentation only; `code` itself
+        Grouped for reading — `TAK-OBE`. The dash is presentation only; `code` itself
         stays bare everywhere it matters, and the share link and QR below are built
         from that. A long-press copies the dash too, which is harmless: the join field
         strips anything outside the alphabet, so pasting it back works.

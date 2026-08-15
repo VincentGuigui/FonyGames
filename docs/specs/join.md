@@ -8,26 +8,43 @@ How players get into the same room. Applies to every game — the lobby is share
 
 ## 0. The code
 
-Six characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` — no `O`/`0`, no `I`/`1`, so a
-code shouted across a noisy room survives.
+**Six letters that can be said out loud**: two groups of three, each group alternating
+between vowels and consonants — `TAK-OBE`, `RUP-ADI`. A group whose first letter is a
+consonant runs `CVC`; one starting on a vowel runs `VCV`. Every code is therefore two
+syllables, which is what a code is *for*: it is shouted across a room, not typed off a
+screen by one person.
 
-**Stored and transmitted bare, displayed grouped.** `ABCDEF` is what goes in a hash, a
-WebSocket query and a Durable Object name; `ABC-DEF` is what a human is shown, on the
+It used to be six characters drawn uniformly from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`,
+which produced `K7P4X2` — a password. That has to be spelled out, character by
+character, twice, over other people's noise. Dropping the digits also brings `O` and `I`
+back: they were excluded because `O`/`0` and `I`/`1` are the same shape in most fonts,
+which is a real problem in an alphabet containing both and no problem at all in one that
+contains no digits for them to be mistaken for. All 26 letters are in.
+
+**Stored and transmitted bare, displayed grouped.** `TAKOBE` is what goes in a hash, a
+WebSocket query and a Durable Object name; `TAK-OBE` is what a human is shown, on the
 hub, in the create panel and in the lobby's code card. The dash is presentation and
-never reaches a wire — `idFromName('ABC-DEF')` and `idFromName('ABCDEF')` are two
+never reaches a wire — `idFromName('TAK-OBE')` and `idFromName('TAKOBE')` are two
 different rooms, so two people reading the same code aloud would end up alone in
 separate ones. `formatRoomCode()` in `www/src/core/room/code.ts` is the only place the
 dash is added.
 
-Grouping because six is past what most people hold in one glance, and it gives someone
-reading it out a place to pause. It was four characters until the catalogue grew; four
-is ~1M rooms, six is ~1G, and the collision arithmetic is in
-[realtime-server.md](../realtime-server.md).
+The grouping is also the unit the pattern works in: a group is a syllable, and the pause
+between them is where a reader breathes. It was four characters until the catalogue grew.
 
-Typed input accepts anything and keeps what it can: `ABC-DEF`, `abc def` and `ABCDEF`
-all normalise to the same six. A **hash** is stricter — it accepts the bare form and
-exactly the grouped form we print, and calls anything else damaged rather than
-repairing it (§4).
+**How many.** A triplet is 26 × 5 × 21 = 2 730 — the first letter is free and the two
+after it are fixed in class by it, which comes to the same number either way round — so
+a code is one of **7 452 900**. Fewer than the old billion, and enough: codes live only
+as long as a room, and at a hundred rooms at once the chance of a collision is under a
+tenth of a percent.
+
+Typed input accepts anything and keeps what it can: `TAK-OBE`, `tak obe` and `TAKOBE`
+all normalise to the same six. Validation checks **the pattern, not just the length**: a
+string that does not fit it cannot have come from `generateRoomCode`, so accepting it
+would send somebody into an empty room of their own making. Only about one random
+six-letter string in forty fits, so most mis-hearings are caught rather than dialled. A
+**hash** is stricter again — it accepts the bare form and exactly the grouped form we
+print, and calls anything else damaged rather than repairing it (§4).
 
 ## 1. Tier 1 — always available
 
@@ -226,7 +243,7 @@ exactly the failure the table above exists to prevent. So `roomFromHash()` tests
 value with `isRoomCode()` and forgives only case, because some clients lowercase a URL in
 transit and that is the same code rather than a different one.
 
-**Codes are generated from the alphabet, never sanitised into it.**
-`generateRoomCode()` draws every character from `ROOM_CODE_ALPHABET`, so it cannot
-emit an excluded glyph. `normaliseRoomCode()` exists only for input the app does not
+**Codes are generated to the pattern, never sanitised into it.**
+`generateRoomCode()` draws the first letter of each triplet from the whole alphabet and
+lets it decide the shape, so it cannot emit a code its own validator would refuse. `normaliseRoomCode()` exists only for input the app does not
 control — what a human types, and what arrives in a hash.

@@ -235,7 +235,10 @@ Two traps that have already cost time:
   `isRoomCode`, the Worker answers `400`, and the assertion "the socket was refused"
   is satisfied by the wrong cause. The same run reported the in-flight rule *broken*
   for the same reason. A negative assertion about a refusal has to pin the reason, or
-  a legal code has to be used — `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, six of them.
+  a legal code has to be used — and a legal code is now a **shape**, not just a set of
+  characters: six letters as two vowel/consonant-alternating triplets, `TAK-OBE`. Six
+  letters picked at random will not do; roughly thirty-nine times in forty they are
+  refused before anything under test is reached.
 - **Use a fresh room code for every run.** Codes are just names —
   `idFromName(code)` resolves to the *same* Durable Object as last time, live round
   and all. Rejoin a code from an earlier run and `start` is **silently refused**
