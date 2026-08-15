@@ -1,14 +1,11 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
-import type { Player, PlayerId } from '../../../../shared/protocol';
+import type { BombMatch, Player, PlayerId } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { Blast } from './Blast';
 import { BOOM_MS } from './shockwave';
 import type { BombView } from './game';
-
-/** How long the explosion holds the screen before the next bomb view returns. */
-
 
 /**
  * The round, on one phone. Spec: docs/specs/games/pass-the-bomb.md §4
@@ -17,14 +14,15 @@ import type { BombView } from './game';
  *
  * | | |
  * | --- | --- |
- * | **holder** | full-bleed accent, "PASS IT", no player list — you look at real people |
+ * | **holder** | full-bleed accent, "PASS IT" across the middle of it |
  * | **watcher** | calm and dark, whose phone it is on |
  * | **boom** | the explosion, for everyone, naming the victim |
  * | **spectator** | you are out; who is left |
  *
- * The holder's screen deliberately shows **no list of who is near you** (spec §4). It is a
- * physical game; the moment the screen becomes the thing you look at, everyone stops looking at
- * each other and it stops being fun.
+ * All four carry the same small panel in the bottom right — who has it, who is clear — and
+ * nothing else. It is deliberately not a thing to *read*: this is a physical game, and the
+ * moment the screen becomes what you look at, everyone stops looking at each other and it
+ * stops being fun (spec §4). One glance to see the bomb is two seats away is the whole job.
  *
  * Nothing here counts anything down. See `game.ts` for why that is load-bearing.
  */
@@ -94,7 +92,7 @@ export function BombScreen({
 
   if (iAmOut) {
     return (
-      <div class="bombscreen bombscreen--out" style={{ '--game-accent': accent } as JSX.CSSProperties}>
+      <div class="bombscreen bombscreen--out" style={{ '--game-accent': accent, '--roster': String(players.length) } as JSX.CSSProperties}>
         <StatusBar
           status={"You're out — watching"}
           title={title}
@@ -103,12 +101,12 @@ export function BombScreen({
         />
 
         {/*
-          Top left, not the default bottom left: the holder's screen keeps the tap-to-pass
-          buttons down there, and they are how a player without a motion sensor plays at
-          all. Set on every one of this game's screens rather than only that one, so the
-          panel does not jump corners as the bomb changes hands.
+          Bottom right, on every one of this game's screens, so the panel does not jump
+          corners as the bomb changes hands. It is also the game's only readout of who is
+          holding it — the holder's status bar used to say "You have it", which told you
+          the one thing you already knew and nothing about anybody else.
         */}
-        <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" corner="top-left" />
+        <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" corner="bottom-right" />
         <p class="bombscreen__holder-avatar" aria-hidden="true">
           {avatar(state.holder)}
         </p>
@@ -122,15 +120,22 @@ export function BombScreen({
     const others = state.alive.filter((id) => id !== myId);
 
     return (
-      <div class="bombscreen bombscreen--holder" style={{ '--game-accent': accent } as JSX.CSSProperties}>
+      <div class="bombscreen bombscreen--holder" style={{ '--game-accent': accent, '--roster': String(players.length) } as JSX.CSSProperties}>
+        {/*
+          The round, not "You have it". The screen is full-bleed accent with PASS IT across
+          the middle of it — nothing else on this phone looks remotely like that — so a
+          label saying you are holding the bomb spent the one always-visible slot on the
+          fact the player is least in doubt about. Where you are in the match is the thing
+          they cannot see from the colour.
+        */}
         <StatusBar
-          status={"You have it"}
+          status={roundLabel(state.match)}
           title={title}
           concept={concept}
           rules={rules}
         />
 
-        <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" corner="top-left" />
+        <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" corner="bottom-right" />
 
         {/*
           PASS IT is the BUTTON, not a headline over one.
@@ -173,7 +178,7 @@ export function BombScreen({
   }
 
   return (
-    <div class="bombscreen bombscreen--watching" style={{ '--game-accent': accent } as JSX.CSSProperties}>
+    <div class="bombscreen bombscreen--watching" style={{ '--game-accent': accent, '--roster': String(players.length) } as JSX.CSSProperties}>
       <StatusBar
         status={`${state.alive.length} still in`}
         title={title}
@@ -181,7 +186,7 @@ export function BombScreen({
         rules={rules}
       />
 
-      <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" corner="top-left" />
+      <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" corner="bottom-right" />
       <p class="bombscreen__holder-avatar" aria-hidden="true">
         {avatar(state.holder)}
       </p>
@@ -222,6 +227,11 @@ function useFreshBoom(state: BombView): { victim: PlayerId } | null {
   if (!over && Date.now() - state.lastBoom.at > BOOM_MS) return null;
 
   return { victim: state.lastBoom.victim };
+}
+
+/** How far through the match, for the status bar. */
+function roundLabel(m: BombMatch): string {
+  return m.rounds === null ? `Round ${m.round}` : `Round ${m.round}/${m.rounds}`;
 }
 
 /**

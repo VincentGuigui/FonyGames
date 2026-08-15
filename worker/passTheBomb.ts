@@ -3,8 +3,10 @@ import {
   BUMP_PAIR_WINDOW_MS,
   BUMP_QUOTA,
   BUMP_QUOTA_WINDOW_MS,
+  BOMB_LIVES,
   BOMB_MAX_PLAYERS,
   BOMB_MIN_PLAYERS,
+  BOMB_ROUNDS,
   BUMP_ROUND_CAP_MS,
   CLOCK_SKEW_TOLERANCE_MS,
   FUSE_FLOOR_MAX_MS,
@@ -12,6 +14,7 @@ import {
   FUSE_MAX_MS,
   FUSE_MIN_MS,
   FUSE_SHRINK,
+  type BombMatch,
   type PlayerId,
   type ServerMessage,
 } from '../shared/protocol';
@@ -54,6 +57,17 @@ export type Bomb = {
    */
   solo: boolean;
   phase: 'running' | 'done';
+  /** Lives, wins and how far through — see `BombMatch` in shared/protocol.ts. */
+  match: BombMatch;
+  /**
+   * Who the match was started with.
+   *
+   * A match only continues while the same people are playing it. Somebody joining or
+   * leaving between rounds is a new evening, not a mid-match substitution, and carrying
+   * three rounds of standings over a changed room would put a player on the board who was
+   * not there for any of it.
+   */
+  roster: PlayerId[];
 };
 
 export type Ctx = {
@@ -70,6 +84,89 @@ function drawFuse(min: number, max: number, now: number): number {
   return now + min + Math.floor(Math.random() * (max - min));
 }
 
+/* ------------------------------------------------------------------ */
+/* The match around the round                                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A duel is anything two phones can play — which includes one, in solo test mode.
+ *
+ * The distinction is not "how many players" for its own sake, it is whether *elimination*
+ * can carry a round: with three or more, players go out one at a time and the round has
+ * somewhere to go. With two it is over on the first boom, so lives carry the match instead.
+ */
+function isDuel(players: number): boolean {
+  return players <= 2;
+}
+
+/** Standings at nil-nil. */
+function freshMatch(connected: PlayerId[]): BombMatch {
+  const duel = isDuel(connected.length);
+  return {
+    round: 1,
+    rounds: duel ? null : BOMB_ROUNDS,
+    lives: duel ? Object.fromEntries(connected.map((id) => [id, BOMB_LIVES])) : {},
+    wins: Object.fromEntries(connected.map((id) => [id, 0])),
+    champion: null,
+    done: false,
+  };
+}
+
+/** The same people, in any order. */
+function sameRoster(a: PlayerId[], b: PlayerId[]): boolean {
+  return a.length === b.length && [...a].sort().join(' ') === [...b].sort().join(' ');
+}
+
+/** Continue the match in progress, or start a new one. */
+function nextMatch(prev: Bomb | null, connected: PlayerId[]): BombMatch {
+  if (!prev || prev.match.done || !sameRoster(prev.roster, connected)) return freshMatch(connected);
+  return { ...prev.match, round: prev.match.round + 1 };
+}
+
+/**
+ * Who is ahead, or null when nobody is.
+ *
+ * A tie has no champion and neither does a table of zeroes: a five-round match that ends
+ * three-all is a draw, and the end screen says "nobody won that one" rather than picking
+ * whoever the object happened to list first.
+ */
+function leader(table: Record<PlayerId, number>): PlayerId | null {
+  let best: PlayerId | null = null;
+  let bestN = 0;
+  let tied = false;
+  for (const [id, n] of Object.entries(table)) {
+    if (n > bestN) {
+      bestN = n;
+      best = id;
+      tied = false;
+    } else if (n === bestN) {
+      tied = true;
+    }
+  }
+  return tied ? null : best;
+}
+
+/**
+ * Book the round that has just finished, and decide whether the match has finished with it.
+ *
+ * Mutates the match in place; the caller broadcasts it. Called from both endings — the fuse
+ * and a player walking out — because a round that ends either way still counts.
+ */
+function closeRound(bomb: Bomb): void {
+  const m = bomb.match;
+  // The survivor takes the round. Nobody left (solo, or a room that emptied) takes nothing,
+  // which is what makes a draw possible.
+  const survivor = bomb.alive.length === 1 ? bomb.alive[0] : undefined;
+  if (survivor !== undefined) m.wins[survivor] = (m.wins[survivor] ?? 0) + 1;
+
+  m.done =
+    m.rounds === null
+      ? Object.values(m.lives).some((l) => l <= 0)
+      : m.round >= m.rounds;
+
+  if (m.done) m.champion = leader(m.rounds === null ? m.lives : m.wins);
+}
+
 /** Host pressed start. Returns false when the room is not eligible. */
 export async function startBomb(
   ctx: Ctx,
@@ -84,6 +181,9 @@ export async function startBomb(
 
   const now = ctx.now();
   const holder = connected[Math.floor(Math.random() * connected.length)] as PlayerId;
+  // Reads the round that just finished, which is how a match survives being played one
+  // "start" at a time: the host pressing Next round is the same frame as Play again.
+  const match = nextMatch(await ctx.load(), connected);
 
   const bomb: Bomb = {
     roundId,
@@ -98,6 +198,8 @@ export async function startBomb(
     endsAt: now + BUMP_ROUND_CAP_MS,
     phase: 'running',
     solo,
+    match,
+    roster: [...connected],
   };
 
   await ctx.save(bomb);
@@ -105,7 +207,7 @@ export async function startBomb(
   ctx.broadcast({
     t: 'bomb',
     s: ctx.nextSeq(),
-    d: { roundId, holder, alive: bomb.alive },
+    d: { roundId, holder, alive: bomb.alive, match },
   });
   await ctx.setAlarm(bomb.fuseAt);
   return true;
@@ -194,7 +296,7 @@ export async function onBump(
   ctx.broadcast({
     t: 'bomb',
     s: ctx.nextSeq(),
-    d: { roundId: bomb.roundId, holder: receiver, alive: bomb.alive },
+    d: { roundId: bomb.roundId, holder: receiver, alive: bomb.alive, match: bomb.match },
   });
 }
 
@@ -216,7 +318,7 @@ export async function onPass(
   ctx.broadcast({
     t: 'bomb',
     s: ctx.nextSeq(),
-    d: { roundId: bomb.roundId, holder: to, alive: bomb.alive },
+    d: { roundId: bomb.roundId, holder: to, alive: bomb.alive, match: bomb.match },
   });
 }
 
@@ -233,14 +335,21 @@ export async function onFuse(ctx: Ctx): Promise<boolean> {
   bomb.alive = bomb.alive.filter((p) => p !== victim);
   bomb.pending = {};
 
+  // A duel is played on lives: the boom costs one and the round stops there, because with
+  // two people there is nobody left to pass to anyway.
+  const duel = bomb.match.rounds === null;
+  if (duel) bomb.match.lives[victim] = Math.max(0, (bomb.match.lives[victim] ?? 0) - 1);
+
+  const over = duel || lastStanding(bomb.alive.length, bomb.solo) || now >= bomb.endsAt;
+  if (over) closeRound(bomb);
+
   ctx.broadcast({
     t: 'boom',
     s: ctx.nextSeq(),
-    d: { roundId: bomb.roundId, victim, alive: bomb.alive },
+    d: { roundId: bomb.roundId, victim, alive: bomb.alive, over, match: bomb.match },
   });
 
-  // Last player standing, or the safety cap hit — either way we stop.
-  if (lastStanding(bomb.alive.length, bomb.solo) || now >= bomb.endsAt) {
+  if (over) {
     bomb.phase = 'done';
     await ctx.save(bomb);
     return true;
@@ -256,7 +365,7 @@ export async function onFuse(ctx: Ctx): Promise<boolean> {
   ctx.broadcast({
     t: 'bomb',
     s: ctx.nextSeq(),
-    d: { roundId: bomb.roundId, holder: bomb.holder, alive: bomb.alive },
+    d: { roundId: bomb.roundId, holder: bomb.holder, alive: bomb.alive, match: bomb.match },
   });
   await ctx.setAlarm(Math.min(bomb.fuseAt, bomb.endsAt));
   return false;
@@ -275,12 +384,28 @@ export async function onPlayerGone(ctx: Ctx, playerId: PlayerId): Promise<void> 
   delete bomb.pending[playerId];
 
   if (lastStanding(bomb.alive.length, bomb.solo)) {
+    closeRound(bomb);
+    /*
+     * And the match with it. The next round would be played by a different set of people,
+     * so `nextMatch` would start a fresh one regardless — saying so here means the end
+     * screen offers "play again" rather than a next round that would not be the same match.
+     */
+    bomb.match.done = true;
+    bomb.match.champion = leader(
+      bomb.match.rounds === null ? bomb.match.lives : bomb.match.wins,
+    );
     bomb.phase = 'done';
     await ctx.save(bomb);
     ctx.broadcast({
       t: 'boom',
       s: ctx.nextSeq(),
-      d: { roundId: bomb.roundId, victim: playerId, alive: bomb.alive },
+      d: {
+        roundId: bomb.roundId,
+        victim: playerId,
+        alive: bomb.alive,
+        over: true,
+        match: bomb.match,
+      },
     });
     return;
   }
@@ -292,6 +417,6 @@ export async function onPlayerGone(ctx: Ctx, playerId: PlayerId): Promise<void> 
   ctx.broadcast({
     t: 'bomb',
     s: ctx.nextSeq(),
-    d: { roundId: bomb.roundId, holder: bomb.holder, alive: bomb.alive },
+    d: { roundId: bomb.roundId, holder: bomb.holder, alive: bomb.alive, match: bomb.match },
   });
 }

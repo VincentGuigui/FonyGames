@@ -1,5 +1,5 @@
 import { applyBomb, isAlive, type BombState } from './game';
-import type { PlayerId, ServerMessage } from '../../../../shared/protocol';
+import type { BombMatch, PlayerId, ServerMessage } from '../../../../shared/protocol';
 
 /**
  * The phone's view of the bomb.
@@ -28,15 +28,32 @@ const A = 'a' as PlayerId;
 const B = 'b' as PlayerId;
 const C = 'c' as PlayerId;
 
+/** A five-round match nobody has scored in yet — the standings are not what this file tests. */
+const match = (over: Partial<BombMatch> = {}): BombMatch => ({
+  round: 1,
+  rounds: 5,
+  lives: {},
+  wins: {},
+  champion: null,
+  done: false,
+  ...over,
+});
+
 const bomb = (s: number, holder: PlayerId, alive: PlayerId[], roundId = 1): ServerMessage => ({
   t: 'bomb',
   s,
-  d: { roundId, holder, alive },
+  d: { roundId, holder, alive, match: match() },
 });
-const boom = (s: number, victim: PlayerId, alive: PlayerId[], roundId = 1): ServerMessage => ({
+const boom = (
+  s: number,
+  victim: PlayerId,
+  alive: PlayerId[],
+  roundId = 1,
+  over = alive.length <= 1,
+): ServerMessage => ({
   t: 'boom',
   s,
-  d: { roundId, victim, alive },
+  d: { roundId, victim, alive, over, match: match() },
 });
 
 console.log('\nthe first frame starts the round');
@@ -77,19 +94,37 @@ check('no winner yet', st?.winner === null);
 check('the victim is now a spectator', !isAlive(st, B));
 check('and the survivors are not', isAlive(st, A) && isAlive(st, C));
 
-console.log('\nthe round ends without anything announcing it');
+console.log('\nthe referee says when the round is over');
 
-// The referee sends no `round-end` frame — the spec's §6 table lists one that was never
-// built. A boom leaving one player IS the end, and a client waiting for an end frame hangs.
 st = applyBomb(st, boom(4, A, [C]), 3000);
 check('phase is over', st?.phase === 'over', st?.phase);
 check('last one standing wins', st?.winner === C, st?.winner);
+
+/*
+ * The two endings this reducer used to get wrong, both by counting heads instead of reading
+ * the frame: a two-player round is over after ONE boom with the survivor still standing, and
+ * the five-minute safety cap ends a round with a whole circle left in it.
+ */
+console.log('\ntwo more ways a round ends, neither of them "one player left"');
+
+let duel: BombState = applyBomb(null, bomb(1, A, [A, B]), 0);
+duel = applyBomb(duel, boom(2, A, [B], 1, true), 100);
+check('a duel round ends on the first boom', duel?.phase === 'over', duel?.phase);
+check('and the survivor took it', duel?.winner === B, duel?.winner);
+
+let capped: BombState = applyBomb(null, bomb(1, A, [A, B, C]), 0);
+capped = applyBomb(capped, boom(2, A, [B, C], 1, true), 100);
+check('the safety cap ends one with a circle left', capped?.phase === 'over', capped?.phase);
+check('and nobody is called the winner of it', capped?.winner === null, capped?.winner);
+
+let carries: BombState = applyBomb(null, bomb(1, A, [A, B, C]), 0);
+check('the match rides along on every frame', carries?.match.rounds === 5, carries?.match);
 
 console.log('\nedge cases from §7');
 
 // onPlayerGone can empty the room: everyone quit at once, so there is no winner to name.
 let gone: BombState = applyBomb(null, bomb(1, A, [A, B]), 0);
-gone = applyBomb(gone, boom(2, A, []), 10);
+gone = applyBomb(gone, boom(2, A, [], 1, true), 10);
 check('an empty room ends with no winner rather than a wrong one', gone?.winner === null, gone);
 check('and is still over', gone?.phase === 'over');
 

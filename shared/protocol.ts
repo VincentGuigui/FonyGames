@@ -155,6 +155,36 @@ export type RoundResult = {
   noContest: boolean;
 };
 
+/**
+ * Pass the Bomb: the match a round belongs to.
+ *
+ * A round is one bomb, from the first holder to the boom that ends it. A **match** is the
+ * thing people actually sit down to play, and it has two shapes because two players and
+ * six players are not the same game:
+ *
+ * | | |
+ * | --- | --- |
+ * | **Two players** (`rounds: null`) | Three lives each. One boom costs the victim a life and ends the round there — with two people, elimination *is* the ending, so a "last one standing" match would be one bomb long |
+ * | **Three or more** (`rounds: 5`) | The round runs the classic way, players out one at a time until one is left; five of those decide it |
+ *
+ * Carried from round to round by the referee and sent whole on every frame, so a phone that
+ * joins late, reloads, or misses a frame draws the same standings as everyone else.
+ */
+export type BombMatch = {
+  /** Which round is being played, 1-based. */
+  round: number;
+  /** How many rounds the match runs to, or null when lives decide it instead. */
+  rounds: number | null;
+  /** Lives left per player. Empty in a rounds match. */
+  lives: Record<PlayerId, number>;
+  /** Rounds won per player — the survivor of each round takes one. */
+  wins: Record<PlayerId, number>;
+  /** Who took the match, once `done`. Null for a draw, or nobody at all. */
+  champion: PlayerId | null;
+  /** No further round will be played on these standings. */
+  done: boolean;
+};
+
 /** Spill: one projectile, described once and animated locally from then on. */
 export type SpillDrop = {
   dropId: string;
@@ -322,9 +352,32 @@ export type ServerMessage =
   | { t: 'false-start'; d: { roundId: number } }
   | { t: 'result'; s: number; d: RoundResult }
   /** Pass the Bomb: the bomb is now here. Late frames with a lower `s` are dropped. */
-  | { t: 'bomb'; s: number; d: { roundId: number; holder: PlayerId; alive: PlayerId[] } }
+  | {
+      t: 'bomb';
+      s: number;
+      d: { roundId: number; holder: PlayerId; alive: PlayerId[]; match: BombMatch };
+    }
   /** Pass the Bomb: the fuse expired on `victim`. */
-  | { t: 'boom'; s: number; d: { roundId: number; victim: PlayerId; alive: PlayerId[] } }
+  | {
+      t: 'boom';
+      s: number;
+      d: {
+        roundId: number;
+        victim: PlayerId;
+        alive: PlayerId[];
+        /**
+         * Whether that was the end of the round.
+         *
+         * The phone used to work this out for itself — "a boom that leaves one player or
+         * none" — which was right for the elimination rounds and wrong for the other two
+         * ways a round ends: a two-player round finishes after a single boom with both
+         * players still standing on lives, and the five-minute safety cap finishes one with
+         * a whole circle left. Both looked to the phone like the round carrying on.
+         */
+        over: boolean;
+        match: BombMatch;
+      };
+    }
   /** Pass the Bomb: too many bumps too fast — this player's bumps are muted briefly. */
   | { t: 'calm-down'; d: { untilServerTime: number } }
   /** Steady Hand: the state of the room. `w` is everyone's last wobble, for the meters. */
@@ -710,6 +763,18 @@ export const BOMB_MAX_PLAYERS = PLAYERS['pass-the-bomb'][1];
 
 /** A round is hard-capped, per the safety rules in the spec. */
 export const BUMP_ROUND_CAP_MS = 5 * 60_000;
+
+/**
+ * A two-player match: three lives each, and a boom costs one.
+ *
+ * With two people the first boom is also the last — there is nobody left to pass to — so a
+ * round is over in one explosion. One explosion is not an evening, hence lives: the round
+ * ends, the standings show what it cost, and the next one starts from a fresh fuse.
+ */
+export const BOMB_LIVES = 3;
+
+/** With three or more, each round plays out to a last player standing. Five decide it. */
+export const BOMB_ROUNDS = 5;
 
 /* ------------------------------------------------------------------ */
 /* Spill (docs/specs/games/spill.md)                                    */

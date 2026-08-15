@@ -1,4 +1,4 @@
-import type { PlayerId, ServerMessage } from '../../../../shared/protocol';
+import type { BombMatch, PlayerId, ServerMessage } from '../../../../shared/protocol';
 
 /**
  * What the phone knows about the bomb. Spec: docs/specs/games/pass-the-bomb.md
@@ -14,11 +14,13 @@ import type { PlayerId, ServerMessage } from '../../../../shared/protocol';
  * habit, because a countdown — even an approximate one drawn from watching how long the bomb
  * has been in the room — hands the holder the one fact the game is built on withholding.
  *
- * ## Round end is derived, not announced
+ * ## Round end is announced now, and it has to be
  *
- * The spec's §6 table lists a `round-end` frame. It was never implemented, and the referee has
- * no equivalent: the round is over when a `boom` leaves one player or none. So that is what
- * this watches for. Anything expecting an explicit end frame would wait forever.
+ * This used to work it out for itself — "a boom that leaves one player or none" — which held
+ * for the elimination rounds and quietly failed for the other two ways a round ends. A
+ * two-player round is over after one boom with both players still on their feet, and the
+ * five-minute safety cap ends one with a whole circle left. So `boom` carries `over`, and
+ * this believes it rather than counting heads.
  */
 export type BombView = {
   roundId: number;
@@ -29,8 +31,15 @@ export type BombView = {
   phase: 'running' | 'over';
   /** Who it just went off on, and when — the explosion is shown from this. */
   lastBoom: { victim: PlayerId; at: number } | null;
-  /** Set once `phase` is `over`; absent if everyone left at once. */
+  /** Who took this ROUND, once `phase` is `over`; null if everyone blew up. */
   winner: PlayerId | null;
+  /**
+   * Lives, wins and how far through the match — sent whole on every frame.
+   *
+   * The end screen reads this rather than the round: what a player wants after the third
+   * boom of five is the standings, and whether there is another round coming.
+   */
+  match: BombMatch;
   /**
    * Highest `s` seen for this round. Part of the state rather than a local variable because
    * dropping a stale frame is a decision about the state, and a test has to be able to set it up.
@@ -74,6 +83,7 @@ export function applyBomb(state: BombState, msg: ServerMessage, now: number): Bo
         // screen can still be showing the boom when the next bomb lands.
         lastBoom: fresh ? null : (state?.lastBoom ?? null),
         winner: null,
+        match: msg.d.match,
         seq: msg.s,
       };
     }
@@ -83,16 +93,17 @@ export function applyBomb(state: BombState, msg: ServerMessage, now: number): Bo
       if (msg.s <= state.seq) return state;
 
       const alive = msg.d.alive;
-      // One player left, or none — either way nobody can pass to anybody, so the round is
-      // finished whether or not a frame says so.
-      const over = alive.length <= 1;
+      const over = msg.d.over;
 
       return {
         ...state,
         alive,
         phase: over ? 'over' : 'running',
         lastBoom: { victim: msg.d.victim, at: now },
-        winner: over ? (alive[0] ?? null) : null,
+        // The last one standing took the round. A round nobody survived — solo, or a room
+        // that emptied — has no winner, and neither does the safety cap with a circle left.
+        winner: over && alive.length === 1 ? (alive[0] ?? null) : null,
+        match: msg.d.match,
         seq: msg.s,
       };
     }

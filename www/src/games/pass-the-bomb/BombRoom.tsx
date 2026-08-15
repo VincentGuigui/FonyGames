@@ -4,6 +4,8 @@ import type { GameCard } from '../../core/types';
 import {
   BOMB_MAX_PLAYERS,
   BOMB_MIN_PLAYERS,
+  type BombMatch,
+  type Player,
   type PlayerId,
   type ServerMessage,
 } from '../../../../shared/protocol';
@@ -166,14 +168,23 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
    *
    * It comes AFTER the `holdingBoom` branch above on purpose: the bomb going off is the
    * ending, and cutting to a scoreboard over the top of it is what this game spent a fix
-   * on already. Pass the Bomb has no score, so the column says what happened to each
-   * player instead — which is the whole result in a game about being the last one holding
-   * nothing.
+   * on already.
+   *
+   * What the column says is the MATCH, not the round — lives left in a duel, rounds won in
+   * a five-rounder. The round it just played is on the headline ("Ana takes the round"),
+   * and the standings are the thing anyone actually leans over to read.
    */
   if (state && state.phase === 'over') {
     const players = room.room?.players ?? [];
-    const survivors = players.filter((p) => state.alive.includes(p.id));
-    const out = players.filter((p) => !state.alive.includes(p.id));
+    const m = state.match;
+    const duel = m.rounds === null;
+    const standing = (id: PlayerId): number => (duel ? (m.lives[id] ?? 0) : (m.wins[id] ?? 0));
+    // Best first, and stable within a tie so the room order shows through rather than the
+    // list reshuffling itself between rounds for no reason.
+    const ranked = [...players].sort((a, b) => standing(b.id) - standing(a.id));
+    const start = (): void => void client?.send({ t: 'start', d: { mode: 'bomb', solo } });
+    const another = !m.done;
+
     return (
       <GameOverScreen
         accent={card.accent}
@@ -181,17 +192,24 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         concept={card.concept}
         rules={card.rules}
         status="Boom"
-        rows={[...survivors, ...out].map((p) => ({
-          id: p.id,
-          avatar: p.avatar,
-          name: p.name,
-          value: state.alive.includes(p.id) ? 'survived' : 'blown up',
-          ...(state.alive.includes(p.id) ? {} : { out: true }),
-        }))}
+        rows={ranked.map((p) => {
+          const n = standing(p.id);
+          return {
+            id: p.id,
+            avatar: p.avatar,
+            name: p.name,
+            value: n,
+            unit: duel ? (n === 1 ? 'life' : 'lives') : n === 1 ? 'round' : 'rounds',
+            ...(duel && n <= 0 ? { out: true } : {}),
+          };
+        })}
         me={myId}
-        winner={state.winner}
-        headline={state.winner === null ? 'Everybody blew up' : undefined}
-        onAgain={() => client?.send({ t: 'start', d: { mode: 'bomb', solo } })}
+        winner={another ? state.winner : m.champion}
+        headline={another ? roundHeadline(state.winner, myId, players) : undefined}
+        note={matchNote(m)}
+        {...(another
+          ? { onNext: start, nextLabel: 'Next round' }
+          : { onAgain: start })}
         canAct={room.isHost && enoughToStart(room.connected, [BOMB_MIN_PLAYERS, BOMB_MAX_PLAYERS], solo)}
       />
     );
@@ -300,6 +318,25 @@ function MotionPrimer({
       <p class="primer__opt-out">Rather not? Tap-to-pass is always available in the round.</p>
     </section>
   );
+}
+
+/**
+ * The line over a mid-match panel.
+ *
+ * Deliberately not "X won": the panel under it is showing the MATCH, and a player who has
+ * just taken the second of five rounds has not won anything yet. Two words of difference,
+ * and it is the difference between a scoreboard that reads and one that misleads.
+ */
+function roundHeadline(winner: PlayerId | null, me: PlayerId | undefined, players: Player[]): string {
+  if (winner === null) return 'Nobody survived that one';
+  if (winner === me) return 'You take the round';
+  return `${players.find((p) => p.id === winner)?.name ?? 'Someone'} takes the round`;
+}
+
+/** Where the match is up to, under the standings. */
+function matchNote(m: BombMatch): string {
+  if (m.done) return m.rounds === null ? 'Out of lives' : `${m.rounds} rounds played`;
+  return m.rounds === null ? `Round ${m.round}` : `Round ${m.round} of ${m.rounds}`;
 }
 
 function note(isHost: boolean, connected: number, solo: boolean): string {

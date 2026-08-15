@@ -7,7 +7,22 @@
   min-height: 100dvh;
   padding: var(--space-4);
   padding-top: max(var(--space-4), env(safe-area-inset-top));
-  padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
+  /*
+   * The bottom of the screen belongs to the player list.
+   *
+   * That panel is `position: fixed` in the bottom right corner (it moved there when the
+   * holder's status bar stopped saying "You have it") and it grows a row per player, so at
+   * eight it is a quarter of the screen tall. Nothing in this layout can see it, and the
+   * first thing to find that out was "Knock your phone against someone else's", printed
+   * straight through the list.
+   *
+   * `--roster` is the player count, set on the root by BombScreen. Reserving the space is
+   * the only honest option: the panel's height is a fact about the room, not about the CSS,
+   * and a fixed allowance would be too much at two players and not enough at eight.
+   */
+  padding-bottom: calc(
+    max(var(--space-5), env(safe-area-inset-bottom)) + var(--roster, 0) * 1.35rem + var(--space-4)
+  );
   text-align: center;
 }
 
@@ -23,7 +38,7 @@
 /*
  * The holder's screen is full-bleed accent, so the status bar's own colours are wrong on
  * it: `--color-text-dim` is a light grey picked to sit on the dark page, and on a bright
- * accent it reads as smudged rather than as text. "You have it" takes the dark
+ * accent it reads as smudged rather than as text. The round label takes the dark
  * on-accent colour like everything else on this screen.
  */
 .bombscreen--holder .statusbar__status,

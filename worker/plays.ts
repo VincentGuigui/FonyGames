@@ -42,12 +42,12 @@ export function endsRound(msg: ServerMessage): boolean {
       return msg.d.matchWinnerId !== null;
 
     /*
-     * Pass the Bomb ends when a `boom` leaves one player standing. Exactly one: an empty
-     * `alive` is everybody having left, which is an abandoned room rather than a win —
-     * the same reading `applyBomb` uses for its own `winner` field.
+     * Pass the Bomb, like Tap Duel, is played as a MATCH — three lives at two players, five
+     * rounds above that — so the round that ends it is the game played, not each of the five.
+     * A match with no champion is a draw or an abandoned room; neither is a win.
      */
     case 'boom':
-      return msg.d.alive.length === 1;
+      return msg.d.match.done && msg.d.match.champion !== null;
 
     case 'steady-end':
       return msg.d.winner !== null;

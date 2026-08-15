@@ -1,5 +1,5 @@
 import { endsRound, playsUrl, reportPlay, roundKey } from './plays';
-import type { PlayerId, ServerMessage } from '../shared/protocol';
+import type { BombMatch, PlayerId, ServerMessage } from '../shared/protocol';
 
 /**
  * What counts as a game played.
@@ -32,6 +32,9 @@ function check(what: string, ok: boolean, detail?: unknown): void {
 const A = 'a' as PlayerId;
 const B = 'b' as PlayerId;
 
+/** Standings nothing in this file depends on — a bomb frame simply has to carry some. */
+const MATCH: BombMatch = { round: 1, rounds: 5, lives: {}, wins: {}, champion: null, done: false };
+
 console.log('\na round somebody won counts');
 
 {
@@ -48,10 +51,25 @@ console.log('\na round somebody won counts');
   won(result(A), 'tap duel: the match');
   not(result(null), 'tap duel: not each duel inside it');
 
-  // Pass the Bomb: over when a boom leaves one standing. Empty is everybody having left.
-  won({ t: 'boom', s: 1, d: { roundId: 1, victim: B, alive: [A] } }, 'pass the bomb: last one standing');
-  not({ t: 'boom', s: 1, d: { roundId: 1, victim: B, alive: [A, B] } }, 'pass the bomb: not a boom mid-round');
-  not({ t: 'boom', s: 1, d: { roundId: 1, victim: B, alive: [] } }, 'pass the bomb: not an emptied room');
+  /*
+   * Pass the Bomb is a match too: five rounds, or three lives at two players. The round
+   * that decides it is the game played — counting all five would make one evening of it
+   * look like five of anything else, which is the same trap `result` above avoids.
+   */
+  const bombed = (over: Partial<BombMatch>): ServerMessage => ({
+    t: 'boom',
+    s: 1,
+    d: {
+      roundId: 1,
+      victim: B,
+      alive: [A],
+      over: true,
+      match: { round: 5, rounds: 5, lives: {}, wins: { [A]: 3, [B]: 2 }, champion: null, done: false, ...over },
+    },
+  });
+  won(bombed({ done: true, champion: A }), 'pass the bomb: the match');
+  not(bombed({}), 'pass the bomb: not each round inside it');
+  not(bombed({ done: true, champion: null }), 'pass the bomb: not a match nobody took');
 
   won({ t: 'steady-end', s: 1, d: { roundId: 1, winner: A, times: {} } }, 'steady hand: a survivor');
   not({ t: 'steady-end', s: 1, d: { roundId: 1, winner: null, times: {} } }, 'steady hand: not a round nobody won');
@@ -99,7 +117,7 @@ console.log('\nnothing mid-round counts');
     { t: 'pong', d: { at: 1, serverTime: 1 } },
     { t: 'arm', s: 1, d: { roundId: 1, fireAt: 2, startsAt: 1, target: { x: 0.5, y: 0.5 }, speed: 1 } },
     { t: 'false-start', d: { roundId: 1 } },
-    { t: 'bomb', s: 1, d: { roundId: 1, holder: A, alive: [A, B] } },
+    { t: 'bomb', s: 1, d: { roundId: 1, holder: A, alive: [A, B], match: MATCH } },
     { t: 'rush', s: 1, d: { roundId: 1, endsAt: 9, at: {}, finished: [], away: [] } },
     { t: 'hunt', s: 1, d: { roundId: 1, targets: [], index: {}, endsAt: 9, scores: {}, totals: {} } },
     { t: 'cm-frame', s: 1, d: { roundId: 1, at: 1, pos: {} } },
@@ -122,7 +140,7 @@ console.log('\none round is counted once');
   // A new round is a new key, or "race again" would never be counted.
   check('a later round is a different key',
     roundKey({ ...over, d: { ...over.d, roundId: 8 } }) !== roundKey(over));
-  check('a mid-round frame has none', roundKey({ t: 'bomb', s: 1, d: { roundId: 7, holder: A, alive: [A, B] } }) === null);
+  check('a mid-round frame has none', roundKey({ t: 'bomb', s: 1, d: { roundId: 7, holder: A, alive: [A, B], match: MATCH } }) === null);
   // Two games ending on the same round number are not the same round.
   check('and two games do not collide',
     roundKey({ t: 'siege-over', s: 1, d: { roundId: 7, winnerId: A, cabbages: {} } }) !== roundKey(over));
