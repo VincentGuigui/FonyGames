@@ -278,17 +278,23 @@ Re-centre. Also on screen, small and out of the way: your score, the time left, 
 everyone else's count.
 
 - **Lobby**: shared template, the camera + orientation primer (§5.3), the safety
-  line (§9), and one line saying what the game does with the camera — *nothing
-  leaves your phone* — because "let us use your camera" is the most alarming ask
-  in the catalogue and deserves an answer before it is asked.
+  line (§9), and one line saying what the game does with the camera — *no picture ever
+  leaves your phone* — because "let us use your camera" is the most alarming ask in the
+  catalogue and deserves an answer before it is asked.
+
+  **That line is the heading of a collapsed panel, and the detail is behind it.** Open, it
+  was fifty-five words and 226px of a lobby whose start button was already below the fold
+  — and a wall of text about privacy is a wall most people scroll past. The sentence that
+  does the reassuring is now always visible and the rest is one tap away, which is more of
+  this rule delivered rather than less.
 - **Calibrate**: no screen of its own. Forward is whatever the phone is facing when
   the host starts, which is one fewer blocking screen between a tap and a game.
 - **Round**: as above.
 - **The catch**: the rim comes full and the radar gives one pulse. Fired by the
   **score going up** — the server agreeing — rather than by the phone's own hold
   completing, so nothing is ever celebrated that the referee then refuses.
-- **Results**: each player's catches **and their total search time**, ordered by the rule
-  in §2, with the fastest single catch called out.
+- **Results**: each player's points and catches, ordered by §7, with their fastest,
+  slowest and average find on the line beneath.
 
 ## 5. Inputs & sensors
 

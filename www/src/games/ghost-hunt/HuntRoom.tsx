@@ -11,6 +11,7 @@ import { soloTesting } from '../../core/solo';
 import { useRoom, useShareRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
+import { Disclosure } from '../../core/ui/Disclosure';
 import {
   orientationSupport,
   requestOrientation,
@@ -518,19 +519,25 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
           </section>
 
           {/*
-            The camera answer comes BEFORE the camera is asked for. "This game wants
-            your camera" is the most alarming sentence in the catalogue and the
-            honest answer is short (spec §10).
+            The camera answer comes BEFORE the camera is asked for. "This game wants your
+            camera" is the most alarming sentence in the catalogue and the honest answer is
+            short (spec §10).
+
+            Collapsed, but the ANSWER IS THE HEADING. Fifty-five words of reassurance in an
+            open panel cost 226px of a lobby whose start button was already below the fold,
+            and a wall of text about privacy is a wall most people scroll past — so the
+            sentence that does the reassuring is the summary line, always visible, and the
+            detail is behind it for whoever wants it. That is more of §10 delivered, not
+            less: one line that gets read beats five that do not.
           */}
-          <section class="panel hunt-privacy" role="note">
-            <h2 class="panel__heading">About the camera</h2>
+          <Disclosure heading="The camera: no picture ever leaves your phone">
             <p class="hunt-privacy__body">
-              <strong>No picture ever leaves your phone.</strong> The feed goes straight to
-              the outline in the middle of the screen and is thrown away frame by frame.
-              Nothing is recorded, nothing is uploaded, and the game never looks at it —
-              the ghosts come from the server and the aim from the motion sensor.
+              The feed goes straight to the outline in the middle of the screen and is
+              thrown away frame by frame. Nothing is recorded, nothing is uploaded, and the
+              game never looks at it — the ghosts come from the server and the aim from the
+              motion sensor.
             </p>
-          </section>
+          </Disclosure>
 
           <RoutePicker
             support={support}

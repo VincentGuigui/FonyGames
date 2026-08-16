@@ -13,7 +13,20 @@ fixed:
 3. **Room code** — the code, share link, QR.
 4. **Players** — the list. Your own row carries **Change**, which opens a sheet with
    your name and the avatars in it.
-5. **Start** — the button and one line of context.
+5. **Start** — the button and one line of context, **stuck to the bottom of the screen**.
+
+### Why the start button is sticky
+
+Because it was below the fold in every game. Measured at 390×844 with one player: Pass the
+Bomb's start button sat at 964px, Shake Rush's at 1064, Steady Hand's at 1005, Ghost Hunt's
+at 1384. The host had to scroll past the room code, the player list and two panels of
+safety copy to start a round — every round.
+
+The cause is not one fat panel. A lobby legitimately has a lot in it: a code to read out,
+everyone who has joined, and whatever a game must say before anybody points a camera at
+anything. Sticky keeps all of that and stops it burying the one control the host is there
+to press. The gradient behind it fades to the page colour rather than being a flat fill,
+because a hard edge across the middle of a panel reads as the page having ended.
 
 ### Why the avatar picker is behind a button
 
