@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
 import type { ComponentChildren, JSX } from 'preact';
 import { HowToPlay } from './HowToPlay';
+import { Sheet } from './Sheet';
 
 /**
  * The in-game menu: a gear in the corner of every game, opening a sheet.
@@ -40,35 +41,25 @@ export function GameMenu({
       </button>
 
       {open && (
-        <div class="gamemenu">
-          {/* A tap outside closes it — the usual sheet behaviour, and it means a
-              mis-tap on the gear costs nothing mid-round. */}
-          <button
-            class="gamemenu__scrim"
-            type="button"
-            aria-label="Close menu"
-            onClick={() => setOpen(false)}
-          />
-          <div class="gamemenu__sheet" role="dialog" aria-modal="true" aria-label={`${title} menu`}>
-            <div class="gamemenu__head">
-              <h2 class="gamemenu__title">{title}</h2>
-              <button class="btn gamemenu__close" type="button" onClick={() => setOpen(false)}>
-                Close
-              </button>
-            </div>
-
-            <h3 class="gamemenu__label">How to play</h3>
-            <HowToPlay concept={concept} rules={rules} />
-
-            {children}
-
-            {/* A real link, not a router call: leaving the page is what drops
-                the socket and frees the seat. */}
-            <a class="btn btn--big gamemenu__exit" href="/">
-              Leave game
-            </a>
+        <Sheet label={`${title} menu`} onClose={() => setOpen(false)}>
+          <div class="gamemenu__head">
+            <h2 class="gamemenu__title">{title}</h2>
+            <button class="btn gamemenu__close" type="button" onClick={() => setOpen(false)}>
+              Close
+            </button>
           </div>
-        </div>
+
+          <h3 class="gamemenu__label">How to play</h3>
+          <HowToPlay concept={concept} rules={rules} />
+
+          {children}
+
+          {/* A real link, not a router call: leaving the page is what drops
+              the socket and frees the seat. */}
+          <a class="btn btn--big gamemenu__exit" href="/">
+            Leave game
+          </a>
+        </Sheet>
       )}
     </>
   );

@@ -11,8 +11,26 @@ fixed:
 1. **Title and tagline** — the title, then the game's `pitch` verbatim.
 2. **How to play** — the concept, then the bullets (§2).
 3. **Room code** — the code, share link, QR.
-4. **Players** — the list, plus your own avatar picker.
+4. **Players** — the list. Your own row carries **Change**, which opens a sheet with
+   your name and the avatars in it.
 5. **Start** — the button and one line of context.
+
+### Why the avatar picker is behind a button
+
+It used to sit open under the list in every lobby: twelve buttons, **123 vertical pixels**,
+permanently, for a choice each player makes once and usually before anybody else has
+joined. Measured on a 390×844 phone that is a tenth of the whole lobby and a seventh of the
+first screenful, spent on a control that is finished with the moment it has been used.
+
+Both halves of "who am I" now live behind one **Change** button on your own row —
+name and avatar, saved together in one frame, because they are one decision and two frames
+give the room a moment to show a half-changed player. The button replaced a `rename` link
+that opened a native `prompt()`: an OS dialog in the middle of a game, which some browsers
+refuse outright and none of them style.
+
+The sheet is `core/ui/Sheet.tsx`, shared with the gear menu — extracted the moment a second
+thing needed the same scrim, the same tap-outside-to-close and the same safe-area padding,
+rather than copied.
 
 A game customises it only through slots:
 

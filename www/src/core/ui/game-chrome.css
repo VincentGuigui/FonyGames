@@ -69,7 +69,11 @@
 
 /* --- the sheet ---------------------------------------------------------- */
 
-.gamemenu {
+/*
+ * The sheet shell — scrim and panel — shared by the gear menu and the lobby's profile
+ * editor. Component: core/ui/Sheet.tsx
+ */
+.sheet {
   position: fixed;
   inset: 0;
   z-index: 20;
@@ -78,7 +82,7 @@
   pointer-events: auto;
 }
 
-.gamemenu__scrim {
+.sheet__scrim {
   position: absolute;
   inset: 0;
   border: 0;
@@ -87,7 +91,7 @@
   cursor: pointer;
 }
 
-.gamemenu__sheet {
+.sheet__panel {
   position: relative;
   width: 100%;
   max-height: 88vh;
@@ -215,13 +219,13 @@
 }
 
 /* Anything block-level the sheet hosts (Spill's table diagram) centres itself. */
-.gamemenu__sheet > svg,
-.gamemenu__sheet .seatmap {
+.sheet__panel > svg,
+.sheet__panel .seatmap {
   margin-inline: auto;
 }
 
-.gamemenu__sheet .howto__aside,
-.gamemenu__sheet .howto__rule {
+.sheet__panel .howto__aside,
+.sheet__panel .howto__rule {
   margin: 0;
   text-align: center;
   font-size: var(--font-small);

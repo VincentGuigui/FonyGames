@@ -1,9 +1,9 @@
 import type { ComponentChildren, JSX } from 'preact';
-import { useContext } from 'preact/hooks';
+import { useContext, useState } from 'preact/hooks';
 import type { PlayerId } from '../../../shared/protocol';
 import type { GameCard } from '../core/types';
 import type { Room } from '../core/room/useRoom';
-import { AvatarPicker, CodeCard, ConnectionBanner, PlayerList } from './parts';
+import { CodeCard, ConnectionBanner, PlayerList, ProfileSheet } from './parts';
 import { HowToPlay } from '../core/ui/HowToPlay';
 import { Disclosure } from '../core/ui/Disclosure';
 import { ArrivedByLink } from './arrival';
@@ -78,6 +78,7 @@ export function GameLobby({
    * something different from what its start button actually sends.
    */
   const solo = soloTesting();
+  const [editing, setEditing] = useState(false);
 
   return (
     <div class="lobby" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
@@ -144,11 +145,23 @@ export function GameLobby({
         <PlayerList
           room={room.room}
           me={room.me}
-          onRename={room.rename}
+          onChange={() => setEditing(true)}
           {...(playerTag ? { tagFor: playerTag } : {})}
         />
-        {room.me && <AvatarPicker current={room.me.avatar} onPick={room.setAvatar} />}
       </section>
+
+      {/*
+        Name and avatar together, and only when asked for. The avatar picker used to sit
+        open under the list in every lobby — twelve buttons, 123 vertical pixels, for a
+        choice each player makes once and usually before anybody else has even joined.
+      */}
+      {editing && room.me && (
+        <ProfileSheet
+          me={room.me}
+          onSave={room.setProfile}
+          onClose={() => setEditing(false)}
+        />
+      )}
 
       {extras}
 

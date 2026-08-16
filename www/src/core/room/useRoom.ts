@@ -107,8 +107,15 @@ export type Room = {
   me: Player | undefined;
   isHost: boolean;
   connected: number;
-  rename: () => void;
-  setAvatar: (avatar: string) => void;
+  /**
+   * Change your name, your avatar, or both, in one frame.
+   *
+   * One call rather than the `rename()` and `setAvatar()` it replaces, because the lobby
+   * now edits both together in one sheet and two frames for one Save is two chances for
+   * the room to see a half-finished player. `rename()` was also a native `prompt()` — an
+   * OS dialog in the middle of a game, which some browsers refuse outright.
+   */
+  setProfile: (next: { name?: string; avatar?: string }) => void;
 };
 
 export function useRoom(
@@ -149,15 +156,18 @@ export function useRoom(
     me,
     isHost: !!me && room?.hostId === me.id,
     connected: room?.players.filter((p) => p.connected).length ?? 0,
-    rename: () => {
-      const next = prompt('Your name', me?.name ?? '')?.trim();
-      if (!next) return;
-      clientRef.current?.send({ t: 'set-profile', d: { name: next } });
-      saveProfile({ name: next });
-    },
-    setAvatar: (avatar) => {
-      clientRef.current?.send({ t: 'set-profile', d: { avatar } });
-      saveProfile({ avatar });
+    setProfile: (next) => {
+      // Trimmed here rather than in the sheet: whatever calls this, a name of spaces is
+      // not a name, and the server would take it.
+      const name = next.name?.trim();
+      const d = {
+        ...(name ? { name } : {}),
+        ...(next.avatar ? { avatar: next.avatar } : {}),
+      };
+      if (Object.keys(d).length === 0) return;
+      clientRef.current?.send({ t: 'set-profile', d });
+      // Remembered for the next room, so a player names themselves once per phone.
+      saveProfile(d);
     },
   };
 }

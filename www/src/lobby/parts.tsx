@@ -1,8 +1,10 @@
+import { useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { Player, PlayerId, RoomSnapshot } from '../../../shared/protocol';
 import type { RoomStatus } from '../core/room/client';
 import { AVATARS } from '../../../shared/names';
 import { QrCode } from '../core/ui/QrCode';
+import { Sheet } from '../core/ui/Sheet';
 import { formatRoomCode } from '../core/room/code';
 
 /**
@@ -77,13 +79,14 @@ export function CodeCard({
 export function PlayerList({
   room,
   me,
-  onRename,
+  onChange,
   /** Extra tag per player — Spill uses it to print the seat number. */
   tagFor,
 }: {
   room: RoomSnapshot | null;
   me: Player | undefined;
-  onRename: () => void;
+  /** Opens the profile sheet. Only your own row offers it. */
+  onChange: () => void;
   tagFor?: (id: PlayerId) => string | null;
 }): JSX.Element {
   return (
@@ -104,9 +107,15 @@ export function PlayerList({
             {extra && <span class="player__tag">{extra}</span>}
             {room?.hostId === p.id && <span class="player__tag">host</span>}
             {!p.connected && <span class="player__tag">away</span>}
+            {/*
+              One button for both halves of "who am I". It said `rename` and opened a
+              native prompt, and the avatar lived in a twelve-button grid sitting open
+              under the list — 123px of the lobby, permanently, for a thing each player
+              does once. Both are behind this now.
+            */}
             {p.id === me?.id && (
-              <button class="player__edit" type="button" onClick={onRename}>
-                rename
+              <button class="btn player__change" type="button" onClick={onChange}>
+                Change
               </button>
             )}
           </li>
@@ -114,6 +123,71 @@ export function PlayerList({
       })}
       {!room && <li class="player player--ghost">Connecting…</li>}
     </ul>
+  );
+}
+
+/**
+ * Name and avatar, in a sheet, saved together.
+ *
+ * Both at once because they are one decision — "who am I in this room" — and because two
+ * frames for one Save gives the room a moment to show a half-changed player. The name is
+ * held locally until Save so a half-typed one never reaches anybody else's screen; the
+ * avatar is too, for the same reason and so Cancel means cancel.
+ */
+export function ProfileSheet({
+  me,
+  onSave,
+  onClose,
+}: {
+  me: Player;
+  onSave: (next: { name: string; avatar: string }) => void;
+  onClose: () => void;
+}): JSX.Element {
+  const [name, setName] = useState(me.name);
+  const [avatar, setAvatar] = useState(me.avatar);
+  const trimmed = name.trim();
+
+  function save(event: Event): void {
+    event.preventDefault();
+    // An empty field keeps the name you had rather than clearing it: somebody who opened
+    // this to change their avatar should not have to retype their name to get out.
+    onSave({ name: trimmed === '' ? me.name : trimmed, avatar });
+    onClose();
+  }
+
+  return (
+    <Sheet label="Your name and avatar" onClose={onClose}>
+      <form class="profile" onSubmit={save}>
+        <div class="gamemenu__head">
+          <h2 class="gamemenu__title">You</h2>
+          <button class="btn gamemenu__close" type="button" onClick={onClose}>
+            Cancel
+          </button>
+        </div>
+
+        <label class="profile__label" for="profile-name">
+          Your name
+        </label>
+        <input
+          id="profile-name"
+          class="profile__name"
+          type="text"
+          value={name}
+          maxLength={20}
+          autocomplete="nickname"
+          spellcheck={false}
+          // Not `autofocus`: on a phone it throws the keyboard up over the avatars, which
+          // are the other half of what this sheet is for.
+          onInput={(e) => setName((e.target as HTMLInputElement).value)}
+        />
+
+        <AvatarPicker current={avatar} onPick={setAvatar} />
+
+        <button class="btn btn--big profile__save" type="submit">
+          Save
+        </button>
+      </form>
+    </Sheet>
   );
 }
 

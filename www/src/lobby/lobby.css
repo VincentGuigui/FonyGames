@@ -222,14 +222,61 @@ a.btn {
   letter-spacing: 0.06em;
 }
 
-.player__edit {
+/*
+ * "Change" — name and avatar, on your own row and nowhere else.
+ *
+ * A real button rather than the underlined `rename` link it replaces. That was styled as
+ * a link because it was a small secondary thing beside the name; it is now the only way
+ * to reach either half of your profile, so it has to look pressable at arm's length.
+ * Short and outlined, so it is still clearly not the thing you came to the lobby to press.
+ */
+.player__change {
   flex: 0 0 auto;
-  background: none;
-  border: none;
-  padding: var(--space-2);
-  color: var(--color-text-dim);
+  min-height: 2rem;
+  padding: 0 var(--space-3);
   font-size: var(--font-small);
-  text-decoration: underline;
+}
+
+/* --- the profile sheet --------------------------------------------------- */
+
+/*
+ * Name, avatar and Save, in the shared sheet (core/ui/Sheet.tsx). It is a `<form>`, so
+ * Enter on the name field saves — which is what a keyboard's blue Go key does on a phone,
+ * and the difference between one tap and three.
+ */
+.profile {
+  display: block;
+}
+
+.profile__label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.profile__name {
+  width: 100%;
+  min-height: var(--tap-target);
+  margin-bottom: var(--space-4);
+  padding: 0 var(--space-3);
+  background: var(--color-bg);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  font-size: 1.125rem;
+}
+
+.profile__name:focus-visible {
+  border-color: var(--game-accent, var(--color-accent));
+  outline: none;
+}
+
+.profile__save {
+  margin-top: var(--space-4);
+  background: var(--game-accent, var(--color-accent));
+  color: var(--color-on-accent);
+  border-color: transparent;
 }
 
 /* --- avatar picker ------------------------------------------------------- */
