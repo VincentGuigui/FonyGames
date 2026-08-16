@@ -432,19 +432,32 @@ export type ServerMessage =
         /** Which target each player is on. A `found` for any other index is stale. */
         index: Record<PlayerId, number>;
         endsAt: number;
+        /** How many ghosts each player has caught. */
         scores: Record<PlayerId, number>;
         /**
-         * Time spent searching, per player, in ms — the SCORE, and lowest wins.
+         * Time spent searching, per player, in ms.
          *
          * Cumulative across their finds and measured by the server, so it cannot be
-         * beaten by a client with a generous clock. A player with nothing found yet has
-         * no time, which is not the same as having a fast one: see `ranking` in
-         * ghost-hunt/game.ts for why the two must never be compared.
+         * beaten by a client with a generous clock. No longer the score — it is what the
+         * score is computed FROM, and what the end screen turns into an average.
          */
         totals: Record<PlayerId, number>;
+        /**
+         * The score: `HUNT_POINTS_PER_FIND` a ghost, less the seconds each one took.
+         *
+         * Summed by the referee rather than derived here from `scores` and `totals`,
+         * because the per-find floor is not something a total can be un-mixed back into.
+         */
+        points: Record<PlayerId, number>;
       };
     }
-  /** Ghost Hunt: round over. `best` is the fastest single find, if there was one. */
+  /**
+   * Ghost Hunt: round over, with everyone's find times.
+   *
+   * `fastest` and `slowest` are per player and in ms, `0` for anyone who caught nothing.
+   * The average is not sent — it is `totals / scores`, and a number the receiver can
+   * divide for itself is a number that cannot disagree with the two it came from.
+   */
   | {
       t: 'hunt-end';
       s: number;
@@ -452,7 +465,9 @@ export type ServerMessage =
         roundId: number;
         scores: Record<PlayerId, number>;
         totals: Record<PlayerId, number>;
-        best: { player: PlayerId; ms: number } | null;
+        points: Record<PlayerId, number>;
+        fastest: Record<PlayerId, number>;
+        slowest: Record<PlayerId, number>;
       };
     }
   /** Shake Rush: where everyone is on the track, and who has finished. */
@@ -1092,8 +1107,30 @@ export const RADAR_FOV_DEG = 20;
 export const GHOST_HOLD_MS = 4_000;
 export const GHOST_ROAM_DEG = 26;
 
-/** How long the roam takes to come back on itself. Slow: a drift, not a dodge. */
+/** How long the roam takes to come back on itself, for a player's FIRST ghost. */
 export const GHOST_ROAM_MS = 11_000;
+
+/**
+ * And how much quicker it drifts for each ghost that player has already caught.
+ *
+ * The hunt gets harder as you win it. A first ghost drifts at the pace above; a player on
+ * their fifth is tracking one moving nearly twice as fast, so the four-second hold that was
+ * a matter of standing reasonably still becomes a matter of following.
+ *
+ * **This deliberately breaks the rule that everyone's ghost moves identically.** That rule
+ * existed for fairness — a race where one player's ghost bolted while another's sat still
+ * is not a race — and the fairness is preserved in the form that matters: the speed is a
+ * pure function of *your own count*, so two players on their third ghost get exactly the
+ * same path, and nobody is ever handed a harder ghost than someone else who has done as
+ * well. What it stops is a runaway leader, which a fixed-length hunt otherwise rewards
+ * twice over.
+ *
+ * Capped, because the roam has to stay slower than a player can follow: past about double
+ * the ghost crosses the radar faster than the hold takes, and the game stops being winnable
+ * rather than becoming hard.
+ */
+export const GHOST_SPEEDUP_PER_FIND = 0.18;
+export const GHOST_SPEED_MAX = 2;
 
 /**
  * Consecutive targets are never near each other, so a find always costs a
@@ -1111,23 +1148,43 @@ export const ELEVATION_MIN_DEG = -40;
 export const ELEVATION_MAX_DEG = 70;
 
 /**
- * The round closes as soon as **anybody** has caught this many.
+ * The hunt is a hundred seconds long, and that is the whole rule.
  *
- * A race to a fixed number rather than a count inside a fixed window, which is what this
- * was. The two are different games: a window makes the last few seconds worth nothing and
- * ends every round at the same moment whatever anyone did, while a target means the round
- * ends because somebody won it.
+ * It was a race to five catches, with the clock as a backstop. Back to a window, and this
+ * time with a score that makes the last seconds worth something — which was the objection
+ * to a window the first time round. Under a bare count the closing seconds are dead: you
+ * cannot finish a four-second hold, so nothing you do in them can change the result. Under
+ * `HUNT_POINTS_PER_FIND` a late catch is still worth most of a hundred, and the player who
+ * keeps hunting to the buzzer beats the one who stops.
  */
-export const HUNT_TARGET_FINDS = 5;
+export const HUNT_ROUND_MS = 100_000;
 
 /**
- * The safety cap, and it is now only that.
+ * What a ghost is worth: a hundred, less the seconds it took to find it.
  *
- * A round normally ends when someone reaches `HUNT_TARGET_FINDS`. This stops a room that
- * cannot find anything from hunting forever, so it is a backstop rather than the rule —
- * the card's "90 s" is a worst case, not a duration.
+ * One number instead of two facing opposite ways. The score used to be the *time* spent
+ * searching, lowest wins, which is honest and awkward everywhere it is shown: a panel that
+ * ranks low-is-good bolds whoever has played least, and a player with no catches has spent
+ * no time, so their zero reads like a win. Points only go up.
+ *
+ * **The value is chosen against `HUNT_ROUND_MS`, not picked for roundness.** A whole ghost
+ * has to outweigh any time difference, or a player who caught fewer could still come first:
+ * with the hunt capped at 100 s, no total can span more than 100 s, so 100 points a ghost
+ * makes "more catches" beat "quicker catches" every time — the exact ranking this game had
+ * before, now expressed as one number. `ghost-hunt/game.test.ts` pins the inequality; if
+ * the round ever grows past this, that test is the thing that fails.
  */
-export const HUNT_ROUND_MS = 90_000;
+export const HUNT_POINTS_PER_FIND = 100;
+
+/**
+ * What the slowest possible catch is still worth.
+ *
+ * At the top of the round the arithmetic can reach zero — a ghost that took the entire 100 s
+ * — and a catch worth nothing is indistinguishable from not catching it, which is wrong in
+ * a game about catching them. The floor is small enough to keep a slow find clearly worse
+ * and large enough to keep it clearly better than nothing.
+ */
+export const HUNT_POINTS_FLOOR = 5;
 
 /**
  * The floor on a believable find, and the only thing the server can check.

@@ -18,16 +18,25 @@ import { angleBetween, wrapDeg, type Aim } from '../../core/sensors/orientation'
  *
  * ## The roam looks random and is not, on purpose
  *
- * A ghost wanders, and every player's wanders **identically**: the path is a pure
- * function of the target's index and how long the ghost has been on screen for
- * that player. Nothing is drawn from `Math.random`.
+ * A ghost wanders, and the path is a pure function of the target's index, how long
+ * the ghost has been on screen for that player, and how many that player has already
+ * caught. Nothing is drawn from `Math.random`.
  *
  * That is a fairness requirement, not a stylistic one. Everyone hunts the same
  * ghosts in the same order (spec §2), and a race where one player's ghost happened
  * to sit still while another's bolted is not a race. Deriving the path from the
- * index gives every phone the same four seconds of work, and deriving it from the
- * ghost's own age rather than from the round clock means a player who finds it late
- * still gets the same path from the same starting point.
+ * index gives every phone the same work, and deriving it from the ghost's own age
+ * rather than from the round clock means a player who finds it late still gets the
+ * same path from the same starting point.
+ *
+ * ## Except that it speeds up, and only for the player who is winning
+ *
+ * `speed` scales the drift by that player's own catch count (`ghostSpeed` in game.ts).
+ * It is the one thing here that is not identical for everyone, and the fairness above
+ * survives in the form that matters: two players who have caught the same number get
+ * exactly the same path, so nobody is handed a harder ghost than someone who has done
+ * as well. What it stops is a hundred-second hunt rewarding a runaway leader twice —
+ * once for being ahead and again for still having the easiest ghost on the table.
  *
  * Two sine terms at incommensurable periods, phased by the index: it drifts, turns
  * back on itself somewhere unexpected, and never traces a circle anyone can learn.
@@ -46,9 +55,14 @@ const SECOND_TERM = 0.61;
  * degree of azimuth is a smaller angle the higher you look, so without it a ghost
  * near the top of the band would roam a fraction of the distance one on the horizon
  * does, and the game would be quietly easier up there.
+ *
+ * `speed` multiplies the drift and nothing else — the excursion stays inside
+ * `GHOST_ROAM_DEG` however fast it is going, because a ghost that ranged further as
+ * well as quicker would leave the radar in a way no amount of following could fix.
+ * Defaults to 1, the pace of a player's first ghost.
  */
-export function ghostAt(home: Aim, index: number, ageMs: number): Aim {
-  const t = (ageMs / GHOST_ROAM_MS) * 2 * Math.PI;
+export function ghostAt(home: Aim, index: number, ageMs: number, speed = 1): Aim {
+  const t = ((ageMs * speed) / GHOST_ROAM_MS) * 2 * Math.PI;
   // The index only sets the phase, so a ghost is never in the same place at the
   // same age twice, and it never starts at the extreme of its own excursion.
   const phase = index * 1.7;

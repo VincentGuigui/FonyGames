@@ -1,4 +1,5 @@
 import {
+  findPoints,
   nextDeadline,
   onFound,
   onHuntTick,
@@ -13,7 +14,8 @@ import {
   ELEVATION_MAX_DEG,
   ELEVATION_MIN_DEG,
   HUNT_ROUND_MS,
-  HUNT_TARGET_FINDS,
+  HUNT_POINTS_FLOOR,
+  HUNT_POINTS_PER_FIND,
   HUNT_TICK_MS,
   MIN_FIND_MS,
   TARGET_MIN_SEPARATION_DEG,
@@ -273,39 +275,109 @@ console.log('\ntwo hunters, one ghost');
 }
 
 /*
- * The round now ENDS at the target, and the score is the time spent getting there.
+ * The hunt runs its full hundred seconds — nothing closes it early.
  *
- * Both halves are new and both are the kind of thing that would ship looking fine: a round
- * that never closes early just feels long, and a total that counts nothing is a zero, which
- * looks like a fast time rather than an absent one.
+ * It used to end the moment somebody reached five catches. A window makes the closing
+ * seconds matter again, but only because the score is points: under a bare count you cannot
+ * finish a four-second hold in the last three seconds, so nothing you do in them can change
+ * anything. A late catch is still worth most of a hundred.
  */
-console.log('\nfive catches closes it');
+console.log('\nthe hunt runs its full length');
 
 {
   const h = harness();
   await startHunt(h.ctx, 1, [A, B]);
 
-  for (let i = 0; i < HUNT_TARGET_FINDS; i++) {
+  for (let i = 0; i < 8; i++) {
     h.advance(HONEST);
     await onFound(h.ctx, A, 1, i, HONEST);
   }
 
-  check('reaching the target ends the round', h.state?.phase === 'done', h.state?.phase);
-  check('with that player on the target', h.state?.players[A]?.score === HUNT_TARGET_FINDS);
-  check('and it did not wait for the tick', h.state?.endsAt !== undefined && h.now < h.state.endsAt);
+  check('eight catches do not close it', h.state?.phase === 'running', h.state?.phase);
+  check('they all counted', h.state?.players[A]?.score === 8, h.state?.players[A]?.score);
+  check('and the clock is still the only thing that will', h.now < (h.state?.endsAt ?? 0));
+}
 
-  const end = h.last('hunt-end');
-  check('a result went out', end?.t === 'hunt-end');
-  if (end?.t === 'hunt-end') {
-    // The SCORE: time spent searching, summed, measured by the server.
-    check('carrying the search times', end.d.totals[A] === HONEST * HUNT_TARGET_FINDS, end.d.totals);
-    check('and nothing for the player who found nothing', end.d.totals[B] === 0, end.d.totals);
+console.log('\nwhat a ghost is worth');
+
+{
+  check('a hundred, less the seconds', findPoints(6_000) === 94, findPoints(6_000));
+  check('rounded to a whole point', findPoints(6_400) === 94 && findPoints(6_600) === 93);
+  check('the quickest possible catch is worth nearly all of it',
+    findPoints(MIN_FIND_MS) === 96, findPoints(MIN_FIND_MS));
+  /*
+   * The floor. At the top of the round the arithmetic reaches zero, and a catch worth
+   * nothing is indistinguishable from not catching it — which is the wrong thing to tell a
+   * player in a game about catching them.
+   */
+  check('and the slowest is still worth something', findPoints(HUNT_ROUND_MS) === HUNT_POINTS_FLOOR,
+    findPoints(HUNT_ROUND_MS));
+  check('never less', findPoints(HUNT_ROUND_MS * 3) === HUNT_POINTS_FLOOR);
+
+  /*
+   * THE inequality the whole scoring rests on, and the reason it is asserted rather than
+   * commented: a ghost has to be worth more than the largest possible time difference, or
+   * a player who caught fewer could finish ahead of one who caught more. A player's total
+   * is the round at most, so the round has to be shorter than a ghost is worth. Lengthen
+   * `HUNT_ROUND_MS` past `HUNT_POINTS_PER_FIND` seconds and this is what fails, rather
+   * than a scoreboard quietly ranking the wrong way in a room somewhere.
+   */
+  check('a ghost outweighs any time difference the round can produce',
+    HUNT_ROUND_MS / 1000 <= HUNT_POINTS_PER_FIND,
+    { round: HUNT_ROUND_MS / 1000, perFind: HUNT_POINTS_PER_FIND });
+}
+
+/*
+ * THE claim behind the change of scoring: points rank exactly as the old rule did.
+ *
+ * The old rule was "most caught, then the lowest total time", two values facing opposite
+ * ways, and the reason one number can replace it is arithmetic rather than taste — a ghost
+ * is worth `HUNT_POINTS_PER_FIND` and no total can span more than the round, so the time
+ * term can never bridge a catch. This plays real finds and compares the two orders.
+ */
+console.log('\npoints rank the same way the old rule did');
+
+{
+  const profiles = [
+    { id: 'p-0', finds: [5_000, 5_000, 5_000] },     // three, quick
+    { id: 'p-1', finds: [20_000, 22_000, 18_000] },  // three, slow
+    { id: 'p-2', finds: [4_000] },                   // one, the quickest single find
+    { id: 'p-3', finds: [] },                        // nothing
+    { id: 'p-4', finds: [9_000, 30_000] },           // two, mixed
+  ];
+
+  const h = harness();
+  await startHunt(h.ctx, 1, profiles.map((p) => p.id));
+  // Each player is walked through their own finds; the clock only ever moves forward, so
+  // the server's elapsed for each is the gap it was given.
+  for (const p of profiles) {
+    for (const [i, ms] of p.finds.entries()) {
+      const player = h.state?.players[p.id];
+      if (player) player.shownAt = h.now;
+      await h.ctx.save(h.state!);
+      h.advance(ms);
+      await onFound(h.ctx, p.id, 1, i, ms);
+    }
   }
 
-  // One more claim after the end changes nothing.
-  h.advance(HONEST);
-  await onFound(h.ctx, A, 1, HUNT_TARGET_FINDS, HONEST);
-  check('and a find after it is ignored', h.state?.players[A]?.score === HUNT_TARGET_FINDS);
+  const players = h.state?.players ?? {};
+  const byPoints = [...profiles].sort((a, b) =>
+    (players[b.id]?.points ?? 0) - (players[a.id]?.points ?? 0));
+  const byOldRule = [...profiles].sort((a, b) => {
+    const count = (players[b.id]?.score ?? 0) - (players[a.id]?.score ?? 0);
+    return count !== 0 ? count : (players[a.id]?.total ?? 0) - (players[b.id]?.total ?? 0);
+  });
+
+  check('the two orders agree',
+    byPoints.map((p) => p.id).join() === byOldRule.map((p) => p.id).join(),
+    { byPoints: byPoints.map((p) => `${p.id}:${players[p.id]?.points}`), byOldRule: byOldRule.map((p) => p.id) });
+
+  // The two ends of it, spelled out: three slow catches still beat one fast one, and a
+  // player who caught nothing is last however little time they spent doing it.
+  check('three slow beat one fast',
+    (players['p-1']?.points ?? 0) > (players['p-2']?.points ?? 0),
+    { slow: players['p-1']?.points, fast: players['p-2']?.points });
+  check('and nothing caught is nothing scored', players['p-3']?.points === 0);
 }
 
 {
@@ -349,8 +421,24 @@ console.log('\nthe round ends');
   if (end?.t === 'hunt-end') {
     check('with the counts', end.d.scores[A] === 2 && end.d.scores[B] === 1, end.d.scores);
     check('and everyone in it, even a blank', end.d.scores[C] === 0);
-    check('the fastest single find is called out', end.d.best?.player === A, end.d.best);
-    check('at the time the server measured', end.d.best?.ms === HONEST, end.d.best);
+    /*
+     * Per player now, rather than one fastest for the whole room: the end screen puts all
+     * three times under each name, and a single room-wide best cannot fill that.
+     *
+     * A caught two — the first the moment it appeared, the second only after B had taken
+     * their turn — so the two ends of their round are `HONEST` apart from each other.
+     */
+    const slow = HONEST * 2 + 1000;
+    check('with each hunter\'s fastest find', end.d.fastest[A] === HONEST, end.d.fastest);
+    check('and their slowest', end.d.slowest[A] === slow, end.d.slowest);
+    check('one catch is its own fastest and slowest',
+      end.d.fastest[B] === slow && end.d.slowest[B] === slow, { f: end.d.fastest, s: end.d.slowest });
+    // B claimed `HONEST + 1000`; the server recorded what its own clock saw instead.
+    check('measured by the server, not claimed', end.d.fastest[B] !== HONEST + 1000, end.d.fastest);
+    check('and nothing at all for a player who caught nothing',
+      end.d.fastest[C] === 0 && end.d.slowest[C] === 0, { f: end.d.fastest, s: end.d.slowest });
+    check('the points came too', end.d.points[A] === findPoints(HONEST) + findPoints(slow),
+      end.d.points);
   }
 
   h.advance(HONEST);

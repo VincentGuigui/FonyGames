@@ -58,50 +58,80 @@ deranged from outside, which is the correct outcome.
    place on the dial. It roams from its home while it is there.
 5. Keep it on the dial for `GHOST_HOLD_MS` → **caught**, and the next ghost is somewhere
    else. Let it off the dial and the hold starts again from nothing.
-6. The round ends the moment **anybody reaches `HUNT_TARGET_FINDS`**.
+6. The round ends when the **hundred seconds** are up, and nothing else ends it.
 
-**Win condition:** the **lowest total search time**, among players who caught the most.
-**Scoring:** the score IS the time — every catch adds the seconds it took, and the
-smallest number wins.
+**Win condition:** the most points.
+**Scoring:** a ghost is worth `HUNT_POINTS_PER_FIND` (**100**) **less the seconds it took
+to find it**, floored at `HUNT_POINTS_FLOOR` (5). Catch it in six seconds and it is 94;
+take half a minute and it is 70; take the whole round and it is still worth 5, because a
+catch worth nothing is indistinguishable from not catching it.
 
-### A race to five, not a count inside ninety seconds
+### A hundred seconds, and a score that makes the last of them count
 
-This replaced "most found in 90 s" on 2026-08-14, and the two are different games. A fixed
-window makes the last few seconds worth nothing and ends every round at the same moment
-whatever anyone did; a target means the round ends **because somebody won it**. The clock
-is still there as a backstop so a room that cannot find anything does not hunt forever,
-which is why the card says *to 5 ghosts* rather than a duration.
+The hunt was "most found in 90 s", then a race to five catches from 2026-08-14, and it is a
+window again — with the objection to a window answered rather than ignored. Under a bare
+count the closing seconds are dead: a catch takes a four-second hold, so nothing done in
+the last three seconds can change the result, and every round ends at the same moment
+whatever anyone did. Under points a late catch is still worth most of a hundred, so the
+player who keeps hunting to the buzzer beats the one who stops.
 
-### Why the score is a time, and why time alone cannot rank
+### Why the score is points, and how they keep the old order
 
-The score is the seconds spent searching, summed over a player's catches, and the lowest
-wins — a hunter who found five ghosts in twenty seconds beat one who took a minute.
+The score used to be the *time* spent searching, lowest wins — honest, and awkward
+everywhere it was shown. A player who has caught nothing has spent no time, so a panel that
+ranks on time crowns whoever has barely played; the game had to hand the panel its leader
+explicitly, and a player with nothing had to read **—** rather than a number, because a
+zero in a column where low is good is a lie.
 
-But **time alone is not a ranking**, and getting this wrong is the trap: a player who has
-caught nothing has spent no time, so sorting on time puts whoever has barely played at the
-top. So the order is **count first, then time**:
+Points fold both directions into one figure that only goes up — and, crucially, **into the
+same order**. The old rule was "most caught, then the lowest total"; points reproduce it
+exactly, for an arithmetic reason rather than approximately:
+
+> A player's total search time is the sum of consecutive, non-overlapping intervals inside
+> one round, so it can never exceed `HUNT_ROUND_MS` — 100 s. A ghost is worth 100 points.
+> So the time term can never bridge a catch: more catches always outranks quicker catches,
+> and among equal catches the quicker player is ahead.
+
+That inequality is the whole design, and `worker/ghostHunt.test.ts` asserts it directly —
+lengthen the round past `HUNT_POINTS_PER_FIND` seconds and that test fails rather than a
+scoreboard quietly ranking the wrong way. The same file plays five real hunting profiles
+and checks the points order against the old two-key order.
 
 | | |
 | --- | --- |
-| `ranking()` | most caught, then lowest total. The winner necessarily has the most, because reaching the target is what ended the round |
-| `leaderOf()` | the same rule, and `null` when nobody has caught anything or two players are level on both |
-| The panel | shows the time, and is handed the leader explicitly — it ranks one value in one direction, and this is two values in opposite directions (`core/ui/Scoreboard.tsx`) |
-| A player with nothing | reads **—**, not `0.0s`. A zero in a column where low is good is a lie |
+| `ranking()` | most points. One key, one direction |
+| `leaderOf()` | the same, and `null` when nobody has scored or the top two are level |
+| The panel | `best="high"` — no explicit leader any more, because one number going one way needs no help |
+| A player with nothing | reads **0**, which in a column where high is good is simply true |
 
-`www/src/games/ghost-hunt/game.test.ts` asserts the trap directly: a player last on count
-and first on time must not be first overall.
+### The ghost speeds up as you catch them
+
+`GHOST_SPEEDUP_PER_FIND` (0.18) multiplies the roam for each ghost **that player** has
+already caught, capped at `GHOST_SPEED_MAX` (2). A first ghost drifts at the base pace; a
+player on their fifth is following one moving nearly twice as fast, so the four-second hold
+stops being a matter of standing still.
+
+This is the one thing about a ghost that is not identical for everyone, and it is a
+deliberate exception to §2's fairness rule. The half that matters survives: the speed is a
+pure function of your own count, so two players level on catches walk exactly the same
+path and nobody is ever handed a harder ghost than someone who has done as well. What it
+stops is a fixed-length hunt rewarding a runaway leader twice — once for being ahead, and
+again for still having the easiest ghost on the table.
 
 | Constant | Value | Why |
 | --- | --- | --- |
 | `RADAR_FOV` | 20° | The radius of sky the dial shows. Findable by sweeping, too narrow to hit by accident |
 | `GHOST_HOLD_MS` | 4 000 | Long enough that following it is the skill; a sweep straight past cannot pay |
 | `GHOST_ROAM` | 26° | How far it wanders from home. **Larger than `RADAR_FOV` — see below** |
-| `GHOST_ROAM_MS` | 11 000 | The period of the wander. Slow: it drifts, it does not dodge |
+| `GHOST_ROAM_MS` | 11 000 | The period of the wander, for a player's FIRST ghost. Slow: it drifts, it does not dodge |
+| `GHOST_SPEEDUP_PER_FIND` | 0.18 | Added to the pace for each ghost that player has caught. The hunt gets harder as you win it |
+| `GHOST_SPEED_MAX` | 2 | The cap. Past double, the roam outruns the hold and the game stops being winnable rather than becoming hard |
 | `TARGET_MIN_SEPARATION` | 60° | Consecutive homes are never near each other, so a catch always costs a movement. Must clear `RADAR_FOV + GHOST_ROAM` (46°) |
 | `ELEVATION_RANGE` | −40°…+70° | Nothing at your feet, nothing directly behind your head |
 | `MIN_FIND_MS` | `GHOST_HOLD_MS − 200` | The server's floor on a believable claim (§8) |
-| `HUNT_TARGET_FINDS` | 5 | Catches that end the round. First there wins it |
-| `ROUND_MS` | 90 000 | The **backstop**, not the rule: it stops a room that finds nothing from hunting forever |
+| `HUNT_ROUND_MS` | 100 000 | The hunt, and the only thing that ends it |
+| `HUNT_POINTS_PER_FIND` | 100 | What a ghost is worth before the clock is deducted. **Chosen against `HUNT_ROUND_MS`, not for roundness** — see §7 |
+| `HUNT_POINTS_FLOOR` | 5 | What the slowest possible catch is still worth, so catching one always beats not catching it |
 
 ### The one inequality: `GHOST_ROAM > RADAR_FOV`
 
@@ -434,8 +464,8 @@ cannot verify an aim, so it verifies *timing* instead (§8).
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
 | `found` | client → server | `{roundId, index, ms}` | I caught ghost `index`, `ms` after it appeared |
-| `hunt` | server → clients | `{roundId, targets[], index: {playerId: n}, endsAt, scores}` | The shared sequence, and how far down it everyone is |
-| `hunt-end` | server → clients | `{roundId, scores, best}` | Round over |
+| `hunt` | server → clients | `{roundId, targets[], index: {playerId: n}, endsAt, scores, totals, points}` | The shared sequence, how far down it everyone is, and the board |
+| `hunt-end` | server → clients | `{roundId, scores, totals, points, fastest, slowest}` | Round over. `fastest`/`slowest` are per player, in ms, `0` for anyone who caught nothing — the average is `totals / scores` and is divided out by the receiver rather than sent |
 
 **The aim never crosses the wire.** The phone streams nothing during the round —
 it evaluates its own angle locally at sensor rate and sends one small message per

@@ -77,7 +77,7 @@ console.log('\na round somebody won counts');
   const hunt = (scores: Record<PlayerId, number>): ServerMessage => ({
     t: 'hunt-end',
     s: 1,
-    d: { roundId: 1, scores, totals: {}, best: null },
+    d: { roundId: 1, scores, totals: {}, points: {}, fastest: {}, slowest: {} },
   });
   won(hunt({ [A]: 5, [B]: 2 }), 'ghost hunt: somebody caught something');
   not(hunt({ [A]: 0, [B]: 0 }), 'ghost hunt: not a round with no catches');
@@ -119,7 +119,7 @@ console.log('\nnothing mid-round counts');
     { t: 'false-start', d: { roundId: 1 } },
     { t: 'bomb', s: 1, d: { roundId: 1, holder: A, alive: [A, B], match: MATCH } },
     { t: 'rush', s: 1, d: { roundId: 1, endsAt: 9, at: {}, finished: [], away: [] } },
-    { t: 'hunt', s: 1, d: { roundId: 1, targets: [], index: {}, endsAt: 9, scores: {}, totals: {} } },
+    { t: 'hunt', s: 1, d: { roundId: 1, targets: [], index: {}, endsAt: 9, scores: {}, totals: {}, points: {} } },
     { t: 'cm-frame', s: 1, d: { roundId: 1, at: 1, pos: {} } },
     { t: 'error', d: { code: 'rate-limited', message: 'Slow down.' } },
   ];

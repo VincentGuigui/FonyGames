@@ -1,12 +1,15 @@
 import {
   applyHunt,
   createLock,
+  findTimes,
+  findTimesLine,
+  ghostSpeed,
   heat,
   leaderOf,
   myIndex,
   myTarget,
+  pointsOf,
   ranking,
-  searchTime,
   HOT_FROM_DEG,
   type HuntState,
 } from './game';
@@ -27,6 +30,7 @@ import {
   GHOST_HOLD_MS,
   GHOST_ROAM_DEG,
   GHOST_ROAM_MS,
+  GHOST_SPEED_MAX,
   RADAR_FOV_DEG,
   TARGET_MIN_SEPARATION_DEG,
   type PlayerId,
@@ -361,6 +365,7 @@ const hunt = (
     index: Record<string, number>;
     scores: Record<string, number>;
     totals: Record<string, number>;
+    points: Record<string, number>;
     roundId: number;
     targets: Aim[];
   }> = {},
@@ -371,9 +376,10 @@ const hunt = (
     roundId: over.roundId ?? 1,
     targets: over.targets ?? [{ azimuth: 10, elevation: 5 }, { azimuth: 120, elevation: -20 }],
     index: over.index ?? { a: 0, b: 0, c: 0 },
-    endsAt: 90_000,
+    endsAt: 100_000,
     scores: over.scores ?? { a: 0, b: 0, c: 0 },
     totals: over.totals ?? { a: 0, b: 0, c: 0 },
+    points: over.points ?? { a: 0, b: 0, c: 0 },
   },
 });
 
@@ -407,16 +413,23 @@ st = applyHunt(st, {
     roundId: 1,
     scores: { a: 4, b: 2, c: 0 },
     totals: { a: 40_000, b: 18_000, c: 0 },
-    best: { player: B, ms: 900 },
+    points: { a: 360, b: 182, c: 0 },
+    fastest: { a: 6_000, b: 8_000, c: 0 },
+    slowest: { a: 14_000, b: 10_000, c: 0 },
   },
 });
 check('over', st?.phase === 'over');
 check('with the final counts', st?.scores['a'] === 4);
-check('and the fastest find called out', st?.best?.player === B);
+check('and the scores', st?.points['a'] === 360);
+check('and the find times, which only the end frame carries', st?.fastest['a'] === 6_000);
 
 {
   const before = st;
-  st = applyHunt(st, { t: 'hunt-end', s: 2, d: { roundId: 1, scores: {}, totals: {}, best: null } });
+  st = applyHunt(st, {
+    t: 'hunt-end',
+    s: 2,
+    d: { roundId: 1, scores: {}, totals: {}, points: {}, fastest: {}, slowest: {} },
+  });
   check('a stale result cannot blank the scores', st?.scores['a'] === 4);
   check('nor cause a render', st === before);
 }
@@ -428,73 +441,121 @@ console.log('\na new round wipes the last one');
   check('accepted even though its seq restarts low', next?.roundId === 2);
   check('running again', next?.phase === 'running');
   check('scores back to zero', next?.scores['a'] === 0);
-  check('and no stale best', next?.best === null);
+  check('and no stale find times', Object.keys(next?.fastest ?? { x: 1 }).length === 0);
 
   const before = next;
   check('and a frame from the finished round is dropped', applyHunt(next, hunt(9)) === before);
 }
 
 /*
- * Who is winning, which is now a rule with TWO parts and they pull opposite ways: the
- * score is time spent searching and the lowest wins, but only among players who have
- * caught the same number. A single sort on either value alone gets it wrong, and gets it
- * wrong in a way that looks plausible on the screen you happen to be looking at.
+ * Who is winning — one number now, and one direction.
+ *
+ * It used to be two values pulling opposite ways: most caught, then the lowest time, and
+ * never either on its own. Points fold both into a figure that only goes up, so what these
+ * check is that the fold really did keep the old order rather than merely looking tidier.
+ * `worker/ghostHunt.test.ts` proves the two orders agree on real finds; these cover what
+ * the phone does with the numbers once they arrive.
  */
 console.log('\nwho is winning');
 
 {
   const board = applyHunt(null, hunt(1, {
     scores: { a: 2, b: 7, c: 5 },
-    totals: { a: 10_000, b: 60_000, c: 30_000 },
+    points: { a: 178, b: 622, c: 440 },
   }))!;
-  check('most caught first', ranking(board, [A, B, C]).join() === 'b,c,a');
+  check('most points first', ranking(board, [A, B, C]).join() === 'b,c,a');
   check('a player who left the room is not drawn', ranking(board, [A, C]).join() === 'c,a');
 
-  // THE check. A ranks last on count and FIRST on time — because they have barely played.
-  // A sort on time alone would crown them.
-  check('and the fewest seconds does not win on its own', ranking(board, [A, B, C])[0] === B);
+  /*
+   * THE check, kept from the old rule. A has spent the least time of anyone — ten seconds
+   * for their two — and under a score that was a time, lowest winning, they came first for
+   * having barely played. Points cannot do that: two ghosts is two ghosts.
+   */
+  check('and barely playing does not win it', ranking(board, [A, B, C])[0] === B);
 }
 
 {
-  // Level on count: now the time decides, and the LOWEST is ahead.
+  // Level on catches: the quicker player has more points, because less was taken off.
   const board = applyHunt(null, hunt(1, {
     scores: { a: 3, b: 3, c: 3 },
-    totals: { a: 30_000, b: 12_000, c: 21_000 },
+    points: { a: 270, b: 288, c: 279 },
   }))!;
-  check('on level counts the fastest is first', ranking(board, [A, B, C]).join() === 'b,c,a');
+  check('on level catches the fastest is first', ranking(board, [A, B, C]).join() === 'b,c,a');
   check('and the leader is that player', leaderOf(board, [A, B, C]) === B);
 }
 
 {
-  // Nobody has caught anything: there is no leader, and in particular it is not whoever
-  // has the lowest time — everybody's time is nil.
+  // Nobody has caught anything: every score is nil, and crowning the first row would be
+  // inventing a winner out of room order.
   const empty = applyHunt(null, hunt(1))!;
   check('a round nobody has scored in has no leader', leaderOf(empty, [A, B, C]) === null);
-  check('and every time reads as a dash, not 0.0s', searchTime(empty, A) === '—');
+  check('and everyone reads zero, which is true', pointsOf(empty, A) === 0);
 
   const tied = applyHunt(null, hunt(1, {
     scores: { a: 2, b: 2, c: 0 },
-    totals: { a: 20_000, b: 20_000, c: 0 },
+    points: { a: 180, b: 180, c: 0 },
   }))!;
   check('a dead heat has no leader either', leaderOf(tied, [A, B, C]) === null);
 
   const clear = applyHunt(null, hunt(1, {
     scores: { a: 2, b: 2, c: 0 },
-    totals: { a: 20_000, b: 19_000, c: 0 },
+    points: { a: 180, b: 181, c: 0 },
   }))!;
-  check('a second between them is a leader', leaderOf(clear, [A, B, C]) === B);
-  // And a player with nothing found can never be it, however little time they have spent.
+  check('a single point between them is a leader', leaderOf(clear, [A, B, C]) === B);
   check('never the player who has not started', leaderOf(clear, [A, B, C]) !== C);
 }
 
+console.log('\nthe three times, per player');
+
 {
-  const board = applyHunt(null, hunt(1, {
-    scores: { a: 3, b: 0, c: 1 },
-    totals: { a: 42_300, b: 0, c: 8_000 },
-  }))!;
-  check('a time is shown to a tenth', searchTime(board, A) === '42.3s', searchTime(board, A));
-  check('and rounds rather than truncating', searchTime(board, C) === '8.0s', searchTime(board, C));
-  check('while nothing caught is still a dash', searchTime(board, B) === '—');
+  const over = applyHunt(applyHunt(null, hunt(1, { scores: { a: 3, b: 0, c: 1 } })), {
+    t: 'hunt-end',
+    s: 2,
+    d: {
+      roundId: 1,
+      scores: { a: 3, b: 0, c: 1 },
+      totals: { a: 42_300, b: 0, c: 8_000 },
+      points: { a: 258, b: 0, c: 92 },
+      fastest: { a: 5_200, b: 0, c: 8_000 },
+      slowest: { a: 21_400, b: 0, c: 8_000 },
+    },
+  })!;
+
+  const a = findTimes(over, A)!;
+  check('the fastest is theirs, not the room\'s', a.fastest === 5.2, a);
+  check('so is the slowest', a.slowest === 21.4, a);
+  // Divided here rather than sent: three numbers that cannot disagree beat four that can.
+  check('and the average is the total over the count', Math.abs(a.average - 14.1) < 0.001, a);
+
+  check('one find is its own fastest and slowest', findTimes(over, C)?.slowest === 8, findTimes(over, C));
+  check('and a player who caught nothing has no times at all', findTimes(over, B) === null);
+  check('so there is no line under their name', findTimesLine(over, B) === undefined);
+  check('while a hunter gets all three',
+    findTimesLine(over, A) === 'fastest 5.2s · slowest 21.4s · avg 14.1s', findTimesLine(over, A));
+}
+
+console.log('\nthe ghost speeds up as you catch them');
+
+{
+  check('a first ghost drifts at the base pace', ghostSpeed(0) === 1);
+  check('and each catch adds to it', ghostSpeed(1) > 1 && ghostSpeed(3) > ghostSpeed(1));
+  // Capped, or the roam outruns the four-second hold and the game stops being winnable
+  // rather than becoming hard.
+  check('but it never runs away', ghostSpeed(50) === GHOST_SPEED_MAX, ghostSpeed(50));
+  check('and a count below zero cannot slow it down', ghostSpeed(-3) === 1);
+
+  // The pace is a pure function of the count, so two players level on catches are hunting
+  // the identical ghost — which is the half of the fairness rule worth keeping.
+  const home: Aim = { azimuth: 30, elevation: 10 };
+  const same = angleBetween(ghostAt(home, 2, 3_000, ghostSpeed(2)), ghostAt(home, 2, 3_000, ghostSpeed(2)));
+  check('two players on the same count see the same ghost', same === 0, same);
+
+  // Faster means further along the same path in the same time, not a wider path.
+  let far = 0;
+  for (let t = 0; t <= GHOST_ROAM_MS; t += 100) {
+    far = Math.max(far, angleBetween(ghostAt(home, 0, t, GHOST_SPEED_MAX), home));
+  }
+  check('and it still never leaves its own roam', far <= GHOST_ROAM_DEG + 0.001, far);
 }
 
 /*

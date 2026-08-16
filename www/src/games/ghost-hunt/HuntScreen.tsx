@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX, RefObject } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
-import { HUNT_TARGET_FINDS, RADAR_FOV_DEG } from '../../../../shared/protocol';
+import { RADAR_FOV_DEG } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { Scoreboard } from '../../core/ui/Scoreboard';
-import { heat, leaderOf, ranking, searchTime, type HuntView, type LockState } from './game';
+import {
+  findTimesLine,
+  heat,
+  leaderOf,
+  pointsOf,
+  ranking,
+  type HuntView,
+  type LockState,
+} from './game';
 import { DragFingerIcon, TurnPhoneIcon } from './icons';
 import { RADAR_PX } from './vision';
 
@@ -90,6 +98,7 @@ export function HuntScreen({
 }): JSX.Element {
   const hot = heat(lock.error);
   const mine = myId ? (state.scores[myId] ?? 0) : 0;
+  const myPoints = myId ? pointsOf(state, myId) : 0;
   const near = lock.error <= RADAR_FOV_DEG;
   const flash = useFoundFlash(mine);
 
@@ -103,12 +112,12 @@ export function HuntScreen({
 
       <div class="hunt__bar">
         {/*
-          Progress towards the target rather than a bare count: the round ends when
-          somebody reaches it, so "3" means nothing without the 5 beside it. The clock is
-          the safety cap, not the rule (spec §2).
+          Points, because points are what wins it, and the clock beside them because the
+          hunt is a hundred seconds and nothing else ends it (spec §2). The catch count
+          is one row down in the panel, where everybody else's is.
         */}
         <StatusBar
-          score={{ value: `${mine}/${HUNT_TARGET_FINDS}`, label: 'caught' }}
+          score={{ value: myPoints, label: 'points' }}
           status={`${secondsLeft}s`}
           title={title}
           concept={concept}
@@ -197,24 +206,23 @@ export function HuntScreen({
       </div>
 
       {/*
-        The score is the time spent searching, and the LOWEST wins.
-        
-        `leader` is passed rather than `best="low"`: a player who has caught nothing has
-        spent no time, so the lowest number on the panel is often somebody who has not
-        started. `leaderOf` ranks on count first and then on time, which is the rule
-        (game.ts) — and a player with nothing yet reads "—" rather than a flattering 0.0s.
+        Points, highest first — and `best="high"` rather than the explicit leader this
+        used to need. The score was the time spent searching with the lowest winning, so
+        the panel's own "bold the biggest number" rule would have crowned whoever had
+        played least, and the game had to hand it an answer. One number going one way
+        needs no such help, and a player who has caught nothing reads 0 rather than a
+        dash, which in a column where high is good is simply true.
       */}
       <Scoreboard
         rows={players.map((p) => ({
           id: p.id,
           avatar: p.avatar,
           name: p.name,
-          value: searchTime(state, p.id),
+          value: pointsOf(state, p.id),
         }))}
         me={myId}
-        unit="seconds searching"
-        best="none"
-        leader={leaderOf(state, players.map((p) => p.id))}
+        unit="points"
+        best="high"
       />
     </div>
   );
@@ -297,25 +305,26 @@ export function HuntResults({
       rules={rules}
       status="Hunt over"
       /*
-       * The score is TIME and the lowest wins, so the number in the column is the time —
-       * but the count is what ended the round, and a table of times with no counts would
-       * make a player who found one ghost quickly look like the winner. The count goes in
-       * the unit, which is the one place it can sit without competing with the figure.
+       * Points in the column, the catch count beside them, and the three times underneath.
+       *
+       * The times are the part of a hunt worth talking about afterwards — one lucky ghost
+       * that fell into the radar, one that took half the round — and none of them belongs
+       * in the figure, which has to stay the thing that decides the order. `detail` is the
+       * small line under the name, which exists for exactly this.
        */
-      rows={order.map((id) => ({
-        id,
-        avatar: byId.get(id)?.avatar ?? '👻',
-        name: byId.get(id)?.name ?? 'Someone',
-        value: searchTime(state, id),
-        unit: `· ${state.scores[id] ?? 0} found`,
-      }))}
+      rows={order.map((id) => {
+        const line = findTimesLine(state, id);
+        return {
+          id,
+          avatar: byId.get(id)?.avatar ?? '👻',
+          name: byId.get(id)?.name ?? 'Someone',
+          value: pointsOf(state, id),
+          unit: `pts · ${state.scores[id] ?? 0} found`,
+          ...(line === undefined ? {} : { detail: line }),
+        };
+      })}
       me={myId}
       winner={leaderOf(state, order) ?? null}
-      note={
-        state.best
-          ? `Fastest find: ${byId.get(state.best.player)?.name ?? 'Someone'} in ${(state.best.ms / 1000).toFixed(1)}s`
-          : undefined
-      }
       onAgain={onAgain}
       againLabel="Hunt again"
       canAct={canAgain}

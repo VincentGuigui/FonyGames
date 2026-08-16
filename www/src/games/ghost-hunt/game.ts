@@ -1,5 +1,7 @@
 import {
   GHOST_HOLD_MS,
+  GHOST_SPEED_MAX,
+  GHOST_SPEEDUP_PER_FIND,
   RADAR_FOV_DEG,
   type PlayerId,
   type ServerMessage,
@@ -22,11 +24,16 @@ export type HuntView = {
   targets: Aim[];
   index: Record<PlayerId, number>;
   endsAt: number;
+  /** How many each player has caught. */
   scores: Record<PlayerId, number>;
-  /** Time spent searching, per player, in ms. The score — and lowest wins. */
+  /** Time spent searching, per player, in ms. Not the score — what it is made of. */
   totals: Record<PlayerId, number>;
+  /** The score: a hundred a ghost, less the seconds each took. Highest wins. */
+  points: Record<PlayerId, number>;
   phase: 'running' | 'over';
-  best: { player: PlayerId; ms: number } | null;
+  /** Per player, in ms, and only once the round is over. Empty while it runs. */
+  fastest: Record<PlayerId, number>;
+  slowest: Record<PlayerId, number>;
   seq: number;
 };
 
@@ -47,8 +54,11 @@ export function applyHunt(state: HuntState, msg: ServerMessage): HuntState {
         endsAt: msg.d.endsAt,
         scores: msg.d.scores,
         totals: msg.d.totals,
+        points: msg.d.points,
         phase: 'running',
-        best: null,
+        // Only the end frame carries these; a running round has nothing to show yet.
+        fastest: {},
+        slowest: {},
         seq: msg.s,
       };
     }
@@ -61,7 +71,9 @@ export function applyHunt(state: HuntState, msg: ServerMessage): HuntState {
         phase: 'over',
         scores: msg.d.scores,
         totals: msg.d.totals,
-        best: msg.d.best,
+        points: msg.d.points,
+        fastest: msg.d.fastest,
+        slowest: msg.d.slowest,
         seq: msg.s,
       };
     }
@@ -176,50 +188,78 @@ export function createLock() {
   };
 }
 
-/**
- * Everyone, best first: **most caught, then the lowest time**.
- *
- * Both parts, in that order, and the order is the whole point. The score is the time spent
- * searching and the lowest wins — but a player who has found nothing has spent no time, so
- * ranking on time alone crowns whoever played least. Count first makes the comparison
- * honest: among players who caught the same number, the fastest is ahead.
- *
- * Ties on both keep room order, which is stable.
- */
-export function ranking(state: HuntView, players: PlayerId[]): PlayerId[] {
-  return [...players].sort((a, b) => {
-    const byCount = (state.scores[b] ?? 0) - (state.scores[a] ?? 0);
-    if (byCount !== 0) return byCount;
-    return (state.totals[a] ?? 0) - (state.totals[b] ?? 0);
-  });
+/** This player's score. Zero for somebody who has caught nothing, which is honest. */
+export function pointsOf(state: HuntView, id: PlayerId): number {
+  return state.points[id] ?? 0;
 }
 
 /**
- * Who is winning, or null when nobody has caught anything yet.
+ * Everyone, best first: **most points**.
  *
- * Handed to the score panel rather than letting it work this out: it ranks on one value in
- * one direction, and this game's rule is two values in opposite directions. A panel told to
- * bold the lowest time would bold the player who has not started.
+ * One key, one direction, which it took a change of scoring to earn. The rule used to be
+ * "most caught, then the lowest time", in that order and never either alone — a player who
+ * has caught nothing has spent no time, so ranking on time crowned whoever played least.
+ *
+ * Points say the same thing in one number. A ghost is worth `HUNT_POINTS_PER_FIND` and no
+ * total can span more than the round, so more catches always outranks quicker catches, and
+ * among equal catches the quicker player is ahead. Same order, half the rule.
+ *
+ * Ties keep room order, which is stable.
+ */
+export function ranking(state: HuntView, players: PlayerId[]): PlayerId[] {
+  return [...players].sort((a, b) => pointsOf(state, b) - pointsOf(state, a));
+}
+
+/**
+ * Who is winning, or null when nobody is.
+ *
+ * Null in two cases, and both matter: nobody has caught anything — every score is zero and
+ * crowning the first row would invent a winner — or the top two are level, which is a tie
+ * and a tie has no leader (core/ui/Scoreboard.tsx).
  */
 export function leaderOf(state: HuntView, players: PlayerId[]): PlayerId | null {
-  const withFinds = players.filter((id) => (state.scores[id] ?? 0) > 0);
-  if (withFinds.length === 0) return null;
-  const [first, second] = ranking(state, withFinds);
-  if (first === undefined) return null;
-  // Only when one player is actually ahead: level on both count and time is a tie, and a
-  // tie has no leader (core/ui/Scoreboard.tsx).
-  if (
-    second !== undefined &&
-    (state.scores[first] ?? 0) === (state.scores[second] ?? 0) &&
-    (state.totals[first] ?? 0) === (state.totals[second] ?? 0)
-  ) {
-    return null;
-  }
+  const [first, second] = ranking(state, players);
+  if (first === undefined || pointsOf(state, first) === 0) return null;
+  if (second !== undefined && pointsOf(state, second) === pointsOf(state, first)) return null;
   return first;
 }
 
-/** A search time for the panel — `null` for a player who has not caught one yet. */
-export function searchTime(state: HuntView, id: PlayerId): string {
-  if ((state.scores[id] ?? 0) === 0) return '—';
-  return `${((state.totals[id] ?? 0) / 1000).toFixed(1)}s`;
+/** One player's find times, or null when they caught nothing to have times for. */
+export type FindTimes = { fastest: number; slowest: number; average: number };
+
+/**
+ * Fastest, slowest and average find, in SECONDS, for the results panel.
+ *
+ * The average is computed here rather than sent: it is the total over the count, both of
+ * which are already on the wire, and a number the receiver can divide for itself is one
+ * that cannot disagree with the two it came from.
+ */
+export function findTimes(state: HuntView, id: PlayerId): FindTimes | null {
+  const found = state.scores[id] ?? 0;
+  if (found === 0) return null;
+  return {
+    fastest: (state.fastest[id] ?? 0) / 1000,
+    slowest: (state.slowest[id] ?? 0) / 1000,
+    average: (state.totals[id] ?? 0) / found / 1000,
+  };
+}
+
+/** Those three as one line under a name: `fastest 6.2s · slowest 21.4s · avg 12.1s`. */
+export function findTimesLine(state: HuntView, id: PlayerId): string | undefined {
+  const t = findTimes(state, id);
+  if (!t) return undefined;
+  const s = (n: number): string => `${n.toFixed(1)}s`;
+  return `fastest ${s(t.fastest)} · slowest ${s(t.slowest)} · avg ${s(t.average)}`;
+}
+
+/**
+ * How fast this player's ghost drifts, as a multiple of the base roam.
+ *
+ * Their own catch count, not the room's: the hunt gets harder as *you* win it, so a
+ * runaway leader is tracking a quicker ghost than the player chasing them. Two players on
+ * the same count get exactly the same path, which is the part of "everyone's ghost moves
+ * identically" worth keeping (radar.ts).
+ */
+export function ghostSpeed(found: number): number {
+  return Math.min(GHOST_SPEED_MAX, 1 + Math.max(0, found) * GHOST_SPEEDUP_PER_FIND);
 }

@@ -19,7 +19,15 @@ import {
   type OrientationSupport,
   type OrientationTracker,
 } from '../../core/sensors/orientation';
-import { applyHunt, createLock, myIndex, myTarget, type HuntState, type LockState } from './game';
+import {
+  applyHunt,
+  createLock,
+  ghostSpeed,
+  myIndex,
+  myTarget,
+  type HuntState,
+  type LockState,
+} from './game';
 import { HuntResults, HuntScreen } from './HuntScreen';
 import { paintEdges, startCamera, RADAR_FPS, RADAR_PX, type Camera } from './vision';
 import { CameraIcon, RoomImageIcon } from './icons';
@@ -192,12 +200,17 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
 
       /*
        * The ghost roams, so what the lock is given is where it is **now** rather
-       * than the direction the server chose. The roam is derived from the index and
-       * the ghost's age on this phone, so every player walks the identical path from
-       * the identical starting point — see `ghostAt` in radar.ts for why that has to
-       * be true rather than merely tidy.
+       * than the direction the server chose. The path comes from the index and the
+       * ghost's age on this phone, so a player who reaches a ghost late still walks
+       * it from the same starting point.
+       *
+       * The PACE comes from this player's own catch count: the more you have caught,
+       * the faster it drifts (`ghostSpeed`). It is the one thing about a ghost that
+       * is not the same for everyone, and radar.ts says why that is deliberate.
        */
-      const ghost = target ? ghostAt(target, index, now - shownAtRef.current) : null;
+      const ghost = target
+        ? ghostAt(target, index, now - shownAtRef.current, ghostSpeed(s.scores[me ?? ''] ?? 0))
+        : null;
 
       const next = lockRef.current.update(aim, ghost, now);
       setLock(next);
