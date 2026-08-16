@@ -28,12 +28,15 @@ import type { Me } from './Scoreboard';
  * ## What each game still decides
  *
  * The **order of the rows** — this component never sorts. Ranking is a game's own rule and
- * a fiddly one: fewest cabbages loses in one game and wins in the next, Ghost Hunt ranks by
- * catches and then by time, Cat and Mouse has a side that cannot place at all. A component
- * that guessed would be wrong in three of nine and silently.
+ * a fiddly one: fewest cabbages loses in one game and wins in the next, Pass the Bomb ranks
+ * on lives in a duel and on rounds won above that, Cat and Mouse has a side that cannot
+ * place at all. A component that guessed would be wrong in three of nine and silently.
  *
  * The **unit**, per row, so a game can mix numbers and words: "12 left" beside "caught".
  * The unit is dropped for a row whose value is a word, because "caught left" is nonsense.
+ *
+ * The **detail**, per row and optional: a second line under the figure for the story behind
+ * it — Ghost Hunt's fastest, slowest and average find.
  *
  * ## Multi-round versus one and done
  *
@@ -52,6 +55,15 @@ export type OverRow = {
   value: string | number;
   /** What the number counts. Ignored when the value is a word. */
   unit?: string;
+  /**
+   * A second line under the name, small and dim — the story behind the figure.
+   *
+   * For the things worth reading afterwards that must not compete with the number that
+   * decides the order: Ghost Hunt's fastest, slowest and average find. Optional, and
+   * omitted rather than blank for a row that has nothing to say, so the list keeps its
+   * rhythm at one line per player when no game is using it.
+   */
+  detail?: string;
   /** Out, caught, flooded. Dimmed *and* struck through, never colour alone. */
   out?: boolean;
 };
@@ -142,6 +154,13 @@ export function GameOver({
               <span class="gameover__value">{r.value}</span>
               {r.unit && numeric(r.value) && <span class="gameover__unit"> {r.unit}</span>}
             </span>
+            {/*
+              A sibling of the name rather than a child of it, so it can have the whole
+              width of the row. Nested inside the name cell it was squeezed into the
+              column left over by the score and wrapped mid-number — "fastest 17.5s ·
+              slowest" / "17.5s · avg 17.5s", which is worse than no second line at all.
+            */}
+            {r.detail && <span class="gameover__detail">{r.detail}</span>}
           </li>
         ))}
       </ul>

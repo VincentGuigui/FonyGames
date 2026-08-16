@@ -191,7 +191,14 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        status="Boom"
+        /*
+         * No word on the bar. It said "Boom", which arrived a beat after two seconds of
+         * full-screen explosion had said the same thing louder — the one always-visible
+         * slot spent restating what the player had just watched. Empty rather than
+         * removed: `StatusBar` skips the line when there is nothing to say and keeps the
+         * gear menu, which is the half of the bar that has to stay reachable.
+         */
+        status=""
         rows={ranked.map((p) => {
           const n = standing(p.id);
           return {

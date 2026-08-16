@@ -132,6 +132,11 @@ Standard flow (see [../../multiplayer.md](../../multiplayer.md) §3). Specifics:
   and it comes AFTER the explosion — the blast is the ending, and cutting to a scoreboard
   over the top of it is a fix this game has already had once (§4).
 
+  **No word on the status bar.** It said "Boom", a beat after two seconds of full-screen
+  explosion had said the same thing louder, spending the one always-visible slot on
+  restating what the player had just watched. The bar itself stays, because the gear menu
+  is in it.
+
 ## 5. Inputs & sensors
 
 - Bump detection uses the shared algorithm and thresholds in

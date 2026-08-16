@@ -292,6 +292,7 @@ game's accent.
 │           You won            │
 │  🦊 Ana              12 left │   everybody, the winner in bold
 │  🐢 Bo                4 left │   your own row tinted
+│     fastest 6.2s · avg 12.1s │   `detail`, when a game has more to say
 │      [ Next round ]          │   or [ Play again ] + [ Leave game ]
 └──────────────────────────────┘
 ```
@@ -316,11 +317,16 @@ Nine games had nine endings, in two families:
   winner's whole row is bold, your own row is tinted, and anyone out is dimmed *and*
   struck through — never colour alone.
 - **The component never sorts.** Ranking is each game's own rule and a fiddly one:
-  fewest cabbages loses in Goat Siege and wins in Sling Puck, Ghost Hunt ranks by
-  catches and then by time, Cat and Mouse has a side that cannot place at all. A
-  component that guessed would be wrong in three of nine, silently.
+  fewest cabbages loses in Goat Siege and wins in Sling Puck, Pass the Bomb ranks on
+  lives in a duel and on rounds won above that, Cat and Mouse has a side that cannot
+  place at all. A component that guessed would be wrong in three of nine, silently.
 - **The unit is per row**, so a game can mix "12 left" with "caught", and it is dropped
   for a row whose value is a word.
+- **The detail is per row and optional**: a second line spanning the row, small and dim,
+  for the story behind the figure — Ghost Hunt's fastest, slowest and average find. It
+  spans rather than sitting inside the name, which squeezed it into whatever the score
+  left over and wrapped it mid-number. A row with nothing to say renders no second line
+  at all, so a game not using it keeps one line per player.
 - **Mid-match gets one button**, the next round: Tap Duel at 6–4 does not want to be
   asked whether to play again. A finished match gets two — play again, and leave.
 - **Leave is a link, not a button.** Leaving the page is what drops the socket and frees
@@ -332,8 +338,9 @@ Nine games had nine endings, in two families:
 
 ### What a game still owns
 
-The row order, the unit, the words on the buttons, and anything that needs a line of
-its own — Ghost Hunt's fastest find, who was the cat, Tap Duel's reaction times. Those
-go in `note`, one line under the list. Pass the Bomb passes its explosion as a child so
+The row order, the unit, the detail line, the words on the buttons, and anything that
+needs a line of its own for the whole room rather than for one player — who was the cat,
+Tap Duel's reaction times. Those go in `note`, one line under the list; anything that is
+per player goes in that row's `detail`. Pass the Bomb passes its explosion as a child so
 the blast still plays *above* the panel: the bomb going off is the ending, and cutting
 to a scoreboard over the top of it is a fix this game has already had once.

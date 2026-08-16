@@ -265,15 +265,22 @@
  * page, and **iOS Safari has no such API at all**. On an iPhone the API half is a no-op, so
  * without this the feature would be a line of code that does nothing for half the players.
  *
- * The query is deliberately narrow: landscape AND short. A desktop browser window is also
- * "landscape" and must not get this — 500px is above any phone on its side and below any
- * laptop, so a wide window at 1200x800 is unaffected while an iPhone at 844x390 is not.
+ * The query is deliberately narrow: landscape AND short AND clearly wider than it is tall.
+ *
+ * - **Short** because a desktop browser window is also "landscape". 500px is above any
+ *   phone on its side and below any laptop, so a wide window at 1200x800 is unaffected
+ *   while an iPhone at 844x390 is not.
+ * - **Clearly wider** because a nearly square screen has no wrong way up. A phone lying on
+ *   its side is at least 3:2 and usually nearer 2:1; a square-ish display — an unfolded
+ *   foldable, a 1:1 handset, a small window somebody has dragged out — lays these games out
+ *   the same either way, and asking its owner to turn it is asking for nothing. 4:3 sits
+ *   well clear of every phone in landscape and well above anything that reads as square.
  */
 .upright {
   display: none;
 }
 
-@media (orientation: landscape) and (max-height: 500px) {
+@media (orientation: landscape) and (max-height: 500px) and (min-aspect-ratio: 4 / 3) {
   .upright {
     position: fixed;
     inset: 0;
