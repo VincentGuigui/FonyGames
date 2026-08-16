@@ -105,6 +105,7 @@ export function RoomGate({
       <ArrivedByLink.Provider value={entered.byLink}>
         {children(entered.code)}
         <Upright />
+        <Sideways />
       </ArrivedByLink.Provider>
     );
   }
@@ -133,6 +134,30 @@ export function RoomGate({
  * It covers rather than pauses: the round is still running underneath, the socket is still
  * open, and nothing is lost by the two seconds it takes to turn the phone back.
  */
+/**
+ * And the same notice the other way up, for a game whose board is sideways.
+ *
+ * Only one of the two is ever showable: `.upright` is hidden while `data-landscape` is on
+ * the root element and `.sideways` is hidden while it is not (`useLandscapeRound` in
+ * core/screen.ts). Rendered here beside its twin rather than inside the one game that
+ * needs it, because a player who turns their phone in a lobby and a player who turns it
+ * mid-round should be told the same thing in the same place.
+ */
+function Sideways(): JSX.Element {
+  return (
+    <div class="sideways" role="alert">
+      <p class="sideways__icon" aria-hidden="true">
+        🔄
+      </p>
+      <p class="upright__say">Turn your phone sideways</p>
+      <p class="upright__note">
+        This board is two grids side by side — the round is still going, it just does not
+        fit upright.
+      </p>
+    </div>
+  );
+}
+
 function Upright(): JSX.Element {
   return (
     <div class="upright" role="alert">

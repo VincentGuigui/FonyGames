@@ -122,7 +122,17 @@ export type ClientMessage =
    * Sent only while a finger is down. A still icon sends nothing, which is what
    * keeps the traffic near the floor rather than the worst case (spec §4).
    */
-  | { t: 'move'; d: { roundId: number; x: number; y: number } };
+  | { t: 'move'; d: { roundId: number; x: number; y: number } }
+  /**
+   * Grid Attack: a finger landed on a cell.
+   *
+   * `side` rather than an owner id, because that is what the player did: they hit a cell on
+   * their own half or on the other one. The referee resolves it against the seating, so a
+   * phone cannot tap on somebody else's behalf by naming them.
+   */
+  | { t: 'grid-tap'; d: { roundId: number; cell: number; side: 'mine' | 'theirs' } }
+  /** Grid Attack: this phone is fullscreen, sideways and looking at the board. */
+  | { t: 'grid-ready'; d: { roundId: number } };
 
 /* ------------------------------------------------------------------ */
 /* server -> client                                                     */
@@ -183,6 +193,49 @@ export type BombMatch = {
   champion: PlayerId | null;
   /** No further round will be played on these standings. */
   done: boolean;
+};
+
+/**
+ * Grid Attack: one cell of somebody's four-by-four.
+ *
+ * Deliberately NOT carrying how far anybody has got with their taps. Tap progress is
+ * private to the finger making it: the whole game is that a cell gives its owner no warning
+ * until it is armed, and two taps' worth of "somebody is working on this one" would hand
+ * the defender the second they need. The tapper sees their own progress locally, and the
+ * referee is the only thing that counts.
+ */
+export type GridCell = {
+  /** Burst and gone. A hole in the grid, and it never comes back. */
+  gone: boolean;
+  /**
+   * Server time this cell blows, or 0 when nothing is happening to it.
+   *
+   * The only thing a phone needs to draw the pulse: the animation is a function of how
+   * much of `GRID_FUSE_MS` is left, so a phone that missed a frame catches up correctly
+   * rather than starting its own two seconds late.
+   */
+  burstAt: number;
+};
+
+/** Grid Attack: the whole board, which is small enough to send whole on every change. */
+export type GridState = {
+  roundId: number;
+  /** Sixteen cells per player, row-major. */
+  grids: Record<PlayerId, GridCell[]>;
+  lives: Record<PlayerId, number>;
+  /**
+   * Who has said they are fullscreen and sideways.
+   *
+   * The round does not run until both have, because the first two seconds of a game you
+   * cannot see yet are two seconds of being attacked. `startsAt` is the moment the wait
+   * ended — 0 while it is still on.
+   */
+  ready: Record<PlayerId, boolean>;
+  startsAt: number;
+  /** The safety cap, as every other game has. */
+  endsAt: number;
+  winner: PlayerId | null;
+  phase: 'waiting' | 'running' | 'done';
 };
 
 /** Spill: one projectile, described once and animated locally from then on. */
@@ -378,6 +431,8 @@ export type ServerMessage =
         match: BombMatch;
       };
     }
+  /** Grid Attack: the board, whole. Late frames with a lower `s` are dropped. */
+  | { t: 'grid'; s: number; d: GridState }
   /** Pass the Bomb: too many bumps too fast — this player's bumps are muted briefly. */
   | { t: 'calm-down'; d: { untilServerTime: number } }
   /** Steady Hand: the state of the room. `w` is everyone's last wobble, for the meters. */
@@ -792,6 +847,53 @@ export const BOMB_LIVES = 3;
 export const BOMB_ROUNDS = 5;
 
 /* ------------------------------------------------------------------ */
+/* Grid Attack (docs/specs/games/grid-attack.md)                        */
+/* ------------------------------------------------------------------ */
+
+/** Four by four, per player. Sixteen cells to defend and sixteen to break. */
+export const GRID_SIZE = 4;
+export const GRID_CELLS = GRID_SIZE * GRID_SIZE;
+
+/** Lives, and therefore how many of your cells may burst before you lose. */
+export const GRID_LIVES = 5;
+
+/**
+ * Taps to arm a cell, and to save one. The same number both ways on purpose: attack and
+ * defence cost the same, so the race is about noticing rather than about button mashing.
+ */
+export const GRID_TAPS = 3;
+
+/**
+ * How long a run of taps may take before it is a new run.
+ *
+ * Without this the game breaks completely rather than subtly: tap progress that never
+ * decays lets an attacker leave two taps on all sixteen cells at leisure and then finish
+ * them in one sweep, arming the whole grid at once against a defender who cannot possibly
+ * save sixteen cells in two seconds. Three taps has to mean three taps *quickly*, which is
+ * also what it means when a person says it.
+ */
+export const GRID_TAP_WINDOW_MS = 1_200;
+
+/** From armed to burst. The pulse accelerates across exactly this. */
+export const GRID_FUSE_MS = 2_000;
+
+/**
+ * How long the referee waits for both phones to say they are looking at the board.
+ *
+ * A backstop, not the rule — the rule is that both tap the fullscreen button. This stops
+ * one person who put their phone down from stranding the other in a lobby that has already
+ * started.
+ */
+export const GRID_READY_WAIT_MS = 30_000;
+
+/** A round is hard-capped, like every other. */
+export const GRID_ROUND_CAP_MS = 5 * 60_000;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const GRID_MIN_PLAYERS = PLAYERS['grid-attack'][0];
+export const GRID_MAX_PLAYERS = PLAYERS['grid-attack'][1];
+
+/* ------------------------------------------------------------------ */
 /* Spill (docs/specs/games/spill.md)                                    */
 /* ------------------------------------------------------------------ */
 
@@ -976,6 +1078,8 @@ const CLIENT_TYPES = new Set([
   'shoo',
   'cross',
   'move',
+  'grid-tap',
+  'grid-ready',
 ]);
 
 export function isClientMessage(value: unknown): value is ClientMessage {

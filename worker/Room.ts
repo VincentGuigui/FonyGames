@@ -32,6 +32,16 @@ import { playsUrl, reportPlay, roundKey } from './plays';
  */
 import type { Env } from './index';
 import {
+  nextDeadline as gridDeadline,
+  onGridPlayerGone,
+  onGridReady,
+  onGridTap,
+  onGridTick,
+  startGrid,
+  type Ctx as GridCtx,
+  type Grid,
+} from './gridAttack';
+import {
   onBump as bombBump,
   onFuse as bombFuse,
   onPass as bombPass,
@@ -308,6 +318,16 @@ export class Room extends DurableObject<Env> {
         if (id) await bombPass(this.#bombCtx(), id, msg.d.roundId, msg.d.to);
         return;
       }
+      case 'grid-tap': {
+        const id = this.#idOf(ws);
+        if (id) await onGridTap(this.#gridCtx(), id, msg.d.roundId, msg.d.cell, msg.d.side);
+        return;
+      }
+      case 'grid-ready': {
+        const id = this.#idOf(ws);
+        if (id) await onGridReady(this.#gridCtx(), id, msg.d.roundId);
+        return;
+      }
       case 'fling': {
         const id = this.#idOf(ws);
         if (id) {
@@ -432,6 +452,13 @@ export class Room extends DurableObject<Env> {
       return;
     }
 
+    const grid = await this.#grid();
+    if (grid && grid.phase !== 'done' && Date.now() >= gridDeadline(grid)) {
+      await onGridTick(this.#gridCtx());
+      await this.#rearm();
+      return;
+    }
+
     const chase = await this.#catMouse();
     if (chase && chase.phase === 'running' && Date.now() >= cmDeadline(chase)) {
       await cmTick(this.#cmCtx());
@@ -522,6 +549,8 @@ export class Room extends DurableObject<Env> {
     if (slinging && slinging.phase !== 'done') return;
     const chasing = await this.#catMouse();
     if (chasing && chasing.phase !== 'done') return;
+    const gridding = await this.#grid();
+    if (gridding && gridding.phase !== 'done') return;
 
     const players = await this.#players();
     const ready = [...players.values()].filter((p) => p.connected);
@@ -534,12 +563,14 @@ export class Room extends DurableObject<Env> {
       mode === 'spill' ||
       mode === 'siege' ||
       mode === 'sling' ||
-      mode === 'chase'
+      mode === 'chase' ||
+      mode === 'grid'
     ) {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
       const ids = ready.map((p) => p.id);
       if (mode === 'bomb') await startBomb(this.#bombCtx(), roundId, ids, solo);
+      else if (mode === 'grid') await startGrid(this.#gridCtx(), roundId, ids);
       else if (mode === 'steady') await startSteady(this.#steadyCtx(), roundId, ids, solo);
       else if (mode === 'rush') await startRush(this.#rushCtx(), roundId, ids, solo);
       else if (mode === 'hunt') await startHunt(this.#huntCtx(), roundId, ids, solo);
@@ -724,6 +755,22 @@ export class Room extends DurableObject<Env> {
       },
       load: () => this.#bomb(),
       save: (bomb) => this.ctx.storage.put('bomb', bomb),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #grid(): Promise<Grid | null> {
+    return (await this.ctx.storage.get<Grid>('grid')) ?? null;
+  }
+
+  /** Everything gridAttack.ts needs. `setAlarm` defers to #rearm, as they all do. */
+  #gridCtx(): GridCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#grid(),
+      save: (grid) => this.ctx.storage.put('grid', grid),
       setAlarm: () => this.#rearm(),
     };
   }
@@ -957,6 +1004,29 @@ export class Room extends DurableObject<Env> {
     if (sling && sling.phase === 'running') {
       this.#send(ws, { t: 'sling', s: this.#nextSeq(), d: slingToState(sling) });
     }
+    /*
+     * Grid Attack sends the whole board, which is all a phone needs: cells and their
+     * fuses, lives, and who is ready. Tap runs are deliberately not in it and must not be
+     * — a reconnecting phone learning that somebody is two taps into one of its cells
+     * would be told the one thing the game withholds.
+     */
+    const grid = await this.#grid();
+    if (grid && grid.phase !== 'done') {
+      this.#send(ws, {
+        t: 'grid',
+        s: this.#nextSeq(),
+        d: {
+          roundId: grid.roundId,
+          grids: grid.grids,
+          lives: grid.lives,
+          ready: grid.ready,
+          startsAt: grid.startsAt,
+          endsAt: grid.endsAt,
+          winner: grid.winner,
+          phase: grid.phase,
+        },
+      });
+    }
     // Cat and Mouse resyncs the full state, then the next tick puts everyone
     // where they are — a refresher comes back at their last reported position,
     // which is what spec §8 promises.
@@ -1014,6 +1084,9 @@ export class Room extends DurableObject<Env> {
     // Spill player, by contrast, is only out once their seat is reaped, so a
     // refresh keeps their water (see the reaping loop in alarm()).
     await bombPlayerGone(this.#bombCtx(), id);
+    // Grid Attack is two grids facing each other, so a phone leaving does not shrink the
+    // game, it ends it — there is nobody left to attack or be attacked by.
+    await onGridPlayerGone(this.#gridCtx(), id);
     await steadyPlayerGone(this.#steadyCtx(), id);
     await rushPlayerGone(this.#rushCtx(), id);
     // No #ensureHost here: promoting the moment a socket drops is exactly
@@ -1091,6 +1164,9 @@ export class Room extends DurableObject<Env> {
 
     const sling = await this.#sling();
     if (sling?.phase === 'running') return slingDeadline(sling);
+
+    const grid = await this.#grid();
+    if (grid && grid.phase !== 'done') return gridDeadline(grid);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);

@@ -1,0 +1,238 @@
+/*
+ * Grid Attack. Spec: docs/specs/games/grid-attack.md §4
+ *
+ * The only sideways board in the catalogue, so this is the one stylesheet that assumes a
+ * landscape viewport. Everything is sized against `dvh` rather than `dvw`: in landscape the
+ * short side is the height, and two four-by-four grids side by side are constrained by it.
+ */
+
+.grid-attack {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  /* A mashing game. Nothing here may be selected, dragged, or long-pressed into a
+     context menu, and a double tap must not zoom. */
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.grid-attack__bar {
+  flex: 0 0 auto;
+  padding: max(var(--space-2), env(safe-area-inset-top)) max(var(--space-3), env(safe-area-inset-right))
+    var(--space-1) max(var(--space-3), env(safe-area-inset-left));
+}
+
+.grid-attack__halves {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  min-height: 0;
+  padding: 0 max(var(--space-3), env(safe-area-inset-right)) max(var(--space-2), env(safe-area-inset-bottom))
+    max(var(--space-3), env(safe-area-inset-left));
+}
+
+.grid-attack__half {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-height: 0;
+  min-width: 0;
+}
+
+.grid-attack__label {
+  margin: 0;
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The grid itself: square cells, as big as the half will allow.
+ *
+ * `aspect-ratio: 1` on the container with `max-height: 100%` is what keeps it square
+ * without measuring anything in JavaScript — the four columns then divide whichever
+ * dimension ran out first, so the cells stay square on a wide tablet and a short phone
+ * alike.
+ */
+.grid-attack__grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 4), 1fr);
+  grid-auto-rows: 1fr;
+  gap: var(--space-2);
+  aspect-ratio: 1;
+  max-height: 100%;
+  max-width: 100%;
+  margin-inline: auto;
+}
+
+/*
+ * One cell. The border is the whole identity of a half — violet is yours, lime is theirs —
+ * which is why it is a border rather than a fill: a filled cell has nowhere left to go
+ * when it lights up, and lighting up is the thing that has to be unmissable.
+ */
+.grid-attack__cell {
+  min-height: 0;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--cell-edge);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--cell-edge) 8%, transparent);
+  cursor: pointer;
+}
+
+.grid-attack__half--mine {
+  --cell-edge: var(--game-accent, #a78bfa);
+}
+
+.grid-attack__half--theirs {
+  --cell-edge: #a3e635;
+}
+
+.grid-attack__cell:active {
+  transform: scale(0.96);
+}
+
+/*
+ * Armed. The pulse's SPEED is set inline, per frame, from how much of the fuse is left —
+ * a whole second between flashes at the start and a tenth at the end (`pulseMs` in
+ * game.ts). The keyframes only say what a flash looks like.
+ */
+.grid-attack__cell--lit {
+  animation-name: grid-pulse;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+}
+
+@keyframes grid-pulse {
+  0%,
+  100% {
+    background: color-mix(in srgb, var(--cell-edge) 12%, transparent);
+    box-shadow: none;
+  }
+  50% {
+    background: var(--cell-edge);
+    box-shadow: 0 0 1.5rem color-mix(in srgb, var(--cell-edge) 70%, transparent);
+  }
+}
+
+/*
+ * A player who has asked for less motion gets the same information without the strobe:
+ * the cell holds solid instead of flashing. It still says "this one", and the accelerating
+ * pulse is exactly the sort of thing that setting exists to turn off.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .grid-attack__cell--lit {
+    animation: none;
+    background: var(--cell-edge);
+    box-shadow: 0 0 1.5rem color-mix(in srgb, var(--cell-edge) 70%, transparent);
+  }
+}
+
+/* Burst. A hole, left in place so the grid does not reflow and move every other cell
+   out from under the finger that was heading for it. */
+.grid-attack__cell--gone {
+  border: 3px dashed var(--color-border);
+  border-radius: var(--radius);
+  background: none;
+  opacity: 0.35;
+}
+
+/* --- tap progress -------------------------------------------------------- */
+
+/*
+ * Three pips, filling as you tap.
+ *
+ * Local and private: the referee counts the taps that matter and says nothing until the
+ * third, so this is only feedback for the finger making it. Without it three taps with no
+ * response is indistinguishable from a dead button.
+ */
+.grid-attack__pips {
+  display: flex;
+  gap: 0.25rem;
+  pointer-events: none;
+}
+
+.grid-attack__pip {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--cell-edge) 25%, transparent);
+}
+
+.grid-attack__pip--on {
+  background: var(--cell-edge);
+}
+
+/* --- the loading screen -------------------------------------------------- */
+
+.grid-ready {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  text-align: center;
+  background: var(--color-bg);
+}
+
+.grid-ready__icon {
+  margin: 0;
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.grid-ready__title {
+  margin: 0;
+  font-size: var(--font-title);
+  font-weight: 800;
+  color: var(--game-accent, var(--color-accent));
+}
+
+.grid-ready__go {
+  width: min(20rem, 100%);
+  background: var(--game-accent, var(--color-accent));
+  color: var(--color-on-accent);
+  border-color: transparent;
+}
+
+.grid-ready__say {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.grid-ready__note {
+  margin: 0;
+  max-width: 26rem;
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
+}
+
+/* --- the lobby's own panel ----------------------------------------------- */
+
+.grid-primer__body {
+  margin: 0;
+}
+
+.grid-primer__note {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
+}

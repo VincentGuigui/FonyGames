@@ -31,6 +31,7 @@ export default defineConfig({
         'cat-and-mouse': 'www/cat-and-mouse/index.html',
         'pass-the-bomb': 'www/pass-the-bomb/index.html',
         'steady-hand': 'www/steady-hand/index.html',
+        'grid-attack': 'www/grid-attack/index.html',
         'shake-rush': 'www/shake-rush/index.html',
         'ghost-hunt': 'www/ghost-hunt/index.html',
         // The admin centre. Built to a PLACEHOLDER directory name and renamed to the

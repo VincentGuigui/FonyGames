@@ -280,8 +280,51 @@
  *   the same either way, and asking its owner to turn it is asking for nothing. 4:3 sits
  *   well clear of every phone in landscape and well above anything that reads as square.
  */
-.upright {
+.upright,
+.sideways {
   display: none;
+}
+
+/*
+ * A LANDSCAPE game turns both of these round.
+ *
+ * `data-landscape` is set on the root element for as long as a sideways board is mounted
+ * (`useLandscapeRound` in core/screen.ts). While it is, being upright is the problem and
+ * being sideways is not — so the notice below must stay out of the way, and its mirror
+ * image takes over. An attribute and two rules, because the notices are rendered by
+ * `RoomGate`, which knows nothing about the game inside it, and CSS is the only thing here
+ * that sees both.
+ *
+ * Specificity does the switching: `[data-landscape] .upright` is two selectors to the media
+ * query's one, so it wins without `!important`.
+ */
+[data-landscape] .upright {
+  display: none;
+}
+
+/* Upright, during a sideways game. The mirror of the query below, and no aspect-ratio
+   floor: a phone held portrait is 1:2 or thinner, and a square screen fits either way. */
+@media (orientation: portrait) and (max-width: 500px) {
+  [data-landscape] .sideways {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    text-align: center;
+    background: var(--color-bg);
+  }
+
+  .sideways__icon {
+    font-size: 3rem;
+    line-height: 1;
+    /* The same arrows as its twin, turned the other way, so the two read as one idea. */
+    transform: scaleX(-1);
+  }
 }
 
 @media (orientation: landscape) and (max-height: 500px) and (min-aspect-ratio: 4 / 3) {

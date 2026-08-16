@@ -94,7 +94,7 @@ export function keepAwake(nav: WakeLockish, doc: Visibility): () => void {
 
 export type Orientationish = {
   orientation?: {
-    lock?: (orientation: 'portrait') => Promise<void>;
+    lock?: (orientation: 'portrait' | 'landscape') => Promise<void>;
     unlock?: () => void;
   };
 };
@@ -111,10 +111,10 @@ export type Orientationish = {
  * Returns the unlock, so leaving a game hands the orientation back to the player rather
  * than pinning their phone for the rest of the session.
  */
-export function lockUpright(scr: Orientationish): () => void {
+export function lockUpright(scr: Orientationish, way: 'portrait' | 'landscape' = 'portrait'): () => void {
   // `lock()` rejects rather than throwing, and an unhandled rejection in a browser that
   // refuses it would be a console error on every game page.
-  void scr.orientation?.lock?.('portrait').catch(() => {});
+  void scr.orientation?.lock?.(way).catch(() => {});
   return () => {
     try {
       scr.orientation?.unlock?.();
@@ -122,6 +122,55 @@ export function lockUpright(scr: Orientationish): () => void {
       // Unlocking something that was never locked is not a problem worth reporting.
     }
   };
+}
+
+/**
+ * Ask for fullscreen, and say whether it happened.
+ *
+ * **Must be called straight out of a tap.** Every browser refuses it otherwise, and iPhone
+ * Safari has no element fullscreen at all — `requestFullscreen` is simply not there. So
+ * this returns a boolean rather than throwing, and the caller's job is to carry on either
+ * way: a game that refused to start because it could not go fullscreen would be broken on
+ * every iPhone in the room.
+ */
+export async function goFullscreen(el: Element): Promise<boolean> {
+  const request = (el as Element & { requestFullscreen?: () => Promise<void> }).requestFullscreen;
+  if (typeof request !== 'function') return false;
+  try {
+    await request.call(el);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A landscape round, for as long as this component is mounted.
+ *
+ * Two things, both best effort and both undone on the way out:
+ *
+ * - **The orientation lock is flipped to landscape.** `RoomGate` locked portrait when the
+ *   page opened, which is right for the lobby — a portrait layout like every other — and
+ *   wrong the moment a sideways board appears.
+ * - **`data-landscape` goes on the root element**, which is what tells the shared "turn
+ *   your phone upright" notice to stay out of the way and its mirror image to take over.
+ *   An attribute rather than a prop threaded through `RoomGate`, because the notice is
+ *   rendered by a component that knows nothing about the game inside it, and CSS is the
+ *   only thing that sees both.
+ */
+export function useLandscapeRound(on: boolean): void {
+  useEffect(() => {
+    if (!on || typeof document === 'undefined') return;
+    const root = document.documentElement;
+    root.dataset['landscape'] = 'on';
+    const release = lockUpright(screen as Orientationish, 'landscape');
+    return () => {
+      delete root.dataset['landscape'];
+      release();
+      // Back to the lobby's portrait, which is what the page had before this mounted.
+      lockUpright(screen as Orientationish, 'portrait');
+    };
+  }, [on]);
 }
 
 /**

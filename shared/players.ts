@@ -48,6 +48,7 @@ export const PLAYERS = {
   'ghost-tag': [3, 10],
   'zone-rush': [2, 10],
   'ghost-hunt': [2, 10],
+  'grid-attack': [2, 2],
   'scream-meter': [2, 8],
 } as const satisfies Record<string, PlayerLimits>;
 

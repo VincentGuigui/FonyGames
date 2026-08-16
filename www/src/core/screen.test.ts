@@ -165,7 +165,7 @@ console.log('\nasking for portrait');
   const calls: string[] = [];
   const scr = {
     orientation: {
-      lock: async (o: 'portrait') => {
+      lock: async (o: 'portrait' | 'landscape') => {
         calls.push(`lock:${o}`);
       },
       unlock: () => {
@@ -177,6 +177,13 @@ console.log('\nasking for portrait');
   await settle();
   check('portrait is asked for', calls[0] === 'lock:portrait', calls);
   release();
+
+  // And the other way, for a game whose board is sideways (Grid Attack). Same call, same
+  // shrug when the browser will not do it.
+  const sideways = lockUpright(scr, 'landscape');
+  await settle();
+  check('landscape can be asked for too', calls.includes('lock:landscape'), calls);
+  sideways();
   // Handing it back matters: pinning a player's phone for the rest of their session
   // because they once opened a game is not ours to do.
   check('and handed back on the way out', calls.includes('unlock'), calls);

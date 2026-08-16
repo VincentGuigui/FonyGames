@@ -53,6 +53,15 @@ export function endsRound(msg: ServerMessage): boolean {
       return msg.d.winner !== null;
 
     /*
+     * Grid Attack ends when somebody runs out of lives, and the frame that says so is the
+     * same one that carries every other change — so the test is the phase AND a winner,
+     * not the phase alone. A round that hit the safety cap level has no winner and is not
+     * a game anybody played to the end.
+     */
+    case 'grid':
+      return msg.d.phase === 'done' && msg.d.winner !== null;
+
+    /*
      * Ghost Hunt has no single winner field: the ranking is catches first, then time
      * (`ghost-hunt/game.ts`). A round where nobody caught anything ranks everyone equally
      * on nothing, so the test is that somebody caught something.

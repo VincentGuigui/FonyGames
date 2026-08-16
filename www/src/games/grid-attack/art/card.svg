@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" role="img" aria-label="Two grids of squares facing each other, one square lit and about to blow">
+  <!--
+    Grid Attack. Contract: docs/design/illustrations.md
+
+    The card is the board seen the way a player sees it: two four-by-four grids facing
+    each other across a gap, yours violet and theirs lime. One cell on the right is lit
+    and coming apart, which is the moment the whole game is about — and it is on THEIR
+    side, because the card should show the thing you are trying to do rather than the
+    thing you are trying to survive.
+
+    Flat colours, no gradients, no currentColor and no CSS variables: the hub renders
+    these at 120x90 in a grid and `cards.test.mjs` enforces all three.
+  -->
+  <rect width="120" height="90" fill="#151823" rx="8"/>
+
+  <!-- The gap between the two halves: the split screen, stated once. -->
+  <line x1="60" y1="14" x2="60" y2="76" stroke="#2a2f3f" stroke-width="2" stroke-dasharray="3 4"/>
+
+  <!-- Yours, violet. Whole, because you are defending it. -->
+  <g fill="none" stroke="#A78BFA" stroke-width="2.4">
+    <rect x="10" y="18" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="23.5" y="18" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="37" y="18" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="50.5" y="18" width="9.5" height="9.5" rx="2.5" opacity="0.55"/>
+    <rect x="10" y="31.5" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="23.5" y="31.5" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="37" y="31.5" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="50.5" y="31.5" width="9.5" height="9.5" rx="2.5" opacity="0.55"/>
+    <rect x="10" y="45" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="23.5" y="45" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="37" y="45" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="50.5" y="45" width="9.5" height="9.5" rx="2.5" opacity="0.55"/>
+    <rect x="10" y="58.5" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="23.5" y="58.5" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="37" y="58.5" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="50.5" y="58.5" width="9.5" height="9.5" rx="2.5" opacity="0.55"/>
+  </g>
+
+  <!-- Theirs, lime, with a hole already punched in the bottom row. -->
+  <g fill="none" stroke="#A3E635" stroke-width="2.4">
+    <rect x="60.5" y="18" width="9.5" height="9.5" rx="2.5" opacity="0.55"/>
+    <rect x="74" y="18" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="87.5" y="18" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="101" y="18" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="60.5" y="31.5" width="9.5" height="9.5" rx="2.5" opacity="0.55"/>
+    <rect x="87.5" y="31.5" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="101" y="31.5" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="60.5" y="45" width="9.5" height="9.5" rx="2.5" opacity="0.55"/>
+    <rect x="74" y="45" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="87.5" y="45" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="101" y="45" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="60.5" y="58.5" width="9.5" height="9.5" rx="2.5" opacity="0.55"/>
+    <rect x="74" y="58.5" width="9.5" height="9.5" rx="2.5"/>
+    <rect x="101" y="58.5" width="9.5" height="9.5" rx="2.5"/>
+  </g>
+
+  <!-- Already gone: the dashed hole a burst cell leaves behind. -->
+  <rect x="87.5" y="58.5" width="9.5" height="9.5" rx="2.5" fill="none" stroke="#3a4152" stroke-width="2" stroke-dasharray="2.5 2.5"/>
+
+  <!-- And the one going off now: filled, glowing, with shards leaving it. -->
+  <rect x="74" y="31.5" width="9.5" height="9.5" rx="2.5" fill="#A3E635"/>
+  <g stroke="#A3E635" stroke-width="2" stroke-linecap="round">
+    <line x1="78.7" y1="27" x2="78.7" y2="23"/>
+    <line x1="78.7" y1="45.5" x2="78.7" y2="49.5"/>
+    <line x1="69.5" y1="36.2" x2="65.5" y2="36.2"/>
+    <line x1="88" y1="36.2" x2="92" y2="36.2"/>
+    <line x1="72.6" y1="30.1" x2="69.8" y2="27.3"/>
+    <line x1="84.8" y1="42.3" x2="87.6" y2="45.1"/>
+    <line x1="84.8" y1="30.1" x2="87.6" y2="27.3"/>
+    <line x1="72.6" y1="42.3" x2="69.8" y2="45.1"/>
+  </g>
+</svg>
