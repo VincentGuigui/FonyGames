@@ -62,6 +62,14 @@ export function endsRound(msg: ServerMessage): boolean {
       return msg.d.phase === 'done' && msg.d.winner !== null;
 
     /*
+     * Squash Mosquitoes ends the same way Grid Attack does — a phase and a winner in
+     * the same frame — and a round the safety cap ended in a tie has no winner and
+     * is not a game anybody finished.
+     */
+    case 'squash':
+      return msg.d.phase === 'done' && msg.d.winner !== null;
+
+    /*
      * Ghost Hunt has no single winner field: the ranking is catches first, then time
      * (`ghost-hunt/game.ts`). A round where nobody caught anything ranks everyone equally
      * on nothing, so the test is that somebody caught something.

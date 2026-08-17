@@ -42,6 +42,15 @@ import {
   type Grid,
 } from './gridAttack';
 import {
+  nextDeadline as squashDeadline,
+  onSquashTap,
+  startSquash,
+  tick as squashTick,
+  toState as squashToState,
+  type Ctx as SquashCtx,
+  type Squash,
+} from './squashMosquitoes';
+import {
   onBump as bombBump,
   onFuse as bombFuse,
   onPass as bombPass,
@@ -328,6 +337,11 @@ export class Room extends DurableObject<Env> {
         if (id) await onGridReady(this.#gridCtx(), id, msg.d.roundId);
         return;
       }
+      case 'squash-tap': {
+        const id = this.#idOf(ws);
+        if (id) await onSquashTap(this.#squashCtx(), id, msg.d.roundId, msg.d.position);
+        return;
+      }
       case 'fling': {
         const id = this.#idOf(ws);
         if (id) {
@@ -459,6 +473,13 @@ export class Room extends DurableObject<Env> {
       return;
     }
 
+    const squash = await this.#squash();
+    if (squash && squash.phase === 'running' && Date.now() >= squashDeadline(squash)) {
+      await squashTick(this.#squashCtx());
+      await this.#rearm();
+      return;
+    }
+
     const chase = await this.#catMouse();
     if (chase && chase.phase === 'running' && Date.now() >= cmDeadline(chase)) {
       await cmTick(this.#cmCtx());
@@ -551,6 +572,8 @@ export class Room extends DurableObject<Env> {
     if (chasing && chasing.phase !== 'done') return;
     const gridding = await this.#grid();
     if (gridding && gridding.phase !== 'done') return;
+    const squashing = await this.#squash();
+    if (squashing && squashing.phase !== 'done') return;
 
     const players = await this.#players();
     const ready = [...players.values()].filter((p) => p.connected);
@@ -564,13 +587,15 @@ export class Room extends DurableObject<Env> {
       mode === 'siege' ||
       mode === 'sling' ||
       mode === 'chase' ||
-      mode === 'grid'
+      mode === 'grid' ||
+      mode === 'squash'
     ) {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
       const ids = ready.map((p) => p.id);
       if (mode === 'bomb') await startBomb(this.#bombCtx(), roundId, ids, solo);
       else if (mode === 'grid') await startGrid(this.#gridCtx(), roundId, ids);
+      else if (mode === 'squash') await startSquash(this.#squashCtx(), roundId, ids, solo);
       else if (mode === 'steady') await startSteady(this.#steadyCtx(), roundId, ids, solo);
       else if (mode === 'rush') await startRush(this.#rushCtx(), roundId, ids, solo);
       else if (mode === 'hunt') await startHunt(this.#huntCtx(), roundId, ids, solo);
@@ -771,6 +796,33 @@ export class Room extends DurableObject<Env> {
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#grid(),
       save: (grid) => this.ctx.storage.put('grid', grid),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #squash(): Promise<Squash | null> {
+    return (await this.ctx.storage.get<Squash>('squash')) ?? null;
+  }
+
+  /**
+   * Everything squashMosquitoes.ts needs. `random` is the one thing Grid Attack's
+   * Ctx does not have — this is the referee that deals the shared pattern, the same
+   * shape as `#huntCtx`'s. `sendTo` is the same private-send Pass the Bomb already
+   * uses: a board is a race only its own player may see.
+   */
+  #squashCtx(): SquashCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      random: () => Math.random(),
+      broadcast: (msg) => this.#broadcast(msg),
+      sendTo: (playerId, msg) => {
+        for (const ws of this.ctx.getWebSockets()) {
+          if (this.#idOf(ws) === playerId) this.#send(ws, msg);
+        }
+      },
+      load: () => this.#squash(),
+      save: (s) => this.ctx.storage.put('squash', s),
       setAlarm: () => this.#rearm(),
     };
   }
@@ -1027,6 +1079,23 @@ export class Room extends DurableObject<Env> {
         },
       });
     }
+    /*
+     * Squash Mosquitoes resyncs the shared state AND, if this player has a seat in
+     * it, their own private board — the one thing `#broadcastPresence` below could
+     * never carry, since it goes to everybody.
+     */
+    const squash = await this.#squash();
+    if (squash && squash.phase !== 'done') {
+      this.#send(ws, { t: 'squash', s: this.#nextSeq(), d: squashToState(squash) });
+      const board = squash.boards[id];
+      if (board) {
+        this.#send(ws, {
+          t: 'squash-board',
+          s: this.#nextSeq(),
+          d: { roundId: squash.roundId, board: { active: [...board.active], squashed: [...board.squashed] } },
+        });
+      }
+    }
     // Cat and Mouse resyncs the full state, then the next tick puts everyone
     // where they are — a refresher comes back at their last reported position,
     // which is what spec §8 promises.
@@ -1167,6 +1236,9 @@ export class Room extends DurableObject<Env> {
 
     const grid = await this.#grid();
     if (grid && grid.phase !== 'done') return gridDeadline(grid);
+
+    const squash = await this.#squash();
+    if (squash?.phase === 'running') return squashDeadline(squash);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);
