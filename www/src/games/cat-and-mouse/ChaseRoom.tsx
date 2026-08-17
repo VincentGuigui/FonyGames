@@ -37,7 +37,16 @@ export function ChaseRoom(props: { game: GameCard }): JSX.Element {
 
 function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
   const [, redraw] = useState(0);
-  const [drag, setDrag] = useState<'direct' | 'capped'>('direct');
+  /*
+   * `capped` by default — the walk-where-I-point chase.
+   *
+   * `direct` was the default because it is the simpler one to explain, which is exactly
+   * the wrong reason: it makes the icon follow the finger with no speed at all, so the
+   * round is reaction-tag and the cat wins by scribbling. `capped` is the game the spec
+   * describes (§6, "a real chase"), and a host picking blind should land in it rather
+   * than have to find it.
+   */
+  const [drag, setDrag] = useState<'direct' | 'capped'>('capped');
 
   const gameRef = useRef<CatMouseGame | null>(null);
   if (!gameRef.current) gameRef.current = new CatMouseGame();
@@ -207,9 +216,11 @@ function DragPicker({
   value: 'direct' | 'capped';
   onPick: (v: 'direct' | 'capped') => void;
 }): JSX.Element {
+  // The default leads, because a list is read top down and the first entry is what a host
+  // in a hurry picks. That used to be `direct`, which is the lesser of the two games.
   const options: { id: 'direct' | 'capped'; label: string; blurb: string }[] = [
-    { id: 'direct', label: 'Follow my finger', blurb: 'Fast and frantic. Reaction tag.' },
     { id: 'capped', label: 'Walk where I point', blurb: 'A real chase — the cat gains slowly.' },
+    { id: 'direct', label: 'Follow my finger', blurb: 'Fast and frantic. Reaction tag.' },
   ];
   return (
     <section class="panel">

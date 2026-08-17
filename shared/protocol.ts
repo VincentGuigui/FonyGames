@@ -1035,8 +1035,15 @@ export const CM_TICK_MS = Math.round(1000 / CM_TICK_HZ);
 /** How near your own icon a touch counts as grabbing it, in board widths. */
 export const CM_GRAB_SLOP = 0.09;
 
-/** `capped` only. Board widths per second. */
-export const CM_MOUSE_SPEED = 0.55;
+/**
+ * `capped` only. Board widths per second.
+ *
+ * Raised from 0.55, which crossed the board in about one and four-fifths seconds and read
+ * as a trudge rather than a chase — the mode is the default now, so this is the speed the
+ * game has, not a speed one setting has. The cat's factor is untouched: the asymmetry was
+ * never the problem, the pace was.
+ */
+export const CM_MOUSE_SPEED = 0.7;
 
 /**
  * The cat's speed as a multiple of a mouse's.

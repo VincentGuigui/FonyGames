@@ -112,8 +112,13 @@ they are two different games, and both are worth having.
 
 | Mode | How | Speed |
 | --- | --- | --- |
+| `capped` | **Default.** Grab your icon and drag *away* from it; where your finger is becomes the destination, and the icon walks toward it | `CM_MOUSE_SPEED`, cat at **1.2×** |
 | `direct` | Grab your icon; it follows your finger exactly | Thumb speed. **No speed stat exists** |
-| `capped` | Grab your icon and drag *away* from it; where your finger is becomes the destination, and the icon walks toward it | `CM_MOUSE_SPEED`, cat at **1.2×** |
+
+`capped` leads the list and is what an unchanged lobby starts. `direct` held that
+slot for a while on the grounds that it is the easier one to explain, which is the
+wrong test: it is reaction-tag with no speed to balance, and a host choosing blind
+would never have found the chase this game is actually about.
 
 Both start with the same grab, so the input is learned once. In `capped` the finger
 runs ahead and the icon follows at its own pace; in `direct` there is no gap between
