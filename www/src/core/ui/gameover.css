@@ -168,6 +168,27 @@
 
 /* --- what happens next --------------------------------------------------- */
 
+/*
+ * The two-second settling period, drawn.
+ *
+ * `inert` on its own is invisible, and a control that silently ignores you reads as
+ * broken — which is the failure this was meant to prevent, moved rather than fixed. So
+ * the actions fade in over it: dimmed and arriving, not greyed and refused. Deliberately
+ * NOT the `disabled` look, because these buttons are about to work perfectly well and
+ * "not your turn" is a different and wrong message.
+ *
+ * The fade is the only cue and it has to survive reduced motion, so it is opacity with a
+ * transition rather than an animation — the end state is correct even if the transition
+ * never runs.
+ */
+.gameover__gate {
+  transition: opacity 300ms ease-out;
+}
+
+.gameover__gate[inert] {
+  opacity: 0.4;
+}
+
 .gameover__actions {
   display: grid;
   gap: var(--space-2);

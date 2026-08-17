@@ -358,6 +358,25 @@ Nine games had nine endings, in two families:
   spans rather than sitting inside the name, which squeezed it into whatever the score
   left over and wrapped it mid-number. A row with nothing to say renders no second line
   at all, so a game not using it keeps one line per player.
+
+- **Nothing takes a tap for the first two seconds.** Half the catalogue ends a round with
+  a thumb still going — Grid Attack and Pass the Bomb are mashing games, Tap Duel's whole
+  skill is tapping the instant something appears — and the panel lands under the finger
+  doing it. The first stray tap hit Play again and started the next round before anybody
+  had read who won: the result of the round you just played, skipped by the round you
+  just played.
+
+  `inert`, not `disabled`. `disabled` would grey the controls and read as "not your
+  turn", which is a different and wrong message on buttons that are about to work
+  perfectly well — and it cannot touch the Leave game anchor at all, which needs the
+  guard just as much, since leaving by accident is worse than replaying by accident.
+  The actions fade in over the two seconds so the wait is visible: a control that
+  silently ignores you reads as broken, which is the failure this exists to prevent.
+
+- **The panel fits a short viewport.** Below 480px of height — a phone on its side — the
+  crest shrinks, the gaps tighten, the rows scroll and the two buttons sit side by side.
+  Grid Attack's board is sideways and so is its result, and a height query rather than an
+  orientation one means no game has to opt in.
 - **Mid-match gets one button**, the next round: Tap Duel at 6–4 does not want to be
   asked whether to play again. A finished match gets two — play again, and leave.
 - **Leave is a link, not a button.** Leaving the page is what drops the socket and frees
