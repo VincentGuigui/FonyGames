@@ -107,10 +107,21 @@ where nothing looks urgent.
 Under `prefers-reduced-motion` the cell **holds solid** instead of flashing. It still says
 "this one", and an accelerating strobe is exactly what that setting exists to turn off.
 
-### 4.2 Tap pips
+### 4.2 The cell fills as you tap it
 
-Three pips on each cell fill as you tap it. They are **local** — see §6 — and they exist
-because three taps with no feedback is indistinguishable from a dead button.
+A radial gradient from the middle of the cell, growing and darkening with each tap — a
+third, two thirds, full. So the feedback **is the cell** rather than a badge stuck on one:
+you are visibly loading the thing you are hitting, and at a glance across a board you can
+see which cells you are part-way through.
+
+It replaced three small pips, which said the same thing in the corner of the eye and said
+it about a cell rather than with one. Local — see §6 — and it exists because three taps
+with no feedback is indistinguishable from a dead button.
+
+The fill is its own layer rather than the cell's background, so it can grow from the centre
+without touching the border and without fighting the pulse, which animates the background
+underneath it. A run that goes stale takes its fill with it: a fill left behind after the
+referee has given up on the run would promise a tap that is not going to land.
 
 ## 5. Inputs
 

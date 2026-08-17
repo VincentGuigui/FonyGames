@@ -299,6 +299,19 @@
   background: color-mix(in srgb, var(--game-accent, var(--color-accent)) 18%, transparent);
 }
 
+/*
+ * The permission button, under the two routes.
+ *
+ * Full width and filled, because it is the one thing left to do on this panel and it was
+ * previously reachable only by tapping an option that already looked chosen. The picker
+ * above chooses a ROUTE; this grants the permission that route needs, and the difference
+ * was invisible while the host's start button quietly did both.
+ */
+.hunt-route__allow {
+  width: 100%;
+  margin-top: var(--space-1);
+}
+
 .hunt-route__title {
   grid-area: title;
 }
