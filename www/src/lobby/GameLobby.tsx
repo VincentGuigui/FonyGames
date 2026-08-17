@@ -141,14 +141,29 @@ export function GameLobby({
         </HowToPlay>
       </Disclosure>
 
-      <CodeCard
-        code={code}
-        joinUrl={joinUrl}
-        copied={copied}
-        showQr={showQr}
-        onShare={onShare}
-        onToggleQr={onToggleQr}
-      />
+      {/*
+        Open for the host, collapsed for everyone else.
+
+        It was a permanently open bordered card — the biggest thing on the screen, shown to
+        the whole table, for a job only the host has and only until everybody has arrived.
+        Four players out of five were scrolling past a code they had already used to get in.
+
+        `room.isHost` rather than "did they follow a link", because typing a code into the
+        Join tab is joining too, and only the host discriminator catches both. It costs the
+        host a flicker on the first frame — the room says who the host is a moment after the
+        page renders — which is the right way round: the guest, who is the common case, never
+        sees it move.
+      */}
+      <Disclosure heading="Invite a player" open={room.isHost}>
+        <CodeCard
+          code={code}
+          joinUrl={joinUrl}
+          copied={copied}
+          showQr={showQr}
+          onShare={onShare}
+          onToggleQr={onToggleQr}
+        />
+      </Disclosure>
 
 
       <section class="panel">

@@ -10,7 +10,7 @@ fixed:
 
 1. **Title and tagline** — the title, then the game's `pitch` verbatim.
 2. **How to play** — the concept, then the bullets (§2).
-3. **Room code** — the code, share link, QR.
+3. **Invite a player** — the code, share link and QR, in a panel that collapses.
 4. **Players** — the list. Your own row carries **Change**, which opens a sheet with
    your name and the avatars in it.
 5. **Start** — the button and one line of context, **stuck to the bottom of the screen**.
@@ -27,6 +27,22 @@ everyone who has joined, and whatever a game must say before anybody points a ca
 anything. Sticky keeps all of that and stops it burying the one control the host is there
 to press. The gradient behind it fades to the page colour rather than being a flat fill,
 because a hard edge across the middle of a panel reads as the page having ended.
+
+### Why the room code collapses
+
+It was a permanently open bordered card, and the biggest thing on the screen: a code set in
+`clamp(2rem, 11.5vw, 3.5rem)` so it can be read across a table. Shown to everybody, for a
+job **only the host has** and only until the last person has arrived. Four players in five
+were scrolling past a code they had already used to get in.
+
+So it is a `Disclosure` like How to play, headed *Invite a player* — the job rather than the
+object, because "room code" describes what is in the panel and not why you would open it.
+Open for the host, collapsed for everyone else.
+
+**`room.isHost`, not "did they follow a link".** Typing a code into the Join tab is joining
+too, and only the host discriminator catches both. The cost is a flicker for the host on the
+first frame, since the room says who the host is a moment after the page renders — which is
+the right way round, because the guest is the common case and never sees it move.
 
 ### Why the avatar picker is behind a button
 
