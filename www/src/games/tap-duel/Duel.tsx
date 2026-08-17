@@ -52,6 +52,14 @@ export function Duel(props: {
    * `fireAt`. Null outside a live round.
    */
   armed: { roundId: number; startsAt: number; fireAt: number; speed: number } | null;
+  /**
+   * The running match score, kept across rounds.
+   *
+   * Separate from `result` because that is cleared on every arm — it answers "what
+   * happened in the round just finished", and goes away the moment a new one starts.
+   * This answers "what is the score", which is true the whole time.
+   */
+  tally: Record<PlayerId, number>;
   /** Server-corrected clock. The drift is a function of server time, not local time. */
   now: () => number;
   /** Only the host may start the next duel. */
@@ -60,7 +68,7 @@ export function Duel(props: {
   concept: string;
   rules: string[];
 }): JSX.Element | null {
-  const { players, me, phase, result, onTap, onAgain, isHost, title, concept, rules, target, accent } =
+  const { players, me, phase, result, tally, onTap, onAgain, isHost, title, concept, rules, target, accent } =
     props;
   const { armed, now } = props;
   /*
@@ -158,10 +166,13 @@ export function Duel(props: {
    * The session's running points, in the panel every game has.
    *
    * A duel has no score DURING a round — it is one tap — so what this shows is the
-   * cumulative total, which is the only number Tap Duel keeps. `result` is not cleared
-   * between rounds, so the totals stay on screen through the next arm and signal; before
-   * the first duel everyone is on nil, which is true and which the panel does not bold
-   * because a tie has no leader.
+   * cumulative match total, which is the only number Tap Duel keeps.
+   *
+   * It reads `tally` and not `result.scores`, and that is the whole point: `result` is
+   * cleared on every `arm`, so from the second duel onwards the panel showed **nil for
+   * everyone** through the get-ready and the signal, and only remembered the score once
+   * the round it was about had already finished. The comment here used to claim `result`
+   * survived between rounds. It does not, and had not for as long as the panel existed.
    *
    * It cannot cost a reaction: the panel is `pointer-events: none`, so a tap over it
    * falls through to the target or the backdrop exactly as it did before, and the round
@@ -173,7 +184,7 @@ export function Duel(props: {
         id: p.id,
         avatar: p.avatar,
         name: p.name,
-        value: result?.scores[p.id] ?? 0,
+        value: tally[p.id] ?? 0,
       }))}
       me={me}
       unit="points"
