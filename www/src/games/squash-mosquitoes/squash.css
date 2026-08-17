@@ -32,13 +32,28 @@
 }
 
 /*
- * The invisible grid (spec §2). `aspect-ratio: 1` on every CELL, not on the grid as a
- * whole, is what keeps each mosquito's hitbox honestly square while the grid overall
- * reads as a 9:13 rectangle — nine squares fit the width, and however many rows that
- * makes fit is exactly thirteen, by construction (`SQUASH_GRID_ROWS`).
+ * The invisible grid (spec §2). `aspect-ratio` on the grid itself, at 9:13, is what
+ * keeps each of its 1fr-by-1fr cells honestly square: nine equal columns and thirteen
+ * equal rows dividing a box that is ALREADY in a 9:13 shape divide it into squares by
+ * construction, with nothing further needed per cell.
+ *
+ * `flex: 0 0 auto` turns off `flex-grow`, so height is free for `aspect-ratio` to
+ * derive from the width rather than being forced to fill the column's remaining
+ * space. `max-height` stays as the guard for the other case — a landscape phone or a
+ * short window, where the derived height would overflow and the WIDTH has to give
+ * way instead.
+ *
+ * The width side of that is `margin: 0` — NOT `0 auto`. Auto margins on a flex
+ * item's CROSS axis (horizontal, here, since `.squash` is a column flex box) cancel
+ * the `stretch` that item would otherwise get by default, the same way `margin: 0
+ * auto` centres a block box instead of letting it fill its container. With auto
+ * margins in place this grid's width collapsed to its own content size — a sliver a
+ * few pixels wide — and `aspect-ratio` derived an equally tiny height from THAT,
+ * instead of from the full 390px available. Plain `margin: 0` lets stretch make the
+ * width 100% again, and `aspect-ratio` derive a correct 390×563 (9:13) box from it.
  */
 .squash__grid {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(var(--squash-cols), 1fr);
@@ -47,7 +62,7 @@
   max-height: 100%;
   max-width: 100%;
   aspect-ratio: var(--squash-cols) / var(--squash-rows);
-  margin: 0 auto;
+  margin: 0;
   padding: 0 max(var(--space-2), env(safe-area-inset-right)) max(var(--space-2), env(safe-area-inset-bottom))
     max(var(--space-2), env(safe-area-inset-left));
 }
@@ -107,42 +122,62 @@
   height: 25%;
 }
 
+/*
+ * The bug's own viewBox is 34x22 — wider than it is tall, the way the reference art
+ * actually sits — so its CSS box is sized to that same ratio rather than a square:
+ * a square box would letterbox the wide bug inside empty top-and-bottom padding, which
+ * is space the icon should be using.
+ */
 .squash__bug {
-  width: 62%;
-  height: 62%;
-  fill: #1a1a1a;
+  width: 84%;
+  height: 54%;
+  /*
+   * `position: relative` for one reason only: it gives the bug a definite stack level
+   * (0) so it is guaranteed to paint above `::before`'s blot, which also sits at level
+   * 0 as an absolutely-positioned pseudo-element. Without an explicit level on BOTH,
+   * paint order between a positioned pseudo-element and its plain, static sibling is
+   * not simply "document order" — the blot painted OVER the bug entirely, which is
+   * what a red silhouette with no mosquito on it turned out to be.
+   */
+  position: relative;
+  z-index: 0;
 }
 
 /* A flying mosquito's own box is already a quarter of the cell — no extra padding
    inside it, or the smallest, hardest targets would also be the smallest icons. */
 .squash__mosquito--flying .squash__bug {
-  width: 92%;
-  height: 92%;
+  width: 94%;
+  height: 61%;
 }
 
 /*
  * Squashed: a red trace, behind the mosquito, never removed (spec §2).
  *
- * `::before` rather than a second element — it is the FIRST thing in the button's own
- * paint order, so it sits behind the `<svg>` for free, with no `z-index` needed. Kept a
- * soft, irregular blot rather than a hard circle: a red disc reads as a UI dot, and the
- * whole point is that it reads as a stain instead.
+ * `::before` rather than a second element, and pinned to level 0 (matching `.squash__bug`
+ * above) rather than left at its default `auto` — a positioned pseudo-element at `auto`
+ * does not reliably paint behind a plain, non-positioned sibling just because it comes
+ * first in the DOM; the two need an explicit, EQUAL stack level for document order to be
+ * what decides it, which is what actually keeps the blot behind the bug.
+ *
+ * A flat, irregular polygon rather than a soft glow: the reference is a cartoon splat,
+ * solid-coloured, not a vignette — a `border-radius` blob reads as software UI, a
+ * `clip-path` polygon reads as ink hitting a surface. The handful of drops beyond the
+ * main blot are drawn inside the bug's own SVG instead (see `SquashedBug` in
+ * SquashBoard.tsx) — a `radial-gradient` sized as a percentage circle is invalid CSS
+ * and silently draws nothing, and the SVG's own coordinate space places drops exactly
+ * without depending on whatever box the button ends up being.
  */
 .squash__mosquito--squashed::before {
   content: '';
   position: absolute;
-  inset: 6%;
-  border-radius: 42% 58% 61% 39% / 55% 42% 58% 45%;
-  background: radial-gradient(
-    circle at 42% 38%,
-    var(--game-accent, #e11d48) 0%,
-    color-mix(in srgb, var(--game-accent, #e11d48) 65%, transparent) 55%,
-    transparent 100%
+  z-index: 0;
+  inset: 2%;
+  background: var(--game-accent, #e11d48);
+  clip-path: polygon(
+    50% 4%, 66% 10%, 82% 8%, 90% 24%, 98% 40%, 92% 56%,
+    98% 72%, 82% 82%, 68% 96%, 52% 84%, 34% 94%, 18% 80%,
+    4% 70%, 10% 52%, 2% 34%, 16% 20%, 30% 12%
   );
-}
-
-.squash__mosquito--squashed .squash__bug {
-  opacity: 0.85;
 }
 
 .squash__mosquito:disabled {
