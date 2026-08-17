@@ -83,8 +83,21 @@ export function GameLobby({
   return (
     <div class="lobby" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
       <header class="lobby__header">
-        <a class="lobby__back" href="/">
-          ← All games
+        {/*
+          Out of the room and back to this game's own page, not out to the hub.
+
+          It said "← All games" and went to `/`, which is two steps away and the wrong one:
+          from a lobby the thing you want is almost always this game without this room —
+          start a different one, join the code somebody has just read out, or simply get
+          out of a room you opened by mistake. The hub is one more tap from there, and the
+          chooser has its own link to it.
+
+          The same place the back button now goes (`RoomGate.enter`), so the two agree.
+          Only the hash differs, so the browser does not reload — `RoomGate` hears the
+          hashchange, puts the chooser back, and unmounting the lobby closes the socket.
+        */}
+        <a class="lobby__back" href={`/${card.slug}/`}>
+          ← Leave the room
         </a>
         <h1 class="lobby__title">{card.title}</h1>
         <p class="lobby__pitch">{card.pitch}</p>
