@@ -73,21 +73,20 @@ export function readRoomHash(): RoomHash {
 }
 
 /**
- * Mint a room code and put it in the URL.
+ * Mint a room code.
  *
  * Called when the player chooses **Create**, not on arrival — opening a game page used to
  * do this unconditionally, so browsing the catalogue created rooms nobody entered
  * (docs/specs/join.md).
  *
- * `replaceState`, not `pushState`: the chooser and the room it minted are one step in the
- * player's mind, and a back button that returned to an empty chooser after the code had
- * been shared would be a way to lose the room.
+ * **It does not touch the URL.** It used to `replaceState` the fresh code into the hash,
+ * which quietly made it the second thing that decided the page's history — and `RoomGate`'s
+ * `enter` skips writing a hash that already says what it was about to say, so the moment
+ * entering a room became a `pushState` the Create path silently kept the old behaviour and
+ * back still jumped off the game. Minting is minting; the URL has one owner.
  */
 export function mintRoomCode(): string {
-  const fresh = generateRoomCode();
-  history.replaceState(null, '', `${location.pathname}#${fresh}`);
-
-  return fresh;
+  return generateRoomCode();
 }
 
 /**

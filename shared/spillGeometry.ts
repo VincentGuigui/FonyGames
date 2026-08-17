@@ -1,4 +1,4 @@
-import { SPILL_AIM_FRACTION } from './protocol';
+import { SPILL_AIM_FRACTION, SPILL_SPEED_MAX, SPILL_SPEED_MIN } from './protocol';
 
 /**
  * Spill's shared coordinate frame. Spec: docs/specs/games/spill.md §2
@@ -75,9 +75,67 @@ export function clampFlick(screenAngle: number): number {
   return Math.max(-SPILL_FLICK_CONE, Math.min(SPILL_FLICK_CONE, a));
 }
 
-/** How far off a perfect flick may be and still land on a phone. */
-export function aimTolerance(n: number): number {
-  return (SPILL_AIM_FRACTION * Math.PI) / n;
+/**
+ * How much of the aim window a flat-out flick gives up.
+ *
+ * **This is the decision the gesture is for.** Flick speed used to have exactly one
+ * consequence — a shorter launch lock — which made throwing as hard as possible
+ * strictly better than aiming, four times the throughput for no cost at all. Now a
+ * hard throw buys that tempo by narrowing the window it has to fit through, so
+ * "how hard do I dare throw this" is a real question with a real answer either way.
+ *
+ * Scaled **deterministically**, never jittered. A random deviation would be simpler
+ * and is wrong twice over: the aim preview could not tell the truth about a throw it
+ * cannot predict, and a player who aimed dead centre and missed anyway would be quite
+ * right to feel cheated.
+ */
+export const SPILL_SPREAD = 0.5;
+
+/**
+ * Half the angular distance from one target to its nearest neighbouring target, as
+ * seen from seat `from` — the widest a window can be before two of them overlap.
+ *
+ * Derived from the real screen angles rather than assumed to be `π/n`: the seats are
+ * evenly spaced around the table, but the *bearings* from any one seat to the others
+ * are not evenly spaced, and at four players the seat opposite is √2 further away
+ * than the two beside it. `π/n` is the gap between seats; this is the gap between
+ * aims, halved.
+ *
+ * With **two** players there is no neighbouring target to collide with, so the bound
+ * is the throwing cone itself. A careful flick reaches almost the whole cone and the
+ * skill stays where the bounce path puts it (spec §4a) — *where* on their screen it
+ * arrives, not whether it gets there — while a hard one can still be flung past them.
+ */
+export function halfGap(from: number, n: number): number {
+  const angles: number[] = [];
+  for (let j = 0; j < n; j++) {
+    if (j !== from) angles.push(screenAngleTo(from, j, n));
+  }
+  if (angles.length < 2) return SPILL_FLICK_CONE;
+
+  angles.sort((a, b) => a - b);
+  let gap = Infinity;
+  for (let i = 1; i < angles.length; i++) {
+    gap = Math.min(gap, (angles[i] as number) - (angles[i - 1] as number));
+  }
+  return gap / 2;
+}
+
+/**
+ * How far off a perfect flick may be and still land on a phone.
+ *
+ * A fraction of the half-gap (never more, or adjacent windows would overlap and a
+ * forward flick could not miss), shrinking as the flick gets faster.
+ *
+ * At `SPILL_AIM_FRACTION` 0.9 and `SPILL_SPREAD` 0.5 that is ±20° careful and ±10°
+ * flat out with four players, ±27° and ±13.5° with three, ±72° and ±36° with two.
+ */
+export function aimTolerance(from: number, n: number, speed: number): number {
+  const t = Math.max(
+    0,
+    Math.min(1, (speed - SPILL_SPEED_MIN) / (SPILL_SPEED_MAX - SPILL_SPEED_MIN)),
+  );
+  return SPILL_AIM_FRACTION * halfGap(from, n) * (1 - SPILL_SPREAD * t);
 }
 
 /**
@@ -85,8 +143,17 @@ export function aimTolerance(n: number): number {
  *
  * `screenAngle` is radians **clockwise from the top of the thrower's screen** —
  * for a drag of (dx, dy) in canvas pixels that is `Math.atan2(dx, -dy)`.
+ *
+ * `speed` is in screen heights per second, the same unit that goes on the wire, and
+ * it narrows the window (see `SPILL_SPREAD`). The client passes the speed of the drag
+ * so far so the preview can say what the release is going to do.
  */
-export function aimSeat(from: number, screenAngle: number, n: number): number | null {
+export function aimSeat(
+  from: number,
+  screenAngle: number,
+  n: number,
+  speed: number,
+): number | null {
   const bearing = flickBearing(from, screenAngle, n);
 
   let best: number | null = null;
@@ -100,7 +167,7 @@ export function aimSeat(from: number, screenAngle: number, n: number): number | 
     }
   }
 
-  return bestErr <= aimTolerance(n) ? best : null;
+  return bestErr <= aimTolerance(from, n, speed) ? best : null;
 }
 
 /**

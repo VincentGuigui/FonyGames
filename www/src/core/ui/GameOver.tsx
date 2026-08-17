@@ -1,4 +1,5 @@
 import type { ComponentChildren, JSX } from 'preact';
+import { useEffect, useState } from 'preact/hooks';
 import type { PlayerId } from '../../../../shared/protocol';
 import { StatusBar } from './StatusBar';
 import type { Me } from './Scoreboard';
@@ -73,6 +74,33 @@ function numeric(value: string | number): boolean {
   return typeof value === 'number' || (value.trim() !== '' && Number.isFinite(Number(value)));
 }
 
+/**
+ * How long the panel refuses to be tapped.
+ *
+ * Long enough to outlast the tail of a mashing round — fingers do not stop the instant a
+ * screen changes — and short enough that a player who *is* reaching for Play again barely
+ * notices. Two seconds is also about how long it takes to read a name and a number, which
+ * is the thing the panel is there to show.
+ */
+const SETTLE_MS = 2_000;
+
+/**
+ * False for the first `SETTLE_MS` after the panel appears, then true for good.
+ *
+ * Keyed on nothing: the component is remounted for each round (games key their end screen
+ * on the round, or swap it in and out of the tree), so mounting *is* the event.
+ */
+function useSettled(): boolean {
+  const [settled, setSettled] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(true), SETTLE_MS);
+    return () => clearTimeout(t);
+  }, []);
+
+  return settled;
+}
+
 export function GameOver({
   rows,
   me,
@@ -112,6 +140,7 @@ export function GameOver({
   canAct: boolean;
   waiting?: string | undefined;
 }): JSX.Element {
+  const settled = useSettled();
   const champion = winner === null ? null : (rows.find((r) => r.id === winner) ?? null);
   const said =
     headline ??
@@ -167,38 +196,56 @@ export function GameOver({
 
       {note && <p class="gameover__note">{note}</p>}
 
-      {canAct ? (
-        <div class="gameover__actions">
-          {onNext ? (
-            <button class="btn btn--big gameover__go" type="button" onClick={onNext}>
-              {nextLabel}
-            </button>
-          ) : (
-            <>
-              <button class="btn btn--big gameover__go" type="button" onClick={onAgain}>
-                {againLabel}
+      {/*
+        Nothing here takes a tap for the first `SETTLE_MS`.
+
+        Half the catalogue ends a round while a thumb is still going: Grid Attack and Pass
+        the Bomb are mashing games, Tap Duel is a reaction game whose whole skill is
+        tapping the instant something appears, and the panel lands under the finger doing
+        it. The first stray tap hit "Play again" and the next round started before anybody
+        had read who won — the result of the round they just played, skipped by the round
+        they just played.
+
+        `inert` rather than `disabled`, and this is the part worth getting right: `disabled`
+        would grey both controls out and read as "not your turn", which is a different and
+        wrong message on a panel where the buttons are about to work perfectly well. `inert`
+        also takes the anchor with it, which `disabled` cannot do at all — and Leave game
+        needs it as much as Play again, since leaving by accident is worse.
+      */}
+      <div class="gameover__gate" inert={!settled}>
+        {canAct ? (
+          <div class="gameover__actions">
+            {onNext ? (
+              <button class="btn btn--big gameover__go" type="button" onClick={onNext}>
+                {nextLabel}
               </button>
-              {/*
-                A link, not a router call: leaving the page is what drops the socket and
-                frees the seat. Same reason the gear menu's exit is one.
-              */}
+            ) : (
+              <>
+                <button class="btn btn--big gameover__go" type="button" onClick={onAgain}>
+                  {againLabel}
+                </button>
+                {/*
+                  A link, not a router call: leaving the page is what drops the socket and
+                  frees the seat. Same reason the gear menu's exit is one.
+                */}
+                <a class="btn btn--big gameover__leave" href="/">
+                  Leave game
+                </a>
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            <p class="gameover__waiting">{waiting}</p>
+            {/* Not being the host is not a reason to be trapped in the room. */}
+            <div class="gameover__actions">
               <a class="btn btn--big gameover__leave" href="/">
                 Leave game
               </a>
-            </>
-          )}
-        </div>
-      ) : (
-        <>
-          <p class="gameover__waiting">{waiting}</p>
-          {/* Not being the host is not a reason to be trapped in the room. */}
-          <div class="gameover__actions">
-            <a class="btn btn--big gameover__leave" href="/">
-              Leave game
-            </a>
-          </div>
-        </>
-      )}
+            </div>
+          </>
+        )}
+      </div>
     </section>
   );
 }

@@ -83,8 +83,21 @@ export function GameLobby({
   return (
     <div class="lobby" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
       <header class="lobby__header">
-        <a class="lobby__back" href="/">
-          ← All games
+        {/*
+          Out of the room and back to this game's own page, not out to the hub.
+
+          It said "← All games" and went to `/`, which is two steps away and the wrong one:
+          from a lobby the thing you want is almost always this game without this room —
+          start a different one, join the code somebody has just read out, or simply get
+          out of a room you opened by mistake. The hub is one more tap from there, and the
+          chooser has its own link to it.
+
+          The same place the back button now goes (`RoomGate.enter`), so the two agree.
+          Only the hash differs, so the browser does not reload — `RoomGate` hears the
+          hashchange, puts the chooser back, and unmounting the lobby closes the socket.
+        */}
+        <a class="lobby__back" href={`/${card.slug}/`}>
+          ← Leave the room
         </a>
         <h1 class="lobby__title">{card.title}</h1>
         <p class="lobby__pitch">{card.pitch}</p>
@@ -128,14 +141,29 @@ export function GameLobby({
         </HowToPlay>
       </Disclosure>
 
-      <CodeCard
-        code={code}
-        joinUrl={joinUrl}
-        copied={copied}
-        showQr={showQr}
-        onShare={onShare}
-        onToggleQr={onToggleQr}
-      />
+      {/*
+        Open for the host, collapsed for everyone else.
+
+        It was a permanently open bordered card — the biggest thing on the screen, shown to
+        the whole table, for a job only the host has and only until everybody has arrived.
+        Four players out of five were scrolling past a code they had already used to get in.
+
+        `room.isHost` rather than "did they follow a link", because typing a code into the
+        Join tab is joining too, and only the host discriminator catches both. It costs the
+        host a flicker on the first frame — the room says who the host is a moment after the
+        page renders — which is the right way round: the guest, who is the common case, never
+        sees it move.
+      */}
+      <Disclosure heading="Invite a player" open={room.isHost}>
+        <CodeCard
+          code={code}
+          joinUrl={joinUrl}
+          copied={copied}
+          showQr={showQr}
+          onShare={onShare}
+          onToggleQr={onToggleQr}
+        />
+      </Disclosure>
 
 
       <section class="panel">

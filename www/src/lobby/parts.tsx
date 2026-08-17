@@ -48,8 +48,16 @@ export function CodeCard({
   onShare: () => void;
   onToggleQr: () => void;
 }): JSX.Element {
+  /*
+   * The body of the "Invite a player" panel, not a panel itself.
+   *
+   * It used to be a bordered card of its own, permanently open, sitting between How to
+   * play and the player list — the biggest thing in the lobby, shown to everybody, for a
+   * job only the host has and only until everyone has arrived. It is a `<div>` rather
+   * than a `<section>` for the same reason: `Disclosure` is the section now.
+   */
   return (
-    <section class="code-card">
+    <div class="code-card">
       <p class="code-card__label">Room code</p>
       {/*
         Grouped for reading — `TAK-OBE`. The dash is presentation only; `code` itself
@@ -72,7 +80,7 @@ export function CodeCard({
           <p class="code-card__hint">Point a phone camera at this.</p>
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
