@@ -107,6 +107,17 @@ console.log('\na round somebody won counts');
   won(cm(true, []), 'cat and mouse: the cat');
   won(cm(false, [B]), 'cat and mouse: the mice');
   not(cm(false, []), 'cat and mouse: not an emptied floor');
+
+  // Squash Mosquitoes ends the same way Grid Attack does: phase and winner in the
+  // same frame, and a cap that ends in a tie has no winner.
+  const squash = (phase: 'running' | 'done', winner: PlayerId | null): ServerMessage => ({
+    t: 'squash',
+    s: 1,
+    d: { roundId: 1, startsAt: 0, endsAt: 1, pattern: [], scores: {}, winner, phase },
+  });
+  won(squash('done', A), 'squash mosquitoes: somebody squashed all 66');
+  not(squash('done', null), 'squash mosquitoes: not a tie at the cap');
+  not(squash('running', null), 'squash mosquitoes: not mid-round');
 }
 
 console.log('\nnothing mid-round counts');
@@ -121,6 +132,7 @@ console.log('\nnothing mid-round counts');
     { t: 'rush', s: 1, d: { roundId: 1, endsAt: 9, at: {}, finished: [], away: [] } },
     { t: 'hunt', s: 1, d: { roundId: 1, targets: [], index: {}, endsAt: 9, scores: {}, totals: {}, points: {} } },
     { t: 'cm-frame', s: 1, d: { roundId: 1, at: 1, pos: {} } },
+    { t: 'squash', s: 1, d: { roundId: 1, startsAt: 0, endsAt: 1, pattern: [], scores: {}, winner: null, phase: 'running' } },
     { t: 'error', d: { code: 'rate-limited', message: 'Slow down.' } },
   ];
 
