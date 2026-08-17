@@ -223,27 +223,130 @@ function MosquitoCell({
           onTap();
         }}
       >
-        <MosquitoIcon />
+        <MosquitoIcon squashed={squashed} />
       </button>
     </div>
   );
 }
 
+/** Ink and eye-white, shared by both states so alive and squashed read as the same bug. */
+const INK = '#16222e';
+const EYE_WHITE = '#f4f6f8';
+
 /**
- * The mosquito, drawn once and reused for every state.
+ * The mosquito: big googly eyes, a thin proboscis, two arched outline wings, three bent
+ * legs — one alive, one just squashed. Two separate drawings rather than one path set
+ * with a modifier, because the whole point of squashing something is that it stops
+ * looking like the thing it was: a live bug is a clean silhouette that reads as
+ * "here", and a squashed one is a jagged splat with its eyes crossed out and a wing
+ * visibly cracked, which reads as "already dealt with" from across the board.
  *
- * Always black (spec §4) — squashed adds a red trace *behind* it via `::before` in CSS
- * rather than a second element here, since the blood needs no shape of its own beyond a
- * soft blot.
+ * The blood itself is drawn separately, behind this, in CSS (`::before`/`::after`) —
+ * this component only ever draws the bug.
  */
-function MosquitoIcon(): JSX.Element {
+function MosquitoIcon({ squashed }: { squashed: boolean }): JSX.Element {
+  return squashed ? <SquashedBug /> : <LiveBug />;
+}
+
+function LiveBug(): JSX.Element {
   return (
-    <svg viewBox="0 0 24 24" class="squash__bug" aria-hidden="true">
-      <ellipse cx="12" cy="13.5" rx="3.2" ry="6.2" />
-      <circle cx="12" cy="5.2" r="1.7" />
-      <path d="M12 3.5 L12 0.5" stroke="currentColor" stroke-width="1" stroke-linecap="round" />
-      <ellipse cx="6.4" cy="10.5" rx="4.6" ry="2" transform="rotate(-24 6.4 10.5)" opacity="0.5" />
-      <ellipse cx="17.6" cy="10.5" rx="4.6" ry="2" transform="rotate(24 17.6 10.5)" opacity="0.5" />
+    <svg viewBox="0 0 34 22" class="squash__bug" aria-hidden="true">
+      {/* Body, tapering from the head to a fine point — the abdomen a mosquito lands on. */}
+      <path
+        d="M8 11 C8 7.6 11.8 6 15.8 6.6 C22 7.4 30.5 9.2 30.5 11
+           C30.5 12.8 22 14.6 15.8 15.4 C11.8 16 8 14.4 8 11 Z"
+        fill={INK}
+      />
+
+      {/* Two arched, overlapping wings — outline only, so the body reads through them. */}
+      <ellipse cx="19" cy="3.2" rx="7" ry="3" transform="rotate(18 19 3.2)" fill="none" stroke={INK} stroke-width="1" />
+      <ellipse cx="21" cy="4.6" rx="6.2" ry="2.6" transform="rotate(6 21 4.6)" fill="none" stroke={INK} stroke-width="1" />
+
+      {/* Three bent legs, trailing under the abdomen. */}
+      <path
+        d="M13 15.4 L12 18.5 L10 20.5 M17 15.7 L16.5 19 L14.5 21 M21 15.5 L21.5 18.8 L19.5 20.8"
+        fill="none"
+        stroke={INK}
+        stroke-width="0.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+
+      {/* The head, and the proboscis every mosquito is known by. */}
+      <circle cx="7" cy="11" r="3.6" fill={INK} />
+      <path d="M4 13 L0.8 17.5" stroke={INK} stroke-width="0.9" stroke-linecap="round" />
+
+      {/* Googly eyes: a bigger one behind, a smaller one in front, each with its own pupil. */}
+      <circle cx="5.3" cy="9.3" r="2.1" fill={EYE_WHITE} stroke={INK} stroke-width="0.5" />
+      <circle cx="4.7" cy="8.7" r="0.8" fill={INK} />
+      <circle cx="7.6" cy="10.8" r="1.55" fill={EYE_WHITE} stroke={INK} stroke-width="0.45" />
+      <circle cx="7.1" cy="10.3" r="0.58" fill={INK} />
+    </svg>
+  );
+}
+
+function SquashedBug(): JSX.Element {
+  return (
+    <svg viewBox="0 0 34 22" class="squash__bug" aria-hidden="true">
+      {/* The body, flattened into an irregular splat rather than a clean capsule. */}
+      <path
+        d="M8 10.5 C7.4 7.6 11.5 6.3 15 7 C17 5.8 21 6.6 23 8.4
+           C26.5 8 30.8 9.6 30 11.6 C31 13.4 27.5 15.6 24 15
+           C21.5 17 16.5 17.4 14.5 15.4 C11 16.4 7.2 13.6 8 10.5 Z"
+        fill={INK}
+      />
+
+      {/* One wing intact, one visibly cracked across the middle. */}
+      <ellipse cx="19" cy="3.2" rx="7" ry="3" transform="rotate(18 19 3.2)" fill="none" stroke={INK} stroke-width="1" />
+      <ellipse cx="21" cy="4.6" rx="6.2" ry="2.6" transform="rotate(6 21 4.6)" fill="none" stroke={INK} stroke-width="1" />
+      <path d="M18 3.6 L19.4 5.4 L18.3 5.9 L20 7.6" fill="none" stroke={INK} stroke-width="0.7" stroke-linecap="round" />
+
+      {/* Legs splayed at the wrong angles, not tucked neatly under the body. */}
+      <path
+        d="M13 15.4 L11 17.5 L13.5 19.5 M17 15.7 L19 18.5 L16 20.5 M21 15.5 L23.5 17.3 L20.5 19.8"
+        fill="none"
+        stroke={INK}
+        stroke-width="0.9"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+
+      <circle cx="7" cy="11" r="3.6" fill={INK} />
+      <path d="M4 13 L1.6 15.2 L0.8 17.5" fill="none" stroke={INK} stroke-width="0.9" stroke-linecap="round" />
+
+      {/* The same two eyes, gone dark: a white socket with an X where the pupil was. */}
+      <circle cx="5.3" cy="9.3" r="2.1" fill={EYE_WHITE} stroke={INK} stroke-width="0.5" />
+      <path d="M3.9 8.5 L5.5 10.1 M5.5 8.5 L3.9 10.1" stroke={INK} stroke-width="0.6" stroke-linecap="round" />
+      <circle cx="7.6" cy="10.8" r="1.55" fill={EYE_WHITE} stroke={INK} stroke-width="0.45" />
+      <path d="M6.9 10.1 L8.3 11.5 M8.3 10.1 L6.9 11.5" stroke={INK} stroke-width="0.5" stroke-linecap="round" />
+
+      {/*
+        Two thin cracks in the body, in the skin tone behind it — a hairline of "not
+        mosquito any more" rather than another dark line the eye would read as a leg.
+      */}
+      <path
+        d="M13 9 L14.5 11 L13.5 11.6 L15 13.5 M20 9.5 L21.3 11.2 L20 11.8"
+        fill="none"
+        stroke="#f0beac"
+        stroke-width="0.55"
+        stroke-linecap="round"
+        opacity="0.85"
+      />
+
+      {/*
+        A few drops beyond the main splat, drawn here rather than as a CSS background —
+        a `radial-gradient` sized as a percentage circle is invalid CSS and silently
+        does nothing, and even fixed the wire-up needed the same coordinate space as the
+        bug itself to sit precisely rather than drift with whatever box the button ends
+        up being. `var(--game-accent, …)` so re-theming still recolours them with the rest.
+      */}
+      <g fill="var(--game-accent, #e11d48)">
+        <circle cx="2" cy="2.6" r="0.9" />
+        <circle cx="32.4" cy="1.8" r="0.7" />
+        <circle cx="33.2" cy="19.5" r="0.9" />
+        <circle cx="3" cy="20.5" r="0.6" />
+        <circle cx="17.5" cy="21.3" r="0.55" />
+      </g>
     </svg>
   );
 }
