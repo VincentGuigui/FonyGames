@@ -351,10 +351,25 @@ The lobby asks one question — *how do you want to play* — with two answers:
 the whole of §2 are about turning around in your own room. The photosphere used to be
 what a player got by doing nothing, which made the seated alternative the norm.
 
-Defaulting to it grants nothing — a permission still needs a tap. **The Start button is
-that tap** when nobody has pressed the picker: it asks, then anchors, then starts. If
-orientation is refused there, the round still begins, in the virtual room with a finger,
+Defaulting to it grants nothing — a permission still needs a tap, and **the permission has
+a button of its own**: *Allow motion and camera*, under the camera choice, for every player
+in the room.
+
+That button is a fix, and the bug behind it is worth stating because it is the shape of
+mistake this whole spec exists to prevent. The permission used to be asked for **only from
+the Start button** — which only the host has. So everybody else arrived at the round with
+no camera and no aim, on the default route, having done nothing wrong: the camera option
+was already highlighted, because it is the default, and nothing on screen suggested there
+was anything left to do. It worked perfectly for the one person who built and tested it.
+
+The Start button still asks, for a host who never pressed the grant button, and if
+orientation is refused there the round still begins — in the virtual room with a finger,
 because that needs nothing and is a real way to play.
+
+**Forward is anchored when the ROUND begins, for everyone**, and not in the host's start
+handler. Same bug, same cause: a tap only one person in the room has. Anchoring in it left
+every other player hunting against an unanchored origin — ghosts in the right places
+relative to each other and the wrong place relative to the room.
 
 Each choice carries an icon on its left, so the two are told apart before either is
 read — a camera, and a picture frame with a horizon in it. Drawn inline

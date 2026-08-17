@@ -88,6 +88,8 @@
   padding: 0;
   display: grid;
   place-items: center;
+  position: relative;
+  overflow: hidden;
   border: 3px solid var(--cell-edge);
   border-radius: var(--radius);
   background: color-mix(in srgb, var(--cell-edge) 8%, transparent);
@@ -154,27 +156,52 @@
 /* --- tap progress -------------------------------------------------------- */
 
 /*
- * Three pips, filling as you tap.
+ * The cell filling up as you tap it.
  *
- * Local and private: the referee counts the taps that matter and says nothing until the
- * third, so this is only feedback for the finger making it. Without it three taps with no
- * response is indistinguishable from a dead button.
+ * A radial gradient from the middle, which grows and darkens with each tap: `--fill` is
+ * 1/3, 2/3, 1, set inline per frame from the local count. So the feedback IS the cell
+ * rather than a badge stuck on one — you are visibly loading the thing you are hitting,
+ * and at a glance across a board you can see which cells you are part-way through.
+ *
+ * Local and private. The referee counts the taps that matter and says nothing until the
+ * third, so this is only ever feedback for the finger making it; the other phone sees
+ * nothing until the cell lights.
+ *
+ * Its own layer rather than the cell's background, for two reasons: it can grow from the
+ * centre without touching the border, and the pulse animates the background underneath,
+ * which it would otherwise be fighting for.
  */
-.grid-attack__pips {
-  display: flex;
-  gap: 0.25rem;
+.grid-attack__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
   pointer-events: none;
+  /*
+   * The circle reaches the corners at the third tap (72% of the box is about half the
+   * diagonal), so the last tap fills the cell rather than leaving a disc in a square.
+   */
+  background: radial-gradient(
+    circle at 50% 50%,
+    var(--cell-edge) 0%,
+    color-mix(in srgb, var(--cell-edge) 55%, transparent) 60%,
+    transparent 100%
+  );
+  transform: scale(calc(0.35 + var(--fill, 0) * 0.75));
+  opacity: calc(0.28 + var(--fill, 0) * 0.62);
+  /*
+   * Short, so it lands with the tap rather than trailing it — this is confirmation that a
+   * tap counted, and confirmation that arrives late is worse than none. Just long enough
+   * not to be a jump.
+   */
+  transition:
+    transform 90ms ease-out,
+    opacity 90ms ease-out;
 }
 
-.grid-attack__pip {
-  width: 0.4rem;
-  height: 0.4rem;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--cell-edge) 25%, transparent);
-}
-
-.grid-attack__pip--on {
-  background: var(--cell-edge);
+@media (prefers-reduced-motion: reduce) {
+  .grid-attack__fill {
+    transition: none;
+  }
 }
 
 /* --- the loading screen -------------------------------------------------- */

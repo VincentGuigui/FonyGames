@@ -133,6 +133,22 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const running = state?.phase === 'running';
 
   /*
+   * Forward is whatever this phone is facing when the round BEGINS — for everyone.
+   *
+   * It used to be anchored in the host's start handler, which is a tap only the host has,
+   * so every other player in the room hunted against an unanchored origin: their ghosts
+   * were in the right places relative to each other and in the wrong place relative to
+   * the room. Keyed on the round id so "again" re-anchors and a re-render does not.
+   */
+  const anchoredRound = useRef(0);
+  useEffect(() => {
+    if (!running || !state) return;
+    if (anchoredRound.current === state.roundId) return;
+    anchoredRound.current = state.roundId;
+    trackerRef.current?.anchor();
+  }, [running, state?.roundId]);
+
+  /*
    * The moving parts live in refs rather than state because they are read by a
    * 60 Hz loop: a setState per sensor frame would re-render the whole screen
    * sixty times a second to move one circle.
@@ -487,19 +503,16 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
             // Turned down: the virtual room needs nothing and is a real way to play, so
             // the round still starts — seated, with a finger, as the error line says.
             if (!ok) setRoute('sphere');
-            trackerRef.current?.anchor();
             again();
           });
           return;
         }
 
         /*
-         * Forward is whatever you are facing when the round begins, and this is the
-         * ONLY time it is set. There used to be a Re-centre button on the round
-         * screen; it is gone, so a player who wants a new forward starts a new round.
-         * Reasoning and the drift trade-off that buys: spec §3.
+         * No anchoring here any more. Forward is set when the ROUND begins, by the effect
+         * near the top of this component, because that is an event every phone in the
+         * room sees — this handler is a tap only the host has.
          */
-        trackerRef.current?.anchor();
         again();
       }}
       note={note(room.isHost, room.connected, route, orientationOn, solo)}
@@ -725,6 +738,24 @@ function RoutePicker({
                       : 'Hold the phone up and turn. Needs motion and the camera.'}
           </span>
         </button>
+
+        {/*
+          The permission needs a tap of its own, and this is it.
+          
+          It was only ever asked for from the START button — which nobody but the host
+          has. So every other player in the room arrived at the round with no camera and
+          no aim, on the route that is the DEFAULT, having done nothing wrong: the camera
+          option was already highlighted, because it is the default, so there was nothing
+          on screen suggesting anything was left to do.
+
+          Shown to the host as well. Granting before the round rather than during it also
+          means the browser's permission dialog is not racing the first frame.
+        */}
+        {route === 'camera' && support !== 'unsupported' && !orientationOn && (
+          <button class="btn btn--primary hunt-route__allow" type="button" onClick={onCameraRoute}>
+            {denied ? 'Try again' : 'Allow motion and camera'}
+          </button>
+        )}
 
         <button
           class={`btn hunt-route__pick ${route === 'sphere' ? 'hunt-route__pick--on' : ''}`}

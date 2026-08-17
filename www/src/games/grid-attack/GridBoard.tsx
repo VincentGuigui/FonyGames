@@ -161,15 +161,18 @@ function Cell({
   }
 
   /*
-   * The pulse is an inline `animation-duration` rather than a class per speed, because it
-   * has to be continuous: the cell speeds up smoothly across two seconds, and a handful of
-   * `--fast` / `--faster` steps would read as three different animations rather than one
-   * thing running out of time.
+   * Two inline numbers, both continuous, both per frame.
+   *
+   * `--fill` is how far a run of taps has got: the cell fills from the middle outwards,
+   * bigger and more opaque with each tap, so the finger's own progress is the cell rather
+   * than a badge on it. `animation-duration` is the pulse, which has to be continuous for
+   * the same reason — a handful of `--fast` / `--faster` steps would read as three
+   * different animations rather than one thing running out of time.
    */
-  const style =
-    fuse === null
-      ? undefined
-      : ({ animationDuration: `${Math.round(pulseMs(fuse))}ms` } as JSX.CSSProperties);
+  const style = {
+    ...(showing > 0 ? { '--fill': showing / GRID_TAPS } : {}),
+    ...(fuse === null ? {} : { animationDuration: `${Math.round(pulseMs(fuse))}ms` }),
+  } as JSX.CSSProperties;
 
   return (
     <button
@@ -199,17 +202,11 @@ function Cell({
       }}
     >
       {/*
-        Only once a tap has landed. Thirty-two cells each showing three dim dots is a lot
-        of furniture for a board whose one job is to make ONE cell unmissable — and a pip
-        that is always there says nothing, where a pip that appears says "that counted".
+        The fill itself is a layer rather than the cell's own background, so it can grow
+        from the middle without disturbing the border — and so the pulse, which animates
+        the background underneath, has something to animate.
       */}
-      {showing > 0 && (
-        <span class="grid-attack__pips" aria-hidden="true">
-          {Array.from({ length: GRID_TAPS }, (_, i) => (
-            <span key={i} class={`grid-attack__pip${i < showing ? ' grid-attack__pip--on' : ''}`} />
-          ))}
-        </span>
-      )}
+      {showing > 0 && <span class="grid-attack__fill" aria-hidden="true" />}
     </button>
   );
 }
