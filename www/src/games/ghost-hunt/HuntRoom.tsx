@@ -11,7 +11,6 @@ import { soloTesting } from '../../core/solo';
 import { useRoom, useShareRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
-import { Disclosure } from '../../core/ui/Disclosure';
 import {
   orientationSupport,
   requestOrientation,
@@ -516,53 +515,32 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         again();
       }}
       note={note(room.isHost, room.connected, route, orientationOn, solo)}
+      /*
+       * The physical warning rides with the rules rather than in a panel of its own.
+       *
+       * Its panel is gone, but the warning is not: this is a game played by people
+       * holding a phone above their heads and turning on the spot in a room with
+       * furniture and each other in it (spec §10), and that is the one thing here that
+       * can actually hurt somebody. The same slot Cat and Mouse uses to name who it
+       * excludes.
+       */
+      aside={
+        <p class="howto__warn" role="note">
+          Feet planted, turn slowly, and keep an arm's length from the furniture and from
+          each other — the screen is not a window, and you cannot see the floor in it.
+        </p>
+      }
       extras={
-        <>
-          <section class="panel hunt-safety" role="note">
-            <h2 class="panel__heading">Before you start</h2>
-            <p class="hunt-safety__body">
-              <strong>Look up first. Feet planted, turn slowly</strong>, and keep an arm's
-              length from the furniture and from each other. The screen is not a window —
-              you cannot see the floor in it.
-            </p>
-            <p class="hunt-safety__note">
-              You will be holding a camera up in a room with other people in it. Say what
-              you are doing before you start.
-            </p>
-          </section>
-
-          {/*
-            The camera answer comes BEFORE the camera is asked for. "This game wants your
-            camera" is the most alarming sentence in the catalogue and the honest answer is
-            short (spec §10).
-
-            Collapsed, but the ANSWER IS THE HEADING. Fifty-five words of reassurance in an
-            open panel cost 226px of a lobby whose start button was already below the fold,
-            and a wall of text about privacy is a wall most people scroll past — so the
-            sentence that does the reassuring is the summary line, always visible, and the
-            detail is behind it for whoever wants it. That is more of §10 delivered, not
-            less: one line that gets read beats five that do not.
-          */}
-          <Disclosure heading="The camera: no picture ever leaves your phone">
-            <p class="hunt-privacy__body">
-              The feed goes straight to the outline in the middle of the screen and is
-              thrown away frame by frame. Nothing is recorded, nothing is uploaded, and the
-              game never looks at it — the ghosts come from the server and the aim from the
-              motion sensor.
-            </p>
-          </Disclosure>
-
-          <RoutePicker
-            support={support}
-            route={route}
-            orientationOn={orientationOn}
-            orientationAsked={orientationAsked}
-            cameraOn={cameraOn}
-            cameraAsked={cameraAsked}
-            onCameraRoute={enableCameraRoute}
-            onFingerRoute={() => setRoute('sphere')}
-          />
-        </>
+        <RoutePicker
+          support={support}
+          route={route}
+          orientationOn={orientationOn}
+          orientationAsked={orientationAsked}
+          cameraOn={cameraOn}
+          cameraAsked={cameraAsked}
+          onCameraRoute={enableCameraRoute}
+          onFingerRoute={() => setRoute('sphere')}
+        />
       }
     />
   );
@@ -736,6 +714,19 @@ function RoutePicker({
                     : orientationOn
                       ? 'Ready — hold the phone up and turn'
                       : 'Hold the phone up and turn. Needs motion and the camera.'}
+          </span>
+          {/*
+            The privacy answer, on the button that asks for the camera.
+
+            It had a collapsed panel of its own further up the lobby, which put the most
+            alarming sentence in the catalogue — "this game wants your camera" — and its
+            answer in two different places, with the answer somewhere you had to already
+            be reassured enough to go looking. Here it is unmissable and unavoidable: it
+            is part of the thing you are about to tap (spec §10).
+          */}
+          <span class="hunt-route__privacy">
+            No worry — no picture ever leaves your phone. The feed goes straight to the
+            outline on screen and is thrown away frame by frame.
           </span>
         </button>
 
