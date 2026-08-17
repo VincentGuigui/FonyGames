@@ -108,6 +108,21 @@ function Half({
   const taps = useRef(tapCounter());
   const [, redraw] = useState(0);
 
+  /**
+   * Is there anything for a tap on this cell to do?
+   *
+   * Attacking is always on: any of theirs that is still standing can be lit. **Defending
+   * is not** — a cell of yours that is not going off has nothing to be saved from, and the
+   * referee ignores the tap (`onGridTap`: "defending an unarmed one does nothing").
+   *
+   * Without this the fill drew on both halves, so mashing your own quiet grid lit it up
+   * cell by cell as though something were happening. On the half you are meant to be
+   * *watching*, that is the worst possible lie: it looks exactly like the thing you are
+   * watching for.
+   */
+  const doesSomething = (cell: GridCell): boolean =>
+    !cell.gone && (side === 'theirs' ? cell.burstAt === 0 : cell.burstAt > 0);
+
   return (
     <section class={`grid-attack__half grid-attack__half--${side}`}>
       <p class="grid-attack__label">{label}</p>
@@ -119,10 +134,18 @@ function Half({
             index={i}
             side={side}
             now={now}
-            showing={taps.current.showing(i, now)}
+            showing={doesSomething(cell) ? taps.current.showing(i, now) : 0}
             onTap={() => {
-              taps.current.tap(i, now);
-              redraw((n) => n + 1);
+              if (doesSomething(cell)) {
+                taps.current.tap(i, now);
+                redraw((n) => n + 1);
+              }
+              /*
+               * Sent either way. This copy of the rule is a guess made against a frame that
+               * may be one round-trip old, and the frame it is most likely to be wrong about
+               * is the one where a cell has just lit up — which is exactly the tap a defender
+               * cannot afford to have swallowed. The referee decides; this only draws.
+               */
               onTap(i, side);
             }}
           />
