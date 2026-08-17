@@ -221,8 +221,18 @@ async function speedLimit(): Promise<void> {
   await onMove(h3.ctx, m3, 1, { x: 1, y: 0 });
   const q1 = h3.at(m3);
   const flick = Math.hypot((q1?.x ?? 0) - (q0?.x ?? 0), (q1?.y ?? 0) - (q0?.y ?? 0));
+  /*
+   * Against what `capped` would have allowed over the same 100 ms, which is the
+   * comparison that means "unclamped".
+   *
+   * This used to read `flick > CM_MOUSE_SPEED`, comparing a distance against a speed in
+   * board widths per *second* — dimensionally wrong, and only passing because the speed
+   * happened to be small enough. Raising CM_MOUSE_SPEED from 0.55 to 0.7 walked straight
+   * into it, with the flick at 0.58 failing a test about a rule it had not broken.
+   */
+  const budget = CM_MOUSE_SPEED * 0.1;
   check('direct mode lets a real flick cross the floor',
-    flick > CM_MOUSE_SPEED, flick);
+    flick > budget * 4, { flick, budget });
 }
 
 /** Put the cat on top of a mouse without going through the speed limit. */

@@ -11,6 +11,7 @@ import {
 } from '../../../../shared/protocol';
 import {
   aimSeat,
+  aimTolerance,
   bounceArriving,
   bounceLeaving,
   forwardFlick,
@@ -36,8 +37,17 @@ export type Visible = {
   /** Position in CSS pixels. */
   x: number;
   y: number;
-  /** 'leaving' is ours on its way out; 'arriving' is incoming and catchable. */
-  phase: 'leaving' | 'arriving';
+  /**
+   * 'leaving' is ours on its way out; 'arriving' is incoming and catchable;
+   * 'returning' is our own miss coming home.
+   *
+   * A miss is its own phase rather than an 'arriving' drop pointed at us, and that
+   * distinction is load-bearing: `catchAt` only offers 'arriving' drops, so a player
+   * cannot catch their own miss and turn it into a free doubled payload. The server
+   * refuses it too (`onCatch` drops anything with `to === null`), so the two ends
+   * agree rather than one quietly relying on the other.
+   */
+  phase: 'leaving' | 'arriving' | 'returning';
 };
 
 /** Position is a **fraction of the canvas**, so it survives a resize mid-splash. */
@@ -164,8 +174,12 @@ export class SpillGame {
           out: msg.d.out,
         };
         if (this.#held?.dropId === msg.d.dropId) this.#held = null;
-        // Only splash for something that actually hit this phone.
+        // Only splash for something that actually hit this phone — or for our own
+        // miss coming home, which lands on nobody but still lands here (spec §4c).
         if (msg.d.on === this.#me) this.#splash(msg.d.size, landed);
+        else if (landed && landed.to === null && landed.from === this.seat) {
+          this.#splash(landed.size, landed);
+        }
         return;
       }
 
@@ -230,21 +244,32 @@ export class SpillGame {
     const angle = Math.atan2(dx, -dy);
     if (!forwardFlick(angle)) return null;
 
-    const dist = Math.hypot(dx, dy);
-    const seconds = Math.max(dt, 16) / 1000;
-    const speed = Math.max(SPILL_SPEED_MIN, Math.min(SPILL_SPEED_MAX, dist / h / seconds));
+    const speed = speedOf(dx, dy, dt, h);
     // Lock immediately rather than waiting for the echo: on a slow link the
     // button would otherwise stay live long enough to double-fling.
     this.#optimisticLock = this.#now() + 250;
     return { angle, speed };
   }
 
-  /** The seat a flick at this angle would hit, for the aim preview. */
-  target(angle: number): number | null {
+  /**
+   * The seat a flick at this angle and speed would hit, for the aim preview.
+   *
+   * `speed` matters because the window narrows as the throw gets harder (spec §2), so
+   * a preview that assumed a gentle flick would promise a target the release is not
+   * going to reach. The board feeds it the speed of the drag *so far*, which is the
+   * same quantity `fling` measures at release.
+   */
+  target(angle: number, speed: number): number | null {
     const seat = this.seat;
     if (seat < 0) return null;
     if (!forwardFlick(angle)) return null;
-    return aimSeat(seat, angle, this.seatCount);
+    return aimSeat(seat, angle, this.seatCount, speed);
+  }
+
+  /** How wide the window is right now — the preview draws it (spec §2). */
+  window(speed: number): number {
+    const seat = this.seat;
+    return seat < 0 ? 0 : aimTolerance(seat, this.seatCount, speed);
   }
 
   /** Would a flick at this angle be thrown at all? The aim preview asks first. */
@@ -310,6 +335,30 @@ export class SpillGame {
       };
     }
 
+    /*
+     * Our own miss, coming back. Water only leaves your phone by landing on somebody
+     * else's, so a flick that sailed off the table returns along the line it left on —
+     * the mirror of the animation that threw it, which is what makes it read as the
+     * same drop rather than a new one.
+     */
+    if (
+      drop.to === null &&
+      drop.from === mine &&
+      now >= drop.arrivesAt - SPILL_APPROACH_MS &&
+      now < drop.arrivesAt
+    ) {
+      const p = clamp01(1 - (drop.arrivesAt - now) / SPILL_APPROACH_MS);
+      const reach = Math.hypot(w, h) / 2 + 40;
+      const ex = w / 2 + Math.sin(drop.angle) * reach;
+      const ey = h / 2 - Math.cos(drop.angle) * reach;
+      return {
+        drop,
+        x: ex + (w / 2 - ex) * p,
+        y: ey + (h / 2 - ey) * p,
+        phase: 'returning',
+      };
+    }
+
     if (drop.to === mine && now >= drop.arrivesAt - SPILL_APPROACH_MS && now < drop.arrivesAt) {
       const p = clamp01(1 - (drop.arrivesAt - now) / SPILL_APPROACH_MS);
       if (bounces) {
@@ -358,6 +407,21 @@ export class SpillGame {
   #expireStaleHold(now: number): void {
     if (this.#held && now > this.#held.soaksAt + HOLD_GRACE_MS) this.#held = null;
   }
+}
+
+/**
+ * A drag, in screen heights per second — the unit that goes on the wire, so the
+ * server never has to know how big this phone is.
+ *
+ * Exported because the **aim preview has to measure speed exactly the way the release
+ * does**. Speed decides how wide the aim window is (spec §2), so a preview computing
+ * it even slightly differently would draw a target the throw then misses, which is
+ * worse than no preview at all.
+ */
+export function speedOf(dx: number, dy: number, dt: number, h: number): number {
+  const dist = Math.hypot(dx, dy);
+  const seconds = Math.max(dt, 16) / 1000;
+  return Math.max(SPILL_SPEED_MIN, Math.min(SPILL_SPEED_MAX, dist / h / seconds));
 }
 
 /** How long a splash animation runs. Shared with the renderer. */

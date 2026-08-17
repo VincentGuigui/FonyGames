@@ -50,10 +50,15 @@ That single convention is what makes aiming work without any sensor. With it:
   world bearing `αₖ + π + φ`.
 
 The server converts every flick into a world bearing, works out which seat lies
-closest to it, and delivers the drop there if the error is within
-`AIM_TOLERANCE`. Outside the tolerance the drop sails off the table and is lost
-(and, pleasingly, still leaves your phone — a wild flick is a free way to lose
-water, which keeps wild flicks tempting rather than punished).
+closest to it, and delivers the drop there if the error is within the aim window
+— which depends on how hard the flick was thrown (§2.1). Outside the window the
+drop sails off the table and **comes back to you** (§4c).
+
+> This used to read: *the drop is lost, and pleasingly still leaves your phone — a
+> wild flick is a free way to lose water, which keeps wild flicks tempting rather
+> than punished.* That is the design bug written down as a feature. You win by
+> getting rid of water, so a free way to lose water is not a temptation, it is the
+> optimal strategy — and one that needs no aim at all.
 
 **A flick only goes forward.** `SPILL_FLICK_CONE` is 80° either side of straight
 up the screen; a drag pointing backwards or along the side of the screen is **not
@@ -83,14 +88,44 @@ to end up with an aiming system that is silently mirrored.
 The resulting screen angles are pleasingly simple, and identical from every
 seat:
 
-| Players | Where you flick to hit each opponent |
-| --- | --- |
-| 2 | straight up (0°), tolerance ±63° |
-| 3 | ∓30°, tolerance ±42° |
-| 4 | −45° / 0° / +45°, tolerance ±32° |
+| Players | Where you flick to hit each opponent | Careful | Flat out |
+| --- | --- | --- | --- |
+| 2 | straight up (0°) | ±72° | ±36° |
+| 3 | ∓30° | ±27° | ±13° |
+| 4 | −45° / 0° / +45° | ±20° | ±10° |
 
-Tolerance is `SPILL_AIM_FRACTION` (0.7) of the half-gap between seats, so there
-is always a sliver you can miss through.
+#### 2.1 How hard you throw is the decision
+
+The window is `SPILL_AIM_FRACTION` (0.9) of the **half-gap** — half the angular
+distance from one target to its nearest neighbour, so adjacent windows never
+touch and there is always a sliver you can miss through — and it **shrinks as the
+flick gets faster**, by `SPILL_SPREAD` (0.5) at full tilt.
+
+That is the whole game inside one gesture. Flick speed already decided the launch
+lock (§4), which meant throwing as hard as possible was worth four times the
+throughput and cost nothing at all: the best move on the board was to smear a
+thumb forwards as fast as it would go, and players found it immediately. Now the
+tempo is bought with accuracy. A careful throw lands where you point it; a hard
+one is worth an extra throw and might come home instead.
+
+Two seats have no neighbouring target to collide with, so the bound there is the
+throwing cone itself — a careful flick reaches almost anywhere forward, which is
+right, because with two players the aim is not *whether* it arrives but where on
+their screen the bounced path puts it (§4a).
+
+**Deterministic, never jittered.** A random deviation in proportion to speed would
+be simpler and is wrong twice: the aim preview could not tell the truth about a
+throw it cannot predict, and a player who aimed dead centre and missed anyway
+would be quite right to feel cheated. A dead-centre aim lands at every speed.
+
+> **This was wrong for a long time, and it mattered.** `aimTolerance` computed a
+> fraction of `π/n` — the gap between *seats*, which is twice the gap between
+> *aims*. The windows overlapped, so `aimSeat` (nearest seat, then a tolerance
+> check it always passed) delivered **95% of every forward flick** at a table of
+> four and 90% at three. There was no such thing as a miss, so there was nothing
+> to aim at, and the drag collapsed into a rushed smear because that is what the
+> rules rewarded. `shared/spillGeometry.test.ts` now pins the window under the
+> half-gap so it cannot come back.
 
 **The layout diagram is drawn from each player's own point of view**, and uses
 true relative positions rather than one radius per seat — with four players the
@@ -115,9 +150,11 @@ and the convention becomes a fallback rather than a requirement.
    rejected server-side until it clears, so nobody gets a head start by
    dismissing it.
 3. Each phone begins with **20 drops** — the water sits at half height, moving.
-4. **Flick** to fling a drop toward a neighbour.
+4. **Flick** to fling a drop toward a neighbour. How hard you throw sets both how
+   soon you may throw again and how narrow your aim has to be (§2.1).
 5. You **cannot flick again until your drop has left your screen** (§4).
-6. A drop that lands adds to that player's water.
+6. A drop that lands adds to that player's water. A drop that **misses comes
+   back** — water only leaves your phone by arriving on somebody else's (§4c).
 7. An incoming drop can be **caught** — see §5. A caught drop doubles.
 8. First to **0 drops wins**. First to **40 drops is out**.
 
@@ -185,6 +222,37 @@ Every other seat is across the table from you, and your top edge points at the
 table centre, so **every marker lands in the upper part of the screen** — the
 bottom stays clear for the throw row. That is a property of the seating, not a
 layout fudge.
+
+## 4c. A miss comes back
+
+> *Water leaves your phone by landing on somebody else's.*
+
+A flick that finds nobody sails off along its angle, turns round and splashes back
+into your own pool. You lose the throw and the launch lock; you lose no water.
+
+This is the other half of §2.1, and neither half works alone. Aiming is only worth
+doing if missing costs something — and until this rule, **missing was the best move
+in the game**. You win by reaching zero, every flick shed exactly one drop wherever
+it went, and a drop thrown at the floor was strictly safer than one thrown at a
+person, because a person can catch it and send it back doubled. Disposal was the
+win condition, so the optimal strategy was to throw water at nothing, quickly.
+
+**Nothing is spent until the aim resolves**, rather than spent and handed back when
+the drop comes home. Three things follow, and they are the reason it is built this
+way round:
+
+- **You cannot win on a miss.** `settle()` runs inside `onFling`, so a player on
+  their last drop would otherwise take the round by flinging it at the floor.
+- **A fumbled catch stays fumbled.** Miss with a caught payload and it is still in
+  your hands with its soak timer still running (§5) — so panicking with a big one
+  can make you eat it. That is the existing rule doing the work rather than a new
+  one to explain.
+- **Your counter never lies.** It moves when the water is actually gone.
+
+A returning drop is **not catchable**, by either end: catching your own miss would
+double it into a free payload and make missing profitable again. The client draws
+it in its own phase so no catch ring is offered, and the referee refuses any catch
+on a drop aimed at nobody, so the two agree rather than one trusting the other.
 
 ## 5. Catching
 
@@ -293,10 +361,15 @@ Three details of the shapes above are load-bearing:
 
 - **`speed` is in screen heights per second, not pixels.** The server must not
   need to know how big anyone's phone is, and a device-independent unit is what
-  lets one clamp be fair on a small Android and a large iPhone alike.
+  lets one clamp be fair on a small Android and a large iPhone alike. It now
+  decides the aim window as well as the launch lock (§2.1), which makes it the
+  most consequential number on the wire — and the reason the client measures it
+  once, in `speedOf`, for both the preview and the release. A preview computing
+  it even slightly differently would promise a target the throw then misses.
 - **`drop` carries `levels`.** Flinging is the only thing that empties your
   phone, so without it your own counter would sit unchanged for the second and
-  a half until the drop landed somewhere else.
+  a half until the drop landed somewhere else. On a **miss** the levels are
+  unchanged, and that is the frame that says so.
 - **`drop` carries `angle`.** The thrower animates it leaving along that angle;
   the target animates it arriving from *their* bearing back to `from`. That is
   what makes the physical arrangement legible in both directions — water comes
@@ -316,7 +389,9 @@ so a round costs almost nothing. Drop flight is animated client-side from
 | --- | --- |
 | A player leaves mid-round | Their **seat stays put** and becomes a hole; drops aimed there are lost. Renumbering seats would silently rotate everyone else's aim. Below 2 players the round ends |
 | A player drops off the network | Nothing happens until their seat is actually reaped (`RECONNECT_GRACE_MS`). Acting on the socket closing would knock anyone who refreshed out of the round |
-| Flick outside `AIM_TOLERANCE` | Water leaves, lands nowhere. Legal and sometimes smart |
+| Flick outside the aim window | The drop sails off and comes home. You lose the throw and the launch lock, not the water (§4c) |
+| A miss with a caught payload | It comes back and stays held, soak timer still running. Fumble it long enough and you take it (§5) |
+| Tapping your own returning drop | Nothing. Catching your own miss would double it into a free payload, so neither end allows it |
 | Two drops land at once | Both apply; the server holds one count |
 | A player refreshes | Same seat, same level ([../../realtime-server.md](../../realtime-server.md) §4) |
 | Someone rotates their phone mid-round | Their aim is now wrong. The layout diagram stays reachable from the in-game gear menu ([../../design/game-chrome.md](../../design/game-chrome.md) §3) |
@@ -340,18 +415,36 @@ try it.
 ## 11. Accessibility
 
 - Flicking needs a directional drag, which is harder than a tap. A **tap-a-seat
-  fallback** picks the target from a list and flings at standard speed — slower,
-  fully playable, always available rather than only on request.
+  fallback** picks the target from a list and flings at a fixed deliberate speed —
+  slower, fully playable, always available rather than only on request.
+
+  Since a drag can now miss (§2.1), the fallback aims dead centre and therefore
+  *cannot*, which makes its speed a balance question rather than a detail. At the
+  old 2.2 heights per second it was both perfectly accurate and on the 250 ms
+  launch-lock floor — the fastest throw in the game — so it was strictly better
+  than dragging for everyone. At 1.0 it is a careful throw: certain, and half the
+  rate of a hard flick. That is the ideal place for an accessibility feature to
+  land, a legitimate tactic rather than either a handicap or an exploit.
 - Level is shown as a **number as well as** the pool height; never height alone.
 - Themes must keep projectiles distinguishable from the background at a glance;
   the theme registry notes this as a review criterion.
 
 ## 12. Open questions
 
+- **Is the game now too hard?** This is the live one. `SPILL_AIM_FRACTION` (0.9)
+  and `SPILL_SPREAD` (0.5) were picked by arithmetic, not by playing: a table of
+  four went from a window that could not miss to ±20° careful and ±10° flat out,
+  and a miss now costs a turn. Four beginners could stall and run into the
+  five-minute cap. `SPILL_AIM_FRACTION` is the knob — take it toward 1.0 and the
+  windows tile perfectly, so a careful flick can never miss and the trade-off
+  lives entirely in the speed.
 - Is 20 starting drops and 40 to lose the right shape? Pure guesswork until a
-  table test.
+  table test — though a miss costing a turn makes a round meaningfully longer
+  than the five-second sprint the old rules allowed.
 - Does a caught drop keep doubling if it is caught repeatedly? A drop bouncing
   around at 2 → 4 → 8 sounds hilarious and possibly game-ending. Currently: yes,
-  it keeps doubling, and that is a headline risk to watch.
-- 5+ players: the ring gets crowded and aiming tolerance shrinks. Capped at 4
-  deliberately.
+  it keeps doubling, and that is a headline risk to watch — somewhat tempered now
+  that moving a big payload means a throw that can miss and leave it in your
+  hands (§4c).
+- 5+ players: the ring gets crowded and the windows shrink with the half-gap.
+  Capped at 4 deliberately.

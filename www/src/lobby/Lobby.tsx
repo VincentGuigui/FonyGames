@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../core/types';
-import type { RoundResult } from '../../../shared/protocol';
+import type { PlayerId, RoundResult } from '../../../shared/protocol';
 import { useRoom, useShareRoom } from '../core/room/useRoom';
 import { PLAYERS } from '../../../shared/players';
 import { RoomGate } from './RoomGate';
@@ -33,6 +33,23 @@ export function Lobby(props: { game: GameCard }): JSX.Element {
 function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Element {
   const [phase, setPhase] = useState<DuelPhase>('idle');
   const [result, setResult] = useState<RoundResult | null>(null);
+  /**
+   * The running match score, which outlives the round it came from.
+   *
+   * `result` is cleared on every arm, so the score panel — which reads from it — showed
+   * nil for everyone from the second duel onwards, right through the get-ready and the
+   * signal, and only remembered the score once the round was over. The tally is a
+   * different fact from the last round's outcome and needs to be held separately.
+   */
+  const [tally, setTally] = useState<Record<PlayerId, number>>({});
+  /**
+   * Did the last result take the match?
+   *
+   * The server clears its own tally when somebody reaches the target, so the *next*
+   * round is a new match starting from nil. Without this the winning tally would sit on
+   * screen through the whole first duel of the next one.
+   */
+  const matchOver = useRef(false);
   const roundRef = useRef<number | null>(null);
   const fireTimer = useRef<number | null>(null);
   /** Server time the current duel's rules panel clears. */
@@ -58,6 +75,12 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
     client.on('arm', (roundId, fireAt, startsAt, where, speed) => {
       roundRef.current = roundId;
       setResult(null);
+      // The score survives the arm; a finished MATCH does not. The server has already
+      // cleared its tally, so this duel is the first of a new one and starts from nil.
+      if (matchOver.current) {
+        setTally({});
+        matchOver.current = false;
+      }
       setPhase('armed');
       setTarget(where);
       // The server sends both times and guarantees fireAt > startsAt, so the
@@ -77,6 +100,8 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
     client.on('result', (r) => {
       if (fireTimer.current !== null) clearTimeout(fireTimer.current);
       setResult(r);
+      setTally(r.scores);
+      matchOver.current = r.matchWinnerId !== null;
       setPhase('result');
     });
 
@@ -112,6 +137,7 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
           me={room.me?.id ?? null}
           phase={phase}
           result={result}
+          tally={tally}
           onTap={tap}
           onAgain={startDuel}
           target={target}

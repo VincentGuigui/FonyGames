@@ -25,6 +25,7 @@
   overflow-y: auto;
 }
 
+
 /*
  * The status bar belongs at the TOP, not in the middle of the column.
  *
@@ -167,6 +168,27 @@
 
 /* --- what happens next --------------------------------------------------- */
 
+/*
+ * The two-second settling period, drawn.
+ *
+ * `inert` on its own is invisible, and a control that silently ignores you reads as
+ * broken — which is the failure this was meant to prevent, moved rather than fixed. So
+ * the actions fade in over it: dimmed and arriving, not greyed and refused. Deliberately
+ * NOT the `disabled` look, because these buttons are about to work perfectly well and
+ * "not your turn" is a different and wrong message.
+ *
+ * The fade is the only cue and it has to survive reduced motion, so it is opacity with a
+ * transition rather than an animation — the end state is correct even if the transition
+ * never runs.
+ */
+.gameover__gate {
+  transition: opacity 300ms ease-out;
+}
+
+.gameover__gate[inert] {
+  opacity: 0.4;
+}
+
 .gameover__actions {
   display: grid;
   gap: var(--space-2);
@@ -192,4 +214,68 @@
   margin: var(--space-4) 0 0;
   text-align: center;
   color: var(--color-text-dim);
+}
+
+/*
+ * A short viewport — which in practice means a phone on its side.
+ *
+ * Grid Attack's board is sideways and now so is its result (grid-attack.md §4), so this
+ * panel has to work in about 390 physical pixels of height instead of 844. Written as a
+ * height query rather than an orientation one so it also catches a small desktop window
+ * and a portrait phone with a keyboard up, and so no game has to opt in.
+ *
+ * Everything vertical gets smaller: the crest is decoration and goes first, the gaps and
+ * the padding follow. The rows and the buttons keep their size, because those are the two
+ * things being read and the one thing being tapped.
+ */
+@media (max-height: 480px) {
+  .over {
+    gap: var(--space-2);
+    padding-top: max(var(--space-2), calc(env(safe-area-inset-top) + 2.75rem));
+    padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
+    /* Top-aligned rather than centred: a panel taller than the screen cannot be centred
+       AND scrolled to its top, and the top is where the result is. */
+    justify-content: flex-start;
+  }
+
+  .over > .gameover {
+    /* Still centred when it does fit — `auto` collapses to nothing when it does not. */
+    margin-block: auto;
+  }
+
+  .gameover {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .gameover__crest {
+    font-size: 1.5rem;
+  }
+
+  .gameover__headline {
+    margin: var(--space-1) 0 var(--space-2);
+    font-size: 1.125rem;
+  }
+
+  /* The row list is the one part that can grow without bound — six players in 390px of
+     height needs somewhere to go, and it is the part you scroll rather than the buttons. */
+  .gameover__rows {
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+
+  /*
+   * Side by side rather than stacked. A short viewport is a WIDE one, so the two buttons
+   * cost half as much height for nothing — and this is the height that decides whether
+   * the panel fits at all.
+   */
+  .gameover__actions {
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    margin-top: var(--space-2);
+  }
+
+  .gameover__note,
+  .gameover__waiting {
+    margin-top: var(--space-2);
+  }
 }

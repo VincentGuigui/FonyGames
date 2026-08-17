@@ -26,8 +26,8 @@ export function startRenderer(
   initial: Theme,
   /** Server time — every deadline the renderer compares against is in it. */
   now: () => number,
-  /** The current aim, while a finger is down. */
-  aim: () => { angle: number; hit: number | null; bounces: boolean } | null,
+  /** The current aim, while a finger is down. `window` is the half-width in radians. */
+  aim: () => { angle: number; hit: number | null; window: number; bounces: boolean } | null,
 ): Renderer {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2d canvas unavailable');
@@ -69,6 +69,9 @@ export function startRenderer(
 
     for (const v of view.visible) {
       theme.drawProjectile(d, v.x, v.y, v.drop.size);
+      // The ring means "you can grab this". A returning miss is ours and is not
+      // catchable, so it must not wear one — offering a grab that the server will
+      // refuse is worse than offering nothing.
       if (v.phase === 'arriving') ring(d, v.x, v.y, v.drop.size, theme);
     }
 
@@ -111,14 +114,21 @@ function tiltOf(view: View): number {
  * With two players it draws the **bounces**, not a straight ray. That is not
  * decoration: the side edges are what a two-player flick aims off, and a preview
  * that ignored them would be showing the player something that will not happen.
+ *
+ * Behind the line sits the **window** — how far off this throw may be and still land
+ * (spec §2). It narrows as the drag gets faster, and seeing it close is how a player
+ * discovers that hurrying costs accuracy without anyone having to write it down.
  */
 function drawAim(
   d: ThemeDraw,
-  aim: { angle: number; hit: number | null; bounces: boolean } | null,
+  aim: { angle: number; hit: number | null; window: number; bounces: boolean } | null,
   theme: Theme,
 ): void {
   if (!aim) return;
   const { ctx, w, h } = d;
+
+  wedge(d, aim.angle, aim.window, theme);
+
   ctx.save();
   ctx.globalAlpha = aim.hit === null ? 0.3 : 0.9;
   ctx.strokeStyle = theme.accent;
@@ -150,6 +160,32 @@ function drawAim(
 
 /** Enough to keep the bounce corners from visibly cutting. */
 const AIM_SAMPLES = 48;
+
+/**
+ * How much room this throw has to be wrong in, as a faint fan behind the aim line.
+ *
+ * Drawn as a straight wedge even with two players, where the throw itself bounces:
+ * the window is an angular tolerance measured at the moment of release, not a
+ * corridor the water travels down, and folding it through the side walls would draw
+ * a shape that means something the rule does not.
+ */
+function wedge(d: ThemeDraw, angle: number, half: number, theme: Theme): void {
+  if (half <= 0) return;
+  const { ctx, w, h } = d;
+  const reach = Math.hypot(w, h) / 2;
+  // Canvas angles run anticlockwise from the +x axis; ours run clockwise from up.
+  const toCanvas = (a: number): number => a - Math.PI / 2;
+
+  ctx.save();
+  ctx.globalAlpha = 0.12;
+  ctx.fillStyle = theme.accent;
+  ctx.beginPath();
+  ctx.moveTo(w / 2, h / 2);
+  ctx.arc(w / 2, h / 2, reach, toCanvas(angle - half), toCanvas(angle + half));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
 
 /** Marks an incoming projectile as catchable. */
 function ring(d: ThemeDraw, x: number, y: number, size: number, theme: Theme): void {

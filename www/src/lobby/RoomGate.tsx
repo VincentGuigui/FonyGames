@@ -57,8 +57,10 @@ export function RoomGate({
    * tapped the button and the screen sat there. The same applies to the back button between two
    * rooms, and to anyone editing the URL by hand.
    *
-   * Safe to listen for, because `replaceState` — how the chooser and `enter` write the hash —
-   * does **not** fire `hashchange`. So this hears real navigations and never our own writes.
+   * Safe to listen for, because neither `pushState` nor `replaceState` fires `hashchange` — so
+   * this hears real navigations and never our own writes. It is what turns the back button out
+   * of a room into a return to the game page: the hash empties, and this puts the chooser back
+   * up. `LobbyInner` unmounts with it, which is what closes the socket and frees the seat.
    */
   useEffect(() => {
     function onHashChange(): void {
@@ -84,12 +86,20 @@ export function RoomGate({
    * over from a room the player minted but did not enter would otherwise survive while they sat
    * in a different one, and a reload would take them to the wrong room.
    *
-   * `replaceState`, so the room does not become a second history entry the back button lands on.
+   * **`pushState`, so back leaves the room and lands on the game's own page.** This was
+   * `replaceState` on the reasoning that the chooser and the room it minted are one step. In
+   * use they are not: the lobby is somewhere you sit and wait, and it is the screen people
+   * press back from — and back took them clean off the game, past the page they had just come
+   * through, because that step had been folded away.
+   *
+   * Only this transition pushes. Someone who arrived on a link has no game page behind them,
+   * and synthesising one would mean back no longer returns to wherever they were — the
+   * messages app they tapped the link in, which is genuinely where they came from.
    */
   function enter(code: string): void {
     const current = readRoomHash();
     if (!(current.kind === 'code' && current.code === code)) {
-      history.replaceState(null, '', `${location.pathname}#${code}`);
+      history.pushState(null, '', `${location.pathname}#${code}`);
     }
     setHash({ kind: 'code', code });
     setEntered({ code, byLink: false });

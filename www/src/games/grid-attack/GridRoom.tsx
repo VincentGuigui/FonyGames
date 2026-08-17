@@ -54,9 +54,17 @@ function GridRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const seats = state && myId ? sides(state, myId) : null;
   const iAmReady = !!myId && !!state && (state.ready[myId] ?? false);
 
-  // Sideways for as long as a board is on screen — including the loading screen, which is
-  // where the player is being asked to turn the phone in the first place.
-  useLandscapeRound(live);
+  /*
+   * Sideways for as long as a board is on screen — including the loading screen, which is
+   * where the player is being asked to turn the phone in the first place, and **including
+   * the result**.
+   *
+   * `live` excluded the end screen, so the moment the last life went the page snapped back
+   * to portrait under a phone the player was still holding sideways: the result arrived
+   * rotated 90°, and the "turn your phone upright" notice fired on top of it. Landscape
+   * ends when the player leaves the game, not when the round does.
+   */
+  useLandscapeRound(state !== null);
 
   const clock = useCallback(() => client?.now() ?? Date.now(), [client]);
 

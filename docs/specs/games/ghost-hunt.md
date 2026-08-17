@@ -277,16 +277,22 @@ as one instrument instead of a hole cut in the screen.
 Re-centre. Also on screen, small and out of the way: your score, the time left, and
 everyone else's count.
 
-- **Lobby**: shared template, the camera + orientation primer (§5.3), the safety
-  line (§9), and one line saying what the game does with the camera — *no picture ever
-  leaves your phone* — because "let us use your camera" is the most alarming ask in the
-  catalogue and deserves an answer before it is asked.
+- **Lobby**: shared template, and the route picker (§5.3). Neither the safety note nor
+  the privacy answer has a panel of its own any more; both now sit on the thing they are
+  about.
 
-  **That line is the heading of a collapsed panel, and the detail is behind it.** Open, it
-  was fifty-five words and 226px of a lobby whose start button was already below the fold
-  — and a wall of text about privacy is a wall most people scroll past. The sentence that
-  does the reassuring is now always visible and the rest is one tap away, which is more of
-  this rule delivered rather than less.
+  **The privacy answer is inside the camera button** — *no worry, no picture ever leaves
+  your phone*, under a rule, in the control that asks for the camera. It had a collapsed
+  panel further up the lobby, which put the most alarming ask in the catalogue and its
+  answer in two different places, with the answer somewhere you had to already be
+  reassured enough to go looking. On the button it is unmissable and unavoidable, and it
+  costs the lobby nothing, because a lobby with three fewer panels in it is the point.
+
+  **The safety note rides with the rules**, as the aside inside How to play — the same
+  slot Cat and Mouse uses to name who it excludes. It is one line rather than a panel and
+  two paragraphs, and it is the line that matters: feet planted, turn slowly, arm's length
+  from the furniture and each other. Losing the panel must not mean losing the warning
+  (§9), because this is the one game in the catalogue that can walk somebody into a table.
 - **Calibrate**: no screen of its own. Forward is whatever the phone is facing when
   the host starts, which is one fewer blocking screen between a tap and a game.
 - **Round**: as above.

@@ -10,7 +10,7 @@ fixed:
 
 1. **Title and tagline** — the title, then the game's `pitch` verbatim.
 2. **How to play** — the concept, then the bullets (§2).
-3. **Room code** — the code, share link, QR.
+3. **Invite a player** — the code, share link and QR, in a panel that collapses.
 4. **Players** — the list. Your own row carries **Change**, which opens a sheet with
    your name and the avatars in it.
 5. **Start** — the button and one line of context, **stuck to the bottom of the screen**.
@@ -27,6 +27,22 @@ everyone who has joined, and whatever a game must say before anybody points a ca
 anything. Sticky keeps all of that and stops it burying the one control the host is there
 to press. The gradient behind it fades to the page colour rather than being a flat fill,
 because a hard edge across the middle of a panel reads as the page having ended.
+
+### Why the room code collapses
+
+It was a permanently open bordered card, and the biggest thing on the screen: a code set in
+`clamp(2rem, 11.5vw, 3.5rem)` so it can be read across a table. Shown to everybody, for a
+job **only the host has** and only until the last person has arrived. Four players in five
+were scrolling past a code they had already used to get in.
+
+So it is a `Disclosure` like How to play, headed *Invite a player* — the job rather than the
+object, because "room code" describes what is in the panel and not why you would open it.
+Open for the host, collapsed for everyone else.
+
+**`room.isHost`, not "did they follow a link".** Typing a code into the Join tab is joining
+too, and only the host discriminator catches both. The cost is a flicker for the host on the
+first frame, since the room says who the host is a moment after the page renders — which is
+the right way round, because the guest is the common case and never sees it move.
 
 ### Why the avatar picker is behind a button
 
@@ -358,6 +374,25 @@ Nine games had nine endings, in two families:
   spans rather than sitting inside the name, which squeezed it into whatever the score
   left over and wrapped it mid-number. A row with nothing to say renders no second line
   at all, so a game not using it keeps one line per player.
+
+- **Nothing takes a tap for the first two seconds.** Half the catalogue ends a round with
+  a thumb still going — Grid Attack and Pass the Bomb are mashing games, Tap Duel's whole
+  skill is tapping the instant something appears — and the panel lands under the finger
+  doing it. The first stray tap hit Play again and started the next round before anybody
+  had read who won: the result of the round you just played, skipped by the round you
+  just played.
+
+  `inert`, not `disabled`. `disabled` would grey the controls and read as "not your
+  turn", which is a different and wrong message on buttons that are about to work
+  perfectly well — and it cannot touch the Leave game anchor at all, which needs the
+  guard just as much, since leaving by accident is worse than replaying by accident.
+  The actions fade in over the two seconds so the wait is visible: a control that
+  silently ignores you reads as broken, which is the failure this exists to prevent.
+
+- **The panel fits a short viewport.** Below 480px of height — a phone on its side — the
+  crest shrinks, the gaps tighten, the rows scroll and the two buttons sit side by side.
+  Grid Attack's board is sideways and so is its result, and a height query rather than an
+  orientation one means no game has to opt in.
 - **Mid-match gets one button**, the next round: Tap Duel at 6–4 does not want to be
   asked whether to play again. A finished match gets two — play again, and leave.
 - **Leave is a link, not a button.** Leaving the page is what drops the socket and frees

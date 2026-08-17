@@ -55,12 +55,13 @@
 
 /* --- room code ----------------------------------------------------------- */
 
+/*
+ * The room code lives inside the "Invite a player" disclosure now, so the panel chrome —
+ * surface, border, radius, padding — comes from `.panel` and must not be repeated here.
+ * All that is left is the centring, which the code and its two buttons want and the
+ * panels around them do not.
+ */
 .code-card {
-  padding: var(--space-4);
-  margin-bottom: var(--space-5);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
   text-align: center;
 }
 
