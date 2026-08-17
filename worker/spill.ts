@@ -162,19 +162,6 @@ export async function onFling(
   if (now < s.startsAt) return;
   if ((s.lockedUntil[playerId] ?? 0) > now) return;
 
-  // Where the payload comes from: a drop you caught, or your own pool.
-  let size: number;
-  if (heldId !== undefined) {
-    const held = s.held[heldId];
-    if (!held || held.by !== playerId) return;
-    size = held.size;
-    delete s.held[heldId];
-  } else {
-    if ((s.levels[playerId] ?? 0) <= 0) return;
-    s.levels[playerId] = (s.levels[playerId] ?? 0) - 1;
-    size = 1;
-  }
-
   // Clamped, never rejected — an honest player with a fast screen must not be
   // punished for a cheat's signature (spec §9).
   const v = clamp(speed, SPILL_SPEED_MIN, SPILL_SPEED_MAX);
@@ -189,11 +176,45 @@ export async function onFling(
   // Half a screen height to the edge, at v heights per second.
   const exitMs = clamp((0.5 / v) * 1000, SPILL_LOCK_MIN_MS, SPILL_LOCK_MAX_MS);
 
-  let to = aimSeat(seat, heading, s.seats.length);
+  /*
+   * The aim is resolved BEFORE anything is spent, because a miss now costs nothing but
+   * the throw. `v` narrows the window, so the harder this was thrown the likelier it is
+   * to be a miss (spec §2).
+   */
+  let to = aimSeat(seat, heading, s.seats.length, v);
   // A seat whose player is out — or who walked off — is a hole in the ring.
   if (to !== null) {
     const target = s.seats[to];
     if (target === undefined || s.out.includes(target)) to = null;
+  }
+  const lands = to !== null;
+
+  /*
+   * Where the payload comes from: a drop you caught, or your own pool. **Nothing is
+   * spent unless the throw is going to land somewhere** (spec §4c) — water leaves your
+   * phone by arriving on somebody else's, and a flick that sails off the table simply
+   * comes back.
+   *
+   * Doing it this way round, rather than deducting and crediting it back on return,
+   * buys three things:
+   *
+   * - No winning on a miss. `settle()` runs a few lines below, so a player on their
+   *   last drop would otherwise take the round by flinging it at the floor.
+   * - A fumbled re-throw stays fumbled: the hold survives with its `soaksAt` still
+   *   running, so keep missing with a caught payload and you eat it. That is the
+   *   existing soak rule doing the work rather than a new one to explain.
+   * - Your counter never lies. It moves when the water is actually gone.
+   */
+  let size: number;
+  if (heldId !== undefined) {
+    const held = s.held[heldId];
+    if (!held || held.by !== playerId) return;
+    size = held.size;
+    if (lands) delete s.held[heldId];
+  } else {
+    if ((s.levels[playerId] ?? 0) <= 0) return;
+    if (lands) s.levels[playerId] = (s.levels[playerId] ?? 0) - 1;
+    size = 1;
   }
 
   const dropId = `${s.roundId}-${s.nextDrop++}`;
@@ -215,8 +236,10 @@ export async function onFling(
     t: 'drop',
     s: ctx.nextSeq(),
     // `replaces` tells the thrower their held payload is gone. Omitted (rather
-    // than null) for an ordinary fling, per exactOptionalPropertyTypes.
-    d: heldId === undefined
+    // than null) for an ordinary fling, per exactOptionalPropertyTypes — and for
+    // a re-throw that missed, where the payload is still in their hands and still
+    // soaking, so claiming it had gone would strand the client's copy.
+    d: heldId === undefined || !lands
       ? { ...drop, levels: s.levels }
       : { ...drop, levels: s.levels, replaces: heldId },
   });

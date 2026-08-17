@@ -927,11 +927,20 @@ export const SPILL_APPROACH_MS = 900;
 export const SPILL_HOLD_MS = 2_500;
 
 /**
- * Aim tolerance as a fraction of the half-gap between seats. Below 1 there is
- * always a sliver you can miss through, which is what keeps a wild flick a real
- * (and sometimes deliberate) way to shed water.
+ * Aim tolerance as a fraction of the half-gap between seats (spec §2).
+ *
+ * Below 1 there is always a sliver you can miss through — and a miss now costs
+ * you the throw, so that sliver is what makes aiming a skill rather than a
+ * formality.
+ *
+ * It said 0.7 of the half-gap for a long time while `aimTolerance` actually
+ * computed 0.7 of the *whole* gap: 1.40× the half-gap, so the windows overlapped
+ * and `aimSeat` delivered 95% of every forward flick at a table of four. There
+ * was nothing to aim at, and players did the rational thing and stopped aiming.
+ * `spillGeometry.test.ts` now pins the window under the half-gap so this cannot
+ * come back.
  */
-export const SPILL_AIM_FRACTION = 0.7;
+export const SPILL_AIM_FRACTION = 0.9;
 
 /** A round is capped like every other, so a stalemate cannot run forever. */
 export const SPILL_ROUND_CAP_MS = 5 * 60_000;

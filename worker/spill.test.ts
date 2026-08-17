@@ -8,6 +8,8 @@ import {
   SPILL_APPROACH_MS,
   SPILL_HOLD_MS,
   SPILL_LOSE_LEVEL,
+  SPILL_SPEED_MAX,
+  SPILL_SPEED_MIN,
   SPILL_START_LEVEL,
   type ServerMessage,
 } from '../shared/protocol';
@@ -200,8 +202,117 @@ async function aimingAndLock(): Promise<void> {
   await h.drain();
   const lost = h.last('land');
   check('lost water lands on nobody', lost?.d.on === null);
+  /*
+   * And it comes home. Water leaves your phone by arriving on somebody else's, so a
+   * flick at the floor is a wasted turn rather than a free way to shed a drop.
+   *
+   * This assertion used to read `- 1`: the water left the game. That was the whole
+   * problem — disposal is the win condition, so throwing at nobody was the safest
+   * move on the board and aiming was for people who enjoyed losing (spec §4c).
+   */
   const total = [A, B, C, D].reduce((n, p) => n + (h.state().levels[p] ?? 0), 0);
-  check('water left the game entirely', total === SPILL_START_LEVEL * 4 - 1, total);
+  check('a miss costs no water', total === SPILL_START_LEVEL * 4, total);
+}
+
+/**
+ * Missing. Spec: docs/specs/games/spill.md §2, §4c
+ *
+ * The two halves of one rule: a hard throw is likelier to miss, and a miss costs the
+ * throw rather than the water. Between them they are what stops the game being won by
+ * smearing a thumb at the floor as fast as it will go.
+ */
+async function missing(): Promise<void> {
+  console.log('\nmissing, and what it costs');
+  const h = harness();
+  await startSpill(h.ctx, 1, [A, B, C, D]);
+  h.advance(PREROUND_MS + 1);
+
+  /*
+   * One angle, two speeds. Seat 0's targets sit at −45°, 0° and +45°, so 15° off the
+   * middle one is inside a careful throw's window (±20°) and outside a flat-out one's
+   * (±10°). Nothing about the aim changed — only how hard it was thrown.
+   */
+  const off = (15 * Math.PI) / 180;
+
+  await onFling(h.ctx, A, 1, off, SPILL_SPEED_MIN);
+  const careful = h.last('drop');
+  check('15° off, thrown carefully, still lands', careful?.d.to === 2, careful?.d);
+  check('and that one costs a drop', h.state().levels[A] === SPILL_START_LEVEL - 1);
+
+  h.advance(5000);
+  await h.drain();
+
+  await onFling(h.ctx, A, 1, off, SPILL_SPEED_MAX);
+  const rushed = h.last('drop');
+  check('the same angle thrown flat out misses', rushed?.d.to === null, rushed?.d);
+  check('and costs nothing', h.state().levels[A] === SPILL_START_LEVEL - 1);
+  // It still occupies you, which is the only price of a miss.
+  check('but it still takes the launch lock', (h.state().lockedUntil[A] ?? 0) > h.at());
+
+  /*
+   * The reason nothing is spent until the aim resolves, rather than spent and handed
+   * back when the drop comes home: `settle()` runs inside `onFling`, so a player on
+   * their last drop would take the round by flinging it at the floor.
+   */
+  const edge = harness();
+  await startSpill(edge.ctx, 1, [A, B]);
+  edge.advance(PREROUND_MS + 1);
+  const s = edge.state();
+  s.levels[A] = 1;
+  await edge.ctx.save(s);
+
+  await onFling(edge.ctx, A, 1, SPILL_FLICK_CONE, SPILL_SPEED_MAX);
+  check('a miss on your last drop is still a miss', edge.last('drop')?.d.to === null);
+  check('nobody wins by throwing it at the floor', edge.last('spill-over') === undefined);
+  check('and the drop is still theirs', edge.state().levels[A] === 1);
+  check('the round is still running', edge.state().phase === 'running');
+}
+
+/**
+ * Fumbling a catch. Spec: docs/specs/games/spill.md §4c
+ *
+ * A caught payload is the only thing on the board worth more than one drop, and the
+ * only way to move it is a throw that can now miss. Missing has to leave it in your
+ * hands with its soak timer still running — which makes catching a real risk without
+ * inventing a rule for it.
+ */
+async function fumbling(): Promise<void> {
+  console.log('\nmissing with a caught payload');
+  const h = harness();
+  await startSpill(h.ctx, 1, [A, B, C, D]);
+  h.advance(PREROUND_MS + 1);
+
+  await onFling(h.ctx, A, 1, screenAngleTo(0, 2, 4), SPILL_SPEED_MIN);
+  const drop = h.last('drop')!;
+  h.advance(drop.d.arrivesAt - SPILL_APPROACH_MS + 50 - h.at());
+  await onCatch(h.ctx, C, 1, drop.d.dropId);
+  const caught = h.last('caught')!;
+  check('C is holding a doubled drop', caught.d.by === C && caught.d.size === 2);
+
+  // Throw it flat out at the edge of the cone: off the table.
+  await onFling(h.ctx, C, 1, SPILL_FLICK_CONE, SPILL_SPEED_MAX, drop.d.dropId);
+  const wild = h.last('drop')!;
+  check('the re-throw misses', wild.d.to === null, wild.d);
+  check('the payload is still held', h.state().held[drop.d.dropId] !== undefined);
+  check('and its size is intact', h.state().held[drop.d.dropId]?.size === 2);
+  /*
+   * `replaces` means "the thing you were holding has gone". Sending it for a throw that
+   * came back would strand the client's copy of the hold — and since its id rides on
+   * every subsequent fling, the server would then reject all of them and lock the
+   * player out for the rest of the round. That exact bug is why §5 says a hold has two
+   * ends and both of them need a frame.
+   */
+  check('and the client is not told it went', wild.d.replaces === undefined, wild.d);
+
+  // The clock did not stop for the fumble.
+  check(
+    'the soak deadline is unchanged',
+    h.state().held[drop.d.dropId]?.soaksAt === caught.d.soaksAt,
+  );
+  h.advance(SPILL_HOLD_MS + 10);
+  await h.drain();
+  check('so a fumbled payload still soaks in', h.state().levels[C] === SPILL_START_LEVEL + 2);
+  check('reported as a landing on the holder', h.last('land')?.d.on === C);
 }
 
 async function catching(): Promise<void> {
@@ -502,7 +613,7 @@ async function bouncing(): Promise<void> {
   check('left and right are mirror images', mirrored);
 }
 
-for (const t of [seating, preRound, aimingAndLock, catching, soaking, winning, flooding, leaving, cheating, bouncing]) {
+for (const t of [seating, preRound, aimingAndLock, missing, fumbling, catching, soaking, winning, flooding, leaving, cheating, bouncing]) {
   await t();
 }
 

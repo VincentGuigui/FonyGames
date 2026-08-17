@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
 import type { RoomClient } from '../../core/room/client';
-import type { SpillGame } from './game';
+import { speedOf, type SpillGame } from './game';
 import { startRenderer, type Renderer } from './render';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard } from '../../core/ui/Scoreboard';
@@ -26,8 +26,17 @@ import type { Theme } from './themes';
 /** Below this, a gesture was a tap and not a flick. */
 const DRAG_SLOP_PX = 24;
 
-/** The tap-a-seat fallback throws at a fixed, comfortable speed (spec §11). */
-const FALLBACK_SPEED = 2.2;
+/**
+ * The tap-a-seat fallback throws at a fixed, **deliberate** speed (spec §11).
+ *
+ * It aims dead centre by construction, so it can never miss. At the old 2.2 that also
+ * put it on the 250 ms cooldown floor — perfect accuracy *and* the fastest throw in
+ * the game, which made it strictly better than dragging the moment a drag could miss.
+ * At 1.0 it is a careful throw: certain, and half the rate of a hard flick. That turns
+ * the accessibility fallback into a legitimate tactic instead of an exploit, which is
+ * the best place for an accessibility feature to end up.
+ */
+const FALLBACK_SPEED = 1.0;
 
 /**
  * How far from the middle the peer markers sit, as a percentage of the board.
@@ -95,8 +104,21 @@ export function SpillBoard({
         // the forward cone: aim behind you and the line vanishes, so the refusal
         // happens while the finger is still down rather than as a lost turn.
         if (!game.throwable(angle)) return null;
-        const hit = game.target(angle);
-        return { angle, hit, bounces: game.seatCount === 2 && hit !== null };
+        /*
+         * The speed of the drag SO FAR, which is what the release is going to send.
+         * A hard flick has a narrower window (spec §2), so the target drops out and
+         * the wedge closes while the finger is still down — the same
+         * refuse-before-release feedback the forward cone already established, and
+         * the only way a player learns that rushing costs them accuracy.
+         */
+        const speed = speedOf(dx, dy, g.t - g.t0, canvas.clientHeight);
+        const hit = game.target(angle, speed);
+        return {
+          angle,
+          hit,
+          window: game.window(speed),
+          bounces: game.seatCount === 2 && hit !== null,
+        };
       },
     );
     rendererRef.current = renderer;
