@@ -652,7 +652,7 @@ function sizeToScreen(el: HTMLCanvasElement): void {
 }
 
 /**
- * How you want to play, chosen rather than fallen back into.
+ * The game mode, chosen rather than fallen back into.
  *
  * Two choices, named by **what you do** rather than by which sensor they use — a
  * player picking between "Sweep the room" and "Drag to look around" is being asked
@@ -688,7 +688,13 @@ function RoutePicker({
 
   return (
     <section class="panel primer">
-      <h2 class="panel__heading">How you want to play</h2>
+      {/*
+        The same heading Cat and Mouse uses, and any game that grows a second way to play
+        should use it too. A player who has met one mode picker should recognise the next
+        without reading it — which they could not while one was called "How you want to
+        play" and the other "Dragging", two names for one idea, neither of them the idea.
+      */}
+      <h2 class="panel__heading">Select a game mode</h2>
 
       <div class="hunt-route">
         <button

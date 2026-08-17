@@ -187,7 +187,7 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
         room.isHost ? (
           <DragPicker value={drag} onPick={setDrag} />
         ) : (
-          <p class="howto__aside">The host picks how dragging works.</p>
+          <p class="howto__aside">The host picks the game mode.</p>
         )
       }
     />
@@ -224,7 +224,8 @@ function DragPicker({
   ];
   return (
     <section class="panel">
-      <h2 class="panel__heading">Dragging</h2>
+      {/* Shared wording with Ghost Hunt's route picker — see the note there. */}
+      <h2 class="panel__heading">Select a game mode</h2>
       <ul class="dragpick">
         {options.map((o) => (
           <li key={o.id}>
