@@ -32,6 +32,7 @@ export default defineConfig({
         'pass-the-bomb': 'www/pass-the-bomb/index.html',
         'steady-hand': 'www/steady-hand/index.html',
         'grid-attack': 'www/grid-attack/index.html',
+        'squash-mosquitoes': 'www/squash-mosquitoes/index.html',
         'shake-rush': 'www/shake-rush/index.html',
         'ghost-hunt': 'www/ghost-hunt/index.html',
         // The admin centre. Built to a PLACEHOLDER directory name and renamed to the

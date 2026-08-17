@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" role="img" aria-label="A thumb squashing a mosquito, a red streak of blood behind it">
+  <!--
+    Squash Mosquitoes. Contract: docs/design/illustrations.md
+
+    The board is skin, and the card says so plainly: a warm tone fill, a scatter of
+    small unsquashed mosquitoes still hunting, and one big one caught mid-squash with
+    a red streak behind it and a thumb landing on top. Flat colours, no gradients, no
+    currentColor and no CSS variables — the hub renders these at 120x90 in a grid and
+    cards.test.mjs enforces all three.
+  -->
+  <rect width="120" height="90" fill="#F0BEAC" rx="8"/>
+
+  <!-- The swarm still out there, small and dark, low opacity so the eye lands on the hero. -->
+  <g fill="#1A1A1A" opacity="0.32">
+    <ellipse cx="18" cy="20" rx="2.6" ry="4.6" transform="rotate(18 18 20)"/>
+    <ellipse cx="100" cy="18" rx="2.6" ry="4.6" transform="rotate(-12 100 18)"/>
+    <ellipse cx="14" cy="66" rx="2.6" ry="4.6" transform="rotate(-24 14 66)"/>
+    <ellipse cx="30" cy="72" rx="2.4" ry="4.2" transform="rotate(30 30 72)"/>
+    <ellipse cx="96" cy="70" rx="2.6" ry="4.6" transform="rotate(10 96 70)"/>
+  </g>
+
+  <!-- The blood, behind everything else — an irregular blot, not a tidy circle. -->
+  <path
+    d="M58 38 C69 33, 81 40, 80 51 C90 55, 87 68, 76 67 C75 76, 58 77, 54 68
+       C43 68, 39 56, 49 51 C43 42, 51 34, 58 38 Z"
+    fill="#E11D48"
+    opacity="0.9"
+  />
+
+  <!-- The hero mosquito, squashed flat on top of it. -->
+  <g fill="#1A1A1A">
+    <ellipse cx="65" cy="55" rx="10" ry="5.6" transform="rotate(-12 65 55)"/>
+    <circle cx="53" cy="51" r="3.2"/>
+    <ellipse cx="46" cy="42" rx="7.5" ry="3.6" opacity="0.6" transform="rotate(-42 46 42)"/>
+    <ellipse cx="74" cy="63" rx="7.5" ry="3.6" opacity="0.6" transform="rotate(-42 74 63)"/>
+  </g>
+
+  <!-- The thumb, landing from the corner rather than centred over it, so the
+       mosquito and the blood behind it both stay readable. -->
+  <g>
+    <ellipse cx="94" cy="20" rx="15" ry="20" transform="rotate(38 94 20)" fill="#FBD8C8" stroke="#C98F76" stroke-width="1.6"/>
+    <ellipse cx="98" cy="10" rx="5.5" ry="7.5" transform="rotate(38 98 10)" fill="#FFE9DD"/>
+  </g>
+</svg>

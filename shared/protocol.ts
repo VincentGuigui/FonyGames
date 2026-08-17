@@ -132,7 +132,15 @@ export type ClientMessage =
    */
   | { t: 'grid-tap'; d: { roundId: number; cell: number; side: 'mine' | 'theirs' } }
   /** Grid Attack: this phone is fullscreen, sideways and looking at the board. */
-  | { t: 'grid-ready'; d: { roundId: number } };
+  | { t: 'grid-ready'; d: { roundId: number } }
+  /**
+   * Squash Mosquitoes: a finger landed on grid cell `position`.
+   *
+   * A cell, not a pattern index — the client reports the physical fact, and the
+   * referee is the only thing that knows whether a mosquito of ITS OWN was
+   * there for this player (spec §6).
+   */
+  | { t: 'squash-tap'; d: { roundId: number; position: number } };
 
 /* ------------------------------------------------------------------ */
 /* server -> client                                                     */
@@ -236,6 +244,40 @@ export type GridState = {
   endsAt: number;
   winner: PlayerId | null;
   phase: 'waiting' | 'running' | 'done';
+};
+
+/**
+ * Squash Mosquitoes: one player's own board — private, and never sent to anyone
+ * else (spec §6, §9).
+ *
+ * Both arrays hold **pattern indices**, not grid positions: the position a given
+ * index lives at is the same for every player (`SquashState.pattern`), so there is
+ * nothing to gain by repeating it per board.
+ */
+export type SquashBoard = {
+  /** Spawned and not yet squashed — draw a mosquito at `pattern[i]` for each. */
+  active: number[];
+  /** Squashed. Never removed — draw the blood mark at `pattern[i]` for each. */
+  squashed: number[];
+};
+
+/**
+ * Squash Mosquitoes: the shared, public half of the round.
+ *
+ * `scores` is a squashed **count**, not a board — the one number every other
+ * player's screen is allowed to see (spec §6). Your own board arrives separately,
+ * as `squash-board`, and only to you.
+ */
+export type SquashState = {
+  roundId: number;
+  startsAt: number;
+  /** The safety cap, as every other game has. */
+  endsAt: number;
+  /** The 66 grid positions, in spawn order. Identical for every player. */
+  pattern: number[];
+  scores: Record<PlayerId, number>;
+  winner: PlayerId | null;
+  phase: 'running' | 'done';
 };
 
 /** Spill: one projectile, described once and animated locally from then on. */
@@ -433,6 +475,15 @@ export type ServerMessage =
     }
   /** Grid Attack: the board, whole. Late frames with a lower `s` are dropped. */
   | { t: 'grid'; s: number; d: GridState }
+  /** Squash Mosquitoes: the shared state — pattern, everyone's count, phase, winner. */
+  | { t: 'squash'; s: number; d: SquashState }
+  /**
+   * Squash Mosquitoes: sent to **one player only** — their own board.
+   *
+   * Never broadcast. Everyone else's screen only ever learns this player's
+   * squashed *count*, carried in `squash` instead (spec §6, §9).
+   */
+  | { t: 'squash-board'; s: number; d: { roundId: number; board: SquashBoard } }
   /** Pass the Bomb: too many bumps too fast — this player's bumps are muted briefly. */
   | { t: 'calm-down'; d: { untilServerTime: number } }
   /** Steady Hand: the state of the room. `w` is everyone's last wobble, for the meters. */
@@ -1077,6 +1128,42 @@ export const CM_ROUND_CAP_MS = 75_000;
  */
 export const CM_SANITY_SPEED = 5;
 
+/* ------------------------------------------------------------------ */
+/* Squash Mosquitoes (docs/specs/games/squash-mosquitoes.md)            */
+/* ------------------------------------------------------------------ */
+
+/** The invisible grid every mosquito hides on. 117 possible spots. */
+export const SQUASH_GRID_COLS = 9;
+export const SQUASH_GRID_ROWS = 13;
+export const SQUASH_GRID_CELLS = SQUASH_GRID_COLS * SQUASH_GRID_ROWS;
+
+/** The pattern is this many of the grid's cells, no duplicates (spec §2). */
+export const SQUASH_TOTAL = 66;
+
+/**
+ * Mosquito **N** (1-indexed) in the pattern flies once N reaches this. A property
+ * of the pattern position, not a clock or a running count — so whether a given
+ * mosquito flies is fixed the moment the pattern is dealt, and both ends of the
+ * wire can derive it from the same array without a flag travelling per mosquito
+ * (spec §2.2).
+ */
+export const SQUASH_STATIC_COUNT = 33;
+
+/** A flying mosquito, and its hitbox, at this fraction of a static one's size. */
+export const SQUASH_FLY_SCALE = 0.25;
+
+/** A round is capped like every other, so a swarm nobody can finish still ends. */
+export const SQUASH_ROUND_CAP_MS = 3 * 60_000;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const SQUASH_MIN_PLAYERS = PLAYERS['squash-mosquitoes'][0];
+export const SQUASH_MAX_PLAYERS = PLAYERS['squash-mosquitoes'][1];
+
+/** Is pattern position `index` (0-based) one of the flying half? */
+export function squashFlies(index: number): boolean {
+  return index >= SQUASH_STATIC_COUNT;
+}
+
 const CLIENT_TYPES = new Set([
   'join',
   'set-profile',
@@ -1096,6 +1183,7 @@ const CLIENT_TYPES = new Set([
   'move',
   'grid-tap',
   'grid-ready',
+  'squash-tap',
 ]);
 
 export function isClientMessage(value: unknown): value is ClientMessage {
