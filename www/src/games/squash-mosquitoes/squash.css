@@ -4,8 +4,10 @@
  * Nine columns by thirteen rows of square cells is already taller than wide, so no
  * landscape mode or fullscreen gate is needed here.
  *
- * The board is a fixed skin tone (`#F0BEAC`), not `--color-bg` — it does not change
- * with the site theme, on purpose (the board IS skin).
+ * The board is a real photo of skin (`--squash-skin`, set inline from `art/skin.jpg` —
+ * see SquashBoard.tsx), not `--color-bg` — it does not change with the site theme, on
+ * purpose (the board IS skin). `background-color` stays the old flat tone as a fallback
+ * for the one frame before the photo decodes, or if it never does.
  */
 
 .squash {
@@ -13,7 +15,11 @@
   inset: 0;
   display: flex;
   flex-direction: column;
-  background: #f0beac;
+  background-color: #f0beac;
+  background-image: var(--squash-skin);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   color: #1a1a1a;
   /* A mashing game, same as Grid Attack: nothing here selects, drags, or
      long-presses into a menu, and a double tap must not zoom. */
