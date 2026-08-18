@@ -51,10 +51,15 @@
 - **A `card.ts` is a leaf.** It may import only `core/types`, `shared/players` and
   its own `art/`. The hub imports every card, so one import of a game's runtime
   drags every game into the hub chunk — `www/src/games/cards.test.ts` guards it.
-- **Art is a file, never inline SVG in a component.** `games/<slug>/art/*.svg`,
-  imported with `?url&no-inline`. And it uses literal hexes: an `<img>`-loaded SVG
-  cannot see the page's CSS, so `currentColor` renders black and `var(--…)`
-  disappears. Full contract: [../design/illustrations.md](../design/illustrations.md).
+- **Art is a file, never inline SVG in a component.** Card illustrations, sprites,
+  and any other multi-colour, hand-drawn art belong in `games/<slug>/art/*.svg`,
+  imported with `?url&no-inline` and rendered through an `<img>`. And it uses
+  literal hexes: an `<img>`-loaded SVG cannot see the page's CSS, so `currentColor`
+  renders black and `var(--…)` disappears. Full contract:
+  [../design/illustrations.md](../design/illustrations.md). The one exception is a
+  small, single-colour **control** icon that inherits `currentColor` from a button
+  (Ghost Hunt's `icons.tsx`) — that is UI chrome, not art, and the whole point of it
+  is to take the button's colour with it.
 
 ## Game code rules
 
@@ -80,4 +85,10 @@
 
 - Explain *why*, not *what*. Sensor thresholds, platform quirks and fairness
   compromises must be commented with the reason and the device it came from.
+- **Keep it to a line or two.** A comment in CSS or client-side code is a pointer
+  for the next reader, not an essay — if the reasoning needs a walkthrough with
+  before/after numbers, that belongs in the game's spec (`docs/specs/games/`) or
+  the commit message, linked from a short comment rather than repeated inline.
+  A long comment block also drifts fastest: nobody rewrites three paragraphs when
+  the one line next to it would still be true.
 - `TODO(<topic>):` only with an issue or a roadmap line to point at.

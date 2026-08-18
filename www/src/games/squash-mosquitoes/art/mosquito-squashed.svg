@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 34 22" width="34" height="22">
+  <!--
+    Squash Mosquitoes: a squashed mosquito. Crossed-out eyes, a jagged splat body, a
+    cracked wing, splayed legs, a few blood drops beyond the CSS blot behind it.
+    Literal hexes, no currentColor: loaded through <img>, which cannot see the page's CSS.
+  -->
+  <path
+    d="M8 10.5 C7.4 7.6 11.5 6.3 15 7 C17 5.8 21 6.6 23 8.4
+       C26.5 8 30.8 9.6 30 11.6 C31 13.4 27.5 15.6 24 15
+       C21.5 17 16.5 17.4 14.5 15.4 C11 16.4 7.2 13.6 8 10.5 Z"
+    fill="#16222e"
+  />
+  <ellipse cx="19" cy="3.2" rx="7" ry="3" transform="rotate(18 19 3.2)" fill="none" stroke="#16222e" stroke-width="1" />
+  <ellipse cx="21" cy="4.6" rx="6.2" ry="2.6" transform="rotate(6 21 4.6)" fill="none" stroke="#16222e" stroke-width="1" />
+  <path d="M18 3.6 L19.4 5.4 L18.3 5.9 L20 7.6" fill="none" stroke="#16222e" stroke-width="0.7" stroke-linecap="round" />
+  <path
+    d="M13 15.4 L11 17.5 L13.5 19.5 M17 15.7 L19 18.5 L16 20.5 M21 15.5 L23.5 17.3 L20.5 19.8"
+    fill="none"
+    stroke="#16222e"
+    stroke-width="0.9"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <circle cx="7" cy="11" r="3.6" fill="#16222e" />
+  <path d="M4 13 L1.6 15.2 L0.8 17.5" fill="none" stroke="#16222e" stroke-width="0.9" stroke-linecap="round" />
+  <circle cx="5.3" cy="9.3" r="2.1" fill="#f4f6f8" stroke="#16222e" stroke-width="0.5" />
+  <path d="M3.9 8.5 L5.5 10.1 M5.5 8.5 L3.9 10.1" stroke="#16222e" stroke-width="0.6" stroke-linecap="round" />
+  <circle cx="7.6" cy="10.8" r="1.55" fill="#f4f6f8" stroke="#16222e" stroke-width="0.45" />
+  <path d="M6.9 10.1 L8.3 11.5 M8.3 10.1 L6.9 11.5" stroke="#16222e" stroke-width="0.5" stroke-linecap="round" />
+  <path
+    d="M13 9 L14.5 11 L13.5 11.6 L15 13.5 M20 9.5 L21.3 11.2 L20 11.8"
+    fill="none"
+    stroke="#f0beac"
+    stroke-width="0.55"
+    stroke-linecap="round"
+    opacity="0.85"
+  />
+  <g fill="#e11d48">
+    <circle cx="2" cy="2.6" r="0.9" />
+    <circle cx="32.4" cy="1.8" r="0.7" />
+    <circle cx="33.2" cy="19.5" r="0.9" />
+    <circle cx="3" cy="20.5" r="0.6" />
+    <circle cx="17.5" cy="21.3" r="0.55" />
+  </g>
+</svg>
