@@ -86,10 +86,10 @@
   height: 100%;
 }
 
-/* The flying quarter (spec §2.2), moved by SquashBoard.tsx's per-frame transform. */
+/* The flying third (spec §2.2), moved by SquashBoard.tsx's per-frame transform. */
 .squash__mosquito--flying {
-  width: 25%;
-  height: 25%;
+  width: calc(100% / 3);
+  height: calc(100% / 3);
 }
 
 /* art/mosquito*.svg's viewBox is 34x22 — sized to the same wide ratio so it isn't

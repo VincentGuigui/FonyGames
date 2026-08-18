@@ -1155,7 +1155,7 @@ export const SQUASH_TOTAL = 66;
 export const SQUASH_STATIC_COUNT = 33;
 
 /** A flying mosquito, and its hitbox, at this fraction of a static one's size. */
-export const SQUASH_FLY_SCALE = 0.25;
+export const SQUASH_FLY_SCALE = 1 / 3;
 
 /** A round is capped like every other, so a swarm nobody can finish still ends. */
 export const SQUASH_ROUND_CAP_MS = 3 * 60_000;
