@@ -75,6 +75,12 @@ Nothing outside those ships. Nothing outside `docs/` documents.
    restructure directories, add a backend, add a dependency, or ship a new game
    engine without asking the maintainer first. Propose → get a yes → build.
    Small, incremental, reviewable steps are the default.
+4. **Art is a file, comments are short.** Illustrations, sprites and other
+   hand-drawn game art belong in `art/*.svg`, never inline SVG in a component —
+   see [docs/design/illustrations.md](./docs/design/illustrations.md) and
+   [docs/conventions/code-style.md](./docs/conventions/code-style.md). Comments in
+   CSS and client-side code stay to a line or two of *why*; a design walkthrough
+   belongs in the game's spec or the commit message, not the source file.
 
 ---
 
