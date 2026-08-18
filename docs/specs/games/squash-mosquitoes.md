@@ -4,11 +4,11 @@
 | --- | --- |
 | **Slug** | `squash-mosquitoes` |
 | **Catchy sentence** | *Squash all 66 before anyone else does* |
-| **Illustration** | `www/src/games/squash-mosquitoes/art/card.svg` — a thumb squashing a mosquito, a red streak behind it |
+| **Illustration** | `www/src/games/squash-mosquitoes/art/card.svg` — a purple mosquito silhouette crossed out inside a red no-entry circle |
 | **Players** | 2–8 |
 | **Round length** | ~1–2 min, hard cap 3 min |
 | **Inputs** | touch |
-| **Accent colour** | `#E11D48` (red) |
+| **Accent colour** | `#8A6DC9` (purple) |
 | **Status** | 🎮 building |
 
 ## 1. Pitch
@@ -95,7 +95,9 @@ on a game this short would be ceremony nobody asked for.
   cartoon bug (`art/mosquito.svg`); a squashed one (`art/mosquito-squashed.svg`)
   is flattened, crossed-eyed, and carries its own splat and blood drops —
   nothing is layered behind it in CSS. `StatusBar` carries your own squashed
-  count; the `Scoreboard` panel (bottom-right, `best="high"`, same corner as
+  count — in red rather than `StatusBar`'s usual accent-on-the-number default,
+  since the count here IS the blood; the accent (purple) moves to the label
+  instead. The `Scoreboard` panel (bottom-right, `best="high"`, same corner as
   Pass the Bomb) carries
   everyone else's, which is the entire live social read on the round — you
   cannot see anyone else's board, only how far along they are.
