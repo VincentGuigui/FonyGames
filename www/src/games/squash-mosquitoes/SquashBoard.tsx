@@ -14,6 +14,7 @@ import { RulesPanel } from '../../core/ui/RulesPanel';
 import { wander, type SquashGame } from './game';
 import mosquitoArt from './art/mosquito.svg?url&no-inline';
 import mosquitoSquashedArt from './art/mosquito-squashed.svg?url&no-inline';
+import skinArt from './art/skin.jpg?url&no-inline';
 
 /**
  * The board: 66 mosquitoes, on an invisible 9×13 grid. Spec: docs/specs/games/squash-mosquitoes.md §4
@@ -109,6 +110,7 @@ export function SquashBoard({
           '--game-accent': accent,
           '--squash-cols': SQUASH_GRID_COLS,
           '--squash-rows': SQUASH_GRID_ROWS,
+          '--squash-skin': `url(${skinArt})`,
         } as JSX.CSSProperties
       }
     >
@@ -152,7 +154,7 @@ export function SquashBoard({
         me={me}
         unit={`/ ${SQUASH_TOTAL}`}
         best="high"
-        corner="top-left"
+        corner="bottom-right"
       />
 
       {/*
