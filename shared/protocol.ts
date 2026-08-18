@@ -177,13 +177,13 @@ export type RoundResult = {
  * Pass the Bomb: the match a round belongs to.
  *
  * A round is one bomb, from the first holder to the boom that ends it. A **match** is the
- * thing people actually sit down to play, and it has two shapes because two players and
- * six players are not the same game:
+ * thing people actually sit down to play, and how many rounds that takes has two shapes
+ * because two players and six players are not the same game:
  *
  * | | |
  * | --- | --- |
- * | **Two players** (`rounds: null`) | Three lives each. One boom costs the victim a life and ends the round there — with two people, elimination *is* the ending, so a "last one standing" match would be one bomb long |
- * | **Three or more** (`rounds: 5`) | The round runs the classic way, players out one at a time until one is left; five of those decide it |
+ * | **Two players** (`rounds: 3`) | A boom leaves nobody to pass to, so a round is one explosion. Three of those, tallied, decide it — odd, so it cannot end tied |
+ * | **Three or more** (`rounds: 1`) | The round runs the classic way, players out one at a time — for the rest of the MATCH, not just that round — until one is left. One of those is the whole match |
  *
  * Carried from round to round by the referee and sent whole on every frame, so a phone that
  * joins late, reloads, or misses a frame draws the same standings as everyone else.
@@ -191,10 +191,8 @@ export type RoundResult = {
 export type BombMatch = {
   /** Which round is being played, 1-based. */
   round: number;
-  /** How many rounds the match runs to, or null when lives decide it instead. */
-  rounds: number | null;
-  /** Lives left per player. Empty in a rounds match. */
-  lives: Record<PlayerId, number>;
+  /** How many rounds the match runs to — 3 for two players, 1 for three or more. */
+  rounds: number;
   /** Rounds won per player — the survivor of each round takes one. */
   wins: Record<PlayerId, number>;
   /** Who took the match, once `done`. Null for a draw, or nobody at all. */
@@ -465,9 +463,9 @@ export type ServerMessage =
          *
          * The phone used to work this out for itself — "a boom that leaves one player or
          * none" — which was right for the elimination rounds and wrong for the other two
-         * ways a round ends: a two-player round finishes after a single boom with both
-         * players still standing on lives, and the five-minute safety cap finishes one with
-         * a whole circle left. Both looked to the phone like the round carrying on.
+         * ways a round ends: a two-player round finishes after a single boom with nobody
+         * left to pass to, and the five-minute safety cap finishes one with a whole circle
+         * left. Both looked to the phone like the round carrying on.
          */
         over: boolean;
         match: BombMatch;
@@ -886,16 +884,23 @@ export const BOMB_MAX_PLAYERS = PLAYERS['pass-the-bomb'][1];
 export const BUMP_ROUND_CAP_MS = 5 * 60_000;
 
 /**
- * A two-player match: three lives each, and a boom costs one.
+ * A two-player match: three short rounds, one boom each.
  *
  * With two people the first boom is also the last — there is nobody left to pass to — so a
- * round is over in one explosion. One explosion is not an evening, hence lives: the round
- * ends, the standings show what it cost, and the next one starts from a fresh fuse.
+ * round is over in one explosion, and one explosion is not an evening. Three of them, tallied
+ * like any other round, decide it. Odd, so the match cannot end in a tie.
  */
-export const BOMB_LIVES = 3;
+export const BOMB_DUEL_ROUNDS = 3;
 
-/** With three or more, each round plays out to a last player standing. Five decide it. */
-export const BOMB_ROUNDS = 5;
+/**
+ * A three-or-more match: one round, played to a last player standing.
+ *
+ * With three or more, a boom eliminates for the rest of the MATCH, not just the round in
+ * progress — so the round already runs to a single survivor, and that survivor is the match.
+ * A second round would just be repeating a game that already answered the only question it
+ * asks.
+ */
+export const BOMB_CLASSIC_ROUNDS = 1;
 
 /* ------------------------------------------------------------------ */
 /* Grid Attack (docs/specs/games/grid-attack.md)                        */

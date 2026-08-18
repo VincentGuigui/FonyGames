@@ -28,11 +28,10 @@ const A = 'a' as PlayerId;
 const B = 'b' as PlayerId;
 const C = 'c' as PlayerId;
 
-/** A five-round match nobody has scored in yet — the standings are not what this file tests. */
+/** A match nobody has scored in yet — the standings are not what this file tests. */
 const match = (over: Partial<BombMatch> = {}): BombMatch => ({
   round: 1,
   rounds: 5,
-  lives: {},
   wins: {},
   champion: null,
   done: false,
