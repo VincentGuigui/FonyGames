@@ -88,11 +88,13 @@ on a game this short would be ceremony nobody asked for.
 
 - **Lobby**: the shared template. No safety line and no permission primer —
   this is touch on a still phone, the one input every device already has.
-- **Round**: the grid fills the screen, background `#F0BEAC` (a skin tone —
-  the joke is that the board *is* skin, and the swarm is landing on it).
-  Mosquitoes are drawn black; a squashed one is black with a **red** smear
-  behind it, in the game's own accent. `StatusBar` carries your own squashed
-  count; the `Scoreboard` panel (top corner, `best="high"`) carries
+- **Round**: the grid fills the screen, over a real photo of skin
+  (`art/skin.jpg` — the joke is that the board *is* skin, and the swarm is
+  landing on it) — flat `#F0BEAC` behind it as a fallback for the one frame
+  before the photo decodes, or if it never does. Mosquitoes are drawn black;
+  a squashed one is black with a **red** smear behind it, in the game's own
+  accent. `StatusBar` carries your own squashed count; the `Scoreboard`
+  panel (bottom-right, `best="high"`, same corner as Pass the Bomb) carries
   everyone else's, which is the entire live social read on the round — you
   cannot see anyone else's board, only how far along they are.
 - **Results**: the shared end screen ([../../design/game-chrome.md](../../design/game-chrome.md) §8) —
