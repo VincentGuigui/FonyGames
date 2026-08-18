@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
 import {
+  BOMB_CLASSIC_ROUNDS,
   BOMB_MAX_PLAYERS,
   BOMB_MIN_PLAYERS,
   type BombMatch,
@@ -170,20 +171,24 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
    * ending, and cutting to a scoreboard over the top of it is what this game spent a fix
    * on already.
    *
-   * What the column says is the MATCH, not the round — lives left in a duel, rounds won in
-   * a five-rounder. The round it just played is on the headline ("Ana takes the round"),
-   * and the standings are the thing anyone actually leans over to read.
+   * What the column says is the MATCH, not the round — rounds won, whether that is out of
+   * three short ones or the single long one. The round it just played is on the headline
+   * ("Ana takes the round"), and the standings are the thing anyone actually leans over to
+   * read.
    */
   if (state && state.phase === 'over') {
     const players = room.room?.players ?? [];
     const m = state.match;
-    const duel = m.rounds === null;
-    const standing = (id: PlayerId): number => (duel ? (m.lives[id] ?? 0) : (m.wins[id] ?? 0));
+    const standing = (id: PlayerId): number => m.wins[id] ?? 0;
     // Best first, and stable within a tie so the room order shows through rather than the
     // list reshuffling itself between rounds for no reason.
     const ranked = [...players].sort((a, b) => standing(b.id) - standing(a.id));
     const start = (): void => void client?.send({ t: 'start', d: { mode: 'bomb', solo } });
     const another = !m.done;
+    // The single long round for three or more IS the elimination — everyone it leaves
+    // behind was out for the rest of the match, not just that trip round the circle, so
+    // the end panel says so. A duel's round-loser stays in for the next of the three.
+    const eliminates = m.rounds === BOMB_CLASSIC_ROUNDS;
 
     return (
       <GameOverScreen
@@ -206,8 +211,8 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
             avatar: p.avatar,
             name: p.name,
             value: n,
-            unit: duel ? (n === 1 ? 'life' : 'lives') : n === 1 ? 'round' : 'rounds',
-            ...(duel && n <= 0 ? { out: true } : {}),
+            unit: n === 1 ? 'round' : 'rounds',
+            ...(eliminates && !state.alive.includes(p.id) ? { out: true } : {}),
           };
         })}
         me={myId}
@@ -342,8 +347,8 @@ function roundHeadline(winner: PlayerId | null, me: PlayerId | undefined, player
 
 /** Where the match is up to, under the standings. */
 function matchNote(m: BombMatch): string {
-  if (m.done) return m.rounds === null ? 'Out of lives' : `${m.rounds} rounds played`;
-  return m.rounds === null ? `Round ${m.round}` : `Round ${m.round} of ${m.rounds}`;
+  if (m.done) return m.rounds === BOMB_CLASSIC_ROUNDS ? 'Last one standing' : `${m.rounds} rounds played`;
+  return `Round ${m.round} of ${m.rounds}`;
 }
 
 function note(isHost: boolean, connected: number, solo: boolean): string {

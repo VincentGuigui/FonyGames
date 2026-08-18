@@ -33,7 +33,7 @@ const A = 'a' as PlayerId;
 const B = 'b' as PlayerId;
 
 /** Standings nothing in this file depends on — a bomb frame simply has to carry some. */
-const MATCH: BombMatch = { round: 1, rounds: 5, lives: {}, wins: {}, champion: null, done: false };
+const MATCH: BombMatch = { round: 1, rounds: 5, wins: {}, champion: null, done: false };
 
 console.log('\na round somebody won counts');
 
@@ -52,9 +52,10 @@ console.log('\na round somebody won counts');
   not(result(null), 'tap duel: not each duel inside it');
 
   /*
-   * Pass the Bomb is a match too: five rounds, or three lives at two players. The round
-   * that decides it is the game played — counting all five would make one evening of it
-   * look like five of anything else, which is the same trap `result` above avoids.
+   * Pass the Bomb is a match too: five rounds at three or more players, or three at two.
+   * The match that decides it is the game played — counting each round on its own would
+   * make one evening of it look like several of anything else, the same trap `result`
+   * above avoids.
    */
   const bombed = (over: Partial<BombMatch>): ServerMessage => ({
     t: 'boom',
@@ -64,7 +65,7 @@ console.log('\na round somebody won counts');
       victim: B,
       alive: [A],
       over: true,
-      match: { round: 5, rounds: 5, lives: {}, wins: { [A]: 3, [B]: 2 }, champion: null, done: false, ...over },
+      match: { round: 5, rounds: 5, wins: { [A]: 3, [B]: 2 }, champion: null, done: false, ...over },
     },
   });
   won(bombed({ done: true, champion: A }), 'pass the bomb: the match');

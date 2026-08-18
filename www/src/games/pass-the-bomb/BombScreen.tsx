@@ -129,7 +129,7 @@ export function BombScreen({
           they cannot see from the colour.
         */}
         <StatusBar
-          status={roundLabel(state.match)}
+          status={roundLabel(state.match, state.alive.length)}
           title={title}
           concept={concept}
           rules={rules}
@@ -229,9 +229,15 @@ function useFreshBoom(state: BombView): { victim: PlayerId } | null {
   return { victim: state.lastBoom.victim };
 }
 
-/** How far through the match, for the status bar. */
-function roundLabel(m: BombMatch): string {
-  return m.rounds === null ? `Round ${m.round}` : `Round ${m.round}/${m.rounds}`;
+/**
+ * How far through the match, for the status bar.
+ *
+ * A duel plays a fixed handful of short rounds, so which one is worth saying. Three or
+ * more play a single round to a last player standing, and "Round 1/1" never changes and
+ * never would — the circle shrinking is the useful thing to read there instead.
+ */
+function roundLabel(m: BombMatch, stillIn: number): string {
+  return m.rounds > 1 ? `Round ${m.round}/${m.rounds}` : `${stillIn} still in`;
 }
 
 /**

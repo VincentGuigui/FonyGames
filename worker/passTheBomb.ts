@@ -3,10 +3,10 @@ import {
   BUMP_PAIR_WINDOW_MS,
   BUMP_QUOTA,
   BUMP_QUOTA_WINDOW_MS,
-  BOMB_LIVES,
+  BOMB_CLASSIC_ROUNDS,
+  BOMB_DUEL_ROUNDS,
   BOMB_MAX_PLAYERS,
   BOMB_MIN_PLAYERS,
-  BOMB_ROUNDS,
   BUMP_ROUND_CAP_MS,
   CLOCK_SKEW_TOLERANCE_MS,
   FUSE_FLOOR_MAX_MS,
@@ -57,7 +57,7 @@ export type Bomb = {
    */
   solo: boolean;
   phase: 'running' | 'done';
-  /** Lives, wins and how far through — see `BombMatch` in shared/protocol.ts. */
+  /** Wins and how far through — see `BombMatch` in shared/protocol.ts. */
   match: BombMatch;
   /**
    * Who the match was started with.
@@ -93,7 +93,8 @@ function drawFuse(min: number, max: number, now: number): number {
  *
  * The distinction is not "how many players" for its own sake, it is whether *elimination*
  * can carry a round: with three or more, players go out one at a time and the round has
- * somewhere to go. With two it is over on the first boom, so lives carry the match instead.
+ * somewhere to go, so one round — played to a last player standing — is the whole match.
+ * With two it is over on the first boom, so the match is three of those instead.
  */
 function isDuel(players: number): boolean {
   return players <= 2;
@@ -101,11 +102,9 @@ function isDuel(players: number): boolean {
 
 /** Standings at nil-nil. */
 function freshMatch(connected: PlayerId[]): BombMatch {
-  const duel = isDuel(connected.length);
   return {
     round: 1,
-    rounds: duel ? null : BOMB_ROUNDS,
-    lives: duel ? Object.fromEntries(connected.map((id) => [id, BOMB_LIVES])) : {},
+    rounds: isDuel(connected.length) ? BOMB_DUEL_ROUNDS : BOMB_CLASSIC_ROUNDS,
     wins: Object.fromEntries(connected.map((id) => [id, 0])),
     champion: null,
     done: false,
@@ -159,12 +158,8 @@ function closeRound(bomb: Bomb): void {
   const survivor = bomb.alive.length === 1 ? bomb.alive[0] : undefined;
   if (survivor !== undefined) m.wins[survivor] = (m.wins[survivor] ?? 0) + 1;
 
-  m.done =
-    m.rounds === null
-      ? Object.values(m.lives).some((l) => l <= 0)
-      : m.round >= m.rounds;
-
-  if (m.done) m.champion = leader(m.rounds === null ? m.lives : m.wins);
+  m.done = m.round >= m.rounds;
+  if (m.done) m.champion = leader(m.wins);
 }
 
 /** Host pressed start. Returns false when the room is not eligible. */
@@ -335,12 +330,10 @@ export async function onFuse(ctx: Ctx): Promise<boolean> {
   bomb.alive = bomb.alive.filter((p) => p !== victim);
   bomb.pending = {};
 
-  // A duel is played on lives: the boom costs one and the round stops there, because with
-  // two people there is nobody left to pass to anyway.
-  const duel = bomb.match.rounds === null;
-  if (duel) bomb.match.lives[victim] = Math.max(0, (bomb.match.lives[victim] ?? 0) - 1);
-
-  const over = duel || lastStanding(bomb.alive.length, bomb.solo) || now >= bomb.endsAt;
+  // With two people this is already true the moment the fuse blows: nobody is left to pass
+  // to. With three or more it is the same check the classic round always used — it just
+  // used to reset for another round afterwards, and now it does not (§2.2).
+  const over = lastStanding(bomb.alive.length, bomb.solo) || now >= bomb.endsAt;
   if (over) closeRound(bomb);
 
   ctx.broadcast({
@@ -391,9 +384,7 @@ export async function onPlayerGone(ctx: Ctx, playerId: PlayerId): Promise<void> 
      * screen offers "play again" rather than a next round that would not be the same match.
      */
     bomb.match.done = true;
-    bomb.match.champion = leader(
-      bomb.match.rounds === null ? bomb.match.lives : bomb.match.wins,
-    );
+    bomb.match.champion = leader(bomb.match.wins);
     bomb.phase = 'done';
     await ctx.save(bomb);
     ctx.broadcast({

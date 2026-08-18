@@ -36,7 +36,7 @@ payload, the same way Shake Rush's shared track is.
 4. Squashed mosquitoes are never removed. They stay on the board as a red
    smear, so late in a round the grid is a scoreboard of its own: a spreading
    stain of everywhere you have already hit.
-5. The 34th mosquito spawned onward **flies** — a quarter the size, wandering
+5. The 34th mosquito spawned onward **flies** — a third the size, wandering
    inside its own cell — because a static swarm that size would be a chore,
    not a panic.
 6. First phone to squash all 66 wins. The round ends the instant they do.
@@ -74,7 +74,7 @@ timer, and nothing that needs to travel on the wire per mosquito.
 
 - **Static** (1–33): the hitbox is the whole cell. Slow and generous, because
   this half exists to let the swarm build before it gets hard.
-- **Flying** (34–66): `SQUASH_FLY_SCALE` (¼) the size, hitbox included, and it
+- **Flying** (34–66): `SQUASH_FLY_SCALE` (⅓) the size, hitbox included, and it
   wanders continuously inside the bounds of its own cell — never past the
   edge, because a mosquito that could drift into a neighbour's territory
   would make one cell's fate depend on another's.
@@ -185,8 +185,9 @@ player's screen; only the running total does.
 
 ## 11. Open questions
 
-- `SQUASH_STATIC_COUNT` at 33 (exactly half) and `SQUASH_FLY_SCALE` at ¼ —
-  both guesses, untested by a real thumb against a real screen.
+- `SQUASH_STATIC_COUNT` at 33 (exactly half) is still a guess, untested by a real
+  thumb against a real screen. `SQUASH_FLY_SCALE` started at ¼ on the same
+  guess and was raised to ⅓ once real play found it too small a target.
 - Is the doubling spawn rule too generous? A fast squasher can end up
   fighting twenty-plus mosquitoes at once near the end of the pattern purely
   from their own success — thrilling or overwhelming, and only a table of
