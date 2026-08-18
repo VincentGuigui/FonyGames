@@ -1,8 +1,8 @@
 import {
-  BOMB_LIVES,
+  BOMB_CLASSIC_ROUNDS,
+  BOMB_DUEL_ROUNDS,
   BOMB_MAX_PLAYERS,
   BOMB_MIN_PLAYERS,
-  BOMB_ROUNDS,
   type BombMatch,
   type ServerMessage,
 } from '../shared/protocol';
@@ -120,89 +120,88 @@ async function startedRound(): Promise<void> {
 }
 
 /**
- * Two players, three lives each.
+ * Two players, three short rounds.
  *
  * The rule that makes this its own shape: with two people a boom leaves nobody to pass to,
- * so the round is already over the first time the fuse goes. Played as "last one standing"
- * that is a match one explosion long.
+ * so the round is already over the first time the fuse goes. Three of those, tallied like
+ * any other round, decide the match — odd, so it cannot end tied.
  */
 async function duel(): Promise<void> {
-  console.log('\ntwo players play for lives');
+  console.log('\ntwo players play three short rounds');
 
   const h = harness();
   await startBomb(h.ctx, 1, ['p-0', 'p-1']);
   const opened = h.last('bomb')?.d.match;
-  check('there is no round count', opened?.rounds === null, opened);
-  check(`and ${BOMB_LIVES} lives each`, opened?.lives['p-0'] === BOMB_LIVES && opened?.lives['p-1'] === BOMB_LIVES, opened?.lives);
+  check(`it runs to ${BOMB_DUEL_ROUNDS} rounds`, opened?.rounds === BOMB_DUEL_ROUNDS, opened);
 
   const first = await playRound(h);
   const loser = h.last('boom')?.d.victim as string;
   const other = loser === 'p-0' ? 'p-1' : 'p-0';
   check('one boom is the whole round', h.last('boom')?.d.over === true, h.last('boom'));
-  check('it cost the victim a life', first.lives[loser] === BOMB_LIVES - 1, first.lives);
-  check('and left the other one alone', first.lives[other] === BOMB_LIVES, first.lives);
   check('the survivor took the round', first.wins[other] === 1, first.wins);
+  check('the loser stays in for the next one', first.wins[loser] === 0, first.wins);
   check('the match is not over', first.done === false, first);
 
   // The referee's only memory of the match is the round it saved, so continuing has to
   // survive a whole new `startBomb` — this is the assertion that catches a match reset.
   await startBomb(h.ctx, 2, ['p-1', 'p-0']);
   const second = h.last('bomb')?.d.match;
-  check('the next round carries the standings', second?.lives[loser] === BOMB_LIVES - 1, second?.lives);
+  check('the next round carries the standings', second?.wins[other] === 1, second?.wins);
   check('and counts up', second?.round === 2, second?.round);
 
-  // Same player loses every round: three booms and they are out of lives.
+  // Same player loses every round: three booms decide it outright.
   const h2 = harness();
   await startBomb(h2.ctx, 1, ['p-0', 'p-1']);
   let m: BombMatch = h2.last('bomb')?.d.match as BombMatch;
   let victim = '';
-  for (let round = 1; round <= BOMB_LIVES; round++) {
+  for (let round = 1; round <= BOMB_DUEL_ROUNDS; round++) {
     // Force the same loser each time, so the match is decided rather than drawn.
     const bomb = h2.saved() as Bomb;
     if (victim === '') victim = bomb.holder;
     bomb.holder = victim;
     await h2.ctx.save(bomb);
     m = await playRound(h2);
-    if (round < BOMB_LIVES) {
+    if (round < BOMB_DUEL_ROUNDS) {
       check(`after ${round} the match runs on`, m.done === false, m);
       await startBomb(h2.ctx, round + 1, ['p-0', 'p-1']);
     }
   }
   const winner = victim === 'p-0' ? 'p-1' : 'p-0';
-  check('out of lives ends the match', m.done === true, m);
-  check('and the one with lives left takes it', m.champion === winner, m);
+  check(`${BOMB_DUEL_ROUNDS} rounds ends the match`, m.done === true, m);
+  check('and whoever won them all takes it', m.champion === winner, m);
 }
 
-/** Three or more: the classic elimination round, five times. */
-async function fiveRounds(): Promise<void> {
-  console.log('\nthree or more play a five-rounder');
+/**
+ * Three or more: one round, played to a last player standing, and that round is the match.
+ *
+ * The rule that makes this its own shape: a boom eliminates for the rest of the match, not
+ * just a trip round the circle, so a second round would only repeat a question the first one
+ * already answered.
+ */
+async function eliminatesForTheMatch(): Promise<void> {
+  console.log('\nthree or more play one round for the whole match');
 
   const h = harness();
   await startBomb(h.ctx, 1, players(4));
   const opened = h.last('bomb')?.d.match;
-  check(`it runs to ${BOMB_ROUNDS} rounds`, opened?.rounds === BOMB_ROUNDS, opened);
-  check('with no lives involved', Object.keys(opened?.lives ?? {}).length === 0, opened?.lives);
+  check(`it runs to ${BOMB_CLASSIC_ROUNDS} round`, opened?.rounds === BOMB_CLASSIC_ROUNDS, opened);
 
   h.clear();
   await onFuse(h.ctx);
+  const firstVictim = h.last('boom')?.d.victim;
   check('a boom with three left does not end the round', h.last('boom')?.d.over === false, h.last('boom'));
   check('and the round carries on to another bomb', h.last('bomb') !== undefined);
-
-  let m = await playRound(h);
-  check('the last one standing takes the round', Object.values(m.wins).filter((w) => w === 1).length === 1, m.wins);
-  check('and it is not over after one', m.done === false, m);
-
-  for (let round = 2; round <= BOMB_ROUNDS; round++) {
-    await startBomb(h.ctx, round, players(4));
-    check(`round ${round} knows which one it is`, h.last('bomb')?.d.match.round === round, h.last('bomb')?.d.match);
-    m = await playRound(h);
-  }
-  check(`${BOMB_ROUNDS} rounds is the match`, m.done === true, m);
-  const most = Math.max(...Object.values(m.wins));
-  const tied = Object.values(m.wins).filter((w) => w === most).length > 1;
   check(
-    'and the champion is whoever won most, or nobody on a tie',
-    tied ? m.champion === null : m.wins[m.champion as string] === most,
+    "the player it cost does not come back for the next bomb",
+    !h.last('bomb')?.d.alive.includes(firstVictim as string),
+    h.last('bomb'),
+  );
+
+  const m = await playRound(h);
+  check('the match ends with the round', m.done === true, m);
+  check(
+    'and the last one standing is the champion',
+    m.champion !== null && m.wins[m.champion] === 1,
     m,
   );
 }
@@ -221,7 +220,7 @@ async function newFaces(): Promise<void> {
     Object.values(m?.wins ?? {}).every((w) => w === 0), m?.wins);
 }
 
-for (const t of [startGuard, startedRound, duel, fiveRounds, newFaces]) {
+for (const t of [startGuard, startedRound, duel, eliminatesForTheMatch, newFaces]) {
   await t();
 }
 

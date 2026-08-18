@@ -51,13 +51,23 @@ Everyone is standing in a circle, arms out, shrieking. That's the game.
 
 ### 2.2 The match
 
-A round is one bomb. A **match** is what people sit down to play, and it comes in two
-shapes because two players and six players are not the same game:
+A round is one bomb, from the first holder to the boom that ends it. A **match** is what
+people sit down to play, and how many rounds that takes comes in two shapes because two
+players and six players are not the same game:
 
 | Players | Shape | Ends when |
 | --- | --- | --- |
-| **2** (and solo test) | **Three lives each.** One boom costs the victim a life and **ends the round** — with two people there is nobody left to pass to, so elimination *is* the ending and a "last one standing" match would be one explosion long | somebody reaches nil |
-| **3–8** | The classic round above, players out one at a time until one is left. **Five of those** | five rounds are played |
+| **2** (and solo test) | **Three short rounds.** A boom leaves nobody to pass to, so each round is one explosion, tallied like any other round | three rounds are played — odd, so it cannot end tied |
+| **3–8** | **One long round.** The classic round above, players out one at a time — **for the rest of the match, not just that trip round the circle** — until one is left | that one round ends, at a last player standing |
+
+Two players is not "the classic round played until somebody's out of lives" — every explosion
+in a duel is its own short round, won or lost outright, and the loser is straight back in for
+the next one. Three or more is not "the classic round, five times" either — a boom there is
+final for the whole match, so playing the same elimination bracket again would only repeat a
+question the first one already answered. Both are simplifications of an earlier design that
+kept a duel alive on lives across an unpredictable number of rounds, and reset three-or-more's
+elimination between five separately-scored heats; the panel at the end of either read like
+neither had actually decided anything.
 
 The standings ride on every `bomb` and `boom` frame (`BombMatch`), so a phone that reloads
 or misses a frame draws the same board as everyone else. They are carried across rounds by
@@ -67,9 +77,10 @@ than putting a player on a board they were not there for.
 
 The end screen follows from `done`: mid-match it offers **Next round** and nothing else,
 and the last one offers play again beside a way out
-([../../design/game-chrome.md](../../design/game-chrome.md) §8). The column is the match —
-lives left, or rounds won — because that is what anyone leans over to read; who took the
-round just played is the headline above it.
+([../../design/game-chrome.md](../../design/game-chrome.md) §8). For three or more, `done`
+is true the moment that one round ends, so the end screen there only ever offers play again —
+there is no "next round" to go to. The column is the match — rounds won — because that is
+what anyone leans over to read; who took the round just played is the headline above it.
 
 One consequence worth stating: the hub's play counter counts the **match**, not the round
 (`worker/plays.ts`), for the same reason it counts a Tap Duel match rather than each duel.
@@ -182,8 +193,8 @@ Two deliberate differences from the original sketch:
   a client waiting for one would wait forever. What changed is that the phone no longer *derives*
   the ending by counting heads: "a boom that leaves one player or none" was right for the
   elimination rounds and wrong for the other two ways a round ends — a two-player round finishes
-  after one boom with both players still standing on lives, and the five-minute safety cap
-  finishes one with a whole circle left.
+  after one boom with nobody left to pass to, and the five-minute safety cap finishes one with
+  a whole circle left.
 
 **Latency tolerance:** transfers are decided server-side within the ±250 ms
 pairing window, so a 150 ms link never loses a pass. The bomb never renders on
