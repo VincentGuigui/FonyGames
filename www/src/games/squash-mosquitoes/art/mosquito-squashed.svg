@@ -1,45 +1,123 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 34 22" width="34" height="22">
-  <!--
-    Squash Mosquitoes: a squashed mosquito. Crossed-out eyes, a jagged splat body, a
-    cracked wing, splayed legs, a few blood drops beyond the CSS blot behind it.
-    Literal hexes, no currentColor: loaded through <img>, which cannot see the page's CSS.
-  -->
-  <path
-    d="M8 10.5 C7.4 7.6 11.5 6.3 15 7 C17 5.8 21 6.6 23 8.4
-       C26.5 8 30.8 9.6 30 11.6 C31 13.4 27.5 15.6 24 15
-       C21.5 17 16.5 17.4 14.5 15.4 C11 16.4 7.2 13.6 8 10.5 Z"
-    fill="#16222e"
-  />
-  <ellipse cx="19" cy="3.2" rx="7" ry="3" transform="rotate(18 19 3.2)" fill="none" stroke="#16222e" stroke-width="1" />
-  <ellipse cx="21" cy="4.6" rx="6.2" ry="2.6" transform="rotate(6 21 4.6)" fill="none" stroke="#16222e" stroke-width="1" />
-  <path d="M18 3.6 L19.4 5.4 L18.3 5.9 L20 7.6" fill="none" stroke="#16222e" stroke-width="0.7" stroke-linecap="round" />
-  <path
-    d="M13 15.4 L11 17.5 L13.5 19.5 M17 15.7 L19 18.5 L16 20.5 M21 15.5 L23.5 17.3 L20.5 19.8"
-    fill="none"
-    stroke="#16222e"
-    stroke-width="0.9"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
-  <circle cx="7" cy="11" r="3.6" fill="#16222e" />
-  <path d="M4 13 L1.6 15.2 L0.8 17.5" fill="none" stroke="#16222e" stroke-width="0.9" stroke-linecap="round" />
-  <circle cx="5.3" cy="9.3" r="2.1" fill="#f4f6f8" stroke="#16222e" stroke-width="0.5" />
-  <path d="M3.9 8.5 L5.5 10.1 M5.5 8.5 L3.9 10.1" stroke="#16222e" stroke-width="0.6" stroke-linecap="round" />
-  <circle cx="7.6" cy="10.8" r="1.55" fill="#f4f6f8" stroke="#16222e" stroke-width="0.45" />
-  <path d="M6.9 10.1 L8.3 11.5 M8.3 10.1 L6.9 11.5" stroke="#16222e" stroke-width="0.5" stroke-linecap="round" />
-  <path
-    d="M13 9 L14.5 11 L13.5 11.6 L15 13.5 M20 9.5 L21.3 11.2 L20 11.8"
-    fill="none"
-    stroke="#f0beac"
-    stroke-width="0.55"
-    stroke-linecap="round"
-    opacity="0.85"
-  />
-  <g fill="#e11d48">
-    <circle cx="2" cy="2.6" r="0.9" />
-    <circle cx="32.4" cy="1.8" r="0.7" />
-    <circle cx="33.2" cy="19.5" r="0.9" />
-    <circle cx="3" cy="20.5" r="0.6" />
-    <circle cx="17.5" cy="21.3" r="0.55" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="41 199 433 245" width="433" height="245">
+  <defs>
+    <!-- Tache de sang / jus rigolote au sol -->
+    <radialGradient id="splatGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ff477e" />
+      <stop offset="70%" stop-color="#ff0054" />
+      <stop offset="100%" stop-color="#a40037" />
+    </radialGradient>
+
+    <!-- Dégradé corps (violet) -->
+    <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9d84ec" />
+      <stop offset="100%" stop-color="#5a3d99" />
+    </linearGradient>
+
+    <!-- Dégradé tête -->
+    <linearGradient id="headGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b19ffb" />
+      <stop offset="100%" stop-color="#7251c8" />
+    </linearGradient>
+
+    <!-- Dégradé trompe -->
+    <linearGradient id="proboscisGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff7597" />
+      <stop offset="100%" stop-color="#ff477e" />
+    </linearGradient>
+
+    <!-- Dégradé ailes écrasées -->
+    <linearGradient id="wingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#b7e4c7" stop-opacity="0.4" />
+    </linearGradient>
+  </defs>
+
+  <g id="flattenedMosquito">
+    <!-- TACHE D'ÉCRASEMENT AU SOL -->
+    <path d="M 120 330 C 90 310 70 340 100 360 C 130 380 110 410 160 410 C 210 410 240 430 300 410 C 350 390 410 410 420 370 C 430 330 390 320 370 300 C 340 270 300 310 250 300 C 200 290 150 300 120 330 Z" 
+          fill="url(#splatGrad)" opacity="0.85" />
+    
+    <!-- Petites gouttes projetées autour -->
+    <circle cx="80" cy="320" r="8" fill="#ff0054" />
+    <circle cx="65" cy="335" r="4" fill="#ff0054" />
+    <circle cx="430" cy="340" r="10" fill="#ff0054" />
+    <circle cx="450" cy="355" r="5" fill="#ff0054" />
+    <circle cx="380" cy="425" r="7" fill="#ff0054" />
+    <circle cx="140" cy="425" r="6" fill="#ff0054" />
+
+    <!-- AILE GAUCHE (Écrabouillée à plat) -->
+    <g transform="translate(160, 310) rotate(-70) scale(1, 0.4)">
+      <path d="M 0 0 C -60 -80 -110 -60 -100 0 C -90 50 -30 30 0 0 Z" fill="url(#wingGrad)" stroke="#a2d2ff" stroke-width="4" />
+      <path d="M 0 0 C -50 -40 -70 -30 -80 0" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.7" />
+    </g>
+
+    <!-- AILE DROITE (Fissurée / Pliée) -->
+    <g transform="translate(300, 300) rotate(60) scale(1.1, 0.3)">
+      <path d="M 0 0 C 60 -80 110 -60 100 0 C 90 50 30 30 0 0 Z" fill="url(#wingGrad)" stroke="#a2d2ff" stroke-width="4" />
+      <path d="M 0 0 C 50 -40 70 -30 80 0" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.7" />
+    </g>
+
+    <!-- PATTES ÉPARPILLÉES -->
+    <g stroke="#3c2a63" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <!-- Gauche -->
+      <path d="M 180 340 L 110 320 L 70 340" />
+      <path d="M 190 360 L 130 380 L 90 400" />
+      <path d="M 210 370 L 170 420 L 130 430" />
+      <!-- Droite -->
+      <path d="M 310 330 L 370 310 L 410 290" />
+      <path d="M 300 350 L 360 370 L 400 390" />
+      <path d="M 280 370 L 330 410 L 360 430" />
+    </g>
+
+    <!-- ABDOMEN APLATI -->
+    <g id="flattenedAbdomen">
+      <ellipse cx="230" cy="360" rx="75" ry="35" transform="rotate(-5, 230, 360)" fill="url(#bodyGrad)" stroke="#3c2a63" stroke-width="5" />
+      <path d="M 180 345 Q 185 365 180 378" fill="none" stroke="#ffd166" stroke-width="8" stroke-linecap="round" />
+      <path d="M 210 330 Q 215 360 210 390" fill="none" stroke="#ffd166" stroke-width="8" stroke-linecap="round" />
+      <path d="M 240 328 Q 245 360 240 392" fill="none" stroke="#ffd166" stroke-width="8" stroke-linecap="round" />
+      <path d="M 270 335 Q 275 358 270 380" fill="none" stroke="#ffd166" stroke-width="7" stroke-linecap="round" />
+    </g>
+
+    <!-- THORAX ÉCRASÉ -->
+    <ellipse cx="280" cy="340" rx="45" ry="28" fill="#7251c8" stroke="#3c2a63" stroke-width="5" />
+
+    <!-- TÊTE À PLAT -->
+    <g id="flattenedHead">
+      <ellipse cx="330" cy="330" rx="50" ry="38" fill="url(#headGrad)" stroke="#3c2a63" stroke-width="5" />
+      <ellipse cx="345" cy="350" rx="15" ry="8" fill="#ff85a1" opacity="0.6" />
+
+      <!-- Yeux en X -->
+      <g transform="translate(310, 315)">
+        <ellipse cx="0" cy="0" rx="14" ry="14" fill="#211132" />
+        <path d="M -6 -6 L 6 6 M 6 -6 L -6 6" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" />
+      </g>
+      <g transform="translate(350, 320)">
+        <ellipse cx="0" cy="0" rx="16" ry="16" fill="#211132" />
+        <path d="M -7 -7 L 7 7 M 7 -7 L -7 7" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" />
+      </g>
+
+      <!-- Antennes tordues -->
+      <path d="M 355 295 Q 365 270 350 250 T 360 220" fill="none" stroke="#3c2a63" stroke-width="3.5" stroke-linecap="round" />
+      <circle cx="360" cy="220" r="4" fill="#ff7597" />
+
+      <path d="M 370 305 Q 395 290 390 265 T 415 245" fill="none" stroke="#3c2a63" stroke-width="3.5" stroke-linecap="round" />
+      <circle cx="415" cy="245" r="4" fill="#ff7597" />
+
+      <!-- Trompe tordue -->
+      <g id="bentProboscis">
+        <path d="M 375 340 L 405 345 L 420 335 L 445 345" fill="none" stroke="#ff477e" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+        <path d="M 375 340 L 405 345 L 420 335 L 445 345" fill="none" stroke="#3c2a63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        <circle cx="448" cy="346" r="5" fill="#ff7597" stroke="#3c2a63" stroke-width="1.5" />
+      </g>
+
+      <path d="M 335 358 Q 342 365 350 358" fill="none" stroke="#3c2a63" stroke-width="3" stroke-linecap="round" />
+    </g>
+
+    <!-- ÉTOILES DE VERTIGE -->
+    <g fill="#ffd166" opacity="0.9">
+      <path d="M 310 240 L 312 245 L 317 247 L 312 249 L 310 254 L 308 249 L 303 247 L 308 245 Z" />
+      <path d="M 380 210 L 383 217 L 390 220 L 383 223 L 380 230 L 377 223 L 370 220 L 377 217 Z" />
+      <path d="M 330 220 C 340 210 360 210 350 225 C 340 240 320 230 335 215" fill="none" stroke="#ffd166" stroke-width="2" stroke-dasharray="4 3" stroke-linecap="round" />
+    </g>
   </g>
 </svg>

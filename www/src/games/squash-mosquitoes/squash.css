@@ -98,39 +98,23 @@
   height: calc(100% / 3);
 }
 
-/* art/mosquito*.svg's viewBox is 34x22 — sized to the same wide ratio so it isn't
-   letterboxed inside empty padding. */
+/* art/mosquito.svg's own aspect ratio, roughly square (401x369). */
 .squash__bug {
-  width: 84%;
-  height: 54%;
-  /* An explicit stack level, matching `::before` below, so document order decides
-     paint order between them — left at `auto` the blot painted over the bug. */
-  position: relative;
-  z-index: 0;
+  width: 80%;
+  height: 74%;
 }
 
 .squash__mosquito--flying .squash__bug {
   width: 94%;
-  height: 61%;
+  height: 86%;
 }
 
-/*
- * Squashed: a red trace, behind the mosquito, never removed (spec §2). A flat
- * `clip-path` polygon rather than a soft glow, to read as a splat rather than a
- * vignette. The scattered drops beyond it are drawn in the bug's own SVG instead —
- * a `radial-gradient` with a percentage `circle` radius is invalid CSS.
- */
-.squash__mosquito--squashed::before {
-  content: '';
-  position: absolute;
-  z-index: 0;
-  inset: 2%;
-  background: var(--game-accent, #e11d48);
-  clip-path: polygon(
-    50% 4%, 66% 10%, 82% 8%, 90% 24%, 98% 40%, 92% 56%,
-    98% 72%, 82% 82%, 68% 96%, 52% 84%, 34% 94%, 18% 80%,
-    4% 70%, 10% 52%, 2% 34%, 16% 20%, 30% 12%
-  );
+/* art/mosquito-squashed.svg is flattened wide (433x245) — its own splat and blood
+   drops are already drawn into the file, so no CSS blot is layered behind it. Never
+   the flying size: a squashed mosquito does not fly. */
+.squash__mosquito--squashed .squash__bug {
+  width: 90%;
+  height: 51%;
 }
 
 .squash__mosquito:disabled {
