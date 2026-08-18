@@ -35,6 +35,17 @@
     var(--space-1) max(var(--space-3), env(safe-area-inset-left));
 }
 
+/* StatusBar's default (`statusbar.css`) puts the accent on the number and dims the
+   label. Here the count IS the blood, so it swaps: the squashed count reads in the
+   game's own red, and the label carries the accent instead. */
+.squash .statusbar__value {
+  color: #e11d48;
+}
+
+.squash .statusbar__label {
+  color: var(--game-accent, #8a6dc9);
+}
+
 /*
  * The invisible grid (spec §2). `aspect-ratio: 9/13` is what keeps each 1fr-by-1fr
  * cell square. `flex: 0 0 auto` frees the height for `aspect-ratio` to derive from
