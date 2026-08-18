@@ -1,27 +1,146 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 34 22" width="34" height="22">
-  <!--
-    Squash Mosquitoes: a live mosquito. Googly eyes, a proboscis, outline wings, bent legs.
-    Literal hexes, no currentColor: loaded through <img>, which cannot see the page's CSS.
-  -->
-  <path
-    d="M8 11 C8 7.6 11.8 6 15.8 6.6 C22 7.4 30.5 9.2 30.5 11
-       C30.5 12.8 22 14.6 15.8 15.4 C11.8 16 8 14.4 8 11 Z"
-    fill="#16222e"
-  />
-  <ellipse cx="19" cy="3.2" rx="7" ry="3" transform="rotate(18 19 3.2)" fill="none" stroke="#16222e" stroke-width="1" />
-  <ellipse cx="21" cy="4.6" rx="6.2" ry="2.6" transform="rotate(6 21 4.6)" fill="none" stroke="#16222e" stroke-width="1" />
-  <path
-    d="M13 15.4 L12 18.5 L10 20.5 M17 15.7 L16.5 19 L14.5 21 M21 15.5 L21.5 18.8 L19.5 20.8"
-    fill="none"
-    stroke="#16222e"
-    stroke-width="0.9"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  />
-  <circle cx="7" cy="11" r="3.6" fill="#16222e" />
-  <path d="M4 13 L0.8 17.5" stroke="#16222e" stroke-width="0.9" stroke-linecap="round" />
-  <circle cx="5.3" cy="9.3" r="2.1" fill="#f4f6f8" stroke="#16222e" stroke-width="0.5" />
-  <circle cx="4.7" cy="8.7" r="0.8" fill="#16222e" />
-  <circle cx="7.6" cy="10.8" r="1.55" fill="#f4f6f8" stroke="#16222e" stroke-width="0.45" />
-  <circle cx="7.1" cy="10.3" r="0.58" fill="#16222e" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="49 94 401 369" width="401" height="369">
+  <defs>
+    <!-- Ombre portée -->
+    <radialGradient id="dropShadow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#000000" stop-opacity="0.15" />
+      <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+    </radialGradient>
+
+    <!-- Dégradé corps (violet) -->
+    <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9d84ec" />
+      <stop offset="100%" stop-color="#5a3d99" />
+    </linearGradient>
+
+    <!-- Dégradé tête -->
+    <linearGradient id="headGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b19ffb" />
+      <stop offset="100%" stop-color="#7251c8" />
+    </linearGradient>
+
+    <!-- Dégradé trompe -->
+    <linearGradient id="proboscisGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff7597" />
+      <stop offset="100%" stop-color="#ff477e" />
+    </linearGradient>
+
+    <!-- Dégradé ailes -->
+    <linearGradient id="wingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85" />
+      <stop offset="50%" stop-color="#d8f3dc" stop-opacity="0.6" />
+      <stop offset="100%" stop-color="#b7e4c7" stop-opacity="0.35" />
+    </linearGradient>
+
+    <!-- Joues roses -->
+    <radialGradient id="blushGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ff85a1" stop-opacity="0.6" />
+      <stop offset="100%" stop-color="#ff85a1" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- Ombre au sol -->
+  <ellipse cx="230" cy="430" rx="140" ry="16" fill="url(#dropShadow)" />
+
+  <!-- GROUPE PRINCIPAL EN VUE 3/QUARTS -->
+  <g transform="translate(10, 0)">
+
+    <!-- PATTES ARRIÈRE (Arrière-plan) -->
+    <g stroke="#3c2a63" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <!-- Patte arrière gauche -->
+      <path d="M 160 270 Q 110 220 90 280 T 60 410" />
+      <!-- Patte milieu gauche -->
+      <path d="M 200 275 Q 160 250 130 320 T 110 420" />
+      <!-- Patte avant gauche -->
+      <path d="M 250 280 Q 230 280 200 340 T 180 425" />
+    </g>
+
+    <!-- ABDOMEN (3/4 arrière-gauche) -->
+    <g id="abdomen">
+      <!-- Forme incurvée de l'abdomen -->
+      <path d="M 210 260 C 150 270 80 300 70 340 C 60 370 90 380 130 360 C 180 335 220 295 240 280 Z" 
+            fill="url(#bodyGrad)" stroke="#3c2a63" stroke-width="5" stroke-linejoin="round" />
+
+      <!-- Rayures jaunes incurvées pour l'effet 3D -->
+      <path d="M 180 272 Q 150 300 155 332" fill="none" stroke="#ffd166" stroke-width="8" stroke-linecap="round" />
+      <path d="M 145 285 Q 118 310 125 345" fill="none" stroke="#ffd166" stroke-width="8" stroke-linecap="round" />
+      <path d="M 110 305 Q 90 325 98 355" fill="none" stroke="#ffd166" stroke-width="7" stroke-linecap="round" />
+    </g>
+
+    <!-- AILE ARRIÈRE (Gauche) -->
+    <g transform="translate(200, 230) rotate(-45)">
+      <path d="M 0 0 C -40 -90 -90 -80 -80 -10 C -70 40 -20 20 0 0 Z" fill="url(#wingGrad)" stroke="#a2d2ff" stroke-width="2.5" />
+      <path d="M 0 0 C -35 -45 -55 -35 -60 -5" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" opacity="0.7" />
+    </g>
+
+    <!-- THORAX -->
+    <path d="M 210 240 C 200 275 240 295 270 275 C 290 260 280 235 245 235 Z" fill="#7251c8" stroke="#3c2a63" stroke-width="5" stroke-linejoin="round" />
+    <path d="M 225 243 Q 240 260 260 250" fill="none" stroke="#ffd166" stroke-width="6" stroke-linecap="round" />
+
+    <!-- AILE AVANT (Droite - plus visible) -->
+    <g transform="translate(235, 235) rotate(-25)">
+      <path d="M 0 0 C 30 -110 -30 -120 -60 -20 C -70 30 -20 30 0 0 Z" fill="url(#wingGrad)" stroke="#a2d2ff" stroke-width="3" />
+      <path d="M 0 0 C -10 -60 -35 -50 -45 -10" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity="0.8" />
+      <path d="M -20 -35 C -30 -15 -35 0 -15 10" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" opacity="0.6" />
+    </g>
+
+    <!-- PATTES AVANT (Premier plan) -->
+    <g stroke="#3c2a63" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <!-- Patte arrière droite -->
+      <path d="M 230 280 Q 250 330 260 370 T 275 425" />
+      <!-- Patte milieu droite -->
+      <path d="M 255 280 Q 290 320 310 370 T 330 420" />
+      <!-- Patte avant droite -->
+      <path d="M 275 270 Q 330 290 350 350 T 375 410" />
+    </g>
+
+    <!-- TÊTE (Orientation 3/4) -->
+    <g id="head">
+      <!-- Base de la tête -->
+      <circle cx="285" cy="225" r="52" fill="url(#headGrad)" stroke="#3c2a63" stroke-width="5" />
+
+      <!-- Joue rose (visible de profil/3/4) -->
+      <ellipse cx="295" cy="245" rx="15" ry="12" fill="url(#blushGrad)" />
+
+      <!-- ŒIL GAUCHE (Plus petit, en arrière-plan 3/4) -->
+      <g id="leftEye">
+        <ellipse cx="265" cy="210" rx="10" ry="18" fill="#211132" transform="rotate(-5, 265, 210)" />
+        <ellipse cx="262" cy="203" rx="4" ry="7" fill="#ffffff" />
+      </g>
+
+      <!-- ŒIL DROIT (Principal, au premier plan) -->
+      <g id="rightEye">
+        <ellipse cx="300" cy="212" rx="18" ry="24" fill="#211132" transform="rotate(5, 300, 212)" />
+        <!-- Reflets -->
+        <ellipse cx="294" cy="202" rx="7" ry="10" fill="#ffffff" />
+        <circle cx="307" cy="222" r="3.5" fill="#ffffff" />
+      </g>
+
+      <!-- ANTENNES (3/4) -->
+      <!-- Gauche (arrière) -->
+      <path d="M 265 178 C 255 140 230 125 210 135" fill="none" stroke="#3c2a63" stroke-width="3.5" stroke-linecap="round" />
+      <path d="M 255 165 C 248 152 235 150 228 156" fill="none" stroke="#3c2a63" stroke-width="2.5" stroke-linecap="round" />
+      <circle cx="210" cy="135" r="4" fill="#ff7597" />
+
+      <!-- Droite (avant) -->
+      <path d="M 285 175 C 290 130 270 110 250 115" fill="none" stroke="#3c2a63" stroke-width="4" stroke-linecap="round" />
+      <path d="M 283 160 C 280 142 265 138 258 145" fill="none" stroke="#3c2a63" stroke-width="3" stroke-linecap="round" />
+      <path d="M 280 145 C 273 130 260 128 252 133" fill="none" stroke="#3c2a63" stroke-width="3" stroke-linecap="round" />
+      <circle cx="250" cy="115" r="4.5" fill="#ff7597" />
+
+      <!-- TROMPE (Vue 3/4 vers la droite) -->
+      <g id="proboscis">
+        <path d="M 325 230 C 365 240 395 260 415 280 C 418 283 413 288 409 285 C 385 270 355 252 320 245 Z" 
+              fill="url(#proboscisGrad)" stroke="#3c2a63" stroke-width="3.5" stroke-linejoin="round" />
+        <!-- Bout trop mignon -->
+        <circle cx="415" cy="283" r="6" fill="#ff477e" stroke="#3c2a63" stroke-width="2" />
+      </g>
+
+      <!-- Sourire discret sous la trompe -->
+      <path d="M 310 252 Q 318 257 325 250" fill="none" stroke="#3c2a63" stroke-width="3" stroke-linecap="round" />
+    </g>
+
+    <!-- PETITES ÉTOILES / BRILLANCES (Sans cœurs) -->
+    <path d="M 380 160 L 382 166 L 388 168 L 382 170 L 380 176 L 378 170 L 372 168 L 378 166 Z" fill="#ffd166" opacity="0.8" />
+    <path d="M 120 230 L 121 234 L 125 235 L 121 236 L 120 240 L 119 236 L 115 235 L 119 234 Z" fill="#ffd166" opacity="0.7" />
+  </g>
 </svg>
