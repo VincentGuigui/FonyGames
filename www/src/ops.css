@@ -82,6 +82,17 @@ body {
   font-size: 0.8rem;
 }
 
+.ops__title-link {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.ops__title-link:hover,
+.ops__title-link:focus-visible {
+  text-decoration: underline;
+}
+
 .ops__badge {
   font-size: 0.7rem;
   /* NOT uppercased. The badge carries the operator's own `reason` prose for a disabled
