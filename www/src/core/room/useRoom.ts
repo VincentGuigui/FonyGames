@@ -53,7 +53,7 @@ export function roomFromHash(raw: string): RoomHash {
    * Two transformations ARE forgiven, and neither is a guess:
    *
    * - **Case**, because some clients lowercase a URL in transit.
-   * - **The grouping dash, in exactly the position we print it.** `TAK-OBE` is the form
+   * - **The grouping dash, in exactly the position we print it.** `FON-GAM` is the form
    *   shown on the code card, so somebody typing what they can see is not sending a
    *   damaged link; there is exactly one code it can mean. Anything else containing a
    *   dash — `TA-K`, `T-AKOBE`, `TAK-OB` — is still invalid, because accepting those

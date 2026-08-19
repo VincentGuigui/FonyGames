@@ -10,7 +10,7 @@
  *
  * So: no digits, all 26 letters, and each group of three alternates between vowels and
  * consonants. A triplet is `CVC` or `VCV` — `TAK`, `OBE` — which means every code is two
- * syllables you can simply *say*: `TAK-OBE`, `RUP-ADI`. Nothing has to be spelled unless
+ * syllables you can simply *say*: `FON-GAM`, `RUP-ADI`. Nothing has to be spelled unless
  * the listener asks.
  *
  * Dropping the digits also gives O and I back. They were excluded because O/0 and I/1 are
@@ -19,9 +19,9 @@
  *
  * ## Six, shown as two groups of three
  *
- * The stored and transmitted form is always six bare characters — `TAKOBE`. The dash in
- * `TAK-OBE` is **presentation only**: it never reaches a URL, a WebSocket, or a Durable
- * Object name, because `idFromName` would then route `TAK-OBE` and `TAKOBE` to two
+ * The stored and transmitted form is always six bare characters — `FONGAM`. The dash in
+ * `FON-GAM` is **presentation only**: it never reaches a URL, a WebSocket, or a Durable
+ * Object name, because `idFromName` would then route `FON-GAM` and `FONGAM` to two
  * different rooms and two people reading the same code aloud would end up alone in
  * separate rooms.
  *
@@ -67,7 +67,7 @@ function sayable(triplet: string): boolean {
 /**
  * Make typed input comparable: uppercase, then drop anything outside the alphabet.
  *
- * This is what makes a pasted `TAK-OBE` work — the dash is not a letter, so it falls away
+ * This is what makes a pasted `FON-GAM` work — the dash is not a letter, so it falls away
  * like any other stray character and the six real ones remain. A digit falls away the same
  * way rather than being read as the letter it resembles: the result is then the wrong
  * length and is reported as a damaged link, which is the honest answer.
@@ -98,7 +98,7 @@ export function isRoomCode(value: string): boolean {
 }
 
 /**
- * A code as a human should read it: `TAK-OBE`.
+ * A code as a human should read it: `FON-GAM`.
  *
  * The one place the dash is added, so a code cannot be grouped one way on the hub and
  * another in a lobby. Takes whatever it is given — a partial code while someone is still

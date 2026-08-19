@@ -62,7 +62,7 @@ export function JoinByCode({
        */
       setError(
         value.length === ROOM_CODE_LENGTH
-          ? `${formatRoomCode(value)} is not a room code — codes read as two syllables, like TAK-OBE.`
+          ? `${formatRoomCode(value)} is not a room code — codes read as two syllables, like FON-GAM.`
           : `A room code is ${ROOM_CODE_LENGTH} letters, in two groups of three.`,
       );
       return;
@@ -95,13 +95,13 @@ export function JoinByCode({
       </label>
       <div class="join__row">
         {/*
-          The field shows the grouped form, `TAK-OBE`, while `code` stays the bare six
+          The field shows the grouped form, `FON-GAM`, while `code` stays the bare six
           characters — the dash is presentation and must never reach a URL. `maxLength`
           counts the dash, hence +1.
 
           The value is written back on every keystroke so the dash appears as the fourth
           character is typed. `normaliseRoomCode` drops the dash on the way in, so a
-          pasted `TAK-OBE`, `takobe` or `TAK OBE` all arrive the same.
+          pasted `FON-GAM`, `FONGAM` or `TAK OBE` all arrive the same.
         */}
         <input
           id="room-code"
@@ -113,7 +113,7 @@ export function JoinByCode({
           autocapitalize="characters"
           spellcheck={false}
           maxLength={ROOM_CODE_LENGTH + 1}
-          placeholder="TAK-OBE"
+          placeholder="FON-GAM"
           value={formatRoomCode(code)}
           disabled={checking}
           aria-describedby={error ? 'join-error' : undefined}
