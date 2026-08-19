@@ -29,12 +29,44 @@ export type MosquitoView = {
   flying: boolean;
 };
 
+/** Which edge of the screen a mosquito flew in from. */
+export type EntrySide = 'top' | 'right' | 'bottom' | 'left';
+
+/**
+ * Where mosquito `index` rests once it arrives, and how it got there — rolled once,
+ * the moment this phone first sees it active, and never again (the feature this
+ * exists for): a target that kept moving after being drawn would read as
+ * remote-controlled rather than alive, and a swarm lined up dead-centre on every
+ * cell reads as a grid, not bugs.
+ *
+ * Randomised per player on purpose — nobody else is ever shown this board (spec §9),
+ * so there is nothing for two phones to disagree about.
+ */
+export type MosquitoVisual = {
+  /** Offset from the cell's own centre, as a fraction of its width/height: -0.5..0.5 on
+   *  each axis, half a cell either way. */
+  ox: number;
+  oy: number;
+  /** The screen edge it entered from. */
+  side: EntrySide;
+  /** Where along that edge, 0..1. */
+  lateral: number;
+  /** Wiggle phase, so mosquitoes that spawn together do not swing in lockstep. */
+  phase: number;
+  /** Server time this mosquito was first seen active. */
+  spawnedAt: number;
+};
+
+const ENTRY_SIDES: EntrySide[] = ['top', 'right', 'bottom', 'left'];
+
 export class SquashGame {
   /** Empty until identify() runs; state can arrive before we know who we are. */
   #me: PlayerId = '';
   #now: () => number = () => Date.now();
   #state: SquashState | null = null;
   #board: SquashBoard | null = null;
+  /** Cleared on every new round (see `apply`) — a fresh swarm gets a fresh scatter. */
+  #visuals = new Map<number, MosquitoVisual>();
 
   /**
    * Say who we are and whose clock to trust. Separate from the constructor because
@@ -72,6 +104,9 @@ export class SquashGame {
   apply(msg: ServerMessage): void {
     switch (msg.t) {
       case 'squash':
+        // A new round gets a fresh scatter — the previous one's targets and entrances
+        // mean nothing once the pattern indices have been dealt out again.
+        if (this.#state?.roundId !== msg.d.roundId) this.#visuals.clear();
         this.#state = msg.d;
         return;
       case 'squash-board':
@@ -116,6 +151,23 @@ export class SquashGame {
     const index = s.pattern.indexOf(position);
     return index >= 0 && b.active.includes(index) ? index : null;
   }
+
+  /** Mosquito `index`'s own scatter and entrance, rolled once and cached — see `MosquitoVisual`. */
+  visual(index: number): MosquitoVisual {
+    let v = this.#visuals.get(index);
+    if (!v) {
+      v = {
+        ox: Math.random() - 0.5,
+        oy: Math.random() - 0.5,
+        side: ENTRY_SIDES[Math.floor(Math.random() * ENTRY_SIDES.length)]!,
+        lateral: Math.random(),
+        phase: Math.random() * Math.PI * 2,
+        spawnedAt: this.#now(),
+      };
+      this.#visuals.set(index, v);
+    }
+    return v;
+  }
 }
 
 function toView(s: SquashState, index: number): MosquitoView {
@@ -152,4 +204,60 @@ export function wander(index: number, nowMs: number): { dx: number; dy: number }
   const dx = Math.sin(t * 1.7 + seed * Math.PI * 2) * 0.5;
   const dy = Math.cos(t * 1.3 + seed * Math.PI * 2 * 1.618) * 0.5;
   return { dx, dy };
+}
+
+/** How long a mosquito takes to fly in from the screen edge to its target. */
+export const SQUASH_ENTRY_MS = 550;
+
+/** How far the sinusoidal entrance swings off its straight line, in pixels. */
+export const SQUASH_ENTRY_WIGGLE = 18;
+
+/** How many full wiggles an entrance draws before it settles. */
+export const SQUASH_ENTRY_WAVES = 2;
+
+/** 0 the instant a mosquito is first seen active, 1 once its entrance has landed. */
+export function entryProgress(spawnedAt: number, nowMs: number): number {
+  return Math.min(1, Math.max(0, (nowMs - spawnedAt) / SQUASH_ENTRY_MS));
+}
+
+/**
+ * A mosquito's position `t` of the way through its entrance — 0 at `start`
+ * (off-screen), 1 at `rest` (its target). Pure: pixels in, pixels out, so it is
+ * tested without a DOM.
+ *
+ * A straight lerp, eased, would look like it was reeled in on a string. This adds a
+ * sine wave across the *perpendicular* of that line, its own envelope fading it in
+ * and back out so the path still lands exactly on `rest` — the sinusoidal flight the
+ * feature is named for. `phase` staggers mosquitoes that spawn together (spec §2.1's
+ * doubling can spawn several in the same instant) so they do not swing as one.
+ */
+export function entryOffset(
+  start: { x: number; y: number },
+  rest: { x: number; y: number },
+  t: number,
+  phase: number,
+): { x: number; y: number } {
+  // Snapped rather than trusted to `Math.sin(Math.PI * t)` landing on exactly 0: it
+  // does not, by about a femtometre, and this is the one point the path must not
+  // miss by any amount — it is where the mosquito is actually tapped.
+  if (t <= 0) return { x: start.x, y: start.y };
+  if (t >= 1) return { x: rest.x, y: rest.y };
+
+  const ease = t * t * (3 - 2 * t); // smoothstep: 0 at t=0, 1 at t=1
+  const travelX = rest.x - start.x;
+  const travelY = rest.y - start.y;
+  let x = start.x + travelX * ease;
+  let y = start.y + travelY * ease;
+
+  const len = Math.hypot(travelX, travelY);
+  if (len > 0) {
+    const perpX = -travelY / len;
+    const perpY = travelX / len;
+    const envelope = Math.sin(Math.PI * t); // 0 at both ends, peak at the midpoint
+    const wiggle =
+      envelope * SQUASH_ENTRY_WIGGLE * Math.sin(t * SQUASH_ENTRY_WAVES * Math.PI * 2 + phase);
+    x += perpX * wiggle;
+    y += perpY * wiggle;
+  }
+  return { x, y };
 }

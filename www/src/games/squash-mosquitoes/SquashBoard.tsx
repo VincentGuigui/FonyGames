@@ -11,7 +11,14 @@ import {
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard, type ScoreRow } from '../../core/ui/Scoreboard';
 import { RulesPanel } from '../../core/ui/RulesPanel';
-import { wander, type SquashGame } from './game';
+import {
+  entryOffset,
+  entryProgress,
+  wander,
+  type EntrySide,
+  type MosquitoView,
+  type SquashGame,
+} from './game';
 import mosquitoArt from './art/mosquito.svg?url&no-inline';
 import mosquitoSquashedArt from './art/mosquito-squashed.svg?url&no-inline';
 import skinArt from './art/skin.jpg?url&no-inline';
@@ -24,6 +31,28 @@ import skinArt from './art/skin.jpg?url&no-inline';
  * being torn down and rebuilt. The other 51 grid cells never spawn anything, so they
  * get no element at all.
  */
+
+/** How far past the edge an entrance starts, so it is visibly off-screen rather than
+ *  clipped at the boundary. */
+const SCREEN_MARGIN = 40;
+
+/** Where mosquito's entrance begins, in pixels relative to its own cell's centre —
+ *  `entryOffset`'s `start`, in the units its `rest` is already given in. */
+function entryStart(side: EntrySide, lateral: number, cellRect: DOMRect): { x: number; y: number } {
+  const cx = cellRect.left + cellRect.width / 2;
+  const cy = cellRect.top + cellRect.height / 2;
+  switch (side) {
+    case 'top':
+      return { x: lateral * window.innerWidth - cx, y: -SCREEN_MARGIN - cy };
+    case 'bottom':
+      return { x: lateral * window.innerWidth - cx, y: window.innerHeight + SCREEN_MARGIN - cy };
+    case 'left':
+      return { x: -SCREEN_MARGIN - cx, y: lateral * window.innerHeight - cy };
+    case 'right':
+      return { x: window.innerWidth + SCREEN_MARGIN - cx, y: lateral * window.innerHeight - cy };
+  }
+}
+
 export function SquashBoard({
   game,
   players,
@@ -53,26 +82,43 @@ export function SquashBoard({
   const refs = useRef(new Map<number, HTMLButtonElement>());
 
   /*
-   * The flying wander, written straight to each button's `style` from a rAF loop rather
-   * than through Preact state — same reason as Tap Duel's target and Spill's canvas.
-   * Pixels, not a `%` on `transform`, because a percentage resolves against the
-   * button's own tiny box rather than its cell.
+   * Every live mosquito's position, written straight to its button's `style` from a
+   * rAF loop rather than through Preact state — same reason as Tap Duel's target and
+   * Spill's canvas. Pixels, not a `%` on `transform`, because a percentage resolves
+   * against the button's own tiny box rather than its cell.
    */
   useEffect(() => {
+    function place(v: MosquitoView, settled: boolean, now: number): void {
+      const el = refs.current.get(v.index);
+      const cell = el?.parentElement;
+      if (!el || !cell) return;
+
+      const visual = game.visual(v.index);
+      // Where it sits once it has arrived and stopped moving: its own random offset
+      // from the cell's centre, plus the wander if it still flies.
+      const target = { x: visual.ox * cell.clientWidth, y: visual.oy * cell.clientHeight };
+      if (v.flying && !settled) {
+        const { dx, dy } = wander(v.index, now);
+        target.x += dx * cell.clientWidth * (1 - SQUASH_FLY_SCALE);
+        target.y += dy * cell.clientHeight * (1 - SQUASH_FLY_SCALE);
+      }
+
+      let { x, y } = target;
+      const t = settled ? 1 : entryProgress(visual.spawnedAt, now);
+      if (t < 1) {
+        const start = entryStart(visual.side, visual.lateral, cell.getBoundingClientRect());
+        ({ x, y } = entryOffset(start, target, t, visual.phase));
+      }
+
+      el.style.transform = `translate(-50%, -50%) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+    }
+
     let raf = 0;
     const frame = (): void => {
       raf = requestAnimationFrame(frame);
       const now = clock();
-      for (const v of game.active()) {
-        if (!v.flying) continue;
-        const el = refs.current.get(v.index);
-        const cell = el?.parentElement;
-        if (!el || !cell) continue;
-        const { dx, dy } = wander(v.index, now);
-        const travelX = cell.clientWidth * (1 - SQUASH_FLY_SCALE);
-        const travelY = cell.clientHeight * (1 - SQUASH_FLY_SCALE);
-        el.style.transform = `translate(-50%, -50%) translate(${(dx * travelX).toFixed(1)}px, ${(dy * travelY).toFixed(1)}px)`;
-      }
+      for (const v of game.active()) place(v, false, now);
+      for (const v of game.squashed()) place(v, true, now);
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);

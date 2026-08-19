@@ -9,14 +9,14 @@
 
     <!-- Dégradé corps (violet) -->
     <linearGradient id="bodyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#9d84ec" />
-      <stop offset="100%" stop-color="#5a3d99" />
+      <stop offset="0%" stop-color="#7e6abd" />
+      <stop offset="100%" stop-color="#48317a" />
     </linearGradient>
 
     <!-- Dégradé tête -->
     <linearGradient id="headGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#b19ffb" />
-      <stop offset="100%" stop-color="#7251c8" />
+      <stop offset="0%" stop-color="#8e7fc9" />
+      <stop offset="100%" stop-color="#5b41a0" />
     </linearGradient>
 
     <!-- Dégradé trompe -->
@@ -79,7 +79,7 @@
     </g>
 
     <!-- THORAX ÉCRASÉ -->
-    <ellipse cx="280" cy="340" rx="45" ry="28" fill="#7251c8" stroke="#3c2a63" stroke-width="5" />
+    <ellipse cx="280" cy="340" rx="45" ry="28" fill="#5b41a0" stroke="#3c2a63" stroke-width="5" />
 
     <!-- TÊTE À PLAT -->
     <g id="flattenedHead">
