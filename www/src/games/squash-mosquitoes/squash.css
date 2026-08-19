@@ -103,10 +103,10 @@
   height: 100%;
 }
 
-/* The flying third (spec §2.2), moved by SquashBoard.tsx's per-frame transform. */
+/* Half a cell (spec §2.2), moved by SquashBoard.tsx's per-frame transform. */
 .squash__mosquito--flying {
-  width: calc(100% / 3);
-  height: calc(100% / 3);
+  width: calc(100% / 2);
+  height: calc(100% / 2);
 }
 
 /* art/mosquito.svg's own aspect ratio, roughly square (401x369). */
