@@ -52,33 +52,33 @@ check('whitespace only', roomFromHash('#   ').kind === 'empty');
 
 group('a valid code is used as-is');
 
-const six = roomFromHash('#TAKOBE');
-check('six legal characters', six.kind === 'code' && six.code === 'TAKOBE', six);
+const six = roomFromHash('#FONGAM');
+check('six legal characters', six.kind === 'code' && six.code === 'FONGAM', six);
 
 // The hash is not ours: it is whatever a human typed, a chat app forwarded, or a QR encoded.
-const lower = roomFromHash('#takobe');
-check('lowercase is normalised up', lower.kind === 'code' && lower.code === 'TAKOBE', lower);
+const lower = roomFromHash('#fongam');
+check('lowercase is normalised up', lower.kind === 'code' && lower.code === 'FONGAM', lower);
 
-const spaced = roomFromHash('#  TAKOBE  ');
-check('surrounding space is trimmed', spaced.kind === 'code' && spaced.code === 'TAKOBE', spaced);
+const spaced = roomFromHash('#  FONGAM  ');
+check('surrounding space is trimmed', spaced.kind === 'code' && spaced.code === 'FONGAM', spaced);
 
 /*
  * The grouping dash, in exactly the position the code card prints it. Somebody typing
- * what they can see is not sending a damaged link — there is one code `TAK-OBE` can
+ * what they can see is not sending a damaged link — there is one code `FON-GAM` can
  * mean — and the bare form is what comes back out, because that is what goes on a wire.
  */
-const dashed = roomFromHash('#TAK-OBE');
-check('the printed grouped form is understood', dashed.kind === 'code' && dashed.code === 'TAKOBE', dashed);
-const dashedLower = roomFromHash('#tak-obe');
-check('in either case', dashedLower.kind === 'code' && dashedLower.code === 'TAKOBE', dashedLower);
+const dashed = roomFromHash('#FON-GAM');
+check('the printed grouped form is understood', dashed.kind === 'code' && dashed.code === 'FONGAM', dashed);
+const dashedLower = roomFromHash('#fon-gam');
+check('in either case', dashedLower.kind === 'code' && dashedLower.code === 'FONGAM', dashedLower);
 
 group('a damaged hash is reported, never repaired');
 
 // THE regression this file exists for: each of these used to mint a fresh code and rewrite
 // the URL, so the player landed alone in a different room with nothing left to compare.
-check('five characters — a code copied one short', roomFromHash('#TAKOB').kind === 'invalid');
-check('seven characters', roomFromHash('#TAKOBEF').kind === 'invalid');
-check('the old four-character length is no longer a code', roomFromHash('#TAKO').kind === 'invalid');
+check('five characters — a code copied one short', roomFromHash('#FONGA').kind === 'invalid');
+check('seven characters', roomFromHash('#FONGAME').kind === 'invalid');
+check('the old four-character length is no longer a code', roomFromHash('#FONG').kind === 'invalid');
 check('a word', roomFromHash('#lobby').kind === 'invalid');
 
 /*
@@ -88,7 +88,7 @@ check('a word', roomFromHash('#lobby').kind === 'invalid');
  */
 check('a dash in the wrong place', roomFromHash('#TA-KOBE').kind === 'invalid');
 check('a dash and the wrong length', roomFromHash('#TA-K').kind === 'invalid');
-check('a trailing dash', roomFromHash('#TAKOBE-').kind === 'invalid');
+check('a trailing dash', roomFromHash('#FONGAM-').kind === 'invalid');
 check('two dashes', roomFromHash('#TA-KO-BE').kind === 'invalid');
 check('a dash on its own', roomFromHash('#-').kind === 'invalid');
 
@@ -148,12 +148,12 @@ check('and the grouping divides the length', ROOM_CODE_LENGTH % ROOM_CODE_GROUP 
 
 group('grouping is presentation, and only presentation');
 
-check('a full code is grouped', formatRoomCode('TAKOBE') === 'TAK-OBE');
+check('a full code is grouped', formatRoomCode('FONGAM') === 'FON-GAM');
 // While somebody is still typing. It must not pad, or the field shows a code that
 // does not exist yet.
 check('a partial code is not padded', formatRoomCode('TA') === 'TA');
 check('nor is an empty one', formatRoomCode('') === '');
-check('the dash appears with the fourth character', formatRoomCode('TAKO') === 'TAK-O');
+check('the dash appears with the fourth character', formatRoomCode('FONG') === 'FONT-G');
 
 // The round trip that matters: what we print can always be read back.
 {
@@ -165,11 +165,11 @@ check('the dash appears with the fourth character', formatRoomCode('TAKO') === '
   check('and a printed code always normalises back to itself', bad === 0, bad);
 }
 
-check('a pasted dash is dropped, not counted', normaliseRoomCode('TAK-OBE') === 'TAKOBE');
+check('a pasted dash is dropped, not counted', normaliseRoomCode('FON-GAM') === 'FONGAM');
 check('and so is a digit somebody typed for a letter', normaliseRoomCode('TAK0BE') === 'TAKBE');
-check('and so are spaces', normaliseRoomCode('tak obe') === 'TAKOBE');
+check('and so are spaces', normaliseRoomCode('tak obe') === 'FONGAM');
 // The truncation is what stops a long paste from becoming a different room.
-check('anything past the length is discarded', normaliseRoomCode('TAKOBEFGH') === 'TAKOBE');
+check('anything past the length is discarded', normaliseRoomCode('FONGAMFGH') === 'FONGAM');
 group('the alphabet');
 
 check('is all 26 letters', ROOM_CODE_ALPHABET.length === 26, ROOM_CODE_ALPHABET);
