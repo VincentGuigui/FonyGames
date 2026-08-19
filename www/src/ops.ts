@@ -154,6 +154,7 @@ function render(state: State): void {
   });
   head.append(out);
   root!.append(head);
+  root!.append(soloPanel());
 
   const list = el('ul', 'ops__games');
 
@@ -161,8 +162,19 @@ function render(state: State): void {
     const flag = state.flags[game.slug] ?? DEFAULT_FLAG;
     const row = el('li', 'ops__game');
 
+    // `soon` games have no live page to link to, and cardState() below would call them
+    // `soon` regardless of the flag anyway (spec §2b) — the stricter of the two always
+    // wins, so the title already knows not to link before either check runs.
+    const buildTimeSoon = game.status === 'soon';
+
     const name = el('div', 'ops__name');
-    name.append(el('strong', undefined, game.title));
+    if (buildTimeSoon) {
+      name.append(el('strong', undefined, game.title));
+    } else {
+      const link = el('a', 'ops__title-link', game.title);
+      link.href = `/${game.slug}/`;
+      name.append(link);
+    }
     name.append(el('span', 'ops__slug', game.slug));
 
     // The same function the hub and the server-side renderer use. `showAll: false`, so
@@ -180,11 +192,8 @@ function render(state: State): void {
       ),
     );
 
-    // `soon` is build-time truth: the game does not exist yet, so cardState returns
-    // `soon` whatever the flag says — the stricter of the two always wins (spec §2b).
     // Showing four live buttons that provably cannot change anything would be a UI
     // that lies, so they are disabled and the reason is on screen.
-    const buildTimeSoon = game.status === 'soon';
     if (buildTimeSoon) {
       name.append(el('span', 'ops__slug', 'not built — a flag cannot make it playable'));
     }
@@ -242,7 +251,6 @@ function render(state: State): void {
   }
 
   root!.append(list);
-  root!.append(soloPanel());
 
   if (state.history.length > 0) {
     const log = el('section', 'ops__log');
