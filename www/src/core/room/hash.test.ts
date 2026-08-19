@@ -153,7 +153,7 @@ check('a full code is grouped', formatRoomCode('FONGAM') === 'FON-GAM');
 // does not exist yet.
 check('a partial code is not padded', formatRoomCode('TA') === 'TA');
 check('nor is an empty one', formatRoomCode('') === '');
-check('the dash appears with the fourth character', formatRoomCode('FONG') === 'FONT-G');
+check('the dash appears with the fourth character', formatRoomCode('FONG') === 'FON-G');
 
 // The round trip that matters: what we print can always be read back.
 {
@@ -167,7 +167,7 @@ check('the dash appears with the fourth character', formatRoomCode('FONG') === '
 
 check('a pasted dash is dropped, not counted', normaliseRoomCode('FON-GAM') === 'FONGAM');
 check('and so is a digit somebody typed for a letter', normaliseRoomCode('TAK0BE') === 'TAKBE');
-check('and so are spaces', normaliseRoomCode('tak obe') === 'FONGAM');
+check('and so are spaces', normaliseRoomCode('fon gam') === 'FONGAM');
 // The truncation is what stops a long paste from becoming a different room.
 check('anything past the length is discarded', normaliseRoomCode('FONGAMFGH') === 'FONGAM');
 group('the alphabet');
