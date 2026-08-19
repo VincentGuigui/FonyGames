@@ -9,7 +9,7 @@ How players get into the same room. Applies to every game — the lobby is share
 ## 0. The code
 
 **Six letters that can be said out loud**: two groups of three, each group alternating
-between vowels and consonants — `TAK-OBE`, `RUP-ADI`. A group whose first letter is a
+between vowels and consonants — `FON-GAM`, `RUP-ADI`. A group whose first letter is a
 consonant runs `CVC`; one starting on a vowel runs `VCV`. Every code is therefore two
 syllables, which is what a code is *for*: it is shouted across a room, not typed off a
 screen by one person.
@@ -21,10 +21,10 @@ back: they were excluded because `O`/`0` and `I`/`1` are the same shape in most 
 which is a real problem in an alphabet containing both and no problem at all in one that
 contains no digits for them to be mistaken for. All 26 letters are in.
 
-**Stored and transmitted bare, displayed grouped.** `TAKOBE` is what goes in a hash, a
-WebSocket query and a Durable Object name; `TAK-OBE` is what a human is shown, on the
+**Stored and transmitted bare, displayed grouped.** `FONGAM` is what goes in a hash, a
+WebSocket query and a Durable Object name; `FON-GAM` is what a human is shown, on the
 hub, in the create panel and in the lobby's code card. The dash is presentation and
-never reaches a wire — `idFromName('TAK-OBE')` and `idFromName('TAKOBE')` are two
+never reaches a wire — `idFromName('FON-GAM')` and `idFromName('FONGAM')` are two
 different rooms, so two people reading the same code aloud would end up alone in
 separate ones. `formatRoomCode()` in `www/src/core/room/code.ts` is the only place the
 dash is added.
@@ -38,7 +38,7 @@ a code is one of **7 452 900**. Fewer than the old billion, and enough: codes li
 as long as a room, and at a hundred rooms at once the chance of a collision is under a
 tenth of a percent.
 
-Typed input accepts anything and keeps what it can: `TAK-OBE`, `tak obe` and `TAKOBE`
+Typed input accepts anything and keeps what it can: `FON-GAM`, `fon gam` and `FONGAM`
 all normalise to the same six. Validation checks **the pattern, not just the length**: a
 string that does not fit it cannot have come from `generateRoomCode`, so accepting it
 would send somebody into an empty room of their own making. Only about one random

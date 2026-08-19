@@ -8,7 +8,7 @@
 - A game session = a **room**. Rooms are ephemeral, in memory, and disappear
   shortly after the last player leaves (grace period: 60 s for reconnects).
 - A room is identified by a **6-letter code**, displayed as two groups of three
-  — `TAK-OBE` (uppercase, no digits). Each group alternates vowels and consonants,
+  — `FON-GAM` (uppercase, no digits). Each group alternates vowels and consonants,
   so a code is two syllables and can be said rather than spelled
   ([specs/join.md](specs/join.md) §0).
 - Joining is possible three ways, all equivalent:
