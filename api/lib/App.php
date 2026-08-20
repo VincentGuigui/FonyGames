@@ -39,7 +39,8 @@ final class App
     }
 
     /**
-     * Load `config.php` from beside the entry point.
+     * Load `config.php` from beside the entry point — or, since docs/deployment.md
+     * §3.1, from one level above `/www` instead.
      *
      * **Written by the deploy from GitHub environment secrets, never committed** — the
      * repository is public (docs/deployment.md §3.4). A missing file is not fatal: every
@@ -47,11 +48,21 @@ final class App
      * token authorises nobody. So an unconfigured host has *no admin*, which is the
      * safe reading of "not set up yet" and the opposite of what a naive empty-string
      * comparison would do.
+     *
+     * Two candidates, tried in order: beside `/www` — where the deploy now puts it,
+     * outside the web root entirely rather than behind an `.htaccess` deny — and
+     * `$dir/config.php` beside the entry point, the older location kept for a host not
+     * yet redeployed and for anyone testing by hand (docs/testing.md §1.1a-bis).
      */
     public static function boot(string $dir): self
     {
-        $file = $dir . '/config.php';
-        $loaded = is_readable($file) ? require $file : [];
+        $loaded = [];
+        foreach ([$dir . '/../../config.php', $dir . '/config.php'] as $file) {
+            if (is_readable($file)) {
+                $loaded = require $file;
+                break;
+            }
+        }
 
         return new self([
             'db_dsn' => (string) ($loaded['db_dsn'] ?? ''),
@@ -152,12 +163,22 @@ final class App
     /**
      * The migration runner.
      *
-     * `dist/db/migrations` on the host, `db/migrations` in the repo — `api/` sits beside
-     * `db/` in both, so one relative path covers both without a config key.
+     * Candidates, tried in order: one level above `/www` — where the deploy now puts
+     * `db/` (docs/deployment.md §3.1) — then `db/migrations` beside `api/`, the older
+     * deployed location and also where a repo checkout has it (`api/` sits beside `db/`
+     * in both, three levels up from `api/lib/` and two, respectively). The first that
+     * exists wins; if neither does, the newer path is reported, so a fresh install's
+     * error names where the file is meant to go rather than where it used to.
      */
     public function migrator(): Migrator
     {
-        return new Migrator($this->db(), dirname(__DIR__, 2) . '/db/migrations');
+        foreach ([dirname(__DIR__, 3), dirname(__DIR__, 2)] as $base) {
+            if (is_dir($base . '/db/migrations')) {
+                return new Migrator($this->db(), $base . '/db/migrations');
+            }
+        }
+
+        return new Migrator($this->db(), dirname(__DIR__, 3) . '/db/migrations');
     }
 
     public function usage(): Usage
@@ -206,11 +227,12 @@ final class App
     /**
      * The deployed hostnames, from the one file that holds them.
      *
-     * `shared/hosts.json` is the single source (docs/realtime-server.md §6). Two
-     * candidate paths because the file lives in a different place in the repository
-     * than on the host: the deploy stages it to `api/hosts.json` beside this code,
-     * while a checkout has it in `shared/`. Tried in deployed-first order, since that
-     * is the one that has to be fast and certain.
+     * `shared/hosts.json` is the single source (docs/realtime-server.md §6). Three
+     * candidates, tried in deployed-first order since that is the one that has to be
+     * fast and certain: one level above `/www`, where the deploy now puts it beside
+     * `config.php` rather than inside the web root (docs/deployment.md §3.1); then
+     * `api/hosts.json`, the older deployed location, for a host not yet redeployed;
+     * then `shared/hosts.json`, which is only ever reached from a repo checkout.
      *
      * Anything wrong returns an empty array, which means no health targets rather
      * than a fatal — the admin page losing one panel is not a reason to lose the page.
@@ -224,7 +246,10 @@ final class App
             return $cached;
         }
 
-        foreach ([__DIR__ . '/../hosts.json', __DIR__ . '/../../shared/hosts.json'] as $path) {
+        foreach (
+            [__DIR__ . '/../../../hosts.json', __DIR__ . '/../hosts.json', __DIR__ . '/../../shared/hosts.json']
+            as $path
+        ) {
             if (!is_readable($path)) {
                 continue;
             }

@@ -169,6 +169,7 @@ jobs:
     # what lets the site keep deploying before the admin is configured; the pre-flight
     # above is what makes them required once the page is in the tree.
     - name: 🔒 Place the admin centre
+      id: admin
       env:
         ADMIN_PATH: ${{ secrets.ADMIN_PATH }}
         ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
@@ -195,7 +196,10 @@ jobs:
           # This also removes api/played.php, so a host with no admin counts no plays and
           # the hub keeps its curated order. Correct: the counter writes to a database
           # this host has not been given, and api/ has no config.php to reach it with.
-          rm -rf dist/ops-placeholder dist/api
+          # dist-private/ goes with it: hosts.json and db/ exist for the admin centre's
+          # own health panel and migrate action, and there is no admin to have either.
+          rm -rf dist/ops-placeholder dist/api dist-private
+          echo "private=false" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
@@ -223,6 +227,13 @@ jobs:
           SHOW_ALL="true"
         fi
 
+        # dist-private/ is the tree the NEXT step uploads to one level above /www —
+        # config.php lives there now, beside hosts.json and db/, none of them inside
+        # the web root at all rather than behind an .htaccess deny (docs/deployment.md
+        # §3.1). `stage-api.mjs` already created it for hosts.json and db/; this is the
+        # one file that only ever exists at deploy time.
+        mkdir -p dist-private
+
         # A command group redirected once, with each value escaped for a PHP
         # single-quoted string: a backslash becomes two, then a quote becomes \'. Order
         # matters — escaping quotes first would then double the backslash it added.
@@ -247,11 +258,12 @@ jobs:
           # A boolean, so it is written unquoted rather than through the string loop.
           echo "  'show_all' => $SHOW_ALL,"
           echo "];"
-        } > dist/api/config.php
+        } > dist-private/config.php
 
         # Never in the log, and never readable by another account on a shared host.
-        chmod 600 dist/api/config.php
-        echo "Admin staged. config.php written with $(grep -c '=>' dist/api/config.php) keys."
+        chmod 600 dist-private/config.php
+        echo "Admin staged. config.php written with $(grep -c '=>' dist-private/config.php) keys."
+        echo "private=true" >> "$GITHUB_OUTPUT"
 
     # SFTP over SSH on port 22, with username + password. The host's port 21
     # answers FTP but rejects AUTH TLS ("500 'AUTH': command unrecognized"), so
@@ -274,6 +286,30 @@ jobs:
         # recommendation while the site is small. Switch to `delta` later;
         # note delta diffs git, so it cannot see build output and would need
         # dist/ committed. Staying on `full` is the correct choice here.
+        sync: full
+
+    # config.php, hosts.json and db/ — one level above /www, not inside it
+    # (docs/deployment.md §3.1). Skipped when there is no admin centre to configure at
+    # all: the previous step already removed dist-private/ in that case, and this
+    # action needs a real local-path to mirror from.
+    #
+    # A SEPARATE sync from the one above, not a subfolder of dist/: these three are not
+    # pages, must never be reachable over HTTP, and living one level above /www makes
+    # that true regardless of whether an .htaccess is ever misread — the strictly
+    # stronger guarantee this move exists for.
+    - name: 📂 Sync private files
+      if: steps.admin.outputs.private == 'true'
+      uses: milanmk/actions-file-deployer@1.18
+      with:
+        remote-protocol: sftp
+        remote-host: ${{ secrets.FTPHOST }}
+        remote-port: 22
+        remote-user: ${{ secrets.FTPUSER }}
+        remote-password: ${{ secrets.FTPPWD }}
+        local-path: dist-private
+        # The chroot's own root, one level above /www — NOT inside it. See
+        # docs/deployment.md §3.1 for what lives here and why.
+        remote-path: /
         sync: full
 
     # Can this host run the API at all? Asked BEFORE anything depends on the answer.

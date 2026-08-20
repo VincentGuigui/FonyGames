@@ -21,9 +21,19 @@
  *
  * Plain `node:fs`, no dependency. `--check` verifies the staging happened, for a test
  * that would otherwise only fail on the host.
+ *
+ * ## `dist-private/` — the second tree, for beside `/www` rather than inside it
+ *
+ * `hosts.json` and `db/` are not pages and were never meant to be reachable over
+ * HTTP — they used to sit inside `dist/api/` and `dist/db/` protected only by an
+ * `.htaccess` deny, which depends on Apache actually honouring it. The deploy now
+ * uploads this second tree one level *above* `/www` instead, where nothing is served
+ * from at all — no `.htaccess` to get wrong, because there is no web root there to
+ * misconfigure. `App.php` looks for both in that location first (docs/deployment.md
+ * §3.1).
  */
 
-import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 // `process.cwd()`, not `import.meta.url`: npm scripts run from the repo root, and this
@@ -31,26 +41,21 @@ import { join, resolve } from 'node:path';
 const ROOT = resolve(process.cwd());
 const SRC = join(ROOT, 'api');
 const OUT = join(ROOT, 'dist', 'api');
+const PRIVATE_OUT = join(ROOT, 'dist-private');
 
-/**
- * `db/` ships too, because the migration runner has to find the files.
- *
- * Only `migrations/` and `init.sql` — `migrate.php` is the CLI entry point and has no
- * business on a web host, where `?a=migrate` is the interface.
- */
+/** `migrations/` and `init.sql` only — `migrate.php` is a CLI tool with no business here. */
 const DB_SRC = join(ROOT, 'db');
-const DB_OUT = join(ROOT, 'dist', 'db');
+const DB_OUT = join(PRIVATE_OUT, 'db');
 
 /**
- * The deployed hostnames, staged beside the PHP that reads them.
+ * The deployed hostnames, staged for beside `/www`.
  *
  * `shared/hosts.json` is the single place they live (docs/realtime-server.md §6), and
  * `App::healthTargets()` needs them at REQUEST time on the host — so the file has to
- * travel rather than being baked into a bundle. It lands at `dist/api/hosts.json`,
- * which is where `App.php` looks first.
+ * travel rather than being baked into a bundle.
  */
 const HOSTS_SRC = join(ROOT, 'shared', 'hosts.json');
-const HOSTS_OUT = join(OUT, 'hosts.json');
+const HOSTS_OUT = join(PRIVATE_OUT, 'hosts.json');
 
 /** Left behind on purpose — see the header. */
 const SKIP = new Set(['tests', 'config.example.php', 'config.php']);
@@ -109,13 +114,12 @@ if (check) {
     if (existsSync(join(OUT, skipped))) fail(`dist/api/${skipped} should not have been staged`);
   }
 
-  if (!existsSync(HOSTS_OUT)) fail('dist/api/hosts.json is missing — App.php would have no health targets');
+  if (!existsSync(HOSTS_OUT)) fail('dist-private/hosts.json is missing — App.php would have no health targets');
   const missingSql = sql.filter((f) => !existsSync(join(DB_OUT, f)));
-  if (missingSql.length > 0) fail(`dist/db/ is stale, missing: ${missingSql.join(', ')}`);
-  if (!existsSync(join(DB_OUT, '.htaccess'))) fail('dist/db/.htaccess is missing');
+  if (missingSql.length > 0) fail(`dist-private/db/ is stale, missing: ${missingSql.join(', ')}`);
   if (existsSync(join(DB_OUT, 'migrate.php'))) fail('db/migrate.php is a CLI tool and must not ship');
 
-  console.log(`stage-api: dist/api/ has all ${files.length} files and dist/db/ all ${sql.length}`);
+  console.log(`stage-api: dist/api/ has all ${files.length} files and dist-private/db/ all ${sql.length}`);
   process.exit(0);
 }
 
@@ -129,10 +133,11 @@ for (const rel of files) {
   cpSync(join(SRC, rel), to);
 }
 
-if (!existsSync(HOSTS_SRC)) fail('shared/hosts.json is missing');
-cpSync(HOSTS_SRC, HOSTS_OUT);
+rmSync(PRIVATE_OUT, { recursive: true, force: true });
 
-rmSync(DB_OUT, { recursive: true, force: true });
+if (!existsSync(HOSTS_SRC)) fail('shared/hosts.json is missing');
+mkdirSync(PRIVATE_OUT, { recursive: true });
+cpSync(HOSTS_SRC, HOSTS_OUT);
 
 for (const rel of sql) {
   const to = join(DB_OUT, rel);
@@ -140,27 +145,8 @@ for (const rel of sql) {
   cpSync(join(DB_SRC, rel), to);
 }
 
-/*
- * The schema is not a secret, but a downloadable `.sql` is an invitation to read for
- * column names and nothing is gained by serving it. Same shape as api/lib/.htaccess, and
- * both spellings because a shared host may run either Apache version.
- */
-writeFileSync(
-  join(DB_OUT, '.htaccess'),
-  `# The migration files, read by api/index.php?a=migrate. None of these is a page.
-# Docs: docs/database.md §5
-<IfModule mod_authz_core.c>
-  Require all denied
-</IfModule>
-<IfModule !mod_authz_core.c>
-  Order deny,allow
-  Deny from all
-</IfModule>
-`,
-);
-
 const bytes = files.reduce((n, f) => n + statSync(join(SRC, f)).size, 0);
 console.log(
   `stage-api: ${files.length} files, ${(bytes / 1024).toFixed(1)} KB → dist/api/` +
-    ` · ${sql.length} sql → dist/db/`,
+    ` · ${sql.length} sql → dist-private/db/`,
 );
