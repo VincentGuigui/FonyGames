@@ -119,6 +119,33 @@ console.log('\na round somebody won counts');
   won(squash('done', A), 'squash mosquitoes: somebody squashed all 66');
   not(squash('done', null), 'squash mosquitoes: not a tie at the cap');
   not(squash('running', null), 'squash mosquitoes: not mid-round');
+
+  // Neon Fall ends the same way: phase and winner in the same frame. Unlike
+  // Squash Mosquitoes, the safety cap always names a winner (the glider
+  // survived it), so there is no "tie at the cap" case here.
+  const neon = (phase: 'running' | 'done', winner: PlayerId | null): ServerMessage => ({
+    t: 'neon',
+    s: 1,
+    d: {
+      roundId: 1,
+      startsAt: 0,
+      endsAt: 1,
+      gliderId: A,
+      protectorId: B,
+      lane: 2,
+      y: 0,
+      lives: 3,
+      bounceUntil: 0,
+      ammo: 3,
+      cooldownUntil: 0,
+      bolts: [],
+      winner,
+      phase,
+    },
+  });
+  won(neon('done', A), 'neon fall: the glider reached the floor');
+  won(neon('done', B), 'neon fall: the protector took every life');
+  not(neon('running', null), 'neon fall: not mid-round');
 }
 
 console.log('\nnothing mid-round counts');

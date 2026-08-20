@@ -58,6 +58,13 @@ export type ClientMessage =
         mode: string;
         drag?: 'direct' | 'capped';
         /**
+         * Neon Fall's seat picks: who is the glider, who is the protector.
+         * Orthogonal to `mode`, same reasoning as `drag` above. Ignored by every
+         * other game; falls back to array order if missing or malformed
+         * (`assignRoles` in worker/neonFall.ts).
+         */
+        roles?: { glider: PlayerId; protector: PlayerId };
+        /**
          * Solo test mode — start with one player, for looking at a game rather than
          * playing it. Set by a browser that has signed into the admin centre; the
          * two rules it relaxes are listed on `enoughToStart` in shared/players.ts.
