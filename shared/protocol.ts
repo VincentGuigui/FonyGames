@@ -156,7 +156,15 @@ export type ClientMessage =
    */
   | { t: 'neon-steer'; d: { roundId: number; steer: number } }
   /** Neon Fall: the protector fired lane `lane`'s trigger. */
-  | { t: 'neon-shoot'; d: { roundId: number; lane: number } };
+  | { t: 'neon-shoot'; d: { roundId: number; lane: number } }
+  /**
+   * Tap Tap Revolution: a finger landed on grid cell `cell`.
+   *
+   * A cell, not "the lit one" — the referee is the only thing that knows
+   * whether this was this player's own lit cell (spec §8), the same
+   * reasoning Squash Mosquitoes' `squash-tap` already established.
+   */
+  | { t: 'taptap-tap'; d: { roundId: number; cell: number } };
 
 /* ------------------------------------------------------------------ */
 /* server -> client                                                     */
@@ -327,6 +335,29 @@ export type NeonFallState = {
   /** Server time ammo refills to a full burst. 0 when not cooling down. */
   cooldownUntil: number;
   bolts: NeonBolt[];
+  winner: PlayerId | null;
+  phase: 'running' | 'done';
+};
+
+/**
+ * Tap Tap Revolution: the shared, public half of the round.
+ *
+ * Same split as `SquashState`/`SquashBoard`: `order` and `remaining` are
+ * public — a shuffle everyone raced through, and a count, never a board —
+ * and each player's own progress index arrives separately as
+ * `taptap-progress`, to that player alone (spec §6).
+ */
+export type TapTapState = {
+  roundId: number;
+  startsAt: number;
+  /** The safety cap — a defensive backstop for a round nobody finishes. */
+  endsAt: number;
+  /** The 100 grid cells, in lit-up order. Identical for every player. */
+  order: number[];
+  /** Cells not yet cleared, per player — 100 minus their own progress. */
+  remaining: Record<PlayerId, number>;
+  /** Server time each player finished, or null while still racing. */
+  finishedAt: Record<PlayerId, number | null>;
   winner: PlayerId | null;
   phase: 'running' | 'done';
 };
@@ -537,6 +568,16 @@ export type ServerMessage =
   | { t: 'squash-board'; s: number; d: { roundId: number; board: SquashBoard } }
   /** Neon Fall: the whole round, every tick. Late frames with a lower `s` are dropped. */
   | { t: 'neon'; s: number; d: NeonFallState }
+  /** Tap Tap Revolution: the shared state — order, everyone's remaining count, phase, winner. */
+  | { t: 'taptap'; s: number; d: TapTapState }
+  /**
+   * Tap Tap Revolution: sent to **one player only** — their own progress.
+   *
+   * A drop in `index` from the last one sent IS the "you missed" signal —
+   * there is no separate message for it, the same way Squash Mosquitoes has
+   * none for a mosquito that was already squashed (spec §6).
+   */
+  | { t: 'taptap-progress'; s: number; d: { roundId: number; index: number } }
   /** Pass the Bomb: too many bumps too fast — this player's bumps are muted briefly. */
   | { t: 'calm-down'; d: { untilServerTime: number } }
   /** Steady Hand: the state of the room. `w` is everyone's last wobble, for the meters. */
@@ -1246,6 +1287,7 @@ const CLIENT_TYPES = new Set([
   'squash-tap',
   'neon-steer',
   'neon-shoot',
+  'taptap-tap',
 ]);
 
 export function isClientMessage(value: unknown): value is ClientMessage {
@@ -1540,3 +1582,27 @@ export const NEON_ROUND_CAP_MS = 90_000;
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const NEON_MIN_PLAYERS = PLAYERS['neon-fall'][0];
 export const NEON_MAX_PLAYERS = PLAYERS['neon-fall'][1];
+
+/* ------------------------------------------------------------------ */
+/* Tap Tap Revolution (docs/specs/games/tap-tap-revolution.md)         */
+/* ------------------------------------------------------------------ */
+
+/** The board: a 10×10 grid, a hundred cells, every one of them lit exactly once a round. */
+export const TAPTAP_GRID_SIZE = 10;
+export const TAPTAP_TOTAL = TAPTAP_GRID_SIZE * TAPTAP_GRID_SIZE;
+
+/**
+ * A wrong tap rewinds to the last completed multiple of this, not to zero.
+ *
+ * `TAPTAP_TOTAL` divides evenly by it on purpose — ten checkpoints, ten
+ * cells apart, so the last one lands exactly on the 100th cell rather than
+ * leaving an odd-sized final stretch (spec §2.2).
+ */
+export const TAPTAP_CHECKPOINT = 10;
+
+/** Defensive backstop — ranked by cells remaining if nobody finishes in time. */
+export const TAPTAP_ROUND_CAP_MS = 3 * 60_000;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const TAPTAP_MIN_PLAYERS = PLAYERS['tap-tap-revolution'][0];
+export const TAPTAP_MAX_PLAYERS = PLAYERS['tap-tap-revolution'][1];

@@ -146,6 +146,17 @@ console.log('\na round somebody won counts');
   won(neon('done', A), 'neon fall: the glider reached the floor');
   won(neon('done', B), 'neon fall: the protector took every life');
   not(neon('running', null), 'neon fall: not mid-round');
+
+  // Tap Tap Revolution ends the same way Squash Mosquitoes does: phase and
+  // winner in the same frame, and a cap that ends in a tie has no winner.
+  const taptap = (phase: 'running' | 'done', winner: PlayerId | null): ServerMessage => ({
+    t: 'taptap',
+    s: 1,
+    d: { roundId: 1, startsAt: 0, endsAt: 1, order: [], remaining: {}, finishedAt: {}, winner, phase },
+  });
+  won(taptap('done', A), 'tap tap revolution: somebody cleared all 100');
+  not(taptap('done', null), 'tap tap revolution: not a tie at the cap');
+  not(taptap('running', null), 'tap tap revolution: not mid-round');
 }
 
 console.log('\nnothing mid-round counts');

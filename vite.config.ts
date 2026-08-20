@@ -36,6 +36,7 @@ export default defineConfig({
         'shake-rush': 'www/shake-rush/index.html',
         'ghost-hunt': 'www/ghost-hunt/index.html',
         'neon-fall': 'www/neon-fall/index.html',
+        'tap-tap-revolution': 'www/tap-tap-revolution/index.html',
         // The admin centre. Built to a PLACEHOLDER directory name and renamed to the
         // ADMIN_PATH secret by the deploy — this repository is public, so the real
         // path cannot be committed (docs/deployment.md §3.4).
