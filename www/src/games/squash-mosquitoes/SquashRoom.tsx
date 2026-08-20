@@ -26,7 +26,7 @@ import { SquashGame } from './game';
 export function SquashRoom(props: { game: GameCard }): JSX.Element {
   return (
     <RoomGate game={props.game}>
-      {(code) => <SquashRoomInner game={props.game} code={code} />}
+      {(code, card) => <SquashRoomInner game={card} code={code} />}
     </RoomGate>
   );
 }

@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { SiegeRoom } from './games/goat-siege/SiegeRoom';
 import { CARD as game } from './games/goat-siege/card';
+import { LocaleProvider } from './core/i18n/LocaleContext';
 import './core/ui/theme.css';
 import './lobby/lobby.css';
 import './core/ui/game-chrome.css';
@@ -14,4 +15,9 @@ import './games/goat-siege/siege.css';
 const root = document.getElementById('app');
 if (!root) throw new Error('#app missing from index.html');
 
-render(<SiegeRoom game={game} />, root);
+render(
+  <LocaleProvider>
+    <SiegeRoom game={game} />
+  </LocaleProvider>,
+  root,
+);

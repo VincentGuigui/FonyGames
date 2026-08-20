@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { SpillRoom } from './games/spill/SpillRoom';
 import { CARD as game } from './games/spill/card';
+import { LocaleProvider } from './core/i18n/LocaleContext';
 import './core/ui/theme.css';
 import './lobby/lobby.css';
 import './core/ui/game-chrome.css';
@@ -14,4 +15,9 @@ import './games/spill/spill.css';
 const root = document.getElementById('app');
 if (!root) throw new Error('#app missing from index.html');
 
-render(<SpillRoom game={game} />, root);
+render(
+  <LocaleProvider>
+    <SpillRoom game={game} />
+  </LocaleProvider>,
+  root,
+);

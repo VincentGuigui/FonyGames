@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { SteadyRoom } from './games/steady-hand/SteadyRoom';
 import { CARD as game } from './games/steady-hand/card';
+import { LocaleProvider } from './core/i18n/LocaleContext';
 import './core/ui/theme.css';
 import './lobby/lobby.css';
 import './core/ui/game-chrome.css';
@@ -12,4 +13,9 @@ import './games/steady-hand/steady.css';
 const root = document.getElementById('app');
 if (!root) throw new Error('#app missing from index.html');
 
-render(<SteadyRoom game={game} />, root);
+render(
+  <LocaleProvider>
+    <SteadyRoom game={game} />
+  </LocaleProvider>,
+  root,
+);

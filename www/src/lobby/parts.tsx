@@ -6,6 +6,7 @@ import { AVATARS } from '../../../shared/names';
 import { QrCode } from '../core/ui/QrCode';
 import { Sheet } from '../core/ui/Sheet';
 import { formatRoomCode } from '../core/room/code';
+import { useT } from '../core/i18n/strings';
 
 /**
  * The chrome every room screen shares: connection state, the join card, the
@@ -20,11 +21,12 @@ import { formatRoomCode } from '../core/room/code';
  */
 
 export function ConnectionBanner({ status }: { status: RoomStatus }): JSX.Element | null {
+  const t = useT();
   if (status === 'open') return null;
   const text: Record<Exclude<RoomStatus, 'open'>, string> = {
-    connecting: 'Connecting…',
-    reconnecting: 'Connection lost — reconnecting…',
-    closed: 'Disconnected.',
+    connecting: t.parts.connecting,
+    reconnecting: t.parts.reconnecting,
+    closed: t.parts.disconnected,
   };
   return (
     <p class={`banner banner--${status}`} role="status">
@@ -48,6 +50,7 @@ export function CodeCard({
   onShare: () => void;
   onToggleQr: () => void;
 }): JSX.Element {
+  const t = useT();
   /*
    * The body of the "Invite a player" panel, not a panel itself.
    *
@@ -58,7 +61,7 @@ export function CodeCard({
    */
   return (
     <div class="code-card">
-      <p class="code-card__label">Room code</p>
+      <p class="code-card__label">{t.parts.roomCode}</p>
       {/*
         Grouped for reading — `FON-GAM`. The dash is presentation only; `code` itself
         stays bare everywhere it matters, and the share link and QR below are built
@@ -68,16 +71,16 @@ export function CodeCard({
       <p class="code-card__code">{formatRoomCode(code)}</p>
       <div class="code-card__actions">
         <button class="btn btn--primary" type="button" onClick={onShare}>
-          {copied ? 'Link copied' : 'Share link'}
+          {copied ? t.parts.linkCopied : t.parts.shareLink}
         </button>
         <button class="btn" type="button" aria-expanded={showQr} onClick={onToggleQr}>
-          {showQr ? 'Hide QR' : 'Show QR'}
+          {showQr ? t.parts.hideQr : t.parts.showQr}
         </button>
       </div>
       {showQr && (
         <div class="code-card__qr">
           <QrCode value={joinUrl} size={220} />
-          <p class="code-card__hint">Point a phone camera at this.</p>
+          <p class="code-card__hint">{t.parts.qrHint}</p>
         </div>
       )}
     </div>
@@ -97,6 +100,7 @@ export function PlayerList({
   onChange: () => void;
   tagFor?: (id: PlayerId) => string | null;
 }): JSX.Element {
+  const t = useT();
   return (
     <ul class="players__list">
       {(room?.players ?? []).map((p) => {
@@ -113,8 +117,8 @@ export function PlayerList({
             </span>
             <span class="player__name">{p.name}</span>
             {extra && <span class="player__tag">{extra}</span>}
-            {room?.hostId === p.id && <span class="player__tag">host</span>}
-            {!p.connected && <span class="player__tag">away</span>}
+            {room?.hostId === p.id && <span class="player__tag">{t.parts.host}</span>}
+            {!p.connected && <span class="player__tag">{t.parts.away}</span>}
             {/*
               One button for both halves of "who am I". It said `rename` and opened a
               native prompt, and the avatar lived in a twelve-button grid sitting open
@@ -123,13 +127,13 @@ export function PlayerList({
             */}
             {p.id === me?.id && (
               <button class="btn player__change" type="button" onClick={onChange}>
-                Change
+                {t.parts.change}
               </button>
             )}
           </li>
         );
       })}
-      {!room && <li class="player player--ghost">Connecting…</li>}
+      {!room && <li class="player player--ghost">{t.parts.connecting}</li>}
     </ul>
   );
 }
@@ -151,6 +155,7 @@ export function ProfileSheet({
   onSave: (next: { name: string; avatar: string }) => void;
   onClose: () => void;
 }): JSX.Element {
+  const t = useT();
   const [name, setName] = useState(me.name);
   const [avatar, setAvatar] = useState(me.avatar);
   const trimmed = name.trim();
@@ -164,17 +169,17 @@ export function ProfileSheet({
   }
 
   return (
-    <Sheet label="Your name and avatar" onClose={onClose}>
+    <Sheet label={t.parts.profileSheetLabel} onClose={onClose}>
       <form class="profile" onSubmit={save}>
         <div class="gamemenu__head">
-          <h2 class="gamemenu__title">You</h2>
+          <h2 class="gamemenu__title">{t.parts.you}</h2>
           <button class="btn gamemenu__close" type="button" onClick={onClose}>
-            Cancel
+            {t.parts.cancel}
           </button>
         </div>
 
         <label class="profile__label" for="profile-name">
-          Your name
+          {t.parts.yourName}
         </label>
         <input
           id="profile-name"
@@ -192,7 +197,7 @@ export function ProfileSheet({
         <AvatarPicker current={avatar} onPick={setAvatar} />
 
         <button class="btn btn--big profile__save" type="submit">
-          Save
+          {t.parts.save}
         </button>
       </form>
     </Sheet>
@@ -206,16 +211,17 @@ export function AvatarPicker({
   current: string;
   onPick: (avatar: string) => void;
 }): JSX.Element {
+  const t = useT();
   return (
     <div class="avatar-picker">
-      <p class="avatar-picker__label">Your avatar</p>
+      <p class="avatar-picker__label">{t.parts.yourAvatar}</p>
       <div class="avatar-picker__row">
         {AVATARS.map((a) => (
           <button
             key={a}
             type="button"
             class={`avatar-picker__btn ${current === a ? 'avatar-picker__btn--on' : ''}`}
-            aria-label={`Use ${a}`}
+            aria-label={t.parts.useAvatar(a)}
             aria-pressed={current === a}
             onClick={() => onPick(a)}
           >

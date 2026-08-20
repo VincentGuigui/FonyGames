@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { RushRoom } from './games/shake-rush/RushRoom';
 import { CARD as game } from './games/shake-rush/card';
+import { LocaleProvider } from './core/i18n/LocaleContext';
 import './core/ui/theme.css';
 import './lobby/lobby.css';
 import './core/ui/game-chrome.css';
@@ -12,4 +13,9 @@ import './games/shake-rush/rush.css';
 const root = document.getElementById('app');
 if (!root) throw new Error('#app missing from index.html');
 
-render(<RushRoom game={game} />, root);
+render(
+  <LocaleProvider>
+    <RushRoom game={game} />
+  </LocaleProvider>,
+  root,
+);

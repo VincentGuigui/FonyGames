@@ -27,7 +27,7 @@ import { GridBoard } from './GridBoard';
 export function GridRoom(props: { game: GameCard }): JSX.Element {
   return (
     <RoomGate game={props.game}>
-      {(code) => <GridRoomInner game={props.game} code={code} />}
+      {(code, card) => <GridRoomInner game={card} code={code} />}
     </RoomGate>
   );
 }
