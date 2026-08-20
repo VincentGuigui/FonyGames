@@ -283,6 +283,165 @@ final class Analytics
         return ['at' => $at, 'city' => $located['city'], 'country' => $located['country']];
     }
 
+    /** The admin dashboard's own ceiling, so a mistyped `?days=` cannot ask for the whole table. */
+    public const SUMMARY_MAX_DAYS = 90;
+
+    /**
+     * The dashboard's whole view: counts, never rows.
+     * Spec: docs/specs/analytics.md §6
+     *
+     * Every query here is a `GROUP BY` or a `COUNT`, on purpose — this is the one method
+     * that reads `analytics_event` back out, and the boundary in the spec (aggregate to
+     * the operator, never a list of what one visitor did) is enforced by what this
+     * method is *shaped* to return rather than by a check inside it. There is no
+     * "events for visitor X" query anywhere in this class for exactly that reason.
+     *
+     * @return array{
+     *   windowDays: int,
+     *   since: int,
+     *   totals: array<string, int>,
+     *   uniqueVisitors: int,
+     *   topGames: list<array{slug: string, gameSelect: int, roomCreate: int, roomJoin: int, gameStart: int, gamePlayed: int}>,
+     *   countries: list<array{country: string, count: int}>,
+     *   cities: list<array{city: string, count: int}>,
+     *   referrers: list<array{host: string, count: int}>,
+     * }
+     */
+    public function summary(int $days): array
+    {
+        $days = max(1, min($days, self::SUMMARY_MAX_DAYS));
+        $since = $this->clock->now() - $days * 86_400_000;
+
+        $totals = array_fill_keys(self::ACTIONS, 0);
+        $counted = $this->pdo->prepare(
+            'SELECT action, COUNT(*) AS n FROM analytics_event WHERE at >= ? GROUP BY action',
+        );
+        $counted->execute([$since]);
+        foreach ($counted->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            // An action outside the allowlist cannot reach the table (`parse()` refuses
+            // it before `record()` is ever called) — `??` here is a belt for a row that
+            // predates a since-removed action, not a branch this code expects to take.
+            $totals[(string) $row['action']] ??= 0;
+            $totals[(string) $row['action']] += (int) $row['n'];
+        }
+
+        $visitors = $this->pdo->prepare(
+            'SELECT COUNT(DISTINCT visitor_id) FROM analytics_event WHERE at >= ?',
+        );
+        $visitors->execute([$since]);
+
+        return [
+            'windowDays' => $days,
+            'since' => $since,
+            'totals' => $totals,
+            'uniqueVisitors' => (int) $visitors->fetchColumn(),
+            'topGames' => $this->topGames($since),
+            'countries' => $this->grouped('country', $since, 10),
+            'cities' => $this->grouped('city', $since, 10),
+            'referrers' => $this->referrerHosts($since, 10),
+        ];
+    }
+
+    /**
+     * Per game, one row of every action that names a game as its object.
+     *
+     * `object` rather than a join to `games`: a slug that was later renamed or removed
+     * still shows its history, which is the point of a dashboard that answers "what
+     * happened", not "what exists now".
+     *
+     * @return list<array{slug: string, gameSelect: int, roomCreate: int, roomJoin: int, gameStart: int, gamePlayed: int}>
+     */
+    private function topGames(int $since): array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT object AS slug, action, COUNT(*) AS n FROM analytics_event'
+            . ' WHERE at >= ? AND object IS NOT NULL GROUP BY object, action',
+        );
+        $statement->execute([$since]);
+
+        /** @var array<string, array{slug: string, gameSelect: int, roomCreate: int, roomJoin: int, gameStart: int, gamePlayed: int}> $bySlug */
+        $bySlug = [];
+        $column = [
+            'game_select' => 'gameSelect',
+            'room_create' => 'roomCreate',
+            'room_join' => 'roomJoin',
+            'game_start' => 'gameStart',
+            'game_played' => 'gamePlayed',
+        ];
+
+        foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $slug = (string) $row['slug'];
+            $bySlug[$slug] ??= [
+                'slug' => $slug, 'gameSelect' => 0, 'roomCreate' => 0, 'roomJoin' => 0, 'gameStart' => 0, 'gamePlayed' => 0,
+            ];
+            $key = $column[$row['action']] ?? null;
+            if ($key !== null) {
+                $bySlug[$slug][$key] = (int) $row['n'];
+            }
+        }
+
+        $rows = array_values($bySlug);
+        usort($rows, static fn (array $a, array $b): int => $b['gamePlayed'] <=> $a['gamePlayed']);
+
+        return $rows;
+    }
+
+    /**
+     * Top values of one nullable column, most common first.
+     *
+     * @return list<array{country: string, count: int}>|list<array{city: string, count: int}>
+     */
+    private function grouped(string $column, int $since, int $limit): array
+    {
+        // `$column` is never caller-supplied — both call sites in this file pass a
+        // literal — so interpolating it into the query is safe; PDO cannot parameterise
+        // a column name.
+        $statement = $this->pdo->prepare(
+            "SELECT {$column} AS v, COUNT(*) AS n FROM analytics_event"
+            . " WHERE at >= ? AND {$column} IS NOT NULL GROUP BY {$column} ORDER BY n DESC LIMIT {$limit}",
+        );
+        $statement->execute([$since]);
+
+        return array_map(
+            static fn (array $row): array => [$column => (string) $row['v'], 'count' => (int) $row['n']],
+            $statement->fetchAll(PDO::FETCH_ASSOC),
+        );
+    }
+
+    /**
+     * Referrers, grouped by HOST rather than the exact URL.
+     *
+     * A raw referrer is close to unique per visit — a query string, a share-link
+     * fragment — so grouping on the full string would be a list of ones. The host is
+     * the aggregate that means something ("came from a link on x.com").
+     *
+     * @return list<array{host: string, count: int}>
+     */
+    private function referrerHosts(int $since, int $limit): array
+    {
+        $statement = $this->pdo->prepare(
+            'SELECT referrer FROM analytics_event WHERE at >= ? AND referrer IS NOT NULL',
+        );
+        $statement->execute([$since]);
+
+        /** @var array<string, int> $counts */
+        $counts = [];
+        foreach ($statement->fetchAll(PDO::FETCH_COLUMN) as $referrer) {
+            $host = parse_url((string) $referrer, PHP_URL_HOST);
+            $key = is_string($host) && $host !== '' ? $host : 'unknown';
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+        }
+
+        arsort($counts);
+
+        $rows = [];
+        foreach (array_slice($counts, 0, $limit, true) as $host => $count) {
+            $rows[] = ['host' => $host, 'count' => $count];
+        }
+
+        return $rows;
+    }
+
     /**
      * The caller's address, from the headers a reverse proxy in front of PHP sets.
      *

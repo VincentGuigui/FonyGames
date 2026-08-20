@@ -300,3 +300,85 @@ group('the endpoint and the client agree on the vocabulary');
     // And the endpoint the client posts to is the one that exists.
     check('the client posts to /api/analytics', str_contains((string) $client, '/api/analytics'));
 }
+
+group('summary(): the dashboard, in counts — never a list of what one visitor did');
+
+{
+    $db = testDb();
+    $clock = new FakeClock(1_700_000_000_000);
+    $analytics = new Analytics($db, $clock, new FakeGeolocator());
+
+    $day = 86_400_000;
+
+    // Inside the window: two hub visits, a select, a create, a join, a start and a
+    // played, spread across two games and two cities.
+    $analytics->record('11111111-1111-4111-8111-111111111111', 'hub_nav', null, null, null, '1.2.3.4');
+    $analytics->record('11111111-1111-4111-8111-111111111111', 'game_select', 'grid-attack', null, null, '1.2.3.4');
+    $analytics->record('11111111-1111-4111-8111-111111111111', 'room_create', 'grid-attack', null, null, '1.2.3.4');
+    $analytics->record('22222222-2222-4222-8222-222222222222', 'hub_nav', null, 'https://example.com/party', null, '1.2.3.4');
+    $analytics->record('22222222-2222-4222-8222-222222222222', 'game_select', 'spill', null, null, '1.2.3.4');
+    $analytics->record('22222222-2222-4222-8222-222222222222', 'room_join', 'spill', null, null, '1.2.3.4');
+    $analytics->record('22222222-2222-4222-8222-222222222222', 'game_start', 'spill', null, null, '1.2.3.4');
+    $analytics->record('22222222-2222-4222-8222-222222222222', 'game_played', 'spill', null, null, '1.2.3.4');
+    $analytics->record('22222222-2222-4222-8222-222222222222', 'game_played', 'spill', null, null, '1.2.3.4');
+
+    // Outside the window: must not be counted at all.
+    $clock->advance(-8 * $day);
+    $analytics->record('33333333-3333-4333-8333-333333333333', 'hub_nav', null, null, null, '1.2.3.4');
+    $clock->advance(8 * $day);
+
+    $summary = $analytics->summary(7);
+
+    check('the window is the days asked for', $summary['windowDays'] === 7);
+    check('since is 7 days before now', $summary['since'] === 1_700_000_000_000 - 7 * $day);
+
+    check('hub_nav counted twice, the old one excluded', $summary['totals']['hub_nav'] === 2);
+    check('game_select counted twice', $summary['totals']['game_select'] === 2);
+    check('room_create counted once', $summary['totals']['room_create'] === 1);
+    check('room_join counted once', $summary['totals']['room_join'] === 1);
+    check('game_start counted once', $summary['totals']['game_start'] === 1);
+    check('game_played counted twice', $summary['totals']['game_played'] === 2);
+    check('every action is present even at zero', array_keys($summary['totals']) === Analytics::ACTIONS);
+
+    check('two distinct visitors, not nine events', $summary['uniqueVisitors'] === 2);
+
+    check('two games appear', count($summary['topGames']) === 2);
+    $spill = null;
+    $grid = null;
+    foreach ($summary['topGames'] as $row) {
+        if ($row['slug'] === 'spill') {
+            $spill = $row;
+        }
+        if ($row['slug'] === 'grid-attack') {
+            $grid = $row;
+        }
+    }
+    check('spill is there', $spill !== null);
+    check('with its own counts, not summed across games', $spill['gamePlayed'] === 2 && $spill['gameStart'] === 1);
+    check('grid-attack has no plays', $grid !== null && $grid['gamePlayed'] === 0 && $grid['roomCreate'] === 1);
+    check('spill outranks grid-attack by plays', $summary['topGames'][0]['slug'] === 'spill');
+
+    check('one country, from the geolocator', $summary['countries'] === [['country' => 'FR', 'count' => 9]]);
+    check('one city, same reason', $summary['cities'] === [['city' => 'Paris', 'count' => 9]]);
+
+    check('the referrer is grouped by host, not the full URL', $summary['referrers'] === [
+        ['host' => 'example.com', 'count' => 1],
+    ]);
+}
+
+group('summary(): a real referrer never leaks a raw address, and the window clamps');
+
+{
+    $db = testDb();
+    $analytics = new Analytics($db, new FakeClock(), new FakeGeolocator(null, null));
+
+    check('zero days is not zero rows', $analytics->summary(0)['windowDays'] >= 1);
+    check(
+        'an absurd window is capped',
+        $analytics->summary(100_000)['windowDays'] === Analytics::SUMMARY_MAX_DAYS,
+    );
+
+    check('an empty table answers zeroes, not an error', array_sum($analytics->summary(7)['totals']) === 0);
+    check('and no visitors', $analytics->summary(7)['uniqueVisitors'] === 0);
+    check('and no games', $analytics->summary(7)['topGames'] === []);
+}
