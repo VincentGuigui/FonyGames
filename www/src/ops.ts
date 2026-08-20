@@ -148,6 +148,14 @@ function render(state: State): void {
     ),
   );
 
+  const dash = el('a', 'ops__link', 'dashboard');
+  dash.href = '#';
+  dash.addEventListener('click', (event) => {
+    event.preventDefault();
+    dashboard();
+  });
+  head.append(dash);
+
   const out = el('button', 'ops__link', 'sign out');
   out.addEventListener('click', () => {
     void api('logout', {}).then(() => signIn('Signed out.'));
@@ -275,15 +283,164 @@ function render(state: State): void {
   root!.append(schema);
   void loadSchema(schema);
 
-  // Its own section, loaded separately. Health and Cloudflare both make outbound calls
-  // with their own timeouts, and the flag switches above must stay usable while those are
-  // slow — which is precisely when somebody has come here to look at them.
+  // Health and Cloudflare usage moved to their own page — see `dashboard()`. Flag
+  // switches make an outbound call each (health checks, the Cloudflare API) with their
+  // own timeouts, and they were sharing this page with switches that must stay usable
+  // however slow those calls are.
+}
+
+type DashboardTab = 'cloudflare' | 'analytics';
+
+/**
+ * Two views of "is anyone playing", on their own page.
+ * Spec: docs/specs/analytics.md §7
+ *
+ * Cloudflare monitoring used to share the main page with the flag switches — moved
+ * here for the reason its own loader already gave: it makes an outbound call with its
+ * own timeout, and the switches must stay usable regardless of how that call is going.
+ * A full replace on every tap rather than a partial update, same as `signIn()`/`render()`
+ * already do: this page has one user, and the cost of re-rendering a handful of DOM
+ * nodes is not worth tracking which half changed.
+ */
+function dashboard(tab: DashboardTab = 'cloudflare'): void {
+  root!.replaceChildren();
+
+  const head = el('header', 'ops__head');
+  head.append(el('h1', 'ops__title', 'Dashboard'));
+  const back = el('a', 'ops__link', '← back');
+  back.href = '#';
+  back.addEventListener('click', (event) => {
+    event.preventDefault();
+    void load();
+  });
+  head.append(back);
+  root!.append(head);
+
+  const tabs = el('div', 'ops__controls');
+  const cloudflareTab = el('button', 'ops__choice', 'Cloudflare monitoring');
+  const analyticsTab = el('button', 'ops__choice', 'Analytics');
+  cloudflareTab.setAttribute('role', 'tab');
+  analyticsTab.setAttribute('role', 'tab');
+  cloudflareTab.classList.toggle('is-on', tab === 'cloudflare');
+  analyticsTab.classList.toggle('is-on', tab === 'analytics');
+  cloudflareTab.setAttribute('aria-selected', String(tab === 'cloudflare'));
+  analyticsTab.setAttribute('aria-selected', String(tab === 'analytics'));
+  cloudflareTab.addEventListener('click', () => dashboard('cloudflare'));
+  analyticsTab.addEventListener('click', () => dashboard('analytics'));
+  tabs.append(cloudflareTab, analyticsTab);
+  tabs.setAttribute('role', 'tablist');
+  root!.append(tabs);
+
   const panel = el('section', 'ops__log');
-  panel.id = 'ops-usage';
-  panel.append(el('h2', 'ops__subtitle', 'health and usage'));
   panel.append(el('p', 'ops__note', 'checking…'));
   root!.append(panel);
-  void loadUsage(panel);
+
+  if (tab === 'cloudflare') {
+    void loadUsage(panel);
+  } else {
+    void loadAnalytics(panel, 7);
+  }
+}
+
+/**
+ * The activity dashboard's own tab.
+ * Spec: docs/specs/analytics.md §7
+ *
+ * Every number here is a count or a `GROUP BY` — the same shape `Analytics::summary()`
+ * answers with, and no coincidence: this panel cannot show what one visitor did because
+ * the endpoint behind it cannot answer that question.
+ */
+type AnalyticsSummary = {
+  windowDays: number;
+  totals: Record<string, number>;
+  uniqueVisitors: number;
+  topGames: Array<{
+    slug: string;
+    gameSelect: number;
+    roomCreate: number;
+    roomJoin: number;
+    gameStart: number;
+    gamePlayed: number;
+  }>;
+  countries: Array<{ country: string; count: number }>;
+  cities: Array<{ city: string; count: number }>;
+  referrers: Array<{ host: string; count: number }>;
+};
+
+/** Turns `game_played` into "played", for a heading a player-facing label pattern already uses. */
+function actionLabel(action: string): string {
+  return action.replace(/^(hub|game|room)_/, '').replace(/_/g, ' ');
+}
+
+async function loadAnalytics(panel: HTMLElement, days: number): Promise<void> {
+  const { status, data } = await api(`analytics&days=${days}`);
+  panel.replaceChildren();
+
+  const windowRow = el('div', 'ops__controls');
+  for (const choice of [7, 30, 90]) {
+    const b = el('button', 'ops__choice', `${choice}d`);
+    if (choice === days) b.classList.add('is-on');
+    b.addEventListener('click', () => void loadAnalytics(panel, choice));
+    windowRow.append(b);
+  }
+  panel.append(windowRow);
+
+  if (status !== 200) {
+    panel.append(el('p', 'ops__note ops__warn', `Could not read it (${status}).`));
+    return;
+  }
+
+  const summary = data as unknown as AnalyticsSummary;
+
+  panel.append(
+    el(
+      'p',
+      'ops__note',
+      `${summary.uniqueVisitors} visitor(s) over the last ${summary.windowDays} day(s).`,
+    ),
+  );
+
+  const totals = el('ul');
+  for (const [action, count] of Object.entries(summary.totals)) {
+    totals.append(el('li', undefined, `${actionLabel(action)}: ${count}`));
+  }
+  panel.append(el('h2', 'ops__subtitle', 'events'), totals);
+
+  panel.append(el('h2', 'ops__subtitle', 'games'));
+  if (summary.topGames.length === 0) {
+    panel.append(el('p', 'ops__note', 'Nothing yet.'));
+  } else {
+    const games = el('ul');
+    for (const g of summary.topGames) {
+      games.append(
+        el(
+          'li',
+          undefined,
+          `${g.slug} — selected ${g.gameSelect}, created ${g.roomCreate}, joined ${g.roomJoin},` +
+            ` started ${g.gameStart}, played ${g.gamePlayed}`,
+        ),
+      );
+    }
+    panel.append(games);
+  }
+
+  countedList(panel, 'countries', summary.countries.map((r) => [r.country, r.count]));
+  countedList(panel, 'cities', summary.cities.map((r) => [r.city, r.count]));
+  countedList(panel, 'referrers', summary.referrers.map((r) => [r.host, r.count]));
+}
+
+/** A `<h2>` plus its list of "label: count" rows, or a "none yet" line when there are none. */
+function countedList(panel: HTMLElement, label: string, rows: Array<[string, number]>): void {
+  panel.append(el('h2', 'ops__subtitle', label));
+  if (rows.length === 0) {
+    panel.append(el('p', 'ops__note', 'None yet.'));
+    return;
+  }
+  const list = el('ul');
+  for (const [value, count] of rows) {
+    list.append(el('li', undefined, `${value}: ${count}`));
+  }
+  panel.append(list);
 }
 
 /**
