@@ -32,7 +32,7 @@ import { CatMouseGame } from './game';
  * five files, identical down to the comment.
  */
 export function ChaseRoom(props: { game: GameCard }): JSX.Element {
-  return <RoomGate game={props.game}>{(code) => <ChaseRoomInner game={props.game} code={code} />}</RoomGate>;
+  return <RoomGate game={props.game}>{(code, card) => <ChaseRoomInner game={card} code={code} />}</RoomGate>;
 }
 
 function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
@@ -119,6 +119,7 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
 
     return (
       <GameOverScreen
+        slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}

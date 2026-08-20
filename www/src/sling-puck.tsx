@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { SlingRoom } from './games/sling-puck/SlingRoom';
 import { CARD as game } from './games/sling-puck/card';
+import { LocaleProvider } from './core/i18n/LocaleContext';
 import './core/ui/theme.css';
 import './lobby/lobby.css';
 import './core/ui/game-chrome.css';
@@ -14,4 +15,9 @@ import './games/sling-puck/sling.css';
 const root = document.getElementById('app');
 if (!root) throw new Error('#app missing from index.html');
 
-render(<SlingRoom game={game} />, root);
+render(
+  <LocaleProvider>
+    <SlingRoom game={game} />
+  </LocaleProvider>,
+  root,
+);

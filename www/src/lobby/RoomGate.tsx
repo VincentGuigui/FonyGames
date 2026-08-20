@@ -6,6 +6,10 @@ import { useHeldPhone } from '../core/screen';
 import { NoSuchRoom } from './NoSuchRoom';
 import { ArrivedByLink } from './arrival';
 import { RoomChoice } from './RoomChoice';
+import { useLocale } from '../core/i18n/LocaleContext';
+import { useT } from '../core/i18n/strings';
+import { localizeCard } from '../core/i18n/localizeCard';
+import { track } from '../core/analytics';
 
 /** Which room the player is in, and how they got there. */
 type Entered = { code: string; byLink: boolean };
@@ -30,8 +34,17 @@ export function RoomGate({
   children,
 }: {
   game: GameCard;
-  children: (code: string) => VNode;
+  /** Receives the game's card already localized — see the note above `localized` below. */
+  children: (code: string, card: GameCard) => VNode;
 }): JSX.Element {
+  const { locale } = useLocale();
+  /*
+   * Localized once, here, rather than in every room screen: this is the one component all
+   * of them pass through (`RoomChoice`/`NoSuchRoom` below, and every `<XxxRoom>`'s own inner
+   * component via `children`), so it is the single place that needs to know `localizeCard`
+   * exists at all.
+   */
+  const localized = localizeCard(game, locale);
   /*
    * Keep the screen awake and upright for as long as a game page is open.
    *
@@ -47,6 +60,23 @@ export function RoomGate({
     const initial = readRoomHash();
     return initial.kind === 'code' ? { code: initial.code, byLink: true } : null;
   });
+
+  /*
+   * Once per page load: this game's own page was opened, and — if it opened straight into
+   * a room — that room was joined rather than created. `[]` deps means this reads `entered`
+   * exactly as `useState` first computed it, which is the initial URL rather than whatever
+   * the hash becomes after (`RoomChoice`'s own Create/Join taps track their own actions).
+   *
+   * `byLink` covers both a shared link followed from outside AND a code typed for a
+   * DIFFERENT game in `JoinByCode`, which navigates here the same way — from this
+   * component's position, the two are indistinguishable and equally a join.
+   */
+  useEffect(() => {
+    track('game_select', game.slug);
+    if (entered !== null && entered.byLink) {
+      track('room_join', game.slug);
+    }
+  }, []);
 
   /**
    * Follow the hash when the *player* changes it.
@@ -113,7 +143,7 @@ export function RoomGate({
   if (entered !== null) {
     return (
       <ArrivedByLink.Provider value={entered.byLink}>
-        {children(entered.code)}
+        {children(entered.code, localized)}
         <Upright />
         <Sideways />
       </ArrivedByLink.Provider>
@@ -127,9 +157,9 @@ export function RoomGate({
    * that screen exists to be unmistakable: a link that led nowhere must not look like a normal
    * landing, or the player never learns that the code they were sent was wrong.
    */
-  if (hash.kind === 'invalid') return <NoSuchRoom card={game} />;
+  if (hash.kind === 'invalid') return <NoSuchRoom card={localized} />;
 
-  return <RoomChoice card={game} onEnter={enter} />;
+  return <RoomChoice card={localized} onEnter={enter} />;
 }
 
 /**
@@ -154,31 +184,27 @@ export function RoomGate({
  * mid-round should be told the same thing in the same place.
  */
 function Sideways(): JSX.Element {
+  const t = useT();
   return (
     <div class="sideways" role="alert">
       <p class="sideways__icon" aria-hidden="true">
         🔄
       </p>
-      <p class="upright__say">Turn your phone sideways</p>
-      <p class="upright__note">
-        This board is two grids side by side — the round is still going, it just does not
-        fit upright.
-      </p>
+      <p class="upright__say">{t.orientation.turnSideways}</p>
+      <p class="upright__note">{t.orientation.turnSidewaysNote}</p>
     </div>
   );
 }
 
 function Upright(): JSX.Element {
+  const t = useT();
   return (
     <div class="upright" role="alert">
       <p class="upright__icon" aria-hidden="true">
         🔄
       </p>
-      <p class="upright__say">Turn your phone upright</p>
-      <p class="upright__note">
-        These games are played in portrait — the round is still going, it just does not fit
-        sideways.
-      </p>
+      <p class="upright__say">{t.orientation.turnUpright}</p>
+      <p class="upright__note">{t.orientation.turnUprightNote}</p>
     </div>
   );
 }

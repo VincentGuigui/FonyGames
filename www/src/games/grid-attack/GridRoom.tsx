@@ -1,13 +1,7 @@
 import { useCallback, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
-import {
-  GRID_LIVES,
-  GRID_MAX_PLAYERS,
-  GRID_MIN_PLAYERS,
-  GRID_TAPS,
-  type ServerMessage,
-} from '../../../../shared/protocol';
+import { GRID_MAX_PLAYERS, GRID_MIN_PLAYERS, type ServerMessage } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
 import { goFullscreen, useLandscapeRound } from '../../core/screen';
 import { useRoom, useShareRoom } from '../../core/room/useRoom';
@@ -33,7 +27,7 @@ import { GridBoard } from './GridBoard';
 export function GridRoom(props: { game: GameCard }): JSX.Element {
   return (
     <RoomGate game={props.game}>
-      {(code) => <GridRoomInner game={props.game} code={code} />}
+      {(code, card) => <GridRoomInner game={card} code={code} />}
     </RoomGate>
   );
 }
@@ -115,6 +109,7 @@ function GridRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     const ranked = [...players].sort((a, b) => livesOf(state, b.id) - livesOf(state, a.id));
     return (
       <GameOverScreen
+        slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}
@@ -158,20 +153,6 @@ function GridRoomInner({ game: card, code }: { game: GameCard; code: string }): 
        * reason Sling Puck opts out. Solo testing would show one player attacking nobody.
        */
       soloSupported={false}
-      extras={
-        <section class="panel">
-          <h2 class="panel__heading">Before you start</h2>
-          <p class="grid-primer__body">
-            The board is <strong>sideways and fullscreen</strong>. When the game starts, both
-            phones get a button — tap it, turn the phone, and the round begins the moment you
-            have both done it.
-          </p>
-          <p class="grid-primer__note">
-            {GRID_TAPS} quick taps to light one of theirs. {GRID_TAPS} quick taps to put out
-            one of yours. {GRID_LIVES} lives each.
-          </p>
-        </section>
-      }
     />
   );
 }

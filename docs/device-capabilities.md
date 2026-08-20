@@ -162,6 +162,9 @@ socket is still open. Nothing is lost by the two seconds it takes to turn the ph
 - The mic is used as a **level meter only**; no audio buffer is ever sent or
   kept.
 - Every game's spec must list the data it emits in its "Data & privacy" section.
+- **Site-wide activity is a separate, disclosed exception**, and never includes any
+  of the above — a coordinate, a motion sample or a mic level. See
+  [specs/analytics.md](specs/analytics.md) §1 for what it does include.
 
 ## 7. Fallbacks (default map)
 

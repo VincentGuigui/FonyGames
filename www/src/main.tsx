@@ -1,8 +1,12 @@
 import { hydrate, render } from 'preact';
 import { Hub } from './hub/Hub';
+import { LocaleProvider } from './core/i18n/LocaleContext';
 import type { GameFlag } from '../../shared/flags';
 import './core/ui/theme.css';
 import './hub/hub.css';
+// The language picker's own chrome (button + sheet) lives here, alongside every
+// other game's gear menu — see core/ui/LocalePicker.tsx.
+import './core/ui/game-chrome.css';
 
 /**
  * Mounts the hub.
@@ -76,4 +80,9 @@ const { flags, plays, showAll } = inlinedFlags();
 const serverRendered = root.firstElementChild !== null;
 const mount = serverRendered ? hydrate : render;
 
-mount(<Hub flags={flags} plays={plays} showAll={showAll} />, root);
+mount(
+  <LocaleProvider>
+    <Hub flags={flags} plays={plays} showAll={showAll} />
+  </LocaleProvider>,
+  root,
+);

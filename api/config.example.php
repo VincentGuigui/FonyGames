@@ -49,6 +49,16 @@ return [
     'cloudflare_account_id' => '',
     'cloudflare_analytics_token' => '',
 
+    // ipinfo.io, for the city/country on an activity event (docs/specs/analytics.md §3).
+    // Nothing to do with the Cloudflare token above. Blank is fine: events are still
+    // recorded, without geography. The caller's IP is never stored either way.
+    'ipinfo_token' => '',
+
+    // The off switch for activity events. Absent or true means on; false stops
+    // api/analytics.php recording anything while leaving the endpoint answering 204,
+    // so the client cannot tell and nothing retries (docs/specs/analytics.md §5).
+    // 'analytics_enabled' => false,
+
     // Where the published flags land. Left out here on purpose: the default already
     // resolves to the web root's flags.json wherever config.php itself sits
     // (App::boot()), and the real deploy never sets this key.

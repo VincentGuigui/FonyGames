@@ -94,3 +94,50 @@ CREATE TABLE IF NOT EXISTS admin_link_attempt (
   PRIMARY KEY (id),
   KEY idx_attempt_ip_at (ip_hash, at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------------------------------------------------------------------------
+-- Activity events. docs/specs/analytics.md §3
+--
+-- **The one table in this schema that is about a person rather than a thing.** The
+-- privacy boundary it lives inside is in docs/specs/analytics.md §1, and it was
+-- deliberately widened to allow this — the earlier rule was aggregates only.
+--
+-- What is NOT here, and must never be added: the IP address. It reaches PHP, is sent
+-- to a geolocation service to become a city, and is then dropped. `city`/`country` are
+-- the only trace of it, which is the whole point of resolving them server-side rather
+-- than storing the address and resolving later.
+--
+-- `at` is milliseconds since the epoch in a BIGINT, like every other timestamp here,
+-- and is generated SERVER-side — a client clock is both wrong and forgeable.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS analytics_event (
+  id         BIGINT       NOT NULL AUTO_INCREMENT,
+  at         BIGINT       NOT NULL,
+  -- A UUIDv4 minted by PHP into an HttpOnly cookie, so the browser cannot choose or
+  -- read it. Not a player id: it survives across rooms and games, which is exactly
+  -- what makes it the sensitive column in this table.
+  visitor_id CHAR(36)     NOT NULL,
+  -- From IP geolocation, and nullable throughout: no token configured, the service
+  -- being down, or a private address all mean "not known" rather than an error.
+  city       VARCHAR(100)     NULL DEFAULT NULL,
+  -- ISO 3166-1 alpha-2.
+  country    CHAR(2)          NULL DEFAULT NULL,
+  -- `document.referrer`, truncated. NULL when the visitor arrived with none, which is
+  -- the common case for a link opened from a messaging app.
+  referrer   VARCHAR(255)     NULL DEFAULT NULL,
+  -- The name the player typed, 20 chars like `sanitiseName` in shared/names.ts. NULL
+  -- until they have set one, which is most of the hub.
+  nickname   VARCHAR(20)      NULL DEFAULT NULL,
+  -- Controlled by an allowlist in PHP (`Analytics::ACTIONS`), deliberately NOT an
+  -- ENUM — same reasoning as `games.availability` above: a seventh action should be a
+  -- code change, not a migration.
+  action     VARCHAR(16)  NOT NULL,
+  -- What the action was done to: a game slug, or NULL for one that has no object.
+  object     VARCHAR(32)      NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  KEY idx_analytics_at (at),
+  KEY idx_analytics_action_at (action, at),
+  -- Serves the per-visitor rate limit, which reads this table rather than keeping
+  -- state of its own (api/analytics.php).
+  KEY idx_analytics_visitor_at (visitor_id, at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

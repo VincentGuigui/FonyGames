@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { Lobby } from './lobby/Lobby';
 import { CARD as game } from './games/tap-duel/card';
+import { LocaleProvider } from './core/i18n/LocaleContext';
 import './core/ui/theme.css';
 import './lobby/lobby.css';
 import './core/ui/game-chrome.css';
@@ -13,4 +14,9 @@ import './core/ui/game-chrome.css';
 const root = document.getElementById('app');
 if (!root) throw new Error('#app missing from index.html');
 
-render(<Lobby game={game} />, root);
+render(
+  <LocaleProvider>
+    <Lobby game={game} />
+  </LocaleProvider>,
+  root,
+);

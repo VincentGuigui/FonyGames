@@ -251,8 +251,15 @@ The rest, in [../testing.md](../testing.md):
   client-rendered.
 - **No sitemap of room URLs.** Rooms are ephemeral and private by design
   ([../database.md](../database.md) §1).
-- **No `hreflang`, no translations.** The site is English-only today; a language
-  decision belongs in [../roadmap.md](../roadmap.md) before any markup appears.
-- **No analytics tag, no consent banner.** The about sheet promises nothing is
-  stored, and a third-party script would make that a lie
-  ([backoffice.md](backoffice.md) §1).
+- **Still no `hreflang`, no translated `<meta>`.** Roadmap D8 settled English +
+  French for the UI ([i18n.md](i18n.md)), but that's a client-side switch after
+  the page has loaded — the `<title>`/`description`/OG tags this spec covers
+  are still generated once, in English, at build time. Serving a French
+  variant of them would need a second SSR shell and PHP-side language
+  negotiation, which is its own decision, not a consequence of this one.
+- **No consent banner.** No longer paired with "no analytics tag" — there is one now,
+  a Cloudflare Web Analytics beacon on every page ([analytics.md](analytics.md) §2),
+  and a custom activity log with its own privacy boundary ([analytics.md](analytics.md)
+  §1, [backoffice.md](backoffice.md) §1). Whether either needs a consent banner is a
+  question this repository has not answered, not one it has answered "no" to — see
+  analytics.md §1's own note.

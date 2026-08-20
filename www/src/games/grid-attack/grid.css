@@ -251,15 +251,3 @@
   color: var(--color-text-dim);
   font-size: var(--font-small);
 }
-
-/* --- the lobby's own panel ----------------------------------------------- */
-
-.grid-primer__body {
-  margin: 0;
-}
-
-.grid-primer__note {
-  margin: var(--space-2) 0 0;
-  color: var(--color-text-dim);
-  font-size: var(--font-small);
-}

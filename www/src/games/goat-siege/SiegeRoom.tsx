@@ -32,7 +32,7 @@ import { SiegeGame } from './game';
  * five files, identical down to the comment.
  */
 export function SiegeRoom(props: { game: GameCard }): JSX.Element {
-  return <RoomGate game={props.game}>{(code) => <SiegeRoomInner game={props.game} code={code} />}</RoomGate>;
+  return <RoomGate game={props.game}>{(code, card) => <SiegeRoomInner game={card} code={code} />}</RoomGate>;
 }
 
 function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
@@ -95,6 +95,7 @@ function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const ranked = [...state.players].sort((a, b) => (state.cabbages[b] ?? 0) - (state.cabbages[a] ?? 0));
     return (
       <GameOverScreen
+        slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}

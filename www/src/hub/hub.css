@@ -14,7 +14,10 @@
 }
 
 .hub__header {
+  position: relative;
   margin-bottom: var(--space-5);
+  /* Room for the language picker, top-right (core/ui/LocalePicker.tsx). */
+  padding-right: calc(2.75rem + var(--space-3));
 }
 
 .hub__wordmark {
