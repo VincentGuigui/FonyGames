@@ -36,7 +36,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Cat and Mouse](games/cat-and-mouse.md) | *One cat, a floor full of mice, and nowhere to hide* | touch | 2–6 | ✅ `chase` built · beta |
 | [Grid Attack](games/grid-attack.md) | *Break their grid before they break yours* | touch | 2 | 🎮 beta — the **only landscape board**; two-second fuse untested by two people in a room |
 | [Squash Mosquitoes](games/squash-mosquitoes.md) | *Squash all 66 before anyone else does* | touch | 2–8 | 🚧 building |
-| [Neon Fall](games/neon-fall.md) | *Dodge five lanes of neon fire, or shoot down what falls* | orientation + touch | 2 | 🚧 building — plain `<canvas>`; PixiJS measured at ~221 KB gzipped and rejected (§13) |
+| [Neon Fall](games/neon-fall.md) | *Dodge five lanes of neon fire, or shoot down what falls* | orientation + touch | 2 | 🎮 beta — plain `<canvas>`; numbers untested on real phones tilting |
 
 ### Idea notes (not yet specs)
 

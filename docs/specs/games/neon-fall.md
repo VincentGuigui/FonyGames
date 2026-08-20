@@ -1,8 +1,9 @@
 # Neon Fall
 
-> Status: **approved**, building. The design is approved; the PixiJS question
-> in §13 is now resolved — measured, not estimated — and the answer is no.
-> This game builds on a plain `<canvas>`, same as Grid Attack and Spill.
+> Status: **live**. Built on a plain `<canvas>` — the PixiJS question in §13
+> was measured, not estimated, and the answer was no — and verified end to
+> end in the browser: lobby, seat picker, tilt primer and its tap-zone
+> fallback, the canvas round, both win paths, and the results screen.
 
 | | |
 | --- | --- |
@@ -13,7 +14,7 @@
 | **Round length** | ~20–45 s of falling, plus up to 3×1.5 s of bounce stalls if the glider is hit |
 | **Inputs** | orientation (tilt) for the glider · touch for the protector |
 | **Accent colour** | `#22D3EE` cyan for the glider — and `#F72585` magenta for the protector's bolts |
-| **Status** | approved, building — plain `<canvas>` (§13) |
+| **Status** | live — plain `<canvas>` (§13) |
 
 ## 1. Pitch
 
@@ -154,10 +155,13 @@ zones by hand, for the same free accessibility win (native tap targets,
 
 **Fallback (mandatory, [AGENTS.md](../../../AGENTS.md) §4 — degrade, never
 dead-end):** if orientation permission is denied or unavailable, the glider
-gets two large tap zones, left and right half of their own screen. Each tap
-steps one lane in that direction, still eased smoothly rather than snapping —
-the *feel* of tilting is lost, the lane-to-lane mechanic is not. Permission is
-requested from a tap in the lobby, never on arrival, per
+gets two large held zones, left and right half of their own screen. As
+built this is a **hold**, not a discrete tap-to-step: a held zone drives the
+same continuous −1..1 intent tilt does, at the same lane speed, and releasing
+it centres the stick exactly like levelling the phone would. That is a
+better match for what it is standing in for than a discrete step would have
+been — the *feel* of tilting is lost, the lane-to-lane mechanic is not.
+Permission is requested from a tap in the lobby, never on arrival, per
 [device-capabilities.md](../../device-capabilities.md) §2.
 
 ## 6. Networking
@@ -169,12 +173,16 @@ never the outcome.
 
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
-| `neon-steer` | glider → server | `{steer}` (−1..1) | Calibrated, filtered tilt (or tap-zone) intent, ≤ 20 Hz |
-| `neon-shoot` | protector → server | `{lane}` (0–4) | A trigger tap; the server checks ammo and cooldown itself |
-| `neon-state` | server → both | `{lane, y, lives, invulnerable}` | Broadcast on `NEON_TICK_HZ` — the glider's authoritative position |
-| `neon-bolt` | server → both | `{lane, resolvesAt}` | A shot in flight, so both screens can render and telegraph it (§4) |
-| `neon-hit` | server → both | `{lives, bounceLane, bounceUntil}` | A bolt connected; the bounce begins |
-| `neon-end` | server → both | `{winner, reason}` | Round over |
+| `neon-steer` | glider → server | `{roundId, steer}` (−1..1) | Calibrated, filtered tilt (or held tap zone) intent, sent every tick regardless of change |
+| `neon-shoot` | protector → server | `{roundId, lane}` (0–4) | A trigger tap; the server checks ammo and cooldown itself |
+| `neon` | server → both | `{roundId, startsAt, endsAt, gliderId, protectorId, lane, y, lives, bounceUntil, ammo, cooldownUntil, bolts, winner, phase}` | The whole round, every tick — same call as `GridState`/`SquashState`: small enough to send whole, so there is nothing to diff |
+
+As built, this collapsed to three messages rather than the six first sketched
+here: `bounceUntil` (an absolute server time, like every other deadline on
+this wire) is enough for a client to blink while bouncing, and `bolts`
+already carries what a `neon-bolt` event would have — there was nothing left
+for a separate `neon-hit`/`neon-end` to say that `lives`, `winner` and
+`phase` inside the one state frame did not already cover.
 
 The server steps the glider's lane position each tick toward `steer` at
 `NEON_LANE_SPEED`, and its fall progress at `NEON_FALL_SPEED` — the smooth
@@ -226,7 +234,7 @@ never a position. Room memory only, for the life of the round.
 
 ## 11. Accessibility
 
-- **The tilt fallback is real, not a token one** (§5): two tap zones drive
+- **The tilt fallback is real, not a token one** (§5): two held zones drive
   the same eased lane-to-lane movement tilting does. A player who cannot or
   would rather not tilt their phone loses nothing structural.
 - Lives and ammo are **numbers as well as pips** — never colour or count
@@ -248,9 +256,6 @@ never a position. Room memory only, for the life of the round.
   §2.1 raises for its own numbers. In particular `NEON_BOLT_MS` is a real
   balance lever: too short and dodging is unfair to the glider, too long and
   the protector cannot land a shot on anyone paying attention.
-- **Does ammo recharge as a full burst or trickle back one at a time?** §2.2
-  assumes a full-burst refill for simplicity; a slow trickle is a real
-  alternative that changes the protector's rhythm.
 - **Is a 1.5 s bounce too long or too short** to feel fair rather than
   tedious over three hits in one round?
 - **Should the lane guides (§2.1) be a toggle**, so a room that wants the

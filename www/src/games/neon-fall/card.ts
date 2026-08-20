@@ -12,8 +12,9 @@ import art from './art/card.svg?url&no-inline';
  * The pitch is copied verbatim from docs/specs/README.md; changing it here without
  * changing the spec is a bug.
  *
- * `status: 'soon'` until the room is actually playable end to end — flip it once
- * `NeonRoom` is verified (spec §12, docs/specs/games/neon-fall.md).
+ * Verified end to end in the browser: lobby, seat picker, tilt primer and its
+ * tap-zone fallback, the canvas round, both win paths, and the results screen
+ * (docs/specs/games/neon-fall.md).
  */
 export const CARD: GameCard = {
   slug: 'neon-fall',
@@ -32,5 +33,5 @@ export const CARD: GameCard = {
   duration: '~30–60 s',
   inputs: ['orientation', 'touch'],
   modes: [],
-  status: 'soon',
+  status: 'live',
 };
