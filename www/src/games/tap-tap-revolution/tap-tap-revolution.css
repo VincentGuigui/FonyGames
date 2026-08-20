@@ -1,0 +1,171 @@
+/*
+ * Tap Tap Revolution. Spec: docs/specs/games/tap-tap-revolution.md §4
+ *
+ * A tapping game, so nothing here may be selected, dragged, or long-pressed into a
+ * context menu, and a double tap must not zoom — same baseline every mashing game
+ * in the catalogue shares (Grid Attack, Squash Mosquitoes).
+ */
+
+.taptap {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  color: var(--color-text);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.taptap__bar {
+  flex: 0 0 auto;
+  padding: max(var(--space-2), env(safe-area-inset-top)) max(var(--space-3), env(safe-area-inset-right))
+    var(--space-1) max(var(--space-3), env(safe-area-inset-left));
+}
+
+/* Not a score — nothing is ranked on it while the round runs (spec §12) — so it
+   sits under the status bar rather than in its own score slot. */
+.taptap__clock {
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text-dim);
+}
+
+.taptap__clock strong {
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--game-accent, #fb923c);
+}
+
+/*
+ * The timeline (spec §4): a hundred marks, one per position in the shared order —
+ * not one per grid cell, so it reads "how far along" the same way whichever of
+ * the hundred physical cells happens to be lit right now.
+ */
+.taptap__timeline {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 20px;
+  padding: 0 max(var(--space-3), env(safe-area-inset-right)) var(--space-1)
+    max(var(--space-3), env(safe-area-inset-left));
+}
+
+.taptap__mark {
+  flex: 1 1 0;
+  min-width: 1px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--game-accent, #fb923c);
+  opacity: 0.4;
+  transform: scale(1);
+}
+
+/* Every tenth mark is a checkpoint (spec §2.2) — a little larger, so the line
+   doubles as a map of where a rewind can land. */
+.taptap__mark--major {
+  height: 8px;
+  opacity: 0.55;
+}
+
+/* The steady, at-rest state once a mark is passed. The animation below plays on
+   TOP of this exactly once per crossing — see Timeline.tsx for why it does not
+   replay on an unrelated re-render. */
+.taptap__mark--passed {
+  background: #22c55e;
+  opacity: 1;
+  animation: taptap-mark-pulse 380ms ease-out;
+}
+
+@keyframes taptap-mark-pulse {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.8);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .taptap__mark--passed {
+    animation: none;
+  }
+}
+
+/*
+ * The board itself: square cells on an invisible 10x10 grid, as big as the
+ * screen allows. `aspect-ratio: 1` on the container is what keeps every cell
+ * square without measuring anything in JavaScript.
+ */
+.taptap__grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--taptap-grid, 10), 1fr);
+  grid-template-rows: repeat(var(--taptap-grid, 10), 1fr);
+  gap: 3px;
+  max-height: 100%;
+  max-width: 100%;
+  aspect-ratio: 1;
+  margin: 0 auto;
+  padding: 0 max(var(--space-2), env(safe-area-inset-right)) max(var(--space-2), env(safe-area-inset-bottom))
+    max(var(--space-2), env(safe-area-inset-left));
+}
+
+/* One circle. A real button, always mounted, tappable in every state (spec §2, §7)
+   — tapping a gone cell is exactly as wrong as tapping any other cell that is not
+   the lit one, so nothing here is ever `disabled`. */
+.taptap__cell {
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--game-accent, #fb923c);
+  background: transparent;
+  cursor: pointer;
+}
+
+.taptap__cell--idle {
+  opacity: 0.35;
+}
+
+.taptap__cell--lit {
+  opacity: 1;
+  background: var(--game-accent, #fb923c);
+  box-shadow: 0 0 10px 1px var(--game-accent, #fb923c);
+  animation: taptap-cell-pulse 900ms ease-in-out infinite;
+}
+
+@keyframes taptap-cell-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+.taptap__cell--gone {
+  opacity: 0.15;
+  border-style: dashed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .taptap__cell--lit {
+    animation: none;
+  }
+}
+
+.taptap__sound {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}

@@ -58,6 +58,13 @@ export type ClientMessage =
         mode: string;
         drag?: 'direct' | 'capped';
         /**
+         * Neon Fall's seat picks: who is the glider, who is the protector.
+         * Orthogonal to `mode`, same reasoning as `drag` above. Ignored by every
+         * other game; falls back to array order if missing or malformed
+         * (`assignRoles` in worker/neonFall.ts).
+         */
+        roles?: { glider: PlayerId; protector: PlayerId };
+        /**
          * Solo test mode — start with one player, for looking at a game rather than
          * playing it. Set by a browser that has signed into the admin centre; the
          * two rules it relaxes are listed on `enoughToStart` in shared/players.ts.
@@ -140,7 +147,24 @@ export type ClientMessage =
    * referee is the only thing that knows whether a mosquito of ITS OWN was
    * there for this player (spec §6).
    */
-  | { t: 'squash-tap'; d: { roundId: number; position: number } };
+  | { t: 'squash-tap'; d: { roundId: number; position: number } }
+  /**
+   * Neon Fall: the glider's calibrated, filtered tilt (or tap-zone) intent,
+   * −1..1. A velocity, not a position — the referee integrates it into an
+   * actual lane every tick, at a speed only it knows, so a modified client
+   * can ask to drift but never claim to already be somewhere safe (spec §8).
+   */
+  | { t: 'neon-steer'; d: { roundId: number; steer: number } }
+  /** Neon Fall: the protector fired lane `lane`'s trigger. */
+  | { t: 'neon-shoot'; d: { roundId: number; lane: number } }
+  /**
+   * Tap Tap Revolution: a finger landed on grid cell `cell`.
+   *
+   * A cell, not "the lit one" — the referee is the only thing that knows
+   * whether this was this player's own lit cell (spec §8), the same
+   * reasoning Squash Mosquitoes' `squash-tap` already established.
+   */
+  | { t: 'taptap-tap'; d: { roundId: number; cell: number } };
 
 /* ------------------------------------------------------------------ */
 /* server -> client                                                     */
@@ -274,6 +298,66 @@ export type SquashState = {
   /** The 66 grid positions, in spawn order. Identical for every player. */
   pattern: number[];
   scores: Record<PlayerId, number>;
+  winner: PlayerId | null;
+  phase: 'running' | 'done';
+};
+
+/** Neon Fall: a shot in flight, up one lane. Resolved server-side at `resolvesAt`. */
+export type NeonBolt = {
+  lane: number;
+  /** Server time it reaches the glider's lane — sent the instant it is fired, so
+   *  both screens can telegraph it for its full flight (spec §4). */
+  resolvesAt: number;
+};
+
+/**
+ * Neon Fall: the whole round, small enough to send whole every tick (same call as
+ * `GridState`/`SquashState`). `lane` and `y` are the referee's own simulation, never
+ * a client-reported position (spec §8) — the glider's phone only ever sends a steer
+ * intent (`neon-steer`).
+ */
+export type NeonFallState = {
+  roundId: number;
+  startsAt: number;
+  /** The safety cap — a defensive backstop; the fall is bounded by construction. */
+  endsAt: number;
+  gliderId: PlayerId;
+  protectorId: PlayerId;
+  /** 0..4, continuous — a lane centre is an integer, but the glider can sit between them. */
+  lane: number;
+  /** 0 (top) .. 1 (floor). Reaching 1 is how the glider wins. */
+  y: number;
+  lives: number;
+  /** Server time the glider stops blinking and becomes hittable again. 0 when not bouncing. */
+  bounceUntil: number;
+  /** Shots left in the current burst. */
+  ammo: number;
+  /** Server time ammo refills to a full burst. 0 when not cooling down. */
+  cooldownUntil: number;
+  bolts: NeonBolt[];
+  winner: PlayerId | null;
+  phase: 'running' | 'done';
+};
+
+/**
+ * Tap Tap Revolution: the shared, public half of the round.
+ *
+ * Same split as `SquashState`/`SquashBoard`: `order` and `remaining` are
+ * public — a shuffle everyone raced through, and a count, never a board —
+ * and each player's own progress index arrives separately as
+ * `taptap-progress`, to that player alone (spec §6).
+ */
+export type TapTapState = {
+  roundId: number;
+  startsAt: number;
+  /** The safety cap — a defensive backstop for a round nobody finishes. */
+  endsAt: number;
+  /** The 100 grid cells, in lit-up order. Identical for every player. */
+  order: number[];
+  /** Cells not yet cleared, per player — 100 minus their own progress. */
+  remaining: Record<PlayerId, number>;
+  /** Server time each player finished, or null while still racing. */
+  finishedAt: Record<PlayerId, number | null>;
   winner: PlayerId | null;
   phase: 'running' | 'done';
 };
@@ -482,6 +566,18 @@ export type ServerMessage =
    * squashed *count*, carried in `squash` instead (spec §6, §9).
    */
   | { t: 'squash-board'; s: number; d: { roundId: number; board: SquashBoard } }
+  /** Neon Fall: the whole round, every tick. Late frames with a lower `s` are dropped. */
+  | { t: 'neon'; s: number; d: NeonFallState }
+  /** Tap Tap Revolution: the shared state — order, everyone's remaining count, phase, winner. */
+  | { t: 'taptap'; s: number; d: TapTapState }
+  /**
+   * Tap Tap Revolution: sent to **one player only** — their own progress.
+   *
+   * A drop in `index` from the last one sent IS the "you missed" signal —
+   * there is no separate message for it, the same way Squash Mosquitoes has
+   * none for a mosquito that was already squashed (spec §6).
+   */
+  | { t: 'taptap-progress'; s: number; d: { roundId: number; index: number } }
   /** Pass the Bomb: too many bumps too fast — this player's bumps are muted briefly. */
   | { t: 'calm-down'; d: { untilServerTime: number } }
   /** Steady Hand: the state of the room. `w` is everyone's last wobble, for the meters. */
@@ -1189,6 +1285,9 @@ const CLIENT_TYPES = new Set([
   'grid-tap',
   'grid-ready',
   'squash-tap',
+  'neon-steer',
+  'neon-shoot',
+  'taptap-tap',
 ]);
 
 export function isClientMessage(value: unknown): value is ClientMessage {
@@ -1419,3 +1518,91 @@ export const HUNT_TICK_MS = 500;
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const HUNT_MIN_PLAYERS = PLAYERS['ghost-hunt'][0];
 export const HUNT_MAX_PLAYERS = PLAYERS['ghost-hunt'][1];
+
+/* ------------------------------------------------------------------ */
+/* Neon Fall (docs/specs/games/neon-fall.md)                           */
+/* ------------------------------------------------------------------ */
+
+/** The five lanes the glider drifts across. Fixed by the pitch. */
+export const NEON_LANES = 5;
+
+/** The referee's own simulation tick — also the ≤ 20 Hz cap device-capabilities.md
+ *  §4 puts on transmitting tilt, so a phone reporting at its limit still lines up
+ *  with a broadcast. */
+export const NEON_TICK_MS = 50;
+
+/**
+ * How fast the glider's lane position moves toward full steer, in lanes/second.
+ *
+ * A guess (spec §12): fast enough that tilting reads as smooth drifting, slow
+ * enough that the five lanes stay legible rather than a blur. Needs a playtest.
+ */
+export const NEON_LANE_SPEED = 6;
+
+/**
+ * Fall progress per second, 0 (top) .. 1 (floor). A guess (spec §12) tuned so a
+ * hitless fall takes roughly 20 s — comfortably inside the round-length band in
+ * AGENTS.md §4 even with a few bounces added on top.
+ */
+export const NEON_FALL_SPEED = 1 / 20;
+
+export const NEON_LIVES = 3;
+
+/** Ammo depletes to zero, then refills to a full burst in one go — not a trickle
+ *  (spec §2.2). */
+export const NEON_BURST_SIZE = 3;
+
+/** A guess (spec §12) — "short" per the pitch, needs a playtest. */
+export const NEON_COOLDOWN_MS = 1_500;
+
+/**
+ * How long a fired bolt takes to reach the glider's lane.
+ *
+ * This is the real balance lever (spec §12): it is the glider's whole reaction
+ * window to juke, telegraphed from the instant the bolt is fired. Too short and
+ * dodging is unfair; too long and a protector who is paying attention cannot
+ * land a shot. A guess, needs a playtest.
+ */
+export const NEON_BOLT_MS = 350;
+
+export const NEON_BOUNCE_MS = 1_500;
+
+/** How much fall progress a hit gives back — "a bit higher" per the pitch. A
+ *  guess (spec §12). */
+export const NEON_BOUNCE_RISE = 0.15;
+
+/**
+ * Defensive backstop, not the real ending. The fall is bounded by construction —
+ * `NEON_LIVES` hits can only claw back `NEON_LIVES × NEON_BOUNCE_RISE` of
+ * progress — so this only fires if the constants above are ever tuned into a
+ * pathological corner. The glider survived to the cap, so the glider wins.
+ */
+export const NEON_ROUND_CAP_MS = 90_000;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const NEON_MIN_PLAYERS = PLAYERS['neon-fall'][0];
+export const NEON_MAX_PLAYERS = PLAYERS['neon-fall'][1];
+
+/* ------------------------------------------------------------------ */
+/* Tap Tap Revolution (docs/specs/games/tap-tap-revolution.md)         */
+/* ------------------------------------------------------------------ */
+
+/** The board: a 10×10 grid, a hundred cells, every one of them lit exactly once a round. */
+export const TAPTAP_GRID_SIZE = 10;
+export const TAPTAP_TOTAL = TAPTAP_GRID_SIZE * TAPTAP_GRID_SIZE;
+
+/**
+ * A wrong tap rewinds to the last completed multiple of this, not to zero.
+ *
+ * `TAPTAP_TOTAL` divides evenly by it on purpose — ten checkpoints, ten
+ * cells apart, so the last one lands exactly on the 100th cell rather than
+ * leaving an odd-sized final stretch (spec §2.2).
+ */
+export const TAPTAP_CHECKPOINT = 10;
+
+/** Defensive backstop — ranked by cells remaining if nobody finishes in time. */
+export const TAPTAP_ROUND_CAP_MS = 3 * 60_000;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const TAPTAP_MIN_PLAYERS = PLAYERS['tap-tap-revolution'][0];
+export const TAPTAP_MAX_PLAYERS = PLAYERS['tap-tap-revolution'][1];

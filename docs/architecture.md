@@ -45,6 +45,7 @@
 | Build | Vite ✅ **decided** | Fast, multi-page friendly |
 | UI | **Preact** + plain CSS ✅ **decided** | ~4 KB; component state without the payload of React |
 | Rendering | DOM + CSS for UI, `<canvas>` only where a game needs it | Cheaper, more accessible |
+| Game engine | None by default; a canvas library (PixiJS, Phaser, …) case by case, per game | Case-by-case, not a house default — [AGENTS.md](../AGENTS.md) §3.3, weighed against §4's payload budget |
 | Realtime | WebSocket, JSON messages | Universally supported on mobile browsers |
 | Server | **Cloudflare Durable Objects** — one object per room ✅ **decided** | Room affinity is a platform primitive; free at our scale ([realtime-options.md](realtime-options.md)) |
 | Hosting | Static `www/` on the PHP host via SFTP ✅ **decided** | [deployment.md](deployment.md) |

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" width="120" height="90">
+  <!--
+    Neon Fall — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <circle cx="22" cy="16" r="1.4" fill="#22D3EE" opacity="0.5"/>
+  <circle cx="96" cy="12" r="1.1" fill="#22D3EE" opacity="0.4"/>
+  <circle cx="80" cy="24" r="1.4" fill="#22D3EE" opacity="0.5"/>
+  <circle cx="34" cy="70" r="1.1" fill="#22D3EE" opacity="0.35"/>
+  <g transform="translate(60 40) rotate(45)">
+    <rect x="-11" y="-11" width="22" height="22" fill="none" stroke="#22D3EE" stroke-width="3"/>
+  </g>
+  <g stroke="#F72585" stroke-width="3" stroke-linecap="round" fill="none">
+    <path d="M40 82 L34 66"/>
+    <path d="M80 82 L86 66"/>
+  </g>
+</svg>

@@ -51,6 +51,8 @@ export const PLAYERS = {
   'grid-attack': [2, 2],
   'scream-meter': [2, 8],
   'squash-mosquitoes': [2, 8],
+  'neon-fall': [2, 2],
+  'tap-tap-revolution': [2, 8],
 } as const satisfies Record<string, PlayerLimits>;
 
 export type GameSlug = keyof typeof PLAYERS;

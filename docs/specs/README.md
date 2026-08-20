@@ -36,6 +36,8 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Cat and Mouse](games/cat-and-mouse.md) | *One cat, a floor full of mice, and nowhere to hide* | touch | 2–6 | ✅ `chase` built · beta |
 | [Grid Attack](games/grid-attack.md) | *Break their grid before they break yours* | touch | 2 | 🎮 beta — the **only landscape board**; two-second fuse untested by two people in a room |
 | [Squash Mosquitoes](games/squash-mosquitoes.md) | *Squash all 66 before anyone else does* | touch | 2–8 | 🚧 building |
+| [Neon Fall](games/neon-fall.md) | *Dodge five lanes of neon fire, or shoot down what falls* | orientation + touch | 2 | 🎮 beta — plain `<canvas>`; numbers untested on real phones tilting |
+| [Tap Tap Revolution](games/tap-tap-revolution.md) | *Chase the lit circle. A miss only costs the last ten* | touch | 2–8 | 🎮 beta — checkpoint size untested on real thumbs |
 
 ### Idea notes (not yet specs)
 
@@ -65,6 +67,24 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
   simulates its own half of the board locally at 60 fps; the only thing on the
   wire is a puck crossing the gap, which is what keeps continuous physics inside
   the cheap cost profile. Full spec written.
+- **Neon Fall** — one player tilts a glowing glider smoothly across five
+  unmarked lanes as it falls; the other has five lane-aligned triggers and a
+  three-shot burst to shoot it down before it lands. No score, win or lose.
+  Full spec written and approved; a PixiJS spike measured ~221 KB gzipped
+  for the minimal import, over the whole per-game budget on its own, so it
+  builds on a plain `<canvas>` instead, same as Goat Siege and Spill. Built
+  and verified end to end in the browser.
+- **Tap Tap Revolution** — 100 circles, one lit at a time in a shared,
+  server-dealt order; a correct tap clears it and plays the next note of
+  Shake Rush's own melody (which is already exactly 100 notes long), a
+  wrong tap rewinds to the last checkpoint of ten rather than resetting
+  the whole board — the softer of the two ideas §12 originally recorded,
+  shipped as the base rule instead of the harsher full-reset the draft
+  proposed. A timeline above the grid — a hundred accent-coloured marks,
+  every tenth larger, passed ones turning green — makes a player's
+  position and any rewind legible at a glance. First to clear all 100
+  wins, no score, just the clock. Built and verified end to end in the
+  browser.
 
 Promote an idea by copying [game-spec-template.md](game-spec-template.md) to
 `games/<slug>.md`, filling it, and updating the row above in a `spec:` commit.
