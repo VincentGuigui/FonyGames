@@ -1,0 +1,122 @@
+/*
+ * Neon Fall. Spec: docs/specs/games/neon-fall.md
+ *
+ * Layout only — the sky, stars, lanes, glider and bolts are all drawn in
+ * render.ts. Mirrors siege.css and spill.css deliberately: canvas games in
+ * this catalogue all behave the same way, so they should not be laid out
+ * three different ways.
+ */
+
+.neon {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  background: #0b1026;
+  --game-accent: #22d3ee;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.neon__canvas {
+  grid-row: 1 / -1;
+  grid-column: 1;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+.neon__hud,
+.neon__triggers,
+.neon__tapzones {
+  grid-column: 1;
+  z-index: 1;
+}
+
+/* Same reasoning as Goat Siege's hud: opens a menu that needs to paint above
+   everything else here, so it gets its own stacking context. */
+.neon__hud {
+  grid-row: 1;
+  z-index: 3;
+  position: relative;
+  isolation: isolate;
+  padding: max(0.75rem, env(safe-area-inset-top)) 1rem 0;
+}
+
+.neon__triggers {
+  grid-row: 2;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: center;
+  padding: 0.75rem 0.75rem max(0.75rem, env(safe-area-inset-bottom));
+  background: rgb(11 16 38 / 85%);
+}
+
+.neon__trigger {
+  pointer-events: auto;
+  width: 3.2rem;
+  height: 3.2rem;
+  border-radius: 999px;
+  border: 2px solid var(--game-accent);
+  background: rgb(247 37 133 / 12%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.neon__trigger:disabled {
+  opacity: 0.35;
+}
+
+.neon__trigger-dot {
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 999px;
+  background: #f72585;
+}
+
+.neon__ammo {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--color-text-dim);
+}
+
+.neon__ammo-pip {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #f72585;
+}
+
+.neon__ammo-cooling {
+  white-space: nowrap;
+}
+
+/* The glider's fallback when tilt is unavailable: two large held zones, left
+   and right half of the screen, sitting UNDER the canvas visually — they are
+   the whole lower two-thirds of the play surface, not a bottom bar, so the
+   glider always has a thumb-sized target no matter where it drifted to. */
+.neon__tapzones {
+  grid-row: 1 / -1;
+  position: relative;
+  display: flex;
+  pointer-events: none;
+}
+
+.neon__tapzone {
+  pointer-events: auto;
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 0;
+}

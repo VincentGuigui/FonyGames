@@ -100,6 +100,16 @@ export function endsRound(msg: ServerMessage): boolean {
     case 'cm-over':
       return msg.d.catWins || msg.d.survivors.length > 0;
 
+    /*
+     * Neon Fall ends the same way Grid Attack and Squash Mosquitoes do — a phase
+     * and a winner in the same frame. The defensive safety cap always names the
+     * glider (worker/neonFall.ts), so it still counts; only a round nobody
+     * finished (both seats never filled, or a player left before either role
+     * was assigned) has no winner at all.
+     */
+    case 'neon':
+      return msg.d.phase === 'done' && msg.d.winner !== null;
+
     default:
       return false;
   }
