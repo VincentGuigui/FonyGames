@@ -23,6 +23,16 @@ export const CARD: GameCard = {
     'Three lives each. Outlast the clock and the mice win.',
   ],
   art: { src: art, alt: 'A cat lunging after two mice running away' },
+  fr: {
+    pitch: 'Un chat, une pièce pleine de souris, et aucun endroit où se cacher',
+    concept: 'Une pièce partagée. Votre souris ne bouge que pendant que vous la faites bouger.',
+    rules: [
+      'Faites glisser votre icône. Relâchez et elle s’arrête net.',
+      'Le chat n’a besoin de vous toucher qu’une fois.',
+      'Trois vies chacun. Survivez au chrono et les souris gagnent.',
+    ],
+    art: { alt: 'Un chat qui bondit sur deux souris qui s’échappent' },
+  },
   accent: '#C084FC',
   players: PLAYERS['cat-and-mouse'],
   duration: '60–90 s',

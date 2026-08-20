@@ -23,6 +23,16 @@ export const CARD: GameCard = {
     'Holding it when the fuse ends puts you out.',
   ],
   art: { src: art, alt: 'Two phones knocking together, a bomb jumping between them' },
+  fr: {
+    pitch: 'Cognez les téléphones pour passer la bombe avant qu’elle n’explose',
+    concept: 'La mèche est cachée, alors personne ne sait combien de temps il ose la garder.',
+    rules: [
+      'Un téléphone porte la bombe.',
+      'Cognez les téléphones pour la faire passer.',
+      'La tenir quand la mèche s’arrête vous élimine.',
+    ],
+    art: { alt: 'Deux téléphones qui s’entrechoquent, une bombe qui saute de l’un à l’autre' },
+  },
   accent: '#FF5A36',
   players: PLAYERS['pass-the-bomb'],
   duration: '1–2 min',

@@ -24,6 +24,17 @@ export const CARD: GameCard = {
     'First to 10 points wins. The target drifts faster with every point.',
   ],
   art: { src: art, alt: 'A phone with an archery target on its screen' },
+  fr: {
+    pitch: 'Le pouce le plus rapide de la salle remporte la manche',
+    concept: 'Un seul signal, tous les écrans en même temps. Une cible dérive — touchez-la en premier, dix fois.',
+    rules: [
+      'Une cible dérive sur votre écran. Suivez-la avec votre pouce.',
+      'Elle s’arrête et s’allume au signal. Tapez-la.',
+      'Tapez avant qu’elle ne s’allume et vous perdez la manche.',
+      'Premier à 10 points gagne. La cible dérive plus vite à chaque point.',
+    ],
+    art: { alt: 'Un téléphone avec une cible de tir à l’arc sur son écran' },
+  },
   accent: '#FFC93C',
   players: PLAYERS['tap-duel'],
   duration: '1 min',
