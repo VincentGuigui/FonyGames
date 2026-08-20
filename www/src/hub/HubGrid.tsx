@@ -2,6 +2,8 @@ import type { JSX } from 'preact';
 import { catalogue } from '../games/registry';
 import { GameCardTile } from './GameCardTile';
 import { flagFor, hottest, promote, type GameFlag } from '../../../shared/flags';
+import { localizeCard } from '../core/i18n/localizeCard';
+import type { Locale } from '../core/i18n/locale';
 
 /**
  * The card grid, on its own.
@@ -24,13 +26,20 @@ export function HubGrid({
   flags,
   plays,
   showAll,
+  /**
+   * Defaults to English so `scripts/ssr.mjs`'s build-time render — which has no
+   * browser to detect a preference from — stays exactly what it always was; the
+   * client re-renders with the real locale once `LocaleProvider` mounts.
+   */
+  locale = 'en',
 }: {
   flags: Record<string, GameFlag>;
   /** Rounds played per slug, from the published file. Absent until something is counted. */
   plays?: Record<string, number> | undefined;
   showAll: boolean;
+  locale?: Locale;
 }): JSX.Element {
-  const games = catalogue();
+  const games = catalogue().map((g) => localizeCard(g, locale));
   const hot = hottest(plays, games.map((g) => g.slug));
   const order = promote(games.map((g) => g.slug), hot);
   const bySlug = new Map(games.map((g) => [g.slug, g]));

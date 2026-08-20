@@ -23,6 +23,16 @@ export const CARD: GameCard = {
     'No turns. You are both slinging at once.',
   ],
   art: { src: art, alt: 'Two halves of a board, an elastic pulled back and a puck in the gap' },
+  fr: {
+    pitch: 'Envoyez tous les pucks de leur côté avant qu’ils ne vous les renvoient',
+    concept: 'Un seul plateau, partagé entre deux téléphones. Videz votre moitié.',
+    rules: [
+      'Faites glisser un puck sur l’élastique, tirez en arrière, relâchez.',
+      'Les pucks rebondissent sur tous les murs sauf l’ouverture.',
+      'Pas de tours de jeu. Vous tirez tous les deux en même temps.',
+    ],
+    art: { alt: 'Deux moitiés d’un plateau, un élastique tiré en arrière et un puck dans l’ouverture' },
+  },
   accent: '#FB7185',
   players: PLAYERS['sling-puck'],
   duration: '30 s – 2 min',

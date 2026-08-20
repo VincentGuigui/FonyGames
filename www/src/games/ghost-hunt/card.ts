@@ -28,6 +28,16 @@ export const CARD: GameCard = {
     'Keep it in the radar for 4 seconds to catch it. 100 seconds, and the quicker the catch the more it scores.',
   ],
   art: { src: art, alt: 'A phone held up, its screen a bright radar of traced edges' },
+  fr: {
+    pitch: 'Balayez la pièce à la recherche de fantômes que seul votre téléphone voit',
+    concept: 'Seul le radar peut les voir. Balayez la pièce jusqu’à ce qu’un fantôme y apparaisse.',
+    rules: [
+      'Levez votre téléphone et balayez la pièce.',
+      'Un fantôme apparaît dans le radar quand vous visez la bonne direction.',
+      'Gardez-le dans le radar pendant 4 secondes pour l’attraper. 100 secondes au total, et plus la capture est rapide, plus elle rapporte de points.',
+    ],
+    art: { alt: 'Un téléphone levé, son écran affichant un radar lumineux de contours tracés' },
+  },
   accent: '#34D399',
   players: PLAYERS['ghost-hunt'],
   duration: '100 s',

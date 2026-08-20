@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { GridRoom } from './games/grid-attack/GridRoom';
 import { CARD as game } from './games/grid-attack/card';
+import { LocaleProvider } from './core/i18n/LocaleContext';
 import './core/ui/theme.css';
 import './lobby/lobby.css';
 import './core/ui/game-chrome.css';
@@ -12,4 +13,9 @@ import './games/grid-attack/grid.css';
 const root = document.getElementById('app');
 if (!root) throw new Error('#app missing from index.html');
 
-render(<GridRoom game={game} />, root);
+render(
+  <LocaleProvider>
+    <GridRoom game={game} />
+  </LocaleProvider>,
+  root,
+);

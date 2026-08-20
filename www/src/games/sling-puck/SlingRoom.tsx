@@ -30,7 +30,7 @@ import { SlingGame } from './game';
  * five files, identical down to the comment.
  */
 export function SlingRoom(props: { game: GameCard }): JSX.Element {
-  return <RoomGate game={props.game}>{(code) => <SlingRoomInner game={props.game} code={code} />}</RoomGate>;
+  return <RoomGate game={props.game}>{(code, card) => <SlingRoomInner game={card} code={code} />}</RoomGate>;
 }
 
 function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {

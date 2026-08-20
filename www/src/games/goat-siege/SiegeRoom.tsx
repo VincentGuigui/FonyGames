@@ -32,7 +32,7 @@ import { SiegeGame } from './game';
  * five files, identical down to the comment.
  */
 export function SiegeRoom(props: { game: GameCard }): JSX.Element {
-  return <RoomGate game={props.game}>{(code) => <SiegeRoomInner game={props.game} code={code} />}</RoomGate>;
+  return <RoomGate game={props.game}>{(code, card) => <SiegeRoomInner game={card} code={code} />}</RoomGate>;
 }
 
 function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {

@@ -1,5 +1,7 @@
 import type { JSX } from 'preact';
 import type { GameCard } from '../core/types';
+import { LocalePicker } from '../core/ui/LocalePicker';
+import { useT } from '../core/i18n/strings';
 
 /**
  * What a damaged join link lands on.
@@ -18,17 +20,16 @@ import type { GameCard } from '../core/types';
  * fresh room of this game, or go back and type the code again.
  */
 export function NoSuchRoom({ card }: { card: GameCard }): JSX.Element {
+  const t = useT();
   return (
     <div class="nosuchroom" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
+      <LocalePicker />
       <a class="lobby__back" href="/">
-        ← All games
+        {t.common.allGames}
       </a>
 
-      <h1 class="nosuchroom__title">This room doesn't exist</h1>
-      <p class="nosuchroom__body">
-        The link may have been cut short or changed on its way to you. Ask for it again,
-        or type the code by hand.
-      </p>
+      <h1 class="nosuchroom__title">{t.noSuchRoom.title}</h1>
+      <p class="nosuchroom__body">{t.noSuchRoom.body}</p>
 
       {/*
         `#` alone, not the bare path, so the damaged code is cleared rather than carried into
@@ -40,10 +41,10 @@ export function NoSuchRoom({ card }: { card: GameCard }): JSX.Element {
         opened on Join and answered this button with a code field.
       */}
       <a class="btn btn--primary btn--big nosuchroom__cta" href={`/${card.slug}/#`}>
-        Start a new {card.title} room
+        {t.noSuchRoom.startNewRoom(card.title)}
       </a>
       <a class="btn nosuchroom__cta" href="/">
-        Enter a code
+        {t.noSuchRoom.enterCode}
       </a>
     </div>
   );

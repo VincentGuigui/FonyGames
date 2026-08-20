@@ -27,7 +27,7 @@ import { Duel, type DuelPhase } from '../games/tap-duel/Duel';
  * five files, identical down to the comment.
  */
 export function Lobby(props: { game: GameCard }): JSX.Element {
-  return <RoomGate game={props.game}>{(code) => <LobbyInner game={props.game} code={code} />}</RoomGate>;
+  return <RoomGate game={props.game}>{(code, card) => <LobbyInner game={card} code={code} />}</RoomGate>;
 }
 
 function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Element {

@@ -67,6 +67,65 @@
   transform: scale(0.94);
 }
 
+/* --- the language picker -------------------------------------------------- */
+
+/*
+ * The button itself sits absolutely inside whichever header reserves the
+ * corner for it (`.hub__header`, `.lobby__header`, `.choice__header`) — this
+ * rule only says what the button and its list look like.
+ */
+.locale-picker {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.locale-picker__button {
+  pointer-events: auto;
+  display: grid;
+  place-items: center;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding: 0 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: rgb(23 26 34 / 88%);
+  color: var(--color-text);
+  font-size: var(--font-small);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.locale-picker__button:active {
+  transform: scale(0.94);
+}
+
+.locale-picker__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.locale-picker__option {
+  width: 100%;
+  padding: var(--space-3);
+  text-align: left;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.locale-picker__option--on {
+  border-color: var(--game-accent, var(--color-accent));
+  color: var(--game-accent, var(--color-accent));
+}
+
 /* --- the sheet ---------------------------------------------------------- */
 
 /*

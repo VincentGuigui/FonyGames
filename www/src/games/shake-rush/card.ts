@@ -23,6 +23,16 @@ export const CARD: GameCard = {
     'First over the finish line wins.',
   ],
   art: { src: art, alt: 'A phone shaking, motion lines either side of it' },
+  fr: {
+    pitch: 'Secouez comme si votre vie en dépendait — premier à la ligne d’arrivée gagne',
+    concept: 'Pur effort : chaque changement de direction vous fait avancer d’un pas sur la piste.',
+    rules: [
+      'Secouez pour avancer sur la piste.',
+      'Ça compte les changements de direction, pas la force — secouer plus fort ne sert à rien.',
+      'Premier à franchir la ligne d’arrivée gagne.',
+    ],
+    art: { alt: 'Un téléphone qui vibre, des lignes de mouvement de chaque côté' },
+  },
   accent: '#4ADE80',
   players: PLAYERS['shake-rush'],
   duration: '1 min',

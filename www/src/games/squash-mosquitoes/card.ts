@@ -23,6 +23,16 @@ export const CARD: GameCard = {
     'Halfway through, the swarm starts flying. First to 66 wins.',
   ],
   art: { src: art, alt: 'A purple mosquito silhouette crossed out inside a red no-entry circle' },
+  fr: {
+    pitch: 'Écrasez les 66 avant tout le monde',
+    concept: 'Les mêmes 66 cachettes pour tout le monde. Écrasez-en un et deux autres apparaissent.',
+    rules: [
+      'Écrasez un moustique pour en faire apparaître deux autres.',
+      'Les moustiques écrasés restent sur place, alors le plateau se remplit de rouge.',
+      'À mi-parcours, l’essaim se met à voler. Premier à 66 gagne.',
+    ],
+    art: { alt: 'Une silhouette violette de moustique barrée dans un cercle d’interdiction rouge' },
+  },
   accent: '#8A6DC9',
   players: PLAYERS['squash-mosquitoes'],
   duration: '1–2 min',

@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { BombRoom } from './games/pass-the-bomb/BombRoom';
 import { CARD as game } from './games/pass-the-bomb/card';
+import { LocaleProvider } from './core/i18n/LocaleContext';
 import './core/ui/theme.css';
 import './lobby/lobby.css';
 import './core/ui/game-chrome.css';
@@ -13,4 +14,9 @@ import './games/pass-the-bomb/bomb.css';
 const root = document.getElementById('app');
 if (!root) throw new Error('#app missing from index.html');
 
-render(<BombRoom game={game} />, root);
+render(
+  <LocaleProvider>
+    <BombRoom game={game} />
+  </LocaleProvider>,
+  root,
+);

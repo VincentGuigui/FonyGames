@@ -4,6 +4,8 @@ import type { GameCard } from '../core/types';
 import { JoinByCode } from '../core/ui/JoinByCode';
 import { HowToPlay } from '../core/ui/HowToPlay';
 import { Disclosure } from '../core/ui/Disclosure';
+import { LocalePicker } from '../core/ui/LocalePicker';
+import { useT } from '../core/i18n/strings';
 import { mintRoomCode, readRoomHash } from '../core/room/useRoom';
 
 type Tab = 'create' | 'join';
@@ -38,6 +40,7 @@ export function RoomChoice({
   notice?: string;
 }): JSX.Element {
   const [tab, setTab] = useState<Tab>('create');
+  const t = useT();
 
   /*
    * Nothing is minted until this is tapped, so browsing the catalogue still creates no rooms.
@@ -53,8 +56,9 @@ export function RoomChoice({
   return (
     <div class="choice" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
       <header class="choice__header">
+        <LocalePicker />
         <a class="lobby__back" href="/">
-          ← All games
+          {t.common.allGames}
         </a>
         <h1 class="lobby__title">{card.title}</h1>
         <p class="lobby__pitch">{card.pitch}</p>
@@ -71,7 +75,7 @@ export function RoomChoice({
         is a decision about *this* game, so the rules come before the tabs rather than below
         them. It collapses if you already know the game.
       */}
-      <Disclosure heading="How to play" open>
+      <Disclosure heading={t.common.howToPlay} open>
         <HowToPlay concept={card.concept} rules={card.rules} />
       </Disclosure>
 
@@ -80,11 +84,11 @@ export function RoomChoice({
         `aria-selected` rather than only a class: the highlight is what a sighted player reads
         state from, and it must not be the only thing carrying it.
       */}
-      <div class="choice__tabs" role="tablist" aria-label="Start or join a room">
+      <div class="choice__tabs" role="tablist" aria-label={t.roomChoice.tablistLabel}>
         {(
           [
-            ['create', 'Create a room'],
-            ['join', 'Join a room'],
+            ['create', t.roomChoice.createTab],
+            ['join', t.roomChoice.joinTab],
           ] as const
         ).map(([value, text]) => (
           <button
@@ -110,11 +114,9 @@ export function RoomChoice({
           aria-labelledby="choice-tab-create"
         >
           <button class="btn btn--primary btn--big choice__enter" type="button" onClick={create}>
-            Create the room
+            {t.roomChoice.createButton}
           </button>
-          <p class="choice__hint">
-            You'll get a code and a link to share — everyone who opens it lands in your room.
-          </p>
+          <p class="choice__hint">{t.roomChoice.createHint}</p>
         </section>
       ) : (
         <section
@@ -128,11 +130,11 @@ export function RoomChoice({
             to `/<slug>/#CODE`, and navigating to a URL that differs only in its hash does not
             reload — the chooser would sit there with the URL already pointing at a room nobody
             entered. A code for another game navigates as it does on the hub.
+
+            No `label` override: JoinByCode's own default is the same text, now localized there.
           */}
-          <JoinByCode label="Got a code from a friend?" slug={card.slug} onSameGame={onEnter} />
-          <p class="choice__hint">
-            Any FonyGames code works here — it finds the right game on its own.
-          </p>
+          <JoinByCode slug={card.slug} onSameGame={onEnter} />
+          <p class="choice__hint">{t.roomChoice.joinHint}</p>
         </section>
       )}
     </div>
