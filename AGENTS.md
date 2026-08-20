@@ -76,7 +76,13 @@ Nothing outside those ships. Nothing outside `docs/` documents.
 3. **No big-bang changes without validation.** Do not introduce a framework,
    restructure directories, add a backend, add a dependency, or ship a new game
    engine without asking the maintainer first. Propose → get a yes → build.
-   Small, incremental, reviewable steps are the default.
+   Small, incremental, reviewable steps are the default. That default is
+   *pragmatic*, not closed: a rendering library or game engine (PixiJS,
+   Phaser, …) is worth proposing case by case when a specific game's motion,
+   particle count, or effects genuinely need it — weighed against its real
+   bundle cost ([architecture.md](./docs/architecture.md) §4) and against
+   what plain DOM/canvas already covers, not adopted as a house default for
+   every future game. Still asked first, every time.
 4. **Art is a file, comments are short.** Illustrations, sprites and other
    hand-drawn game art belong in `art/*.svg`, never inline SVG in a component —
    see [docs/design/illustrations.md](./docs/design/illustrations.md) and
