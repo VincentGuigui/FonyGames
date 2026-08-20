@@ -145,6 +145,7 @@ final class App
         return new FlagService(
             new PdoFlagStore($this->db(), new SystemClock()),
             (string) $this->config['flags_path'],
+            new SystemClock(),
         );
     }
 
