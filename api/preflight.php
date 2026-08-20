@@ -26,7 +26,14 @@
 
 // The token, and nothing else, gets an answer: the PHP version is mild information but
 // it is still reconnaissance, and there is no reason to hand it to a crawler.
-$config = dirname(__FILE__) . '/config.php';
+//
+// Two candidates, same order as App::boot(): one level above /www, where the deploy
+// now puts config.php beside the entry point rather than inside the web root
+// (docs/deployment.md §3.1), then dirname(__FILE__) . '/config.php', the older
+// deployed location, for a host not yet redeployed.
+$configAbove = dirname(dirname(dirname(__FILE__))) . '/config.php';
+$configBeside = dirname(__FILE__) . '/config.php';
+$config = is_readable($configAbove) ? $configAbove : $configBeside;
 $loaded = is_readable($config) ? require $config : array();
 $expected = is_array($loaded) && isset($loaded['admin_token']) ? (string) $loaded['admin_token'] : '';
 
@@ -99,11 +106,17 @@ foreach ($required as $extension) {
 
 /*
  * The migration files, counted here because THE DEPLOY CANNOT SEE THEM. It uploads
- * `dist/db/` over SFTP and gets no manifest back, so "the sync worked" and "the sync
+ * `db/` over SFTP and gets no manifest back, so "the sync worked" and "the sync
  * silently skipped a directory" look identical from the runner. Counting them on the
  * host is the only honest check, and it is one `glob` away.
+ *
+ * Same two candidates as App::boot() and App::migrator(): above /www first, then
+ * beside `api/` — the older deployed location, checked here too so this report never
+ * disagrees with what Migrator itself will actually use.
  */
-$migrations = dirname(dirname(__FILE__)) . '/db/migrations';
+$migrationsAbove = dirname(dirname(dirname(__FILE__))) . '/db/migrations';
+$migrationsBeside = dirname(dirname(__FILE__)) . '/db/migrations';
+$migrations = is_dir($migrationsAbove) ? $migrationsAbove : $migrationsBeside;
 $found = is_dir($migrations) ? glob($migrations . '/*.sql') : array();
 if (!is_array($found)) {
     $found = array();

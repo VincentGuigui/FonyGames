@@ -79,9 +79,12 @@ routing, or the page. Those need a real server, and they can have one without to
 the host:
 
 ```bash
-npm run build                       # also stages api/ into dist/api
+npm run build                       # stages api/ into dist/api, and hosts.json/db/ into dist-private/
+cp dist-private/hosts.json .        # mirrors the deploy's second sync — App.php looks beside dist/ first
+# config.php ALSO goes beside dist/, not inside it — "one level above /www" on the
+# host (docs/deployment.md §3.1). App.php looks there first.
 # a SQLite database with the same columns db/init.sql declares
-# a dist/api/config.php with:
+# ./config.php with:
 #   'db_dsn'    => 'sqlite:/path/to/fony.sqlite'
 #   'mail_sink' => '/path/to/mail.log'   ← writes the magic link to a FILE
 mv dist/ops-placeholder dist/ops-local

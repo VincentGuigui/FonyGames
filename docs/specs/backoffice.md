@@ -484,6 +484,18 @@ production because somebody updated one setting and not the other.
 the call is fire-and-forget with a short timeout, and a host that is down, slow or
 has no schema yet costs nothing but a count.
 
+**The count always lands; the republish can wait.** `games.plays += 1` is one
+atomic `UPDATE`, so no round is ever lost to two finishing at once. Republishing
+`flags.json` is not the same shape — it rereads every row and rewrites the whole
+file — so `FlagService::count()` skips it if the last count-triggered republish
+was under `RECOUNT_DEBOUNCE_MS` (30 minutes) ago. At real traffic that is the
+difference between one rename and a race of them all fighting over the same path;
+the number in MySQL is correct either way, and a skipped republish is picked up by
+the very next round. **This floor is only on the automatic path.** An admin flag
+edit and the explicit repair `?a=republish` always write immediately — a human
+asked for that result, and neither should have to wait on however recently a round
+happened to finish.
+
 ### What counts as a game played
 
 Read off the end frame each game already broadcasts, in `endsRound()`
