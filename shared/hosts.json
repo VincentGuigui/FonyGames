@@ -2,7 +2,16 @@
   "_": "The ONE place the deployed hostnames live. See docs/realtime-server.md §6.",
   "workersSubdomain": "vguigui.workers.dev",
   "environments": {
-    "dev": { "site": "fonygames-dev.guigui.fr", "worker": "fonygames-worker-dev" },
-    "prod": { "site": "fonygames.guigui.fr", "worker": "fonygames-worker" }
-  }
+    "dev": {
+      "site": "fonygames-dev.guigui.fr",
+      "worker": "fonygames-worker-dev",
+      "webAnalyticsToken": "b3d4398a4ac94896815b4e4cfcbcaaad"
+    },
+    "prod": {
+      "site": "fonygames.guigui.fr",
+      "worker": "fonygames-worker",
+      "webAnalyticsToken": "71cddbd3244d418fb532c61e4fd5fbe1"
+    }
+  },
+  "_webAnalyticsToken": "Cloudflare Web Analytics site tag, injected by scripts/beacon.mjs. Committed rather than kept as a secret because it ships in the HTML of every page — it identifies a site to Cloudflare, it does not authorise anything. See docs/specs/analytics.md §2."
 }

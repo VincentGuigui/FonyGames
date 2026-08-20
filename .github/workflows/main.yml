@@ -159,6 +159,12 @@ jobs:
     # fails the deploy instead of shipping. It also stages api/ into dist/api,
     # so one build produces one uploadable tree (docs/deployment.md §5).
     - name: 🔨 Build
+      env:
+        # Which Cloudflare Web Analytics site tag goes into the pages. The branch name
+        # IS the environment name here (see `environment:` above), and the tokens live
+        # in shared/hosts.json — public, because they ship in every page's HTML
+        # (docs/specs/analytics.md §2). Unset locally, which means no beacon.
+        FONY_ENV: ${{ github.ref_name }}
       run: npm run build
 
     # The admin centre: give it its real path, and its config.
