@@ -13,6 +13,7 @@ import { CARD as COMPASS_HUNT_CARD } from './ghost-hunt/card';
 import { CARD as SCREAM_METER_CARD } from './scream-meter/card';
 import { CARD as GRID_ATTACK_CARD } from './grid-attack/card';
 import { CARD as SQUASH_MOSQUITOES_CARD } from './squash-mosquitoes/card';
+import { CARD as NEON_FALL_CARD } from './neon-fall/card';
 import type { GameCard } from '../core/types';
 
 /**
@@ -43,6 +44,7 @@ export const GAMES: GameCard[] = [
   COMPASS_HUNT_CARD,
   GRID_ATTACK_CARD,
   SQUASH_MOSQUITOES_CARD,
+  NEON_FALL_CARD,
   SCREAM_METER_CARD,
 ];
 
