@@ -36,7 +36,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Cat and Mouse](games/cat-and-mouse.md) | *One cat, a floor full of mice, and nowhere to hide* | touch | 2–6 | ✅ `chase` built · beta |
 | [Grid Attack](games/grid-attack.md) | *Break their grid before they break yours* | touch | 2 | 🎮 beta — the **only landscape board**; two-second fuse untested by two people in a room |
 | [Squash Mosquitoes](games/squash-mosquitoes.md) | *Squash all 66 before anyone else does* | touch | 2–8 | 🚧 building |
-| [Neon Fall](games/neon-fall.md) | *Dodge five lanes of neon fire, or shoot down what falls* | orientation + touch | 2 | 📝 draft — proposes PixiJS; the design and the dependency are two separate yeses (§13) |
+| [Neon Fall](games/neon-fall.md) | *Dodge five lanes of neon fire, or shoot down what falls* | orientation + touch | 2 | 🚧 building — plain `<canvas>`; PixiJS measured at ~221 KB gzipped and rejected (§13) |
 
 ### Idea notes (not yet specs)
 
@@ -69,9 +69,9 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 - **Neon Fall** — one player tilts a glowing glider smoothly across five
   unmarked lanes as it falls; the other has five lane-aligned triggers and a
   three-shot burst to shoot it down before it lands. No score, win or lose.
-  Full spec written; proposes PixiJS as the renderer, which needs its own
-  yes on top of the design (AGENTS.md §3.3) — awaiting a go-ahead on both
-  before any code.
+  Full spec written and approved; a PixiJS spike measured ~221 KB gzipped
+  for the minimal import, over the whole per-game budget on its own, so it
+  builds on a plain `<canvas>` instead, same as Grid Attack and Spill.
 
 Promote an idea by copying [game-spec-template.md](game-spec-template.md) to
 `games/<slug>.md`, filling it, and updating the row above in a `spec:` commit.

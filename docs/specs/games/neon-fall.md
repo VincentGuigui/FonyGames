@@ -1,10 +1,8 @@
 # Neon Fall
 
-> Status: **draft**, awaiting validation. No code yet, and this one has a
-> **second** approval to clear before it does: it proposes PixiJS as a new
-> runtime dependency (§13), which needs its own explicit yes under
-> [AGENTS.md](../../../AGENTS.md) §3.3 — approving this spec's design is not
-> approving that.
+> Status: **approved**, building. The design is approved; the PixiJS question
+> in §13 is now resolved — measured, not estimated — and the answer is no.
+> This game builds on a plain `<canvas>`, same as Grid Attack and Spill.
 
 | | |
 | --- | --- |
@@ -15,7 +13,7 @@
 | **Round length** | ~20–45 s of falling, plus up to 3×1.5 s of bounce stalls if the glider is hit |
 | **Inputs** | orientation (tilt) for the glider · touch for the protector |
 | **Accent colour** | `#22D3EE` cyan for the glider — and `#F72585` magenta for the protector's bolts |
-| **Status** | draft |
+| **Status** | approved, building — plain `<canvas>` (§13) |
 
 ## 1. Pitch
 
@@ -263,32 +261,45 @@ never a position. Room memory only, for the life of the round.
   room bigger than two, the way Steady Hand's eliminated players become
   spectators? Nothing here currently gives a third player anything to do.
 
-## 13. Rendering: the PixiJS question
+## 13. Rendering: the PixiJS question, measured and closed
 
-This is a separate approval from the design above, and this section exists
-so it does not get bundled into a single yes by accident.
+This was flagged as a separate approval from the design, specifically so it
+would not get bundled into a single yes by accident, with a concrete next
+step: build the smallest possible throwaway import and measure it against
+the real budget before writing any game code against it. That measurement
+happened, and it settles the question.
 
-**Why this game is a more plausible PixiJS candidate than Squash Mosquitoes
-was:** falling/drifting stars at several depths and speeds, a glowing
-glider, telegraphed bolts, and a blinking parabolic bounce are genuine
-animation and light-particle work — closer to what a canvas renderer buys
-its keep on than Squash Mosquitoes' 66 mostly-static buttons ever were.
+**The spike:** a throwaway Vite entry importing only
+`{ Application, Container, Graphics }` from `pixi.js` — the exact minimal
+surface this game would use — built through the project's real pipeline and
+measured the same way [architecture.md](../../architecture.md) §4 measures
+everything else: gzipped, on disk, after minification.
 
-**Why it is still not a given:** PixiJS's own reported minified+gzipped
-size is in the neighbourhood of 120 KB for the full package — most of one
-game's entire ≤ 150 KB gzipped budget
-([architecture.md](../../architecture.md) §4) before this game's own code,
-art, or the shared chrome it still needs (lobby, `RulesPanel`, `GameOver`)
-are counted. Tree-shaking via ESM imports (only the renderer, container,
-graphics/sprite, and ticker — no filters, no spine, no asset-loader extras)
-would bring that down, but nobody has measured the trimmed number against
-this game's actual needs yet. That measurement — a throwaway build with just
-the pieces this game would use, checked against the real budget — is the
-concrete next step if the maintainer says yes to trying PixiJS here, before
-any real game code is written against it.
+**The result:** **~221 KB gzipped**, not the ~120 KB the full package's own
+reported size suggested before anything was actually built. `pixi.js`'s
+top-level entry point does not tree-shake the way importing three named
+exports implies — `Application`'s default init path pulls in the WebGL
+renderer, the WebGPU renderer, the canvas fallback renderer, browser
+capability detection, and web-worker support, all at once, because it does
+not know ahead of time which one the device will pick. Rollup chunks it
+into a dozen pieces (`WebGLRenderer`, `WebGPURenderer`, `CanvasRenderer`,
+`RenderTargetSystem`, `browserAll`, `webworkerAll`, and more), but none of
+that is dead code by the bundler's own analysis — it is all reachable from
+the three names that were imported.
 
-If the answer is no, or "measure first and it doesn't fit," the fallback is
-a plain `<canvas>` with `requestAnimationFrame`, the same approach Grid
-Attack and Spill already use — it can still deliver every visual beat this
-spec describes, just with more hand-rolled drawing code and no built-in
-scene graph.
+**That alone is roughly 1.5× this game's entire ≤ 150 KB gzipped budget**,
+before a single line of Neon Fall's own game code, its art, or the shared
+chrome (`RoomGate`, `RulesPanel`, `GameOver`) it still needs. Reaching past
+the documented public API into PixiJS's individual renderer-only submodule
+paths might shrink this, but that is not how the library is meant to be
+consumed, is fragile across its own version bumps, and would itself be a
+second, bigger thing to propose and validate — not a tuning knob to reach for
+quietly to make a number fit.
+
+**Decision: plain `<canvas>` with `requestAnimationFrame`**, the same
+approach Grid Attack and Spill already use. It delivers every visual beat
+this spec describes — the drifting stars, the glowing glider, telegraphed
+bolts, the parabolic bounce — with more hand-rolled drawing code and no
+scene graph, for a fraction of the payload. The pragmatic case-by-case
+policy this spike was testing worked exactly as intended: it said yes to
+measuring, and the measurement said no.
