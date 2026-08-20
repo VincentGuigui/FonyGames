@@ -37,6 +37,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Grid Attack](games/grid-attack.md) | *Break their grid before they break yours* | touch | 2 | 🎮 beta — the **only landscape board**; two-second fuse untested by two people in a room |
 | [Squash Mosquitoes](games/squash-mosquitoes.md) | *Squash all 66 before anyone else does* | touch | 2–8 | 🚧 building |
 | [Neon Fall](games/neon-fall.md) | *Dodge five lanes of neon fire, or shoot down what falls* | orientation + touch | 2 | 🎮 beta — plain `<canvas>`; numbers untested on real phones tilting |
+| [Tap Tap Revolution](games/tap-tap-revolution.md) | *Chase the lit circle. Miss once and the song starts over* | touch | 2–8 | 📝 draft — awaiting a go-ahead before any code |
 
 ### Idea notes (not yet specs)
 
@@ -71,7 +72,15 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
   three-shot burst to shoot it down before it lands. No score, win or lose.
   Full spec written and approved; a PixiJS spike measured ~221 KB gzipped
   for the minimal import, over the whole per-game budget on its own, so it
-  builds on a plain `<canvas>` instead, same as Grid Attack and Spill.
+  builds on a plain `<canvas>` instead, same as Goat Siege and Spill. Built
+  and verified end to end in the browser.
+- **Tap Tap Revolution** — 100 circles, one lit at a time in a shared,
+  server-dealt order; a correct tap clears it and plays the next note of
+  Shake Rush's own melody (which is already exactly 100 notes long), a
+  wrong tap resets the whole board and rewinds the tune. First to clear
+  all 100 wins, no score, just the clock. Full spec written; awaiting a
+  go-ahead before any code — and §12 flags the reset's harshness as the
+  real open question a playtest has to answer, not this document.
 
 Promote an idea by copying [game-spec-template.md](game-spec-template.md) to
 `games/<slug>.md`, filling it, and updating the row above in a `spec:` commit.
