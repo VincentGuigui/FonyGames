@@ -33,7 +33,7 @@ answer here *and* in the doc it affects.
 | ~~D5~~ | ~~Domain~~ | **DECIDED** — `guigui.fr`, with `fonygames.` (prod) and `fonygames-dev.` (dev) subdomains | ✅ |
 | ~~D6~~ | ~~First build~~ | **DECIDED** — hub shell first (M2, done), then Tap Duel as the room-core pathfinder | ✅ |
 | ~~D7~~ | ~~Local preferences storage~~ | **DECIDED** — `sessionStorage` for the seat id (dies with the tab), `localStorage` for name and avatar (persists between visits). Never game data | ✅ |
-| D8 | Language / i18n | English only · English + French from the start | **English only** in v1, keep strings in one file |
+| ~~D8~~ | ~~Language / i18n~~ | **DECIDED** — English + French, detected from the browser and overridable by a shared picker (hub, room choice, lobby, top-right). Shared chrome and every built game's card are translated; SEO `<meta>`, the admin tool and worker/API error text stay English for now. Spec: [specs/i18n.md](specs/i18n.md) | ✅ |
 | D9 | Sound | Required from M4 · added in M6 | **M6**, but never load-bearing (UI guidelines §7) |
 | D10 | Linter/formatter | ESLint + Prettier · Biome · none | **Biome** (one tool, fast) |
 

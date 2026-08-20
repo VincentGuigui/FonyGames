@@ -251,8 +251,12 @@ The rest, in [../testing.md](../testing.md):
   client-rendered.
 - **No sitemap of room URLs.** Rooms are ephemeral and private by design
   ([../database.md](../database.md) §1).
-- **No `hreflang`, no translations.** The site is English-only today; a language
-  decision belongs in [../roadmap.md](../roadmap.md) before any markup appears.
+- **Still no `hreflang`, no translated `<meta>`.** Roadmap D8 settled English +
+  French for the UI ([i18n.md](i18n.md)), but that's a client-side switch after
+  the page has loaded — the `<title>`/`description`/OG tags this spec covers
+  are still generated once, in English, at build time. Serving a French
+  variant of them would need a second SSR shell and PHP-side language
+  negotiation, which is its own decision, not a consequence of this one.
 - **No analytics tag, no consent banner.** The about sheet promises nothing is
   stored, and a third-party script would make that a lie
   ([backoffice.md](backoffice.md) §1).

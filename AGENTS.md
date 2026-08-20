@@ -34,6 +34,7 @@ file under 200 lines** — put detail in `docs/`, not here.
 | Join methods (link, code, QR, smart join) | [docs/specs/join.md](./docs/specs/join.md) |
 | Backoffice spec (flags, admin — in PHP) | [docs/specs/backoffice.md](./docs/specs/backoffice.md) |
 | SEO, link previews & server-rendered HTML | [docs/specs/seo.md](./docs/specs/seo.md) |
+| Language (English + French) | [docs/specs/i18n.md](./docs/specs/i18n.md) |
 | Game spec template | [docs/specs/game-spec-template.md](./docs/specs/game-spec-template.md) |
 
 ---
@@ -174,6 +175,8 @@ overrides them. Reasons in
       screen lock / tab background.
 - [ ] No blocking console errors; page weight and load time within the budgets
       in [docs/architecture.md](./docs/architecture.md).
+- [ ] Card has a French translation (title stays as-is) — see
+      [docs/specs/i18n.md](./docs/specs/i18n.md).
 
 ---
 

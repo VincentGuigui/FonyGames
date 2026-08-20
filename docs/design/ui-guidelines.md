@@ -74,8 +74,10 @@ Rules:
 - Rules explained in ≤ 3 bullets, shown once in the lobby, re-openable via "?".
 - Error copy says what to do next: "No GPS signal — step outside or try Same
   Room mode."
-- Language: English first. Any i18n decision goes through
-  [../roadmap.md](../roadmap.md).
+- Language: English is written first, as the source of truth every French
+  string is checked against — see [../specs/i18n.md](../specs/i18n.md) for
+  where a translation lives and how it falls back. A game isn't done until
+  its card has both (Definition of done, AGENTS.md §6).
 
 ## 6. Illustration style
 
