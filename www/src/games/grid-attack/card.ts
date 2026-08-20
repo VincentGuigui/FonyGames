@@ -18,9 +18,12 @@ export const CARD: GameCard = {
   pitch: 'Break their grid before they break yours',
   concept: 'Two grids, sideways. Three taps to light one of theirs, three to put out one of yours.',
   rules: [
-    'Turn your phone sideways — yours is on the left, theirs on the right.',
-    'Tap one of theirs three times, fast, to light it.',
-    'A lit cell of yours blows in two seconds. Three taps saves it.',
+    // The colour marker is `{{#hex|word}}` — HowToPlay.tsx renders it in that colour and
+    // strips the markup. The two colours are the halves' own border colours (grid.css),
+    // named in words too, never colour alone (docs/design/ui-guidelines.md §2).
+    'Attack their grid ({{#a3e635|green}}) while defending yours ({{#a78bfa|purple}}).',
+    '{{#a3e635|Green}}: tap the enemy grid three times, fast, to light it.',
+    '{{#a78bfa|Purple}}: a lit cell bursts in two seconds — three taps saves it.',
   ],
   art: { src: art, alt: 'Two grids of squares facing each other, one square lit and about to blow' },
   accent: '#A78BFA',
