@@ -38,6 +38,8 @@ export type DuelPhase = 'idle' | 'armed' | 'fire' | 'burned' | 'result';
 
 export function Duel(props: {
   players: Player[];
+  /** Threaded through to the end panel's `GameOverScreen` — nowhere else needs it. */
+  slug: string;
   /** The game's accent, for the end panel — the round screen sets it on its own root. */
   accent: string;
   me: PlayerId | null;
@@ -68,7 +70,7 @@ export function Duel(props: {
   concept: string;
   rules: string[];
 }): JSX.Element | null {
-  const { players, me, phase, result, tally, onTap, onAgain, isHost, title, concept, rules, target, accent } =
+  const { players, me, phase, result, tally, onTap, onAgain, isHost, title, concept, rules, target, accent, slug } =
     props;
   const { armed, now } = props;
   /*
@@ -246,6 +248,7 @@ export function Duel(props: {
 
     return (
       <GameOverScreen
+        slug={slug}
         accent={accent}
         title={title}
         concept={concept}

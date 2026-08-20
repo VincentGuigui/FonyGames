@@ -467,6 +467,21 @@ switch ($action) {
         ]);
 
         // no break
+
+    /*
+     * The activity dashboard. Requires the schema, unlike `usage` — this one reads a
+     * table rather than a file and an outbound call, so an empty database has nothing
+     * to answer with.
+     *
+     * `?days=` is the only input, clamped inside `Analytics::summary()` itself rather
+     * than here — the ceiling is a fact about that method, not about this endpoint.
+     */
+    case 'analytics':
+        requireSchema($app);
+        $days = (int) ($_GET['days'] ?? 7);
+        reply(200, $app->analytics()->summary($days > 0 ? $days : 7));
+
+        // no break
 }
 
 reply(404, ['error' => 'no such action']);

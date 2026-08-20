@@ -10,6 +10,8 @@ written, registered here, and validated by the maintainer.
 | [join.md](join.md) | How players get into a room: link/code/QR, and the smart-join design | 📝 tier 1 built, tier 2 specced |
 | [backoffice.md](backoffice.md) | Operator view: health, Cloudflare usage, aggregate activity, feature flags. **PHP on the web host** | 🚧 building |
 | [seo.md](seo.md) | Link previews (`og:`/`twitter:`), and the hub's HTML rendered by PHP per request | 🚧 building |
+| [i18n.md](i18n.md) | English + French: browser detection, the shared picker, translating a card | ✅ built |
+| [analytics.md](analytics.md) | The Cloudflare beacon, the activity log, and the admin dashboard | ✅ built |
 
 ## Game catalogue
 

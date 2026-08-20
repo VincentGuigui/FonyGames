@@ -683,6 +683,7 @@ a.btn {
  * inventing a look for a dead end.
  */
 .nosuchroom {
+  position: relative;
   max-width: 34rem;
   margin: 0 auto;
   padding: var(--space-5) var(--space-4)
@@ -726,7 +727,16 @@ a.btn {
 }
 
 .choice__header {
+  position: relative;
   margin-bottom: var(--space-5);
+  /* Room for the language picker, top-right (core/ui/LocalePicker.tsx). */
+  padding-right: calc(2.75rem + var(--space-3));
+}
+
+.lobby__header {
+  position: relative;
+  /* Room for the language picker, top-right (core/ui/LocalePicker.tsx). */
+  padding-right: calc(2.75rem + var(--space-3));
 }
 
 /*

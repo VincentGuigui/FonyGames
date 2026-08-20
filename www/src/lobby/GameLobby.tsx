@@ -6,6 +6,9 @@ import type { Room } from '../core/room/useRoom';
 import { CodeCard, ConnectionBanner, PlayerList, ProfileSheet } from './parts';
 import { HowToPlay } from '../core/ui/HowToPlay';
 import { Disclosure } from '../core/ui/Disclosure';
+import { LocalePicker } from '../core/ui/LocalePicker';
+import { useT } from '../core/i18n/strings';
+import { track } from '../core/analytics';
 import { ArrivedByLink } from './arrival';
 import { soloTesting } from '../core/solo';
 
@@ -79,10 +82,12 @@ export function GameLobby({
    */
   const solo = soloTesting();
   const [editing, setEditing] = useState(false);
+  const t = useT();
 
   return (
     <div class="lobby" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
       <header class="lobby__header">
+        <LocalePicker />
         {/*
           Out of the room and back to this game's own page, not out to the hub.
 
@@ -97,7 +102,7 @@ export function GameLobby({
           hashchange, puts the chooser back, and unmounting the lobby closes the socket.
         */}
         <a class="lobby__back" href={`/${card.slug}/`}>
-          ← Leave the room
+          {t.common.leaveTheRoom}
         </a>
         <h1 class="lobby__title">{card.title}</h1>
         <p class="lobby__pitch">{card.pitch}</p>
@@ -118,15 +123,13 @@ export function GameLobby({
       */}
       {solo && soloSupported && (
         <p class="lobby__solo" role="note">
-          Solo testing is on: you can start on your own, and a round that would normally end
-          when one player is left runs to its clock instead. Everything else is the real game.
+          {t.lobby.soloOn}
         </p>
       )}
 
       {solo && !soloSupported && (
         <p class="lobby__solo" role="note">
-          Solo testing is on, but not for this one — it is two phones facing each other across
-          a gap, so there is no board to render alone. It still needs a second player.
+          {t.lobby.soloOnUnsupported}
         </p>
       )}
 
@@ -135,7 +138,7 @@ export function GameLobby({
         read the rules there. Collapsing it for everyone assumed the rules had been read on the
         way in — true only of the host, and false for most of the table (lobby/arrival.ts).
       */}
-      <Disclosure heading="How to play" open={arrivedByLink}>
+      <Disclosure heading={t.common.howToPlay} open={arrivedByLink}>
         <HowToPlay concept={card.concept} rules={card.rules}>
           {aside}
         </HowToPlay>
@@ -154,7 +157,7 @@ export function GameLobby({
         page renders — which is the right way round: the guest, who is the common case, never
         sees it move.
       */}
-      <Disclosure heading="Invite a player" open={room.isHost}>
+      <Disclosure heading={t.common.invitePlayer} open={room.isHost}>
         <CodeCard
           code={code}
           joinUrl={joinUrl}
@@ -168,7 +171,8 @@ export function GameLobby({
 
       <section class="panel">
         <h2 class="panel__heading">
-          Players{room.room ? ` (${room.room.players.length})` : ''}
+          {t.common.players}
+          {room.room ? ` (${room.room.players.length})` : ''}
         </h2>
         <PlayerList
           room={room.room}
@@ -201,7 +205,15 @@ export function GameLobby({
           prominent slot on the screen. The note carries the state instead.
         */}
         {room.isHost && (
-          <button class="btn btn--primary btn--big" type="button" disabled={!canStart} onClick={onStart}>
+          <button
+            class="btn btn--primary btn--big"
+            type="button"
+            disabled={!canStart}
+            onClick={() => {
+              track('game_start', card.slug);
+              onStart();
+            }}
+          >
             {startLabel}
           </button>
         )}

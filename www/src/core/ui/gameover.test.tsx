@@ -38,7 +38,7 @@ const rows = [
 
 const html = (props: Partial<Parameters<typeof GameOver>[0]> = {}): string =>
   renderToString(
-    <GameOver rows={rows} me={A} winner={A} canAct={true} onAgain={() => {}} {...props} />,
+    <GameOver slug="demo" rows={rows} me={A} winner={A} canAct={true} onAgain={() => {}} {...props} />,
   );
 
 console.log('\nwho won');

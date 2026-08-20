@@ -33,7 +33,7 @@ import { GameOverScreen } from '../../core/ui/GameOver';
 export function SteadyRoom(props: { game: GameCard }): JSX.Element {
   return (
     <RoomGate game={props.game}>
-      {(code) => <SteadyRoomInner game={props.game} code={code} />}
+      {(code, card) => <SteadyRoomInner game={card} code={code} />}
     </RoomGate>
   );
 }
@@ -122,6 +122,7 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
     const ranked = [...players].sort((a, b) => (state.times[b.id] ?? 0) - (state.times[a.id] ?? 0));
     return (
       <GameOverScreen
+        slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}

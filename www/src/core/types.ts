@@ -83,6 +83,19 @@ export type GameCard = {
   inputs: GameInput[];
   modes: GameMode[];
   /**
+   * French text overriding the fields above, where translated. A missing field
+   * falls back to English — a game can ship with only some fields translated.
+   * `rules` entries reuse `HowToPlay.tsx`'s `{{#hex|word}}` colour markup verbatim,
+   * the same as the English rules. Spec: docs/specs/i18n.md
+   */
+  fr?: {
+    title?: string;
+    pitch?: string;
+    concept?: string;
+    rules?: string[];
+    art?: { alt?: string };
+  };
+  /**
    * The one switch that decides how a game appears in the catalogue.
    *
    * | Value | Badge | Tappable | Order |

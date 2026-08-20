@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { formatRoomCode, isRoomCode, normaliseRoomCode, ROOM_CODE_LENGTH } from '../room/code';
 import { lookupRoom } from '../room/lookup';
+import { useT } from '../i18n/strings';
 
 /**
  * "Got a code from a friend?" — the one place a typed room code is taken.
@@ -21,7 +22,7 @@ import { lookupRoom } from '../room/lookup';
  * without that import this form is unstyled everywhere except the hub.
  */
 export function JoinByCode({
-  label = 'Got a code from a friend?',
+  label,
   /**
    * Called instead of navigating when the code turns out to belong to **this** page's game.
    *
@@ -38,6 +39,7 @@ export function JoinByCode({
   onSameGame?: (code: string) => void;
   slug?: string;
 } = {}): JSX.Element {
+  const t = useT();
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
@@ -62,8 +64,8 @@ export function JoinByCode({
        */
       setError(
         value.length === ROOM_CODE_LENGTH
-          ? `${formatRoomCode(value)} is not a room code — codes read as two syllables, like FON-GAM.`
-          : `A room code is ${ROOM_CODE_LENGTH} letters, in two groups of three.`,
+          ? t.joinByCode.notACode(formatRoomCode(value))
+          : t.joinByCode.wrongLength(ROOM_CODE_LENGTH),
       );
       return;
     }
@@ -83,15 +85,15 @@ export function JoinByCode({
     }
     setError(
       found.reason === 'unknown'
-        ? `No room called ${formatRoomCode(value)}. Check the code, or ask for the link.`
-        : 'Could not reach the game server. Check your connection and try again.',
+        ? t.joinByCode.noSuchRoom(formatRoomCode(value))
+        : t.joinByCode.serverUnreachable,
     );
   }
 
   return (
     <form class="join" onSubmit={onJoin}>
       <label class="join__label" for="room-code">
-        {label}
+        {label ?? t.joinByCode.defaultLabel}
       </label>
       <div class="join__row">
         {/*
@@ -130,7 +132,7 @@ export function JoinByCode({
           }}
         />
         <button class="join__button" type="submit" disabled={checking}>
-          {checking ? 'Looking…' : 'Join'}
+          {checking ? t.joinByCode.looking : t.joinByCode.join}
         </button>
       </div>
       {error && (

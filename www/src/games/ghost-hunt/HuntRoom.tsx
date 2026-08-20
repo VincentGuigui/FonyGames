@@ -88,7 +88,7 @@ const IDLE: LockState = {
 export function HuntRoom(props: { game: GameCard }): JSX.Element {
   return (
     <RoomGate game={props.game}>
-      {(code) => <HuntRoomInner game={props.game} code={code} />}
+      {(code, card) => <HuntRoomInner game={card} code={code} />}
     </RoomGate>
   );
 }
@@ -444,6 +444,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         state={state}
         players={room.room?.players ?? []}
         myId={myId}
+        slug={card.slug}
         title={card.title}
         concept={card.concept}
         rules={card.rules}

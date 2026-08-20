@@ -36,7 +36,7 @@ import { RushScreen } from './RushScreen';
 export function RushRoom(props: { game: GameCard }): JSX.Element {
   return (
     <RoomGate game={props.game}>
-      {(code) => <RushRoomInner game={props.game} code={code} />}
+      {(code, card) => <RushRoomInner game={card} code={code} />}
     </RoomGate>
   );
 }
@@ -183,6 +183,7 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         state={state}
         players={room.room?.players ?? []}
         myId={myId}
+        slug={card.slug}
         title={card.title}
         concept={card.concept}
         rules={card.rules}

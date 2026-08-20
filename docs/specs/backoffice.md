@@ -14,19 +14,23 @@ A private operator view: is it up, what is it costing, and is anyone playing.
 
 ## 1. The privacy boundary — read this first
 
-"User activity" here means **anonymous aggregate counters, and nothing else.**
+This line moved on 2026-08-20, on the maintainer's explicit instruction — see
+[analytics.md](analytics.md) §1 for the reversal and the reasoning, rather than
+repeating it here. What stands today:
 
 | Allowed | Never |
 | --- | --- |
-| Rounds started / finished, per game | Per-player tracking of any kind |
-| Peak concurrent rooms | Player names, ids or avatars |
-| Completion rate, average round length | Any position or sensor reading |
-| Error counts | Per-room history after the room dies |
+| Rounds started / finished, per game | Any position or sensor reading — coordinates, motion samples, mic levels |
+| Peak concurrent rooms, error counts | The IP address, in any form, at rest |
+| A per-visitor id, a nickname, city/country, a referrer — [analytics.md](analytics.md) §3 | Anything that identifies a real person on its own (a password, an email) |
+| Which of six named actions happened, and to which game | Per-room history after the room dies |
 
-The hub's about sheet promises players that nothing they do is stored and that
-positions never leave their room. A backoffice that recorded individual activity
-would make that a lie. Aggregates only — and if a metric cannot be computed from
-counters, it does not get collected.
+**Positions and sensor readings are the one line that never moved.** The hub's
+footer still says so, and still means it literally
+([device-capabilities.md](../device-capabilities.md) §6). What changed is the other
+half of the old sentence — "nothing you do is stored" no longer holds, and the
+footer's copy was rewritten to say what actually happens instead of a promise this
+backoffice would otherwise be breaking quietly.
 
 ## 2. What it shows
 
@@ -47,30 +51,33 @@ warning before the free tier runs out, not pretty graphs.
 > is scoped to *Edit Cloudflare Workers* and deliberately cannot read analytics —
 > do not widen it; mint a separate read-only token.
 
-### Games & activity — ⏸ **blocked on one decision, not on work**
-Per game: rounds started, rounds finished, completion rate, peak concurrent
-rooms. Useful for ordering the hub and for spotting a game nobody finishes,
-which is a design bug worth knowing about.
+### Play counter — ✅ built, resolved this section's original question
+`games.plays` (the `Shared secret` row below), covered in full in §7. One counter, no
+completion rate, no peak concurrent rooms — it answers "which game is played most",
+not the fuller question this section originally asked.
 
-**Not built, and deliberately not built quietly.** The counters can only come from
-the Durable Object, which means a `Room → PHP` write endpoint — and that endpoint
-has to be authenticated, or anyone on the internet can inflate the numbers the hub
-is ordered by. Authenticating it means a shared secret in **two** systems, a
-Wrangler secret and a GitHub secret that must be byte-identical with no automated
-way to check.
+### Activity dashboard — ✅ built, a different answer to the rest of that question
+Per game and site-wide: card taps, rooms created and joined, rounds started and
+finished, over a 7/30/90-day window, plus where visitors are roughly coming from. Full
+design: [analytics.md](analytics.md).
 
-That is exactly `MAIL_SECRET`, which was deleted on 2026-08-06 for exactly that
-reason (§5). Rebuilding it three commits later, for anonymous play counts, is a
-trade the maintainer should make rather than one that should appear in a diff.
+**Not the design below.** That design blocked on authenticating a
+Durable-Object-to-PHP write without a second shared secret (`MAIL_SECRET`'s own
+mistake, §5) — and it stayed blocked, because `api/analytics.php` solves a different
+problem instead: the browser reports its own activity, over an endpoint with **no
+secret at all**. That is the `Unauthenticated endpoint` row below, chosen on purpose
+once the boundary in §1 was redrawn to allow more than an aggregate counter — the
+reasoning for why an open endpoint is an acceptable trade here, and what actually
+bounds it, is in [analytics.md](analytics.md) §3.2.
 
-The options, with what each actually costs:
+The options originally weighed, kept for the record:
 
 | Option | Cost |
 | --- | --- |
-| **Shared secret** (`STATS_SECRET`) | Reintroduces the two-copy drift this design just removed. It is the only option that authenticates the write |
-| **Unauthenticated endpoint** | No secret; anyone can inflate the counters. They are anonymous aggregates, so this is vandalism rather than a breach — but the hub's ordering would be built on numbers a stranger can move |
-| **Cloudflare analytics only** | Already built, no new anything. Gives request volume per Worker, so "is anyone playing" is answerable; per-game granularity is not |
-| **Skip it** | The completion rate is the one metric worth having, and it is a design signal rather than an operational one. It can wait for a play test |
+| **Shared secret** (`STATS_SECRET`) | Reintroduces the two-copy drift this design just removed. The only option that authenticates the write — used for the play counter above, not for the activity log |
+| **Unauthenticated endpoint** | No secret; anyone can post events. Bounded by an action allowlist and a per-visitor rate limit rather than by authentication — **built**, see analytics.md §3.2 |
+| **Cloudflare analytics only** | Also built, as a separate system (§2 above) — request volume per Worker/site, no per-game or per-action granularity |
+| **Skip it** | Superseded by the maintainer's decision to build the activity log instead |
 
 **Health and Cloudflare usage are built and need none of this** — both are read-only
 outbound calls from PHP, with no new credential and nothing to keep in step.

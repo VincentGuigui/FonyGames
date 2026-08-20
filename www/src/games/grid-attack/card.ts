@@ -26,6 +26,17 @@ export const CARD: GameCard = {
     '{{#a78bfa|Purple}}: a lit cell bursts in two seconds — three taps saves it.',
   ],
   art: { src: art, alt: 'Two grids of squares facing each other, one square lit and about to blow' },
+  fr: {
+    pitch: 'Détruisez leur grille avant qu’ils ne détruisent la vôtre',
+    concept:
+      'Deux grilles, à l’horizontale. Trois taps pour allumer une case chez eux, trois pour éteindre une case chez vous.',
+    rules: [
+      'Attaquez leur grille ({{#a3e635|verte}}) tout en défendant la vôtre ({{#a78bfa|violette}}).',
+      '{{#a3e635|Vert}} : tapez trois fois, vite, sur la grille ennemie pour l’allumer.',
+      '{{#a78bfa|Violet}} : une case allumée explose en deux secondes — trois taps la sauvent.',
+    ],
+    art: { alt: 'Deux grilles de cases face à face, une case allumée sur le point d’exploser' },
+  },
   accent: '#A78BFA',
   players: PLAYERS['grid-attack'],
   duration: '1–2 min',

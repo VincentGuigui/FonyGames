@@ -23,6 +23,16 @@ export const CARD: GameCard = {
     'Tap an incoming drop to catch it — it doubles.',
   ],
   art: { src: art, alt: 'Four phones flat in a square with a drop of water arcing between them' },
+  fr: {
+    pitch: 'Balancez votre eau sur les voisins avant qu’ils ne vous inondent',
+    concept: 'La table est le plateau : visez quelqu’un d’une pichenette et ça atterrit sur son téléphone.',
+    rules: [
+      'Téléphones à plat, bord supérieur vers le centre.',
+      'Envoyez votre eau d’une pichenette sur un voisin.',
+      'Tapez sur une goutte qui arrive pour l’attraper — elle double.',
+    ],
+    art: { alt: 'Quatre téléphones à plat en carré, une goutte d’eau qui décrit un arc entre eux' },
+  },
   accent: '#38BDF8',
   players: PLAYERS['spill'],
   duration: '1–3 min',

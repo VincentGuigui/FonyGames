@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { ChaseRoom } from './games/cat-and-mouse/ChaseRoom';
 import { CARD as game } from './games/cat-and-mouse/card';
+import { LocaleProvider } from './core/i18n/LocaleContext';
 import './core/ui/theme.css';
 import './lobby/lobby.css';
 import './core/ui/game-chrome.css';
@@ -13,4 +14,9 @@ import './games/cat-and-mouse/chase.css';
 const root = document.getElementById('app');
 if (!root) throw new Error('#app missing from index.html');
 
-render(<ChaseRoom game={game} />, root);
+render(
+  <LocaleProvider>
+    <ChaseRoom game={game} />
+  </LocaleProvider>,
+  root,
+);

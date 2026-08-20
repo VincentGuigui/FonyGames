@@ -35,7 +35,7 @@ import { SPILL_THEME } from './themes';
  * five files, identical down to the comment.
  */
 export function SpillRoom(props: { game: GameCard }): JSX.Element {
-  return <RoomGate game={props.game}>{(code) => <SpillRoomInner game={props.game} code={code} />}</RoomGate>;
+  return <RoomGate game={props.game}>{(code, card) => <SpillRoomInner game={card} code={code} />}</RoomGate>;
 }
 
 function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
@@ -108,6 +108,7 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const ranked = [...state.seats].sort((a, b) => (state.levels[a] ?? 0) - (state.levels[b] ?? 0));
     return (
       <GameOverScreen
+        slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}
