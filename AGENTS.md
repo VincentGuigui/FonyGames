@@ -119,6 +119,11 @@ Nothing outside those ships. Nothing outside `docs/` documents.
    `prod` from `main` to release. Never commit directly to `main`, `dev` or
    `prod`. See [docs/conventions/commits.md](./docs/conventions/commits.md) and
    [docs/deployment.md](./docs/deployment.md). Open a PR only when asked.
+   **Merging into `dev` or `prod` — i.e. actually deploying — happens only when
+   the maintainer asks for it, explicitly, in that message.** Landing on `main`
+   is not itself a request to publish, however finished the change looks or
+   however routine the last few deploys were. When in doubt, stop at `main`
+   and ask.
 
 ### Reporting what you verified
 
