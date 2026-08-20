@@ -11,7 +11,11 @@ export interface UiStrings {
   hub: {
     tagline: string;
     shellNotice: string;
-    noStorage: string;
+    /**
+     * The footer's privacy line. Rewritten 2026-08-20 — it used to claim nothing
+     * is stored at all, which activity tracking made false. Spec: docs/specs/analytics.md §1.
+     */
+    privacy: string;
     sourceLink: string;
   };
   common: {
@@ -85,8 +89,8 @@ const en: UiStrings = {
   hub: {
     tagline: 'Silly multiplayer games for the phone already in your pocket.',
     shellNotice: "Nothing is playable yet — this is the shell. Cards show what's coming.",
-    noStorage:
-      "No install, no account. Nothing you do is stored — positions and sensor readings never leave the room you're playing in.",
+    privacy:
+      "No install, no account. Positions and sensor readings never leave the room you're playing in. A little activity — what you tapped, roughly where from — is recorded to see how the site's actually used.",
     sourceLink: 'Source on GitHub',
   },
   common: {
@@ -164,8 +168,8 @@ const fr: UiStrings = {
   hub: {
     tagline: 'Des jeux multijoueurs rigolos pour le téléphone que vous avez déjà en poche.',
     shellNotice: "Rien n'est encore jouable — c'est la coquille vide. Les cartes montrent ce qui arrive.",
-    noStorage:
-      "Aucune installation, aucun compte. Rien de ce que vous faites n'est enregistré — positions et données de capteurs ne sortent jamais de la salle où vous jouez.",
+    privacy:
+      "Aucune installation, aucun compte. Les positions et données de capteurs ne sortent jamais de la salle où vous jouez. Un peu d'activité — ce que vous avez tapé, votre origine approximative — est enregistré pour voir comment le site est réellement utilisé.",
     sourceLink: 'Code source sur GitHub',
   },
   common: {

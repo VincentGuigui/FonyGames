@@ -8,6 +8,7 @@ import { HowToPlay } from '../core/ui/HowToPlay';
 import { Disclosure } from '../core/ui/Disclosure';
 import { LocalePicker } from '../core/ui/LocalePicker';
 import { useT } from '../core/i18n/strings';
+import { track } from '../core/analytics';
 import { ArrivedByLink } from './arrival';
 import { soloTesting } from '../core/solo';
 
@@ -204,7 +205,15 @@ export function GameLobby({
           prominent slot on the screen. The note carries the state instead.
         */}
         {room.isHost && (
-          <button class="btn btn--primary btn--big" type="button" disabled={!canStart} onClick={onStart}>
+          <button
+            class="btn btn--primary btn--big"
+            type="button"
+            disabled={!canStart}
+            onClick={() => {
+              track('game_start', card.slug);
+              onStart();
+            }}
+          >
             {startLabel}
           </button>
         )}

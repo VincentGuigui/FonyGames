@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/Analytics.php';
 require_once __DIR__ . '/Auth.php';
 require_once __DIR__ . '/Clock.php';
 require_once __DIR__ . '/Health.php';
@@ -85,6 +86,21 @@ final class App
             'site_origin' => (string) ($loaded['site_origin'] ?? ''),
             'cloudflare_account_id' => (string) ($loaded['cloudflare_account_id'] ?? ''),
             'cloudflare_analytics_token' => (string) ($loaded['cloudflare_analytics_token'] ?? ''),
+            /*
+             * ipinfo.io, for turning a caller's address into a city on the way past.
+             * Nothing like the Cloudflare token above it, which reads Worker usage —
+             * this one is spent per event by `api/analytics.php`. Empty means events are
+             * still recorded, with no city and no country: the geography is the
+             * nice-to-have, the event is the point.
+             */
+            'ipinfo_token' => (string) ($loaded['ipinfo_token'] ?? ''),
+            /*
+             * The operator's off switch for activity events (docs/specs/analytics.md §5).
+             * Defaults to ON, because a host that has been given a database and a schema
+             * has opted in by doing so — and a feature that silently does nothing until a
+             * second switch is found is the failure mode `plays_token` already documents.
+             */
+            'analytics_enabled' => ($loaded['analytics_enabled'] ?? true) !== false,
             // The published file, in the web root. `api/` sits one level below it.
             'flags_path' => (string) ($loaded['flags_path'] ?? dirname($dir) . '/flags.json'),
             'mail_from' => (string) ($loaded['mail_from'] ?? 'noreply@guigui.fr'),
@@ -179,6 +195,30 @@ final class App
         }
 
         return new Migrator($this->db(), dirname(__DIR__, 3) . '/db/migrations');
+    }
+
+    /** Is activity recording switched on for this host? */
+    public function analyticsEnabled(): bool
+    {
+        return $this->config['analytics_enabled'] === true;
+    }
+
+    /**
+     * The activity recorder.
+     *
+     * The geolocator is chosen here rather than inside `Analytics`, so that "no token
+     * means no lookups" is a wiring fact visible in one place instead of a branch buried
+     * in the thing doing the looking up.
+     */
+    public function analytics(): Analytics
+    {
+        $token = (string) $this->config['ipinfo_token'];
+
+        return new Analytics(
+            $this->db(),
+            new SystemClock(),
+            $token === '' ? new NoGeolocator() : new IpInfoGeolocator($token),
+        );
     }
 
     public function usage(): Usage

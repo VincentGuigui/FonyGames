@@ -9,6 +9,7 @@ import { RoomChoice } from './RoomChoice';
 import { useLocale } from '../core/i18n/LocaleContext';
 import { useT } from '../core/i18n/strings';
 import { localizeCard } from '../core/i18n/localizeCard';
+import { track } from '../core/analytics';
 
 /** Which room the player is in, and how they got there. */
 type Entered = { code: string; byLink: boolean };
@@ -59,6 +60,23 @@ export function RoomGate({
     const initial = readRoomHash();
     return initial.kind === 'code' ? { code: initial.code, byLink: true } : null;
   });
+
+  /*
+   * Once per page load: this game's own page was opened, and — if it opened straight into
+   * a room — that room was joined rather than created. `[]` deps means this reads `entered`
+   * exactly as `useState` first computed it, which is the initial URL rather than whatever
+   * the hash becomes after (`RoomChoice`'s own Create/Join taps track their own actions).
+   *
+   * `byLink` covers both a shared link followed from outside AND a code typed for a
+   * DIFFERENT game in `JoinByCode`, which navigates here the same way — from this
+   * component's position, the two are indistinguishable and equally a join.
+   */
+  useEffect(() => {
+    track('game_select', game.slug);
+    if (entered !== null && entered.byLink) {
+      track('room_join', game.slug);
+    }
+  }, []);
 
   /**
    * Follow the hash when the *player* changes it.

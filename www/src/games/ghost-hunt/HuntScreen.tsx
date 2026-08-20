@@ -276,6 +276,7 @@ export function HuntResults({
   state,
   players,
   myId,
+  slug,
   title,
   concept,
   rules,
@@ -286,6 +287,8 @@ export function HuntResults({
   state: HuntView;
   players: Player[];
   myId: PlayerId | undefined;
+  /** Threaded through to `GameOverScreen` — nowhere else here needs it. */
+  slug: string;
   title: string;
   concept: string;
   rules: string[];
@@ -299,6 +302,7 @@ export function HuntResults({
 
   return (
     <GameOverScreen
+      slug={slug}
       accent={accent}
       title={title}
       concept={concept}

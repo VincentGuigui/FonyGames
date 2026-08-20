@@ -88,6 +88,7 @@ function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const ranked = [...state.players].sort((a, b) => (state.pucks[a] ?? 0) - (state.pucks[b] ?? 0));
     return (
       <GameOverScreen
+        slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}

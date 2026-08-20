@@ -109,6 +109,7 @@ function GridRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     const ranked = [...players].sort((a, b) => livesOf(state, b.id) - livesOf(state, a.id));
     return (
       <GameOverScreen
+        slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}

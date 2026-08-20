@@ -120,16 +120,17 @@ it would throw the ordering away.
 
 | State | Behaviour |
 | --- | --- |
-| First visit | Grid + tagline; no modal, no cookie banner (nothing is stored) |
+| First visit | Grid + tagline; no modal. Activity is recorded from the first tap — [analytics.md](analytics.md) §1 |
 | Offline | Cached shell + "You're offline" strip; cards render, tapping explains |
 | Invalid room code | Inline error under the field: "No room with that code" |
 | Empty catalogue | Impossible — build fails if the registry is empty |
 
 ## 8. About sheet
 
-One short paragraph on what FonyGames is, the privacy line ("nothing is stored,
-positions never leave your room"), the safety line, and a link to the
-repository.
+One short paragraph on what FonyGames is, the privacy line — positions and sensor
+readings never leave your room, and what activity *is* recorded is the bounded,
+disclosed exception in [analytics.md](analytics.md) §1, not "nothing" — the safety
+line, and a link to the repository.
 
 ## 9. Open questions
 
