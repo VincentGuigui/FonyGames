@@ -109,6 +109,16 @@ convention to remember.
 Keep the bullets short enough to read inside the panel's four seconds. That
 constraint is the reason for the length limit, not neatness.
 
+**A rule can colour one of its own words**, `{{#hex|word}}` — `HowToPlay`
+renders `word` in that colour and strips the markup; a rule with no marker is
+untouched. Grid Attack is the one game that needs it: "green"/"purple" name its
+two grids, and colour is the one thing the word alone cannot carry at a glance.
+The word still says the meaning in text — colour reinforces it, never replaces
+it (§2's own rule, [ui-guidelines.md](ui-guidelines.md) §2). The colour is
+self-contained in the marker rather than read from `--game-accent`, because the
+same string also renders inside `GameMenu`'s sheet, which is not guaranteed to
+inherit a custom property set on the board underneath it.
+
 ## 3. The gear
 
 Every game shows a gear in the **same corner**, opening a bottom sheet that

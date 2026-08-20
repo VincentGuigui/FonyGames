@@ -30,10 +30,45 @@ export function HowToPlay({
       <p class="howto__concept">{concept}</p>
       <ul class="rules">
         {rules.map((r) => (
-          <li key={r}>{r}</li>
+          <li key={r}>{highlighted(r)}</li>
         ))}
       </ul>
       {children}
     </div>
   );
+}
+
+/**
+ * A rule can colour one of its own words to match the board — Grid Attack's
+ * "green"/"purple" name its two grids, and colour is the one thing a player
+ * reading four short lines at arm's length cannot get from the word alone
+ * (docs/design/ui-guidelines.md §2: colour reinforces the label, never
+ * replaces it, and the word is what carries the meaning here regardless).
+ *
+ * `{{#hex|word}}` in the source string renders `word` in that colour; a rule
+ * with no marker passes through untouched, which is every rule for every
+ * other game. The colour travels inside the marker rather than through a CSS
+ * variable such as `--game-accent`, because this same string also renders
+ * inside `GameMenu`'s sheet, and a sheet mounted through a portal is not
+ * guaranteed to inherit a custom property set on the board underneath it.
+ */
+function highlighted(text: string): ComponentChildren {
+  if (!text.includes('{{')) return text;
+
+  const marker = /\{\{(#[0-9a-fA-F]{6})\|([^}]+)\}\}/g;
+  const parts: ComponentChildren[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+  while ((match = marker.exec(text))) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    parts.push(
+      <span key={match.index} style={{ color: match[1] }}>
+        {match[2]}
+      </span>,
+    );
+    last = match.index + match[0].length;
+  }
+  parts.push(text.slice(last));
+
+  return parts;
 }
