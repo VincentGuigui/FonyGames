@@ -74,10 +74,34 @@ timer, and nothing that needs to travel on the wire per mosquito.
 
 - **Static** (1–33): the hitbox is the whole cell. Slow and generous, because
   this half exists to let the swarm build before it gets hard.
-- **Flying** (34–66): `SQUASH_FLY_SCALE` (⅓) the size, hitbox included, and it
+- **Flying** (34–66): `SQUASH_FLY_SCALE` (½) the size, hitbox included, and it
   wanders continuously inside the bounds of its own cell — never past the
   edge, because a mosquito that could drift into a neighbour's territory
   would make one cell's fate depend on another's.
+
+### 2.3 Each mosquito picks its own spot, and flies in to reach it
+
+A swarm lined up dead-centre on every cell reads as a grid, not bugs. The
+moment a phone first sees a mosquito active, it rolls that mosquito a
+**target**: an offset from the cell's own centre, up to half a cell either
+way on both axes. Static mosquitoes sit there for good; flying ones wander
+around it exactly as before (§2.2) — the target is where the wander is
+centred, not a replacement for it.
+
+It also picks an entrance: one of the four screen edges, a point along that
+edge, and a phase for its wiggle. Over the next 550 ms (`SQUASH_ENTRY_MS`,
+`www/src/games/squash-mosquitoes/game.ts`) it flies in from there to its
+target along a sine-wave path rather than a straight line — a perpendicular
+wiggle that fades in and back out so the path still lands exactly on the
+target. `www/src/games/squash-mosquitoes/game.test.ts` proves the pure
+geometry: the path starts exactly at the entry point, ends exactly on the
+target, and two mosquitoes given different phases do not swing in lockstep.
+
+**Rolled once, per player, per mosquito.** Nobody else is ever shown this
+board (§9), so there is nothing for two phones to disagree about, and
+nothing here ever touches the wire. A new round rolls every mosquito a
+fresh target and a fresh entrance — the previous round's scatter meant
+nothing once the pattern's indices have been dealt out again.
 
 ## 3. Modes / variations
 
@@ -192,8 +216,11 @@ player's screen; only the running total does.
 ## 11. Open questions
 
 - `SQUASH_STATIC_COUNT` at 33 (exactly half) is still a guess, untested by a real
-  thumb against a real screen. `SQUASH_FLY_SCALE` started at ¼ on the same
-  guess and was raised to ⅓ once real play found it too small a target.
+  thumb against a real screen. `SQUASH_FLY_SCALE` started at ¼, was raised to
+  ⅓ once real play found it too small a target, and then to ½.
+- `SQUASH_ENTRY_MS` (550), `SQUASH_ENTRY_WIGGLE` (18px) and `SQUASH_ENTRY_WAVES`
+  (2) are all first guesses, same as the rest of this section — a real table
+  might want the swarm to fly in faster, or wiggle more or less on the way.
 - Is the doubling spawn rule too generous? A fast squasher can end up
   fighting twenty-plus mosquitoes at once near the end of the pattern purely
   from their own success — thrilling or overwhelming, and only a table of

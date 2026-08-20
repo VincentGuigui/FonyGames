@@ -136,20 +136,30 @@ wrangler secret put PLAYS_TOKEN --env prod
 Set one side only and counting stops: the endpoint requires the header the Worker is not
 sending. Both or neither.
 
-The admin values are written by the deploy into `api/config.php` on the host, so a
-rebuilt host is reproducible from CI alone and there is no manual step on the server.
+The admin values are written by the deploy into `config.php` one level above `/www`
+on the host, so a rebuilt host is reproducible from CI alone and there is no manual
+step on the server.
 
-**Where that file sits, honestly.** It is inside the web root, in `api/`, because the
-SFTP account is chrooted to `/www` and the deploy cannot write above it. Three things
-stand between it and a reader, and none of them is "it is unreachable":
+**Where that file sits, honestly.** One level above `/www` — outside the web root
+entirely, not inside it. The SFTP account's own root is that parent directory, with
+`www` as one folder inside it, so the deploy has always been able to write there; the
+file lived inside `api/` for a while regardless, protected only by an `.htaccess` deny
+and a `chmod 600`, which is weaker than it needs to be: **`.htaccess` depends on
+Apache actually reading it**, and a misconfigured handler that serves `.php` as text
+would publish the file. Living outside the web root removes that dependency —
+there is no web root there for a misconfigured handler to serve *from*.
 
-1. It is a `.php` file that only `return`s an array, so executing it emits nothing.
-2. `api/lib/.htaccess` denies the directory outright, and the deploy `chmod 600`s the
-   config.
-3. The residual risk is named rather than hidden: if the PHP handler is ever
-   misconfigured so `.php` is served as text, this file is a published credential.
-   That failure would break the whole site at the same moment, so it is loud — but
-   rotate `DB_PASS` and `ADMIN_TOKEN` if it ever happens.
+`hosts.json` and `db/` (the migration files) moved the same way, for the same reason,
+in the same upload — see `dist-private/` in [`stage-api.mjs`](../scripts/stage-api.mjs)
+and the **📂 Sync private files** step. `App.php` looks for all three there first, and
+falls back to the older inside-`www` locations for a host not yet redeployed with this
+change — see `App::boot()`, `App::hosts()`, `App::migrator()`.
+
+**One-time cleanup on each host, by hand.** The main sync is `full` and never deletes
+(§5), so the *old* `api/config.php`, `api/hosts.json` and `db/` left by the last deploy
+before this change stay on the host indefinitely otherwise — delete them once, on
+`dev` and on `prod`, the same way a stale `index.html` gets deleted
+([specs/seo.md](specs/seo.md) §4).
 
 There is no `ADMIN_SESSION_KEY` and no `MAIL_SECRET`: PHP's own sessions replace the
 first, and `mail()` runs in the same process that mints the link, so there is nothing to

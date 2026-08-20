@@ -55,7 +55,7 @@ final class PhpMailer implements Mailer
 /**
  * Appends to a file instead of sending.
  *
- * For **local development**, selected by setting `mail_sink` in `api/config.php`. A
+ * For **local development**, selected by setting `mail_sink` in `config.php`. A
  * laptop has no working `mail()`, and without this the magic-link flow cannot be
  * exercised outside production at all — which is how a flow ends up only ever tested by
  * the person who wrote it.
