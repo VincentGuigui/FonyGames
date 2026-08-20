@@ -35,6 +35,7 @@ file under 200 lines** — put detail in `docs/`, not here.
 | Backoffice spec (flags, admin — in PHP) | [docs/specs/backoffice.md](./docs/specs/backoffice.md) |
 | SEO, link previews & server-rendered HTML | [docs/specs/seo.md](./docs/specs/seo.md) |
 | Language (English + French) | [docs/specs/i18n.md](./docs/specs/i18n.md) |
+| Analytics (Cloudflare beacon + activity log) | [docs/specs/analytics.md](./docs/specs/analytics.md) |
 | Game spec template | [docs/specs/game-spec-template.md](./docs/specs/game-spec-template.md) |
 
 ---
@@ -183,9 +184,12 @@ overrides them. Reasons in
 ## 7. Non-negotiables
 
 - No native app, no store distribution.
-- No personal data stored server-side beyond the lifetime of a room; GPS
-  coordinates never leave the room they are played in. See
-  [docs/device-capabilities.md](./docs/device-capabilities.md).
+- No personal data stored server-side beyond the lifetime of a room, other than
+  the bounded, disclosed activity record in
+  [docs/specs/analytics.md](./docs/specs/analytics.md) §1 (a visitor id, an
+  optional nickname, city/country — never the IP address itself). GPS
+  coordinates and every other sensor reading never leave the room they are
+  played in. See [docs/device-capabilities.md](./docs/device-capabilities.md).
 - No game mechanic that encourages players to throw, drop, or violently swing a
   phone, or to move unsafely in traffic. "Bump" means a gentle tap of two
   phones. Safety copy is mandatory in motion and GPS games.

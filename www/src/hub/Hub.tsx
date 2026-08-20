@@ -65,7 +65,7 @@ export function Hub({
       {grid ?? <HubGrid flags={flags} plays={plays} showAll={showAll} locale={locale} />}
 
       <footer class="hub__footer">
-        <p>{t.hub.noStorage}</p>
+        <p>{t.hub.privacy}</p>
         <p>
           <a href="https://github.com/VincentGuigui/FonyGames">{t.hub.sourceLink}</a>
         </p>
