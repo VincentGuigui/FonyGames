@@ -62,6 +62,15 @@ import {
   type NeonFall,
 } from './neonFall';
 import {
+  nextDeadline as taptapDeadline,
+  onTapTap,
+  startTapTap,
+  tick as taptapTick,
+  toState as taptapToState,
+  type Ctx as TapTapCtx,
+  type TapTap,
+} from './tapTapRevolution';
+import {
   onBump as bombBump,
   onFuse as bombFuse,
   onPass as bombPass,
@@ -353,6 +362,11 @@ export class Room extends DurableObject<Env> {
         if (id) await onSquashTap(this.#squashCtx(), id, msg.d.roundId, msg.d.position);
         return;
       }
+      case 'taptap-tap': {
+        const id = this.#idOf(ws);
+        if (id) await onTapTap(this.#taptapCtx(), id, msg.d.roundId, msg.d.cell);
+        return;
+      }
       case 'neon-steer': {
         const id = this.#idOf(ws);
         if (id) await neonSteer(this.#neonCtx(), id, msg.d.roundId, msg.d.steer);
@@ -508,6 +522,13 @@ export class Room extends DurableObject<Env> {
       return;
     }
 
+    const taptap = await this.#taptap();
+    if (taptap && taptap.phase === 'running' && Date.now() >= taptapDeadline(taptap)) {
+      await taptapTick(this.#taptapCtx());
+      await this.#rearm();
+      return;
+    }
+
     const chase = await this.#catMouse();
     if (chase && chase.phase === 'running' && Date.now() >= cmDeadline(chase)) {
       await cmTick(this.#cmCtx());
@@ -606,6 +627,8 @@ export class Room extends DurableObject<Env> {
     if (squashing && squashing.phase !== 'done') return;
     const falling = await this.#neon();
     if (falling && falling.phase !== 'done') return;
+    const tapping = await this.#taptap();
+    if (tapping && tapping.phase !== 'done') return;
 
     const players = await this.#players();
     const ready = [...players.values()].filter((p) => p.connected);
@@ -621,7 +644,8 @@ export class Room extends DurableObject<Env> {
       mode === 'chase' ||
       mode === 'grid' ||
       mode === 'squash' ||
-      mode === 'neon'
+      mode === 'neon' ||
+      mode === 'taptap'
     ) {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
@@ -636,6 +660,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'siege') await startSiege(this.#siegeCtx(), roundId, ids, solo);
       else if (mode === 'sling') await startSling(this.#slingCtx(), roundId, ids);
       else if (mode === 'neon') await startNeon(this.#neonCtx(), roundId, ids, roles, solo);
+      else if (mode === 'taptap') await startTapTap(this.#taptapCtx(), roundId, ids, solo);
       // `direct` is the default because it needs no explanation: grab your icon
       // and it follows your finger. `capped` is the deliberate choice.
       else await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct', solo);
@@ -874,6 +899,31 @@ export class Room extends DurableObject<Env> {
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#neon(),
       save: (s) => this.ctx.storage.put('neon', s),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #taptap(): Promise<TapTap | null> {
+    return (await this.ctx.storage.get<TapTap>('taptap')) ?? null;
+  }
+
+  /**
+   * Everything tapTapRevolution.ts needs. Same shape as `#squashCtx` — a shared dealt
+   * order plus a private `sendTo` for each player's own progress.
+   */
+  #taptapCtx(): TapTapCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      random: () => Math.random(),
+      broadcast: (msg) => this.#broadcast(msg),
+      sendTo: (playerId, msg) => {
+        for (const ws of this.ctx.getWebSockets()) {
+          if (this.#idOf(ws) === playerId) this.#send(ws, msg);
+        }
+      },
+      load: () => this.#taptap(),
+      save: (s) => this.ctx.storage.put('taptap', s),
       setAlarm: () => this.#rearm(),
     };
   }
@@ -1160,6 +1210,23 @@ export class Room extends DurableObject<Env> {
     if (neon && neon.phase === 'running') {
       this.#send(ws, { t: 'neon', s: this.#nextSeq(), d: neonToState(neon) });
     }
+    /*
+     * Tap Tap Revolution resyncs the shared order AND, if this player has a seat in
+     * it, their own private progress index — same split as Squash Mosquitoes' board,
+     * for the same reason: how far *this* player has gone is theirs alone to see.
+     */
+    const taptap = await this.#taptap();
+    if (taptap && taptap.phase !== 'done') {
+      this.#send(ws, { t: 'taptap', s: this.#nextSeq(), d: taptapToState(taptap) });
+      const index = taptap.progress[id];
+      if (index !== undefined) {
+        this.#send(ws, {
+          t: 'taptap-progress',
+          s: this.#nextSeq(),
+          d: { roundId: taptap.roundId, index },
+        });
+      }
+    }
 
     await this.#broadcastPresence(ws);
   }
@@ -1302,6 +1369,9 @@ export class Room extends DurableObject<Env> {
 
     const neon = await this.#neon();
     if (neon?.phase === 'running') return neonDeadline(neon);
+
+    const taptap = await this.#taptap();
+    if (taptap?.phase === 'running') return taptapDeadline(taptap);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);
