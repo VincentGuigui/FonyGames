@@ -1,4 +1,5 @@
 import type { JSX, VNode } from 'preact';
+import { useEffect } from 'preact/hooks';
 import { catalogue } from '../games/registry';
 import { HubGrid } from './HubGrid';
 import { cardState, flagFor, type GameFlag } from '../../../shared/flags';
@@ -6,6 +7,7 @@ import { JoinByCode } from '../core/ui/JoinByCode';
 import { LocalePicker } from '../core/ui/LocalePicker';
 import { useLocale } from '../core/i18n/LocaleContext';
 import { useT } from '../core/i18n/strings';
+import { track } from '../core/analytics';
 
 /**
  * The hub: a stranger should want to play something within ten seconds.
@@ -38,6 +40,15 @@ export function Hub({
   // "Nothing is playable yet" has to account for the flags, not just build-time status:
   // with every built game disabled, the shell notice is the honest thing to show.
   const anyPlayable = games.some((g) => cardState(g.status, flagFor(flags, g.slug), showAll).playable);
+
+  /*
+   * Once per real page load. This runs only on the client — Preact effects never fire
+   * during `scripts/ssr.mjs`'s build-time `renderToString` — so a build never reports a
+   * pageview, only a browser hydrating one does.
+   */
+  useEffect(() => {
+    track('hub_nav');
+  }, []);
 
   return (
     <div class="hub">

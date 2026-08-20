@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks';
 import type { PlayerId } from '../../../../shared/protocol';
 import { StatusBar } from './StatusBar';
 import type { Me } from './Scoreboard';
+import { track } from '../analytics';
 
 /**
  * The end of a round, in every game.
@@ -102,6 +103,7 @@ function useSettled(): boolean {
 }
 
 export function GameOver({
+  slug,
   rows,
   me,
   winner,
@@ -114,6 +116,12 @@ export function GameOver({
   canAct,
   waiting = 'The host starts the next one.',
 }: {
+  /**
+   * For the two activity events this screen is solely responsible for reporting:
+   * `game_played` the moment it mounts, `game_start` if its own button is tapped.
+   * Nothing downstream of `GameLobby` needs to know analytics exists at all otherwise.
+   */
+  slug: string;
   /** Everyone, in the game's own ranking order. Never re-sorted here. */
   rows: OverRow[];
   /** `Me`, shared with the score panel: `null` is what a client reports before a seat. */
@@ -141,6 +149,16 @@ export function GameOver({
   waiting?: string | undefined;
 }): JSX.Element {
   const settled = useSettled();
+
+  /*
+   * Mounting IS the event, same reasoning `useSettled` already relies on: a game keys
+   * this component on the round (or swaps it in and out of the tree), so there is no
+   * other moment that means "a result just landed on screen".
+   */
+  useEffect(() => {
+    track('game_played', slug);
+  }, []);
+
   const champion = winner === null ? null : (rows.find((r) => r.id === winner) ?? null);
   const said =
     headline ??
@@ -216,12 +234,26 @@ export function GameOver({
         {canAct ? (
           <div class="gameover__actions">
             {onNext ? (
-              <button class="btn btn--big gameover__go" type="button" onClick={onNext}>
+              <button
+                class="btn btn--big gameover__go"
+                type="button"
+                onClick={() => {
+                  track('game_start', slug);
+                  onNext();
+                }}
+              >
                 {nextLabel}
               </button>
             ) : (
               <>
-                <button class="btn btn--big gameover__go" type="button" onClick={onAgain}>
+                <button
+                  class="btn btn--big gameover__go"
+                  type="button"
+                  onClick={() => {
+                    track('game_start', slug);
+                    onAgain?.();
+                  }}
+                >
                   {againLabel}
                 </button>
                 {/*

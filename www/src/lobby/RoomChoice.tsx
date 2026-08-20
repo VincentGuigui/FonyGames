@@ -6,6 +6,7 @@ import { HowToPlay } from '../core/ui/HowToPlay';
 import { Disclosure } from '../core/ui/Disclosure';
 import { LocalePicker } from '../core/ui/LocalePicker';
 import { useT } from '../core/i18n/strings';
+import { track } from '../core/analytics';
 import { mintRoomCode, readRoomHash } from '../core/room/useRoom';
 
 type Tab = 'create' | 'join';
@@ -49,6 +50,7 @@ export function RoomChoice({
    * loud does not change underneath the player.
    */
   function create(): void {
+    track('room_create', card.slug);
     const hash = readRoomHash();
     onEnter(hash.kind === 'code' ? hash.code : mintRoomCode());
   }
@@ -132,8 +134,18 @@ export function RoomChoice({
             entered. A code for another game navigates as it does on the hub.
 
             No `label` override: JoinByCode's own default is the same text, now localized there.
+
+            A code for a DIFFERENT game is not tracked here — it navigates away entirely, and
+            `RoomGate`'s own mount effect on the destination page catches it the same way it
+            catches a shared link, because by then that is exactly what this looks like.
           */}
-          <JoinByCode slug={card.slug} onSameGame={onEnter} />
+          <JoinByCode
+            slug={card.slug}
+            onSameGame={(code) => {
+              track('room_join', card.slug);
+              onEnter(code);
+            }}
+          />
           <p class="choice__hint">{t.roomChoice.joinHint}</p>
         </section>
       )}

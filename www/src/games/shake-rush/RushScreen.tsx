@@ -20,6 +20,7 @@ export function RushScreen({
   state,
   players,
   myId,
+  slug,
   title,
   concept,
   rules,
@@ -32,6 +33,8 @@ export function RushScreen({
   state: RushView;
   players: Player[];
   myId: PlayerId | undefined;
+  /** Threaded through to `GameOverScreen` — nowhere else here needs it. */
+  slug: string;
   title: string;
   concept: string;
   rules: string[];
@@ -72,6 +75,7 @@ export function RushScreen({
      */
     return (
       <GameOverScreen
+        slug={slug}
         accent={accent}
         title={title}
         concept={concept}

@@ -192,6 +192,7 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
 
     return (
       <GameOverScreen
+        slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}
