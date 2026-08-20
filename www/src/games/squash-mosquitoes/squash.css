@@ -109,6 +109,19 @@
   height: calc(100% / 2);
 }
 
+/* A flying mosquito's per-frame transform can carry it over a neighbouring cell — its
+   entry animation starts off-screen, and its wander drifts toward the cell's edge. Without
+   this, whichever cell happens to sit later in the grid paints on top, so a dead mosquito
+   sitting in that cell could block a tap meant for a live one passing over it. */
+.squash__mosquito--squashed {
+  z-index: 0;
+}
+
+.squash__mosquito--static,
+.squash__mosquito--flying {
+  z-index: 1;
+}
+
 /* art/mosquito.svg's own aspect ratio, roughly square (401x369). */
 .squash__bug {
   width: 80%;
