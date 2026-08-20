@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-private/
 build/
 .env
 .env.*
@@ -24,4 +25,14 @@ coverage/
 # written by hand when driving the API locally. It was NEVER ignored, only never yet
 # created by anyone running `git add -A`; on a public repo that is a loaded gun rather
 # than a convention. `api/config.example.php` is the committed shape.
+#
+# Two locations: the repo root is where the deploy now puts it — beside `dist/`,
+# mirroring "beside `/www`" on the host (docs/deployment.md §3.1). `api/config.php`
+# is the older location, kept ignored for anyone still testing against it by hand.
+/config.php
 api/config.php
+
+# A local copy of dist-private/hosts.json for the same reason — see docs/testing.md
+# §1.1a-bis. The real one lives in shared/hosts.json and IS committed; this is only
+# ever a copy placed at the repo root to mirror "beside /www" while testing.
+/hosts.json

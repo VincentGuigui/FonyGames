@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * The shape of `api/config.php`. Placeholders only — nothing real belongs here.
+ * The shape of `config.php`. Placeholders only — nothing real belongs here.
  * Docs: docs/deployment.md §3.1
  *
  * **`config.php` is written by the deploy from GitHub environment secrets and is never
@@ -11,8 +11,12 @@ declare(strict_types=1);
  * it. This `.example` exists so the shape is reviewable without the values.
  *
  * It returns an array rather than defining constants or setting globals, so a stray
- * direct request executes it, produces no output, and changes nothing. `api/lib`'s
- * `.htaccess` denies access anyway; this is the second layer.
+ * direct request executes it, produces no output, and changes nothing — and on the
+ * host it now sits one level above `/www`, outside the web root entirely, so there is
+ * no request to go stray from in the first place.
+ *
+ * The deploy writes it beside `dist/` (mirroring "beside `/www`" on the host); testing
+ * by hand does the same — see docs/testing.md §1.1a-bis.
  */
 
 return [
@@ -45,8 +49,10 @@ return [
     'cloudflare_account_id' => '',
     'cloudflare_analytics_token' => '',
 
-    // Where the published flags land. The web root, one level above api/.
-    'flags_path' => __DIR__ . '/../flags.json',
+    // Where the published flags land. Left out here on purpose: the default already
+    // resolves to the web root's flags.json wherever config.php itself sits
+    // (App::boot()), and the real deploy never sets this key.
+    // 'flags_path' => '/path/to/www/flags.json',
 
     // True on the DEV host only: show every game with a badge stating what prod would do,
     // so dev is a preview of the catalogue rather than a copy of prod's restrictions

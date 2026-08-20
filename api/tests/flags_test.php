@@ -206,7 +206,7 @@ group('the file can never be behind the database');
 
 $dir = tempDir();
 $path = $dir . '/flags.json';
-$service = new FlagService(new PdoFlagStore(testDb(), $clock), $path);
+$service = new FlagService(new PdoFlagStore(testDb(), $clock), $path, $clock);
 
 check('nothing published yet reads as no flags', Flags::read($path) === []);
 
@@ -291,10 +291,48 @@ check('the round is counted', $counted['plays'] >= 1, $counted);
 check('and published in the same call', $counted['published'] === true, $counted);
 check('so the file carries it', Flags::readPlays($path)['ghost-hunt'] === $counted['plays'], Flags::readPlays($path));
 
+group('but a round straight after waits out the debounce');
+
+$again = $service->count('ghost-hunt');
+check('it is still counted', $again['plays'] === $counted['plays'] + 1, $again);
+check('but not republished so soon', $again['published'] === false, $again);
+check(
+    'so the file on disk still has the OLD total',
+    Flags::readPlays($path)['ghost-hunt'] === $counted['plays'],
+    Flags::readPlays($path),
+);
+
+// An admin flag edit is a human waiting on the result — it must not be throttled by
+// a recount that happened a moment ago, and it must not reset the recount's own
+// window either: the two are unrelated writers of the same file.
+check('a flag edit right after still publishes immediately', $service->update('spill', ['availability' => Flags::ACTIVE])['published'] === true);
+check('and so does the explicit repair action', $service->republish() === true);
+
+$stillWaiting = $service->count('ghost-hunt');
+check(
+    'a recount right after those is still throttled — they are not what it waits on',
+    $stillWaiting['published'] === false,
+    $stillWaiting,
+);
+check('yet it was still counted a third time', $stillWaiting['plays'] === $counted['plays'] + 2, $stillWaiting);
+
+$clock->advance(FlagService::RECOUNT_DEBOUNCE_MS - 1);
+$tooSoon = $service->count('ghost-hunt');
+check('one millisecond short of the window still waits', $tooSoon['published'] === false, $tooSoon);
+
+$clock->advance(1);
+$dueNow = $service->count('ghost-hunt');
+check('the window closing lets the next round through', $dueNow['published'] === true, $dueNow);
+check(
+    'and the file finally has every round counted since',
+    Flags::readPlays($path)['ghost-hunt'] === $dueNow['plays'],
+    Flags::readPlays($path),
+);
+
 // A flag change must not blank the counts, which is why publish() reads them from the
 // store rather than from whatever the caller was holding.
 $service->update('ghost-hunt', ['availability' => Flags::ACTIVE]);
-check('a later flag change keeps them', Flags::readPlays($path)['ghost-hunt'] === $counted['plays'], Flags::readPlays($path));
+check('a later flag change keeps them', Flags::readPlays($path)['ghost-hunt'] === $dueNow['plays'], Flags::readPlays($path));
 
 file_put_contents($path, '{"flags":{},"plays":{"spill":"12","../evil":9,"tap-duel":0,"goat-siege":-3}}');
 $read = Flags::readPlays($path);

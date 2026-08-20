@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/Clock.php';
 require_once __DIR__ . '/FlagStore.php';
 require_once __DIR__ . '/Flags.php';
 
@@ -24,10 +25,18 @@ require_once __DIR__ . '/Flags.php';
  */
 final class FlagService
 {
+    /**
+     * The floor on `count()`'s own republish (spec §2.2). Not on anything a human is
+     * waiting on: an admin flag edit and the explicit repair `republish()` always
+     * write immediately, both below.
+     */
+    public const RECOUNT_DEBOUNCE_MS = 1_800_000;
+
     public function __construct(
         private FlagStore $store,
         /** Absolute path of the published `flags.json` in the web root. */
         private string $publishPath,
+        private Clock $clock,
     ) {
     }
 
@@ -48,15 +57,21 @@ final class FlagService
     }
 
     /**
-     * Count one finished round and republish.
+     * Count one finished round, and republish if the last *auto*-republish has had
+     * long enough to be read.
      *
-     * Republishing on every round is deliberate and affordable: the hub reads the file,
-     * not the database (docs/database.md §3), so a count that is not published has not
-     * happened as far as any player is concerned. The write is one atomic rename of a
-     * small file, against rounds that arrive a few a minute at most.
+     * The count always lands — `$this->store->bump()` is an atomic `UPDATE ... SET
+     * plays = plays + 1`, so nothing here is ever lost, however many rounds finish at
+     * once. The republish is the part that does not scale the same way: it rereads
+     * every row and rewrites the whole file, and at real traffic "a few a minute"
+     * becomes many a second, all racing to rename the same path. So this is the one
+     * write in `FlagService` allowed to fall behind — nobody is waiting on a round's
+     * own script tag for it, unlike an admin flag edit or the explicit repair
+     * `republish()` below, which always write immediately. A skipped republish here
+     * is picked up by the very next round, or by `RECOUNT_DEBOUNCE_MS` passing.
      *
-     * Returns the new total and whether the file was rewritten, so a caller can report a
-     * counted-but-unpublished round rather than claiming success.
+     * Returns the new total and whether the file was rewritten this call, so a caller
+     * can report a counted-but-not-yet-published round rather than claiming success.
      *
      * @return array{plays: int, published: bool}
      */
@@ -64,7 +79,50 @@ final class FlagService
     {
         $total = $this->store->bump($slug);
 
-        return ['plays' => $total, 'published' => $this->republish()];
+        if (!$this->dueToRepublish()) {
+            return ['plays' => $total, 'published' => false];
+        }
+
+        $published = $this->republish();
+        if ($published) {
+            $this->markRepublished();
+        }
+
+        return ['plays' => $total, 'published' => $published];
+    }
+
+    /**
+     * Has it been at least `RECOUNT_DEBOUNCE_MS` since `count()` last actually wrote
+     * the file?
+     *
+     * Tracked in its own small stamp file, next to `flags.json` — not the file's own
+     * mtime, which an admin flag edit or the repair `republish()` also move, and
+     * neither of those is what this throttle exists to protect against. And not
+     * in-memory: PHP starts a fresh process per request on the hosts this runs on,
+     * so nothing here survives between one call and the next except what is on disk.
+     */
+    private function dueToRepublish(): bool
+    {
+        $raw = @file_get_contents($this->recountStampPath());
+        if ($raw === false || $raw === '') {
+            return true; // no auto-republish has ever landed — nothing to protect yet
+        }
+
+        return $this->clock->now() - (int) trim($raw) >= self::RECOUNT_DEBOUNCE_MS;
+    }
+
+    /** Stamp now as the last time `count()` actually rewrote the file. */
+    private function markRepublished(): void
+    {
+        // Best-effort: a failed write here only means the next round tries again
+        // immediately rather than waiting out the window, which is the safe direction
+        // to fail in.
+        @file_put_contents($this->recountStampPath(), (string) $this->clock->now());
+    }
+
+    private function recountStampPath(): string
+    {
+        return dirname($this->publishPath) . '/flags.recount-stamp';
     }
 
     /**
