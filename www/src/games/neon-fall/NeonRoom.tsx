@@ -17,6 +17,7 @@ import { orientationSupport, requestOrientation, type OrientationSupport } from 
 import { NeonGame } from './game';
 import { NeonBoard } from './NeonBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
 
 /**
  * Neon Fall's room screen. Spec: docs/specs/games/neon-fall.md
@@ -35,6 +36,7 @@ export function NeonRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
   const gameRef = useRef<NeonGame | null>(null);
   if (!gameRef.current) gameRef.current = new NeonGame();
   const game = gameRef.current;
@@ -151,7 +153,7 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughToStart(room.connected, [NEON_MIN_PLAYERS, NEON_MAX_PLAYERS], solo)}
-      startLabel={state ? 'Play again' : 'Start round'}
+      startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'neon', ...(roles ? { roles } : {}), solo } })}
       note={note(room.isHost, room.connected, solo)}
       playerTag={(id) => {

@@ -3,6 +3,7 @@ import type { JSX } from 'preact';
 import { NEON_LANES, NEON_TICK_MS, type Player, type PlayerId } from '../../../../shared/protocol';
 import type { RoomClient } from '../../core/room/client';
 import { StatusBar } from '../../core/ui/StatusBar';
+import { useT } from '../../core/i18n/strings';
 import { trackSteer, type SteerTracker } from '../../core/sensors/steer';
 import type { NeonGame } from './game';
 import { startRenderer, type Renderer } from './render';
@@ -39,6 +40,7 @@ export function NeonBoard({
   /** Whether tilt is available for the glider. False falls back to held tap zones. */
   orientationOn: boolean;
 }): JSX.Element {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
   const state = game.state;
@@ -110,7 +112,7 @@ export function NeonBoard({
         <StatusBar
           score={
             iAmGlider
-              ? { value: myLives, label: 'lives' }
+              ? { value: myLives, label: t.common.lives }
               : { value: state?.ammo ?? 0, label: 'shots' }
           }
           status={otherId ? `${name(otherId)}: ${otherRole}` : undefined}

@@ -7,6 +7,7 @@ import { PLAYERS } from '../../../shared/players';
 import { RoomGate } from './RoomGate';
 import { GameLobby } from './GameLobby';
 import { RulesPanel } from '../core/ui/RulesPanel';
+import { useT } from '../core/i18n/strings';
 import { Duel, type DuelPhase } from '../games/tap-duel/Duel';
 
 /**
@@ -31,6 +32,7 @@ export function Lobby(props: { game: GameCard }): JSX.Element {
 }
 
 function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
   const [phase, setPhase] = useState<DuelPhase>('idle');
   const [result, setResult] = useState<RoundResult | null>(null);
   /**
@@ -175,7 +177,7 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
       onShare={share}
       onToggleQr={toggleQr}
       canStart={canStart}
-      startLabel="Start round"
+      startLabel={t.common.startRound}
       onStart={startDuel}
       note={note(room.isHost, room.connected)}
     />

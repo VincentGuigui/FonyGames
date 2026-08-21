@@ -24,6 +24,26 @@ export interface UiStrings {
     leaveTheRoom: string;
     players: string;
     invitePlayer: string;
+    /** The in-round gear menu's own close button — `Sheet.tsx`, `GameMenu.tsx`. */
+    close: string;
+    /** The in-round menu's way out, and the results panel's — same word, same exit. */
+    leaveGame: string;
+    /** `GameOver.tsx`'s defaults. A game overriding either with its own flavour
+     *  (`startLabel`, `againLabel`) still owns that word itself — these are only
+     *  what a game gets if it says nothing. */
+    startRound: string;
+    playAgain: string;
+    nextRound: string;
+    waitingHost: string;
+    nobodyWon: string;
+    youWon: string;
+    /** `"{name} won"` — a game's own end-of-round headline. */
+    someoneWon: (name: string) => string;
+    /** The status word several rounds share verbatim once they're over. */
+    roundOver: string;
+    /** Score units repeated identically across several games' StatusBar/Scoreboard. */
+    lives: string;
+    left: string;
   };
   roomChoice: {
     tablistLabel: string;
@@ -99,6 +119,18 @@ const en: UiStrings = {
     leaveTheRoom: '← Leave the room',
     players: 'Players',
     invitePlayer: 'Invite a player',
+    close: 'Close',
+    leaveGame: 'Leave game',
+    startRound: 'Start round',
+    playAgain: 'Play again',
+    nextRound: 'Next round',
+    waitingHost: 'The host starts the next one.',
+    nobodyWon: 'Nobody won that one',
+    youWon: 'You won',
+    someoneWon: (name) => `${name} won`,
+    roundOver: 'Round over',
+    lives: 'lives',
+    left: 'left',
   },
   roomChoice: {
     tablistLabel: 'Start or join a room',
@@ -178,6 +210,18 @@ const fr: UiStrings = {
     leaveTheRoom: '← Quitter la salle',
     players: 'Joueurs',
     invitePlayer: 'Inviter un joueur',
+    close: 'Fermer',
+    leaveGame: 'Quitter la partie',
+    startRound: 'Démarrer la manche',
+    playAgain: 'Rejouer',
+    nextRound: 'Manche suivante',
+    waitingHost: "L'hôte démarre la prochaine manche.",
+    nobodyWon: "Personne n'a gagné cette manche",
+    youWon: 'Vous avez gagné',
+    someoneWon: (name) => `${name} a gagné`,
+    roundOver: 'Manche terminée',
+    lives: 'vies',
+    left: 'restants',
   },
   roomChoice: {
     tablistLabel: 'Créer ou rejoindre une salle',

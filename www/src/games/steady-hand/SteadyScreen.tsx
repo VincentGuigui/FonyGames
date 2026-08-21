@@ -4,6 +4,7 @@ import type { Player, PlayerId } from '../../../../shared/protocol';
 import { STEADY_LIVES } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard } from '../../core/ui/Scoreboard';
+import { useT } from '../../core/i18n/strings';
 import { meterFill, type SteadyView } from './game';
 
 /** How long the "you lost a life" beat holds. Shorter than the grace window on purpose. */
@@ -46,6 +47,7 @@ export function SteadyScreen({
   /** Server time, for the settle countdown. */
   now: () => number;
 }): JSX.Element {
+  const t = useT();
   const name = (id: PlayerId): string => players.find((p) => p.id === id)?.name ?? 'Someone';
   const avatar = (id: PlayerId): string => players.find((p) => p.id === id)?.avatar ?? '🙂';
 
@@ -67,7 +69,7 @@ export function SteadyScreen({
           rules={rules}
         />
 
-        <Scoreboard rows={livesRows(players, state)} me={myId} unit="lives" best="none" />
+        <Scoreboard rows={livesRows(players, state)} me={myId} unit={t.common.lives} best="none" />
 
         <p class="steady__gone" aria-hidden="true">
           ✋
@@ -102,7 +104,7 @@ export function SteadyScreen({
         rules={rules}
       />
 
-      <Scoreboard rows={livesRows(players, state)} me={myId} unit="lives" best="none" />
+      <Scoreboard rows={livesRows(players, state)} me={myId} unit={t.common.lives} best="none" />
 
       {settling !== null ? (
         <>
@@ -133,7 +135,7 @@ export function SteadyScreen({
               {'○'.repeat(Math.max(0, STEADY_LIVES - myLives))}
             </span>
             <span class="steady__lives-n">
-              {myLives} {myLives === 1 ? 'life' : 'lives'}
+              {myLives} {t.common.lives}
             </span>
           </p>
 

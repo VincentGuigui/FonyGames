@@ -12,6 +12,7 @@ import { useRoom, useShareRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
 import { soloTesting } from '../../core/solo';
 import { SquashBoard } from './SquashBoard';
 import { SquashGame } from './game';
@@ -32,6 +33,7 @@ export function SquashRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function SquashRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
   const [, redraw] = useState(0);
 
   // Created before the socket, because the first `squash` frame can arrive before
@@ -122,7 +124,7 @@ function SquashRoomInner({ game: card, code }: { game: GameCard; code: string })
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughToStart(room.connected, limits, solo)}
-      startLabel={state ? 'Play again' : 'Start the swarm'}
+      startLabel={state ? t.common.playAgain : 'Start the swarm'}
       onStart={() => client?.send({ t: 'start', d: { mode: 'squash', solo } })}
       note={note(room.isHost, room.connected, solo)}
     />

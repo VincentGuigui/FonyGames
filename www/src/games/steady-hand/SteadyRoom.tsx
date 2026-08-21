@@ -17,6 +17,7 @@ import { motionSupport, requestMotion, type MotionSupport } from '../../core/sen
 import { applySteady, type SteadyState } from './game';
 import { SteadyScreen } from './SteadyScreen';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
 
 /**
  * Steady Hand's room screen. Spec: docs/specs/games/steady-hand.md
@@ -39,6 +40,7 @@ export function SteadyRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
   const [state, setState] = useState<SteadyState>(null);
   const [support] = useState<MotionSupport>(motionSupport);
   const [motionOn, setMotionOn] = useState(false);
@@ -127,7 +129,6 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        status="Round over"
         rows={ranked.map((p) => ({
           id: p.id,
           avatar: p.avatar,
@@ -174,15 +175,15 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughPlayers}
-      startLabel={state ? 'Play again' : 'Start round'}
+      startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'steady', solo } })}
       note={note(room.isHost, room.connected, motionOn, solo)}
       playerTag={(id) => {
         if (!state) return null;
         if (state.winner === id) return 'won';
-        const t = state.times[id];
-        if (t === undefined) return null;
-        return `${Math.round(t / 1000)}s`;
+        const held = state.times[id];
+        if (held === undefined) return null;
+        return `${Math.round(held / 1000)}s`;
       }}
       extras={
         <>

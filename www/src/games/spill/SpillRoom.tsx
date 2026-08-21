@@ -15,6 +15,7 @@ import { GameLobby } from '../../lobby/GameLobby';
 import { SeatMap } from './SeatMap';
 import { SpillBoard } from './SpillBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
 import { SpillGame } from './game';
 import { SPILL_THEME } from './themes';
 
@@ -39,6 +40,7 @@ export function SpillRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
   const [, redraw] = useState(0);
 
   // Created before the socket, because the first `spill` frame can arrive
@@ -113,13 +115,12 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        status="Round over"
         rows={ranked.map((id) => ({
           id,
           avatar: byId.get(id)?.avatar ?? '🙂',
           name: byId.get(id)?.name ?? 'Someone',
           value: state.levels[id] ?? 0,
-          unit: `${SPILL_THEME.words.unitPlural} left`,
+          unit: `${SPILL_THEME.words.unitPlural} ${t.common.left}`,
           ...(state.out.includes(id) ? { out: true } : {}),
         }))}
         me={myId}
@@ -145,7 +146,7 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
       canStart={
         room.isHost && enoughToStart(room.connected, [SPILL_MIN_PLAYERS, SPILL_MAX_PLAYERS], solo)
       }
-      startLabel={state ? 'Play again' : 'Start round'}
+      startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'spill', solo } })}
       note={note(room.isHost, room.connected, solo)}
       playerTag={(id) => {

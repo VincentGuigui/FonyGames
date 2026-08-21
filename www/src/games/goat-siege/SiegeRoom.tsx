@@ -14,6 +14,7 @@ import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { SiegeBoard } from './SiegeBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
 import { SiegeGame } from './game';
 
 /**
@@ -36,6 +37,7 @@ export function SiegeRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
   const [, redraw] = useState(0);
 
   const gameRef = useRef<SiegeGame | null>(null);
@@ -100,13 +102,12 @@ function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        status="Round over"
         rows={ranked.map((id) => ({
           id,
           avatar: byId.get(id)?.avatar ?? '🙂',
           name: byId.get(id)?.name ?? 'Someone',
           value: state.cabbages[id] ?? 0,
-          unit: 'left',
+          unit: t.common.left,
           ...(state.out.includes(id) ? { out: true } : {}),
         }))}
         me={myId}
@@ -132,7 +133,7 @@ function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }):
       canStart={
         room.isHost && enoughToStart(room.connected, [SIEGE_MIN_PLAYERS, SIEGE_MAX_PLAYERS], solo)
       }
-      startLabel={state ? 'Play again' : 'Start round'}
+      startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'siege', solo } })}
       note={note(room.isHost, room.connected, solo)}
       playerTag={(id) => {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { GRID_SIZE, GRID_TAPS, type GridCell, type Player, type PlayerId } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
+import { useT } from '../../core/i18n/strings';
 import { cellsOf, fuseProgress, livesOf, pulseMs, tapCounter, type GridView } from './game';
 
 /**
@@ -51,13 +52,14 @@ export function GridBoard({
   onTap: (cell: number, side: 'mine' | 'theirs') => void;
 }): JSX.Element {
   const now = useAnimationClock(clock);
+  const t = useT();
   const name = (id: PlayerId): string => players.find((p) => p.id === id)?.name ?? 'Someone';
 
   return (
     <div class="grid-attack" style={{ '--game-accent': accent } as JSX.CSSProperties}>
       <div class="grid-attack__bar">
         <StatusBar
-          score={{ value: livesOf(state, myId), label: 'lives' }}
+          score={{ value: livesOf(state, myId), label: t.common.lives }}
           status={`${name(theirId)}: ${livesOf(state, theirId)}`}
           title={title}
           concept={concept}
