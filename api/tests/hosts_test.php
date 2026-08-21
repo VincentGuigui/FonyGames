@@ -81,12 +81,16 @@ foreach ($environments as $name => $env) {
  * fail to compile — it resolves to nothing, or worse, to somebody else's Worker.
  */
 $stale = [];
-$skip = ['/node_modules', '/dist/', '/.git/', '/.wrangler'];
+$skip = ['/node_modules/', '/dist/', '/dist-private/', '/.git/', '/.runtime/', '/.wrangler/'];
 $it = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
 foreach ($it as $file) {
     $path = (string) $file;
+    // The iterator returns backslashes on Windows; the skip list is deliberately
+    // platform-neutral. Without normalising, it scanned dependencies and local runtime
+    // binaries, then treated Wrangler's own test hostname as project configuration.
+    $portablePath = str_replace('\\', '/', $path);
     foreach ($skip as $fragment) {
-        if (str_contains($path, $fragment)) {
+        if (str_contains($portablePath, $fragment)) {
             continue 2;
         }
     }
@@ -97,7 +101,7 @@ foreach ($it as $file) {
     // Any workers.dev hostname that is not on the current subdomain.
     if (preg_match('/[a-z0-9-]+\.([a-z0-9-]+)\.workers\.dev/i', $body, $m) === 1) {
         if ($m[1] . '.workers.dev' !== $subdomain) {
-            $stale[] = substr($path, strlen($root) + 1) . " ({$m[0]})";
+            $stale[] = substr($portablePath, strlen(str_replace('\\', '/', $root)) + 1) . " ({$m[0]})";
         }
     }
 }

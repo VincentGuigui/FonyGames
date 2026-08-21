@@ -213,6 +213,11 @@ SHA-256 plus a generator version. A PNG is regenerated exactly when its hash
 moved. Locally that is the behaviour you want — touch one piece of art,
 regenerate one file. In CI it is correct rather than lucky.
 
+The composed SVG is hashed with LF newlines on every platform. Windows may check the
+source out with CRLF, but resvg draws the same pixels; treating that checkout convention
+as changed art would rewrite every manifest hash locally and flip it back again in Linux
+CI while producing byte-identical PNGs.
+
 `og.mjs --check` exits 1 when any entry is stale, and runs as part of `npm test`
 — the same guard `outlines.mjs` already uses for the hollow sprites
 ([../design/illustrations.md](../design/illustrations.md)).

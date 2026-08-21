@@ -37,6 +37,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { build as esbuild } from 'esbuild';
+import { importUrl, jsPath, viteKey } from './ssr-paths.mjs';
 
 const ROOT = resolve(process.cwd());
 const DIST = join(ROOT, 'dist');
@@ -82,11 +83,11 @@ writeFileSync(
   ENTRY,
   `import { renderToString } from 'preact-render-to-string';
 import { h } from 'preact';
-import { Hub } from '${join(ROOT, 'www/src/hub/Hub.tsx')}';
-import { GameCardTile } from '${join(ROOT, 'www/src/hub/GameCardTile.tsx')}';
-import { HubGrid } from '${join(ROOT, 'www/src/hub/HubGrid.tsx')}';
-import { catalogue } from '${join(ROOT, 'www/src/games/registry.ts')}';
-import { cardState } from '${join(ROOT, 'shared/flags.ts')}';
+import { Hub } from ${jsPath(join(ROOT, 'www/src/hub/Hub.tsx'))};
+import { GameCardTile } from ${jsPath(join(ROOT, 'www/src/hub/GameCardTile.tsx'))};
+import { HubGrid } from ${jsPath(join(ROOT, 'www/src/hub/HubGrid.tsx'))};
+import { catalogue } from ${jsPath(join(ROOT, 'www/src/games/registry.ts'))};
+import { cardState } from ${jsPath(join(ROOT, 'shared/flags.ts'))};
 
 /** The marker index.php splices cards into. An element, so Preact renders it verbatim. */
 const MARKER = h('fony-grid', null);
@@ -159,7 +160,7 @@ const vitePlugin = {
     build.onResolve({ filter: /\.svg(\?.*)?$/ }, (args) => {
       const bare = args.path.split('?')[0];
       const absolute = resolve(dirname(args.importer), bare);
-      const key = relative(join(ROOT, 'www'), absolute);
+      const key = viteKey(relative(join(ROOT, 'www'), absolute));
       const url = assets[key];
       if (!url) {
         // Hard failure, never a guess. A card rendered with the wrong src hydrates with
@@ -195,7 +196,7 @@ await esbuild({
   plugins: [vitePlugin],
 });
 
-const { shell, cards, order, gridShell } = await import(`file://${BUNDLE}?v=${count0()}`);
+const { shell, cards, order, gridShell } = await import(`${importUrl(BUNDLE)}?v=${count0()}`);
 
 /** Cache-buster for the dynamic import, since this script may run twice in one process. */
 function count0() {

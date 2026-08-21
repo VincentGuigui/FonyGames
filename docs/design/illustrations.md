@@ -181,7 +181,8 @@ Three properties this buys, each of which was checked rather than assumed:
   exactly how thirteen blank hub cards happened once already.
 
 The derived files **are committed**: a fresh clone must run `vite dev` without knowing
-the script exists.
+the script exists. Source and generated SVG text is normalised to LF before comparison;
+Git's CRLF checkout on Windows is not a redraw and must not make the variant stale.
 
 Where a sprite hardcodes a colour that also lives in a `render.ts` — Cat and Mouse's
 cat has eyes painted in the floor's own colour — **say so in both**. Neither file can
