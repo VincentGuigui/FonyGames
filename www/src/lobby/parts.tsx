@@ -119,6 +119,11 @@ export function PlayerList({
             {extra && <span class="player__tag">{extra}</span>}
             {room?.hostId === p.id && <span class="player__tag">{t.parts.host}</span>}
             {!p.connected && <span class="player__tag">{t.parts.away}</span>}
+            {room?.hostId !== p.id && p.connected && (
+              <span class={`player__tag ${p.ready ? 'player__tag--ready' : ''}`}>
+                {p.ready ? t.parts.ready : t.parts.notReady}
+              </span>
+            )}
             {/*
               One button for both halves of "who am I". It said `rename` and opened a
               native prompt, and the avatar lived in a twelve-button grid sitting open

@@ -192,6 +192,9 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         canAgain={room.isHost && enoughPlayers}
         sound={sound}
         onSound={setSound}
+        room={room}
+        readyBlocked={support !== 'unsupported' && !motionAsked}
+        onReadySetup={enableMotion}
       />
     );
   }
@@ -209,6 +212,7 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       canStart={room.isHost && enoughPlayers}
       startLabel="Start the race"
       onStart={again}
+      readyBlocked={support !== 'unsupported' && !motionAsked}
       note={note(room.isHost, room.connected, motionOn, solo)}
       extras={
         <>

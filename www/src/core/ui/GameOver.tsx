@@ -4,6 +4,10 @@ import type { PlayerId } from '../../../../shared/protocol';
 import { StatusBar } from './StatusBar';
 import type { Me } from './Scoreboard';
 import { track } from '../analytics';
+import { useT } from '../i18n/strings';
+import type { Room } from '../room/useRoom';
+import { guestsReady } from '../../../../shared/readiness';
+import { ReadyButton } from './ReadyButton';
 
 /**
  * The end of a round, in every game.
@@ -110,11 +114,14 @@ export function GameOver({
   headline,
   note,
   onNext,
-  nextLabel = 'Next round',
+  nextLabel,
   onAgain,
-  againLabel = 'Play again',
+  againLabel,
   canAct,
-  waiting = 'The host starts the next one.',
+  waiting,
+  room,
+  readyBlocked = false,
+  onReadySetup,
 }: {
   /**
    * For the two activity events this screen is solely responsible for reporting:
@@ -144,11 +151,18 @@ export function GameOver({
   /** The match is over: play again, beside a way out. */
   onAgain?: (() => void) | undefined;
   againLabel?: string | undefined;
-  /** Host only. Everybody else is told who they are waiting for. */
+  /** Host-only start eligibility. Guests get the shared Ready control when `room` is present. */
   canAct: boolean;
   waiting?: string | undefined;
+  /** The same ready gate as the lobby, so a replay cannot bypass a fresh signal. */
+  room?: Room | undefined;
+  /** Sensor setup local to this phone. */
+  readyBlocked?: boolean | undefined;
+  /** Lets a late spectator answer the sensor primer without leaving the result. */
+  onReadySetup?: (() => void) | undefined;
 }): JSX.Element {
   const settled = useSettled();
+  const t = useT();
 
   /*
    * Mounting IS the event, same reasoning `useSettled` already relies on: a game keys
@@ -162,11 +176,10 @@ export function GameOver({
   const champion = winner === null ? null : (rows.find((r) => r.id === winner) ?? null);
   const said =
     headline ??
-    (champion === null
-      ? 'Nobody won that one'
-      : winner === me
-        ? 'You won'
-        : `${champion.name} won`);
+    (champion === null ? t.common.nobodyWon : winner === me ? t.common.youWon : t.common.someoneWon(champion.name));
+  const everybodyReady = guestsReady(room?.room?.players ?? [], room?.room?.hostId ?? null);
+  const hostView = room?.isHost ?? canAct;
+  const hostCanAct = canAct && !readyBlocked && everybodyReady;
 
   return (
     <section class="gameover" aria-label="Result">
@@ -231,48 +244,76 @@ export function GameOver({
         needs it as much as Play again, since leaving by accident is worse.
       */}
       <div class="gameover__gate" inert={!settled}>
-        {canAct ? (
+        {hostView ? (
           <div class="gameover__actions">
+            {readyBlocked && <p class="gameover__waiting">{t.lobby.finishSetup}</p>}
+            {readyBlocked && onReadySetup && (
+              <button class="btn btn--big" type="button" onClick={onReadySetup}>
+                {t.lobby.setUpControls}
+              </button>
+            )}
+            {!readyBlocked && !everybodyReady && (
+              <p class="gameover__waiting" role="status">{t.lobby.waitingReady}</p>
+            )}
             {onNext ? (
               <button
                 class="btn btn--big gameover__go"
                 type="button"
+                disabled={!hostCanAct}
                 onClick={() => {
                   track('game_start', slug);
                   onNext();
                 }}
               >
-                {nextLabel}
+                {nextLabel ?? t.common.nextRound}
               </button>
             ) : (
               <>
                 <button
                   class="btn btn--big gameover__go"
                   type="button"
+                  disabled={!hostCanAct}
                   onClick={() => {
                     track('game_start', slug);
                     onAgain?.();
                   }}
                 >
-                  {againLabel}
+                  {againLabel ?? t.common.playAgain}
                 </button>
                 {/*
                   A link, not a router call: leaving the page is what drops the socket and
                   frees the seat. Same reason the gear menu's exit is one.
                 */}
                 <a class="btn btn--big gameover__leave" href="/">
-                  Leave game
+                  {t.common.leaveGame}
                 </a>
               </>
             )}
           </div>
+        ) : room ? (
+          <>
+            <p class="gameover__waiting">
+              {readyBlocked ? t.lobby.finishSetup : (waiting ?? t.common.waitingHost)}
+            </p>
+            <div class="gameover__actions">
+              {readyBlocked && onReadySetup && (
+                <button class="btn btn--big" type="button" onClick={onReadySetup}>
+                  {t.lobby.setUpControls}
+                </button>
+              )}
+              <ReadyButton room={room} blocked={readyBlocked} />
+              <a class="btn btn--big gameover__leave" href="/">
+                {t.common.leaveGame}
+              </a>
+            </div>
+          </>
         ) : (
           <>
-            <p class="gameover__waiting">{waiting}</p>
+            <p class="gameover__waiting">{waiting ?? t.common.waitingHost}</p>
             {/* Not being the host is not a reason to be trapped in the room. */}
             <div class="gameover__actions">
               <a class="btn btn--big gameover__leave" href="/">
-                Leave game
+                {t.common.leaveGame}
               </a>
             </div>
           </>
@@ -296,7 +337,7 @@ export function GameOverScreen({
   title,
   concept,
   rules,
-  status = 'Round over',
+  status,
   menu,
   children,
   ...over
@@ -312,9 +353,10 @@ export function GameOverScreen({
   /** Anything the game shows above the panel — Pass the Bomb's explosion. */
   children?: ComponentChildren;
 }): JSX.Element {
+  const t = useT();
   return (
     <div class="over" style={{ '--game-accent': accent } as JSX.CSSProperties}>
-      <StatusBar status={status} title={title} concept={concept} rules={rules}>
+      <StatusBar status={status ?? t.common.roundOver} title={title} concept={concept} rules={rules}>
         {menu}
       </StatusBar>
       {children}

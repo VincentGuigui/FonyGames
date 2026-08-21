@@ -20,6 +20,7 @@ import { motionSupport, requestMotion, type MotionSupport } from '../../core/sen
 import { applyBomb, type BombState } from './game';
 import { BombScreen } from './BombScreen';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
 import { BOOM_MS } from './shockwave';
 
 /**
@@ -44,6 +45,7 @@ export function BombRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
   const [state, setState] = useState<BombState>(null);
   /** Server time until which our bumps are being ignored, from a `calm-down` frame. */
   const [mutedUntil, setMutedUntil] = useState(0);
@@ -192,6 +194,9 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
 
     return (
       <GameOverScreen
+        room={room}
+        readyBlocked={support !== 'unsupported' && !motionAsked}
+        onReadySetup={enableMotion}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
@@ -221,7 +226,7 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         headline={another ? roundHeadline(state.winner, myId, players) : undefined}
         note={matchNote(m)}
         {...(another
-          ? { onNext: start, nextLabel: 'Next round' }
+          ? { onNext: start, nextLabel: t.common.nextRound }
           : { onAgain: start })}
         canAct={room.isHost && enoughToStart(room.connected, [BOMB_MIN_PLAYERS, BOMB_MAX_PLAYERS], solo)}
       />
@@ -239,8 +244,9 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughToStart(room.connected, [BOMB_MIN_PLAYERS, BOMB_MAX_PLAYERS], solo)}
-      startLabel={state ? 'Play again' : 'Start round'}
+      startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'bomb', solo } })}
+      readyBlocked={support !== 'unsupported' && !motionAsked}
       note={note(room.isHost, room.connected, solo)}
       playerTag={(id) => {
         if (!state) return null;

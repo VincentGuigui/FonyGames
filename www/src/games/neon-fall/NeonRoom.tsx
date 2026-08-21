@@ -1,7 +1,13 @@
-import { useCallback, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
-import { NEON_MAX_PLAYERS, NEON_MIN_PLAYERS, type PlayerId, type ServerMessage } from '../../../../shared/protocol';
+import {
+  NEON_EXPLOSION_MS,
+  NEON_MAX_PLAYERS,
+  NEON_MIN_PLAYERS,
+  type PlayerId,
+  type ServerMessage,
+} from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
 import { soloTesting } from '../../core/solo';
 import { useRoom, useShareRoom } from '../../core/room/useRoom';
@@ -11,6 +17,7 @@ import { orientationSupport, requestOrientation, type OrientationSupport } from 
 import { NeonGame } from './game';
 import { NeonBoard } from './NeonBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
 
 /**
  * Neon Fall's room screen. Spec: docs/specs/games/neon-fall.md
@@ -29,6 +36,7 @@ export function NeonRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
   const gameRef = useRef<NeonGame | null>(null);
   if (!gameRef.current) gameRef.current = new NeonGame();
   const game = gameRef.current;
@@ -53,6 +61,29 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const client = room.client;
   const myId = room.me?.id;
 
+  useEffect(() => {
+    game.identify(() => client?.now() ?? Date.now());
+  }, [game, client]);
+
+  /*
+   * The death explosion holds the board on screen for NEON_EXPLOSION_MS after
+   * the fatal hit before the results panel replaces it — mirrors Pass the
+   * Bomb's `holdingBoom` in BombRoom.tsx, down to the re-render-on-timeout
+   * trick: `explodedAt` alone would never re-render once it stops changing,
+   * so a timer forces one right when the hold should end.
+   */
+  const [, tickExplosion] = useState(0);
+  useEffect(() => {
+    const at = game.explodedAt;
+    if (at === null) return;
+    const left = NEON_EXPLOSION_MS - ((client?.now() ?? Date.now()) - at);
+    if (left <= 0) return;
+    const timer = setTimeout(() => tickExplosion((n) => n + 1), left);
+    return () => clearTimeout(timer);
+  }, [game.explodedAt]);
+  const holdingExplosion =
+    game.explodedAt !== null && (client?.now() ?? Date.now()) - game.explodedAt < NEON_EXPLOSION_MS;
+
   async function enableTilt(): Promise<void> {
     setOrientationAsked(true);
     const granted = await requestOrientation();
@@ -68,7 +99,7 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const roles =
     a && b ? (swapped ? { glider: b.id, protector: a.id } : { glider: a.id, protector: b.id }) : undefined;
 
-  if (state?.phase === 'running') {
+  if (state && (state.phase === 'running' || holdingExplosion)) {
     return (
       <NeonBoard
         game={game}
@@ -89,6 +120,9 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     const rows: PlayerId[] = [state.gliderId, state.protectorId];
     return (
       <GameOverScreen
+        room={room}
+        readyBlocked={support !== 'unsupported' && !orientationAsked}
+        onReadySetup={enableTilt}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
@@ -122,8 +156,9 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughToStart(room.connected, [NEON_MIN_PLAYERS, NEON_MAX_PLAYERS], solo)}
-      startLabel={state ? 'Play again' : 'Start round'}
+      startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'neon', ...(roles ? { roles } : {}), solo } })}
+      readyBlocked={support !== 'unsupported' && !orientationAsked}
       note={note(room.isHost, room.connected, solo)}
       playerTag={(id) => {
         if (!roles) return null;

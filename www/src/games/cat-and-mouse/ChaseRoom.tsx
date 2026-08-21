@@ -14,6 +14,7 @@ import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { ChaseBoard } from './ChaseBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
 import { CatMouseGame } from './game';
 
 /**
@@ -36,6 +37,7 @@ export function ChaseRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
   const [, redraw] = useState(0);
   /*
    * `capped` by default — the walk-where-I-point chase.
@@ -119,19 +121,19 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
 
     return (
       <GameOverScreen
+        room={room}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        status="Round over"
         rows={[
           ...ranked.map((a) => ({
             id: a.playerId,
             avatar: byId.get(a.playerId)?.avatar ?? '🐭',
             name: byId.get(a.playerId)?.name ?? 'Someone',
             value: a.out ? 'caught' : a.lives,
-            unit: 'lives',
+            unit: t.common.lives,
             ...(a.out ? { out: true } : {}),
           })),
           {
@@ -166,7 +168,7 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughToStart(room.connected, [CM_MIN_PLAYERS, CM_MAX_PLAYERS], solo)}
-      startLabel={state ? 'Play again' : 'Start round'}
+      startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'chase', drag, solo } })}
       note={note(room.isHost, room.connected, solo)}
       playerTag={(id) => {

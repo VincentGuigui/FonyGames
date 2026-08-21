@@ -24,6 +24,7 @@ import {
   type ServerMessage,
 } from '../shared/protocol';
 import { PLAYERS } from '../shared/players';
+import { guestsReady, resetReadiness } from '../shared/readiness';
 import { playsUrl, reportPlay, roundKey } from './plays';
 /*
  * Type-only, so it is erased at build time and the cycle with index.ts (which imports this
@@ -309,6 +310,9 @@ export class Room extends DurableObject<Env> {
         return;
       case 'set-profile':
         await this.#onSetProfile(ws, msg.d);
+        return;
+      case 'set-ready':
+        await this.#onSetReady(ws, msg.d);
         return;
       case 'ping':
         this.#send(ws, {
@@ -631,7 +635,8 @@ export class Room extends DurableObject<Env> {
     if (tapping && tapping.phase !== 'done') return;
 
     const players = await this.#players();
-    const ready = [...players.values()].filter((p) => p.connected);
+    const connected = [...players.values()].filter((p) => p.connected);
+    if (!guestsReady(connected, hostId)) return;
 
     if (
       mode === 'bomb' ||
@@ -649,21 +654,24 @@ export class Room extends DurableObject<Env> {
     ) {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
-      const ids = ready.map((p) => p.id);
-      if (mode === 'bomb') await startBomb(this.#bombCtx(), roundId, ids, solo);
-      else if (mode === 'grid') await startGrid(this.#gridCtx(), roundId, ids);
-      else if (mode === 'squash') await startSquash(this.#squashCtx(), roundId, ids, solo);
-      else if (mode === 'steady') await startSteady(this.#steadyCtx(), roundId, ids, solo);
-      else if (mode === 'rush') await startRush(this.#rushCtx(), roundId, ids, solo);
-      else if (mode === 'hunt') await startHunt(this.#huntCtx(), roundId, ids, solo);
-      else if (mode === 'spill') await startSpill(this.#spillCtx(), roundId, ids, solo);
-      else if (mode === 'siege') await startSiege(this.#siegeCtx(), roundId, ids, solo);
-      else if (mode === 'sling') await startSling(this.#slingCtx(), roundId, ids);
-      else if (mode === 'neon') await startNeon(this.#neonCtx(), roundId, ids, roles, solo);
-      else if (mode === 'taptap') await startTapTap(this.#taptapCtx(), roundId, ids, solo);
+      const ids = connected.map((p) => p.id);
+      let started: boolean;
+      if (mode === 'bomb') started = await startBomb(this.#bombCtx(), roundId, ids, solo);
+      else if (mode === 'grid') started = await startGrid(this.#gridCtx(), roundId, ids);
+      else if (mode === 'squash') started = await startSquash(this.#squashCtx(), roundId, ids, solo);
+      else if (mode === 'steady') started = await startSteady(this.#steadyCtx(), roundId, ids, solo);
+      else if (mode === 'rush') started = await startRush(this.#rushCtx(), roundId, ids, solo);
+      else if (mode === 'hunt') started = await startHunt(this.#huntCtx(), roundId, ids, solo);
+      else if (mode === 'spill') started = await startSpill(this.#spillCtx(), roundId, ids, solo);
+      else if (mode === 'siege') started = await startSiege(this.#siegeCtx(), roundId, ids, solo);
+      else if (mode === 'sling') started = await startSling(this.#slingCtx(), roundId, ids);
+      else if (mode === 'neon') started = await startNeon(this.#neonCtx(), roundId, ids, roles, solo);
+      else if (mode === 'taptap') started = await startTapTap(this.#taptapCtx(), roundId, ids, solo);
       // `direct` is the default because it needs no explanation: grab your icon
       // and it follows your finger. `capped` is the deliberate choice.
-      else await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct', solo);
+      else started = await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct', solo);
+      if (!started) return;
+      await this.#consumeReadiness(players);
       await this.#rearm(players);
       return;
     }
@@ -676,7 +684,7 @@ export class Room extends DurableObject<Env> {
     // and spectate, which is a designed behaviour — Sling Puck is exactly two and
     // shows a third player the board with `spectating` set.
     const [duelMin, duelMax] = PLAYERS['tap-duel'];
-    if (ready.length < duelMin || ready.length > duelMax) return;
+    if (connected.length < duelMin || connected.length > duelMax) return;
 
     const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
     const spread = FIRE_MAX_MS - FIRE_MIN_MS;
@@ -710,14 +718,22 @@ export class Room extends DurableObject<Env> {
       taps: {},
       // Only those present when the duel started are in it; late joiners
       // spectate and play the next one.
-      entrants: ready.map((p) => p.id),
+      entrants: connected.map((p) => p.id),
     });
 
     this.#broadcast({ t: 'arm', s: this.#nextSeq(), d: { roundId, fireAt, startsAt, target, speed } });
 
     // The server owns the timer, not the host — so a host dropping mid-duel
     // cannot stall it. This alarm resolves the duel if nobody taps.
+    await this.#consumeReadiness(players);
     await this.#rearm(players);
+  }
+
+  /** Persist and publish the fresh-ready requirement for the round after this one. */
+  async #consumeReadiness(players: Map<PlayerId, StoredPlayer>): Promise<void> {
+    resetReadiness(players.values());
+    await this.#savePlayers(players);
+    await this.#broadcastPresence();
   }
 
   async #onTap(ws: WebSocket, d: { at: number; roundId: number }): Promise<void> {
@@ -1125,6 +1141,7 @@ export class Room extends DurableObject<Env> {
         name: sanitiseName(d.name) ?? randomName(),
         avatar: sanitiseAvatar(d.avatar) ?? randomAvatar(),
         connected: true,
+        ready: false,
       });
     }
 
@@ -1212,18 +1229,18 @@ export class Room extends DurableObject<Env> {
     }
     /*
      * Tap Tap Revolution resyncs the shared order AND, if this player has a seat in
-     * it, their own private progress index — same split as Squash Mosquitoes' board,
+     * it, their own private cleared history — same split as Squash Mosquitoes' board,
      * for the same reason: how far *this* player has gone is theirs alone to see.
      */
     const taptap = await this.#taptap();
     if (taptap && taptap.phase !== 'done') {
       this.#send(ws, { t: 'taptap', s: this.#nextSeq(), d: taptapToState(taptap) });
-      const index = taptap.progress[id];
-      if (index !== undefined) {
+      const cleared = taptap.cleared[id];
+      if (cleared !== undefined) {
         this.#send(ws, {
           t: 'taptap-progress',
           s: this.#nextSeq(),
-          d: { roundId: taptap.roundId, index },
+          d: { roundId: taptap.roundId, cleared: [...cleared] },
         });
       }
     }
@@ -1246,6 +1263,24 @@ export class Room extends DurableObject<Env> {
     if (!name && !avatar) return;
     if (name) me.name = name;
     if (avatar) me.avatar = avatar;
+
+    await this.#savePlayers(players);
+    await this.#broadcastPresence();
+  }
+
+  /**
+   * The lobby's ready toggle. Deliberately unguarded against the host sending
+   * one too — the host's flag simply is never read (`#onStart`'s gate below)
+   * rather than being a message this handler has to reject.
+   */
+  async #onSetReady(ws: WebSocket, d: { ready: boolean }): Promise<void> {
+    const id = this.#idOf(ws);
+    if (!id) return;
+    const players = await this.#players();
+    const me = players.get(id);
+    if (!me) return;
+
+    me.ready = !!d.ready;
 
     await this.#savePlayers(players);
     await this.#broadcastPresence();
@@ -1407,11 +1442,12 @@ export class Room extends DurableObject<Env> {
     const map = players ?? (await this.#players());
     const code = (await this.ctx.storage.get<string>('code')) ?? '';
     const hostId = (await this.ctx.storage.get<PlayerId>('hostId')) ?? null;
-    const list: Player[] = [...map.values()].map(({ id, name, avatar, connected }) => ({
+    const list: Player[] = [...map.values()].map(({ id, name, avatar, connected, ready }) => ({
       id,
       name,
       avatar,
       connected,
+      ready,
     }));
     return { code, players: list, hostId };
   }

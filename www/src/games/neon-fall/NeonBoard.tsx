@@ -3,6 +3,7 @@ import type { JSX } from 'preact';
 import { NEON_LANES, NEON_TICK_MS, type Player, type PlayerId } from '../../../../shared/protocol';
 import type { RoomClient } from '../../core/room/client';
 import { StatusBar } from '../../core/ui/StatusBar';
+import { useT } from '../../core/i18n/strings';
 import { trackSteer, type SteerTracker } from '../../core/sensors/steer';
 import type { NeonGame } from './game';
 import { startRenderer, type Renderer } from './render';
@@ -39,6 +40,7 @@ export function NeonBoard({
   /** Whether tilt is available for the glider. False falls back to held tap zones. */
   orientationOn: boolean;
 }): JSX.Element {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
   const state = game.state;
@@ -67,7 +69,7 @@ export function NeonBoard({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !client) return;
-    const r = startRenderer(canvas, () => game.state, () => client.now());
+    const r = startRenderer(canvas, () => game.state, () => client.now(), () => game.explodedAt);
     rendererRef.current = r;
     return () => {
       r.stop();
@@ -97,6 +99,10 @@ export function NeonBoard({
   const myLives = state?.lives ?? 0;
   const otherRole = iAmGlider ? 'protector' : 'glider';
   const otherId = state ? (iAmGlider ? state.protectorId : state.gliderId) : undefined;
+  // The round is over the instant the fatal hit lands; this board keeps rendering
+  // only to hold the death explosion on screen (spec §4) — nothing is tappable
+  // any more, so the controls that would suggest otherwise are hidden.
+  const running = state?.phase === 'running';
 
   return (
     <div class="neon" style={{ '--game-accent': accent } as JSX.CSSProperties}>
@@ -106,7 +112,7 @@ export function NeonBoard({
         <StatusBar
           score={
             iAmGlider
-              ? { value: myLives, label: 'lives' }
+              ? { value: myLives, label: t.common.lives }
               : { value: state?.ammo ?? 0, label: 'shots' }
           }
           status={otherId ? `${name(otherId)}: ${otherRole}` : undefined}
@@ -116,8 +122,10 @@ export function NeonBoard({
         />
       </div>
 
-      {iAmProtector && state && <Triggers ammo={state.ammo} cooling={state.cooldownUntil > 0} onShoot={shoot} />}
-      {iAmGlider && !orientationOn && <TapZones heldRef={heldRef} />}
+      {iAmProtector && running && state && (
+        <Triggers ammo={state.ammo} cooling={state.cooldownUntil > 0} onShoot={shoot} />
+      )}
+      {iAmGlider && running && !orientationOn && <TapZones heldRef={heldRef} />}
     </div>
   );
 }

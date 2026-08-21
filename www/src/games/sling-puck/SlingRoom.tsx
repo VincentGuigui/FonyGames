@@ -11,6 +11,7 @@ import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { SlingBoard } from './SlingBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
 import { HeadToHead } from './HeadToHead';
 import { SlingGame } from './game';
 
@@ -34,6 +35,7 @@ export function SlingRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
   const [, redraw] = useState(0);
 
   const gameRef = useRef<SlingGame | null>(null);
@@ -88,18 +90,18 @@ function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const ranked = [...state.players].sort((a, b) => (state.pucks[a] ?? 0) - (state.pucks[b] ?? 0));
     return (
       <GameOverScreen
+        room={room}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        status="Round over"
         rows={ranked.map((id) => ({
           id,
           avatar: byId.get(id)?.avatar ?? '🙂',
           name: byId.get(id)?.name ?? 'Someone',
           value: state.pucks[id] ?? 0,
-          unit: 'left',
+          unit: t.common.left,
         }))}
         me={myId}
         winner={game.winner}
@@ -120,7 +122,7 @@ function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }):
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && room.connected === SLING_PLAYERS}
-      startLabel={state ? 'Play again' : 'Start round'}
+      startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'sling' } })}
       note={note(room.isHost, room.connected)}
       soloSupported={false}

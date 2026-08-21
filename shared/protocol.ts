@@ -19,6 +19,13 @@ export type Player = {
   avatar: string;
   /** False while they are dropped but still inside the reconnect grace period. */
   connected: boolean;
+  /**
+   * Marked by the player themselves, in the lobby. Reset to `false` for
+   * everyone the moment a round actually starts, so the next one needs a
+   * fresh signal rather than inheriting the last. The host's own flag is
+   * never checked — see `#onStart`'s gate in worker/Room.ts.
+   */
+  ready: boolean;
 };
 
 export type RoomSnapshot = {
@@ -43,6 +50,12 @@ export type ClientMessage =
   /** First message on every connection. `resume` re-claims a previous seat. */
   | { t: 'join'; d: { name?: string; avatar?: string; resume?: PlayerId } }
   | { t: 'set-profile'; d: { name?: string; avatar?: string } }
+  /**
+   * The lobby's ready toggle — a non-host player marking (or unmarking)
+   * themselves ready. `#onStart` refuses to begin a round until every
+   * connected non-host player has sent `ready: true`.
+   */
+  | { t: 'set-ready'; d: { ready: boolean } }
   /** Round-trip used to estimate the client's offset from server time. */
   | { t: 'ping'; d: { at: number } }
   /**
@@ -343,8 +356,8 @@ export type NeonFallState = {
  * Tap Tap Revolution: the shared, public half of the round.
  *
  * Same split as `SquashState`/`SquashBoard`: `order` and `remaining` are
- * public — a shuffle everyone raced through, and a count, never a board —
- * and each player's own progress index arrives separately as
+ * public — a shuffle everyone raced through, and a count, never which
+ * cells — and each player's own cleared history arrives separately as
  * `taptap-progress`, to that player alone (spec §6).
  */
 export type TapTapState = {
@@ -354,13 +367,34 @@ export type TapTapState = {
   endsAt: number;
   /** The 100 grid cells, in lit-up order. Identical for every player. */
   order: number[];
-  /** Cells not yet cleared, per player — 100 minus their own progress. */
+  /** Cells not yet cleared, per player — 100 minus their own cleared count. */
   remaining: Record<PlayerId, number>;
   /** Server time each player finished, or null while still racing. */
   finishedAt: Record<PlayerId, number | null>;
   winner: PlayerId | null;
   phase: 'running' | 'done';
 };
+
+/**
+ * The next `TAPTAP_WINDOW_SIZE` cells a player may correctly tap right now —
+ * the earliest entries of `order` this player has not yet cleared, in order.
+ *
+ * Pure and shared between the referee (which decides whether a tap is
+ * correct) and the client (which draws these as lit): both must compute the
+ * identical window from the same two public/private facts — `order` and
+ * this player's own `cleared` history — or a tap that looks correct on
+ * screen could be refused by the referee, and vice versa.
+ */
+export function taptapWindow(order: readonly number[], cleared: readonly number[]): number[] {
+  const done = new Set(cleared);
+  const win: number[] = [];
+  for (const cell of order) {
+    if (done.has(cell)) continue;
+    win.push(cell);
+    if (win.length >= TAPTAP_WINDOW_SIZE) break;
+  }
+  return win;
+}
 
 /** Spill: one projectile, described once and animated locally from then on. */
 export type SpillDrop = {
@@ -571,13 +605,17 @@ export type ServerMessage =
   /** Tap Tap Revolution: the shared state — order, everyone's remaining count, phase, winner. */
   | { t: 'taptap'; s: number; d: TapTapState }
   /**
-   * Tap Tap Revolution: sent to **one player only** — their own progress.
+   * Tap Tap Revolution: sent to **one player only** — their own cleared
+   * cells, in the order they actually tapped them (spec §2, §6).
    *
-   * A drop in `index` from the last one sent IS the "you missed" signal —
-   * there is no separate message for it, the same way Squash Mosquitoes has
-   * none for a mosquito that was already squashed (spec §6).
+   * A shrink from the last one sent IS the "you missed" signal — there is
+   * no separate message for it, the same way Squash Mosquitoes has none for
+   * a mosquito that was already squashed. `taptapWindow(order, cleared)`
+   * derives the up-to-`TAPTAP_WINDOW_SIZE` lit cells from this and the
+   * public `order` — nothing here says which cells are lit, only which are
+   * already gone.
    */
-  | { t: 'taptap-progress'; s: number; d: { roundId: number; index: number } }
+  | { t: 'taptap-progress'; s: number; d: { roundId: number; cleared: number[] } }
   /** Pass the Bomb: too many bumps too fast — this player's bumps are muted briefly. */
   | { t: 'calm-down'; d: { untilServerTime: number } }
   /** Steady Hand: the state of the room. `w` is everyone's last wobble, for the meters. */
@@ -1268,6 +1306,7 @@ export function squashFlies(index: number): boolean {
 const CLIENT_TYPES = new Set([
   'join',
   'set-profile',
+  'set-ready',
   'ping',
   'start',
   'tap',
@@ -1561,11 +1600,20 @@ export const NEON_COOLDOWN_MS = 1_500;
  * This is the real balance lever (spec §12): it is the glider's whole reaction
  * window to juke, telegraphed from the instant the bolt is fired. Too short and
  * dodging is unfair; too long and a protector who is paying attention cannot
- * land a shot. A guess, needs a playtest.
+ * land a shot. Raised from an initial 350 ms — that read as nearly instant, no
+ * real dodge window at all. A guess even at this value, needs a playtest.
  */
-export const NEON_BOLT_MS = 350;
+export const NEON_BOLT_MS = 900;
 
 export const NEON_BOUNCE_MS = 1_500;
+
+/**
+ * How long the glider's death explosion holds the screen before the results
+ * panel replaces it (spec §4) — client-side only, timed from the instant a
+ * phone first sees the fatal hit, the same way Pass the Bomb's own
+ * `BOOM_MS` holds the round screen through its explosion.
+ */
+export const NEON_EXPLOSION_MS = 900;
 
 /** How much fall progress a hit gives back — "a bit higher" per the pitch. A
  *  guess (spec §12). */
@@ -1590,6 +1638,13 @@ export const NEON_MAX_PLAYERS = PLAYERS['neon-fall'][1];
 /** The board: a 10×10 grid, a hundred cells, every one of them lit exactly once a round. */
 export const TAPTAP_GRID_SIZE = 10;
 export const TAPTAP_TOTAL = TAPTAP_GRID_SIZE * TAPTAP_GRID_SIZE;
+
+/**
+ * How many cells are live at once — tappable in any order, not just the
+ * next one in `order`. `taptapWindow` below is what turns this number and
+ * a player's own cleared history into the actual set of lit cells.
+ */
+export const TAPTAP_WINDOW_SIZE = 5;
 
 /**
  * A wrong tap rewinds to the last completed multiple of this, not to zero.

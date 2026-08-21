@@ -6,6 +6,7 @@ import { GameMenu } from '../../core/ui/GameMenu';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { driftAt } from './drift';
+import type { Room } from '../../core/room/useRoom';
 
 /**
  * Tap Duel — `pistol` mode, presentational. Spec: docs/specs/games/tap-duel.md
@@ -66,6 +67,8 @@ export function Duel(props: {
   now: () => number;
   /** Only the host may start the next duel. */
   isHost: boolean;
+  /** The shared ready gate on the result screen. */
+  room: Room;
   title: string;
   concept: string;
   rules: string[];
@@ -248,6 +251,7 @@ export function Duel(props: {
 
     return (
       <GameOverScreen
+        room={props.room}
         slug={slug}
         accent={accent}
         title={title}

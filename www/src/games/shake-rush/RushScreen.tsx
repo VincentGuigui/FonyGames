@@ -3,7 +3,23 @@ import type { Player, PlayerId } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { Scoreboard } from '../../core/ui/Scoreboard';
+import { useLocale } from '../../core/i18n/LocaleContext';
+import type { Room } from '../../core/room/useRoom';
 import { progress, standings, toGo, type RushView } from './game';
+
+/**
+ * "Home" — reaching the finish line — said three ways on this screen. Not in
+ * `strings.ts`: that file is scoped to shared chrome, and this word belongs to
+ * this one game, the same way `SPILL_THEME`'s words do.
+ */
+const HOME_WORDS = {
+  en: { home: 'home', someoneHome: 'Someone is home', youAreHome: "You're home — watching" },
+  fr: {
+    home: "à l'arrivée",
+    someoneHome: "Quelqu'un est à l'arrivée",
+    youAreHome: "Vous êtes à l'arrivée — vous regardez",
+  },
+} as const;
 
 /**
  * The race, on one phone. Spec: docs/specs/games/shake-rush.md §4
@@ -29,6 +45,9 @@ export function RushScreen({
   canAgain,
   sound,
   onSound,
+  room,
+  readyBlocked,
+  onReadySetup,
 }: {
   state: RushView;
   players: Player[];
@@ -53,7 +72,11 @@ export function RushScreen({
   /** The tune: on by default, and a race is loud enough that some rooms need it off. */
   sound: boolean;
   onSound: (on: boolean) => void;
+  room: Room;
+  readyBlocked: boolean;
+  onReadySetup: () => void;
 }): JSX.Element {
+  const home = HOME_WORDS[useLocale().locale];
   const byId = new Map(players.map((p) => [p.id, p]));
   const ids = standings(
     state,
@@ -75,6 +98,9 @@ export function RushScreen({
      */
     return (
       <GameOverScreen
+        room={room}
+        readyBlocked={readyBlocked}
+        onReadySetup={onReadySetup}
         slug={slug}
         accent={accent}
         title={title}
@@ -91,7 +117,7 @@ export function RushScreen({
             name: byId.get(id)?.name ?? 'Someone',
             // "home" rather than "0 short": nought to go is the whole point of the race,
             // and a zero in a column of numbers does not read as having won.
-            value: short === 0 ? 'home' : short,
+            value: short === 0 ? home.home : short,
             unit: 'short',
             ...(state.away.includes(id) ? { out: true } : {}),
           };
@@ -109,7 +135,7 @@ export function RushScreen({
     <div class="rush" style={{ '--game-accent': accent } as JSX.CSSProperties}>
       <StatusBar
         score={{ value: left, label: 'to go' }}
-        status={state.finished.length > 0 ? 'Someone is home' : undefined}
+        status={state.finished.length > 0 ? home.someoneHome : undefined}
         title={title}
         concept={concept}
         rules={rules}
@@ -128,14 +154,14 @@ export function RushScreen({
       <p class="rush__togo" aria-hidden="true">
         {iAmHome ? '🏁' : left}
       </p>
-      <p class="rush__togo-note">{iAmHome ? "You're home — watching" : 'shakes to go'}</p>
+      <p class="rush__togo-note">{iAmHome ? home.youAreHome : 'shakes to go'}</p>
 
       <ul class="rush__track">
         {ids.map((id) => {
           const p = byId.get(id);
           const isMe = id === myId;
           const away = state.away.includes(id);
-          const home = state.finished.includes(id);
+          const isHome = state.finished.includes(id);
           return (
             <li key={id} class={`rush__lane ${isMe ? 'rush__lane--me' : ''} ${away ? 'rush__lane--away' : ''}`}>
               <span class="rush__lane-who">
@@ -155,7 +181,7 @@ export function RushScreen({
               >
                 <span class="rush__lane-fill" style={{ width: `${progress(state.at[id]) * 100}%` }} />
                 <span class="rush__runner" style={{ left: `${progress(state.at[id]) * 100}%` }} aria-hidden="true">
-                  {home ? '🏁' : (p?.avatar ?? '🙂')}
+                  {isHome ? '🏁' : (p?.avatar ?? '🙂')}
                 </span>
               </span>
               <span class="rush__lane-n">{toGo(state.at[id])}</span>

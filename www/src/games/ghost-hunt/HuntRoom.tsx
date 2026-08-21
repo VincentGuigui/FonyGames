@@ -363,6 +363,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     setOrientationAsked(true);
     const granted = await requestOrientation();
     if (!granted) {
+      setRoute('sphere');
       room.setError('No motion access — use your finger to explore instead.');
       return false;
     }
@@ -451,6 +452,9 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         accent={card.accent}
         onAgain={again}
         canAgain={room.isHost && enough}
+        room={room}
+        readyBlocked={route === 'camera' && !orientationOn}
+        onReadySetup={() => void enableCameraRoute()}
       />
     );
   }
@@ -515,6 +519,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
          */
         again();
       }}
+      readyBlocked={route === 'camera' && !orientationOn}
       note={note(room.isHost, room.connected, route, orientationOn, solo)}
       /*
        * The physical warning rides with the rules rather than in a panel of its own.

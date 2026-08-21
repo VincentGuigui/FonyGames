@@ -12,8 +12,28 @@ fixed:
 2. **How to play** — the concept, then the bullets (§2).
 3. **Invite a player** — the code, share link and QR, in a panel that collapses.
 4. **Players** — the list. Your own row carries **Change**, which opens a sheet with
-   your name and the avatars in it.
-5. **Start** — the button and one line of context, **stuck to the bottom of the screen**.
+   your name and the avatars in it; every connected guest also shows ready/not ready.
+5. **Start / Ready** — Start for the host, Ready for every guest, plus one line of
+   context, **stuck to the bottom of the screen**.
+
+### Ready is a room rule, not a game feature
+
+Every connected guest must press **Ready** before the host's **Start** button enables.
+The Worker checks the same rule, so a crafted Start frame cannot bypass the lobby. Away
+seats inside the reconnect grace period are ignored: losing one connection must not
+strand everyone who is still at the table.
+
+Readiness is consumed only after a round really starts and is reset for the next one.
+The shared result screen therefore carries the same Ready control for guests and holds
+Play again / Next round for the host; otherwise resetting the flags would make replay
+impossible without returning to the lobby.
+
+Sensor games pass one local `readyBlocked` fact into the shared chrome. Ready (or Start
+for the host) stays disabled until that game's primer has resolved: permission granted,
+permission declined, an unsupported sensor with its documented fallback, or an explicit
+fallback route. A late spectator can run the same setup action from the result screen.
+The browser owns this part because sensor permissions never leave the phone; the Worker
+owns the room-wide guest flags.
 
 ### Why the start button is sticky
 
@@ -403,12 +423,13 @@ Nine games had nine endings, in two families:
   crest shrinks, the gaps tighten, the rows scroll and the two buttons sit side by side.
   Grid Attack's board is sideways and so is its result, and a height query rather than an
   orientation one means no game has to opt in.
-- **Mid-match gets one button**, the next round: Tap Duel at 6–4 does not want to be
+- **Mid-match gets one host button**, the next round: Tap Duel at 6–4 does not want to be
   asked whether to play again. A finished match gets two — play again, and leave.
 - **Leave is a link, not a button.** Leaving the page is what drops the socket and frees
   the seat, the same reason the gear menu's exit is one.
-- **A non-host is told who they are waiting for, and can still leave.** Not being the
-  host is not a reason to be trapped in a room.
+- **A non-host gets Ready and can still leave.** The host's action stays disabled until
+  every connected guest is ready. Not being the host is not a reason to be trapped in
+  a room.
 - The screen keeps the **status bar**, so how-to-play and the way out stay where they
   are in every other screen of every other game.
 

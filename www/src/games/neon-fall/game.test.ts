@@ -1,5 +1,5 @@
-import { NEON_BOLT_MS } from '../../../../shared/protocol';
-import { blinking, boltProgress, makeStars, NeonGame, stepStars } from './game';
+import { NEON_BOLT_MS, NEON_EXPLOSION_MS } from '../../../../shared/protocol';
+import { blinking, boltProgress, explosionProgress, explosionShards, makeStars, NeonGame, stepStars } from './game';
 
 /**
  * Neon Fall's client-side pure helpers.
@@ -49,6 +49,77 @@ console.log('\nNeonGame just remembers the latest frame');
   check('a neon frame is kept', g.state === frame.d);
   check('the glider is identified', g.isGlider('a') && !g.isGlider('b'));
   check('the protector is identified', g.isProtector('b') && !g.isProtector('a'));
+}
+
+console.log('\nexplodedAt stamps once, only for a shot-down glider, from the shared clock');
+{
+  const frame = (over: Partial<{ lives: number; winner: string | null; phase: 'running' | 'done'; roundId: number }>) => ({
+    t: 'neon' as const,
+    s: 1,
+    d: {
+      roundId: 1,
+      startsAt: 0,
+      endsAt: 90_000,
+      gliderId: 'a',
+      protectorId: 'b',
+      lane: 2,
+      y: 0.5,
+      lives: 2,
+      bounceUntil: 0,
+      ammo: 3,
+      cooldownUntil: 0,
+      bolts: [],
+      winner: null,
+      phase: 'running' as const,
+      ...over,
+    },
+  });
+
+  let clock = 0;
+  const g = new NeonGame();
+  g.identify(() => clock);
+
+  g.apply(frame({}));
+  check('nothing exploded yet', g.explodedAt === null);
+
+  clock = 500;
+  g.apply(frame({ lives: 1, winner: 'b', phase: 'running' })); // a non-fatal hit's bounce, not the kill
+  check('a bounce with lives left does not explode', g.explodedAt === null);
+
+  clock = 900;
+  g.apply(frame({ lives: 0, winner: 'b', phase: 'done' }));
+  check('the fatal hit stamps the clock at the instant it is seen', g.explodedAt === 900);
+
+  clock = 1_500;
+  g.apply(frame({ lives: 0, winner: 'b', phase: 'done' }));
+  check('stamped once — a repeat of the same done frame does not restamp', g.explodedAt === 900);
+
+  const reachedFloor = new NeonGame();
+  reachedFloor.identify(() => 999);
+  reachedFloor.apply(frame({ lives: 2, winner: 'a', phase: 'done' }));
+  check('the glider reaching the floor never explodes', reachedFloor.explodedAt === null);
+
+  const left = new NeonGame();
+  left.identify(() => 999);
+  left.apply(frame({ lives: 2, winner: 'b', phase: 'done' })); // protector wins because the glider quit
+  check('the protector winning by forfeit (lives still up) does not explode', left.explodedAt === null);
+
+  clock = 2_000;
+  g.apply(frame({ roundId: 2, lives: 3, winner: null, phase: 'running' }));
+  check('a new round clears the stamp', g.explodedAt === null);
+}
+
+console.log('\nthe death burst: a fixed ring of shards, deterministic and fading out');
+{
+  const shards = explosionShards();
+  check('the same shape every time', explosionShards().map((s) => s.angle).join(',') === shards.map((s) => s.angle).join(','));
+  check('spread all the way around', new Set(shards.map((s) => s.angle)).size === shards.length);
+
+  check('0 the instant of death', explosionProgress(1_000, 1_000) === 0);
+  check('halfway through', explosionProgress(1_000, 1_000 + NEON_EXPLOSION_MS / 2) === 0.5);
+  check('done by the time it is meant to be', explosionProgress(1_000, 1_000 + NEON_EXPLOSION_MS) === 1);
+  check('never past 1', explosionProgress(1_000, 1_000 + NEON_EXPLOSION_MS * 5) === 1);
+  check('never negative for a clock reading before the death', explosionProgress(1_000, 0) === 0);
 }
 
 console.log('\na bolt telegraphs from 0 to 1 over its flight');

@@ -12,8 +12,9 @@ import { Timeline } from './Timeline';
  *
  * Unlike Squash Mosquitoes' board, every cell is always tappable, gone ones
  * included — tapping a gone cell is exactly as wrong as tapping any other cell
- * that is not the lit one (spec §2, §7), and the referee is the only thing that
- * tells the difference. There is nothing here for the client to guess at.
+ * that is not one of the up to five live ones (spec §2, §7), and the referee
+ * is the only thing that tells the difference. There is nothing here for the
+ * client to guess at.
  */
 export function TapTapBoard({
   game,
@@ -43,7 +44,7 @@ export function TapTapBoard({
   onSound: (on: boolean) => void;
 }): JSX.Element {
   const state = game.state;
-  const lit = game.litCell();
+  const lit = new Set(game.litCells());
   const gone = game.goneCells();
 
   /*
@@ -88,35 +89,37 @@ export function TapTapBoard({
         </p>
       </div>
 
-      <Timeline progress={game.progress} />
+      <Timeline order={state?.order ?? []} cleared={game.clearedCells()} />
 
-      <div class="taptap__grid" role="group" aria-label="The board">
-        {Array.from({ length: TAPTAP_TOTAL }, (_, cell) => {
-          const isLit = cell === lit;
-          const isGone = gone.has(cell);
-          const s = isGone ? 'gone' : isLit ? 'lit' : 'idle';
-          const row = Math.floor(cell / TAPTAP_GRID_SIZE) + 1;
-          const col = (cell % TAPTAP_GRID_SIZE) + 1;
-          return (
-            <button
-              key={cell}
-              type="button"
-              class={`taptap__cell taptap__cell--${s}`}
-              style={{ gridRow: row, gridColumn: col }}
-              aria-label={
-                isLit
-                  ? `Row ${row}, column ${col}: lit — tap it`
-                  : isGone
-                    ? `Row ${row}, column ${col}: cleared`
-                    : `Row ${row}, column ${col}`
-              }
-              onPointerDown={(e) => {
-                e.preventDefault();
-                onTap(cell);
-              }}
-            />
-          );
-        })}
+      <div class="taptap__grid-wrap">
+        <div class="taptap__grid" role="group" aria-label="The board">
+          {Array.from({ length: TAPTAP_TOTAL }, (_, cell) => {
+            const isLit = lit.has(cell);
+            const isGone = gone.has(cell);
+            const s = isGone ? 'gone' : isLit ? 'lit' : 'idle';
+            const row = Math.floor(cell / TAPTAP_GRID_SIZE) + 1;
+            const col = (cell % TAPTAP_GRID_SIZE) + 1;
+            return (
+              <button
+                key={cell}
+                type="button"
+                class={`taptap__cell taptap__cell--${s}`}
+                style={{ gridRow: row, gridColumn: col }}
+                aria-label={
+                  isLit
+                    ? `Row ${row}, column ${col}: lit — tap it`
+                    : isGone
+                      ? `Row ${row}, column ${col}: cleared`
+                      : `Row ${row}, column ${col}`
+                }
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  onTap(cell);
+                }}
+              />
+            );
+          })}
+        </div>
       </div>
 
       <Scoreboard

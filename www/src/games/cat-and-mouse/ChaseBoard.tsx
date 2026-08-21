@@ -8,6 +8,7 @@ import { toBoard } from './layout';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { RulesPanel } from '../../core/ui/RulesPanel';
 import { Scoreboard } from '../../core/ui/Scoreboard';
+import { useT } from '../../core/i18n/strings';
 
 /**
  * The floor. Spec: docs/specs/games/cat-and-mouse.md §7
@@ -46,6 +47,7 @@ export function ChaseBoard({
   client: RoomClient | null;
   players: Player[];
 }): JSX.Element {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
   /** The pointer that owns the drag. One finger moves one icon. */
@@ -160,7 +162,7 @@ export function ChaseBoard({
       <div class="chase__hud">
         {/* A number as well as pips — §12 forbids a count carried by shape alone. */}
         <StatusBar
-          score={iAmCat ? undefined : { value: myLives ?? 0, label: 'lives' }}
+          score={iAmCat ? undefined : { value: myLives ?? 0, label: t.common.lives }}
           status={iAmCat ? 'You’re the cat — catch them all' : '●'.repeat(Math.max(0, myLives ?? 0))}
           title={title}
           concept={concept}
@@ -172,7 +174,7 @@ export function ChaseBoard({
         Top left, not the default bottom left: the hint line runs the full width of the
         bottom of this screen, and the panel sat on top of it.
       */}
-      <Scoreboard rows={scores} me={me} unit="lives" corner="top-left" />
+      <Scoreboard rows={scores} me={me} unit={t.common.lives} corner="top-left" />
 
       <Clock endsAt={game.endsAt()} now={() => client?.now() ?? Date.now()} />
 

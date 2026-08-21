@@ -8,6 +8,7 @@ import { useRoom, useShareRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
 import { applyGrid, livesOf, sides, type GridBoard as Board } from './game';
 import { GridBoard } from './GridBoard';
 
@@ -33,6 +34,7 @@ export function GridRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function GridRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
   const [state, setState] = useState<Board>(null);
 
   const onGame = useCallback((msg: ServerMessage) => {
@@ -109,6 +111,7 @@ function GridRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     const ranked = [...players].sort((a, b) => livesOf(state, b.id) - livesOf(state, a.id));
     return (
       <GameOverScreen
+        room={room}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
@@ -122,7 +125,7 @@ function GridRoomInner({ game: card, code }: { game: GameCard; code: string }): 
             avatar: p.avatar,
             name: p.name,
             value: left,
-            unit: left === 1 ? 'life' : 'lives',
+            unit: t.common.lives,
             ...(left <= 0 ? { out: true } : {}),
           };
         })}
@@ -145,7 +148,7 @@ function GridRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughToStart(room.connected, [GRID_MIN_PLAYERS, GRID_MAX_PLAYERS])}
-      startLabel={state ? 'Play again' : 'Start the game'}
+      startLabel={state ? t.common.playAgain : 'Start the game'}
       onStart={() => client?.send({ t: 'start', d: { mode: 'grid' } })}
       note={note(room.isHost, room.connected)}
       /*

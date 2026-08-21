@@ -12,6 +12,7 @@ import { useRoom, useShareRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
 import { soloTesting } from '../../core/solo';
 import { SoundToggle, TapTapBoard } from './TapTapBoard';
 import { TapTapGame, formatClock } from './game';
@@ -34,6 +35,7 @@ export function TapTapRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function TapTapRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
   const [, redraw] = useState(0);
   const [sound, setSound] = useState(soundOn);
 
@@ -126,6 +128,7 @@ function TapTapRoomInner({ game: card, code }: { game: GameCard; code: string })
 
     return (
       <GameOverScreen
+        room={room}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
@@ -166,7 +169,7 @@ function TapTapRoomInner({ game: card, code }: { game: GameCard; code: string })
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughToStart(room.connected, limits, solo)}
-      startLabel={state ? 'Play again' : 'Start the board'}
+      startLabel={state ? t.common.playAgain : 'Start the board'}
       onStart={() => client?.send({ t: 'start', d: { mode: 'taptap', solo } })}
       note={note(room.isHost, room.connected, solo)}
     />

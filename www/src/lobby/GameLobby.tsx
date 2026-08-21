@@ -11,6 +11,8 @@ import { useT } from '../core/i18n/strings';
 import { track } from '../core/analytics';
 import { ArrivedByLink } from './arrival';
 import { soloTesting } from '../core/solo';
+import { guestsReady } from '../../../shared/readiness';
+import { ReadyButton } from '../core/ui/ReadyButton';
 
 /**
  * The lobby, identical for every game.
@@ -24,7 +26,7 @@ import { soloTesting } from '../core/solo';
  * 2. how to play — the concept, then the bullets
  * 3. room code — share link and QR
  * 4. players
- * 5. start
+ * 5. start for the host, ready for every guest
  *
  * A game customises it only through the slots below, and a slot can never
  * reorder or replace a panel. If a game needs something the template cannot
@@ -43,6 +45,7 @@ export function GameLobby({
   canStart,
   startLabel,
   onStart,
+  readyBlocked = false,
   note,
   playerTag,
   /** Extra explanation inside the how-to-play panel (Spill's table diagram). */
@@ -68,6 +71,8 @@ export function GameLobby({
   canStart: boolean;
   startLabel: string;
   onStart: () => void;
+  /** Sensor games hold readiness until this phone has answered their primer. */
+  readyBlocked?: boolean;
   note: string;
   playerTag?: (id: PlayerId) => string | null;
   aside?: ComponentChildren;
@@ -83,6 +88,7 @@ export function GameLobby({
   const solo = soloTesting();
   const [editing, setEditing] = useState(false);
   const t = useT();
+  const everybodyReady = guestsReady(room.room?.players ?? [], room.room?.hostId ?? null);
 
   return (
     <div class="lobby" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
@@ -199,16 +205,15 @@ export function GameLobby({
 
       <footer class="lobby__footer">
         {/*
-          Only the host gets the button. Every game's `canStart` already requires `isHost`, so
-          for everyone else it was a full-width primary control that could never become
-          enabled — in a six-player room, five people looking at a dead button in the most
-          prominent slot on the screen. The note carries the state instead.
+          Start belongs to the host; the same sticky slot carries Ready for every guest.
+          The referee checks those guest flags too, so this is feedback for a server rule
+          rather than a client-only convention.
         */}
         {room.isHost && (
           <button
             class="btn btn--primary btn--big"
             type="button"
-            disabled={!canStart}
+            disabled={!canStart || readyBlocked || !everybodyReady}
             onClick={() => {
               track('game_start', card.slug);
               onStart();
@@ -216,6 +221,13 @@ export function GameLobby({
           >
             {startLabel}
           </button>
+        )}
+        {!room.isHost && <ReadyButton room={room} blocked={readyBlocked} />}
+        {readyBlocked && <p class="lobby__ready-note">{t.lobby.finishSetup}</p>}
+        {room.isHost && canStart && !everybodyReady && (
+          <p class="lobby__ready-note" role="status">
+            {t.lobby.waitingReady}
+          </p>
         )}
         <p class="lobby__note">{note}</p>
       </footer>
