@@ -1,7 +1,13 @@
-import { useCallback, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
-import { NEON_MAX_PLAYERS, NEON_MIN_PLAYERS, type PlayerId, type ServerMessage } from '../../../../shared/protocol';
+import {
+  NEON_EXPLOSION_MS,
+  NEON_MAX_PLAYERS,
+  NEON_MIN_PLAYERS,
+  type PlayerId,
+  type ServerMessage,
+} from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
 import { soloTesting } from '../../core/solo';
 import { useRoom, useShareRoom } from '../../core/room/useRoom';
@@ -53,6 +59,29 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const client = room.client;
   const myId = room.me?.id;
 
+  useEffect(() => {
+    game.identify(() => client?.now() ?? Date.now());
+  }, [game, client]);
+
+  /*
+   * The death explosion holds the board on screen for NEON_EXPLOSION_MS after
+   * the fatal hit before the results panel replaces it — mirrors Pass the
+   * Bomb's `holdingBoom` in BombRoom.tsx, down to the re-render-on-timeout
+   * trick: `explodedAt` alone would never re-render once it stops changing,
+   * so a timer forces one right when the hold should end.
+   */
+  const [, tickExplosion] = useState(0);
+  useEffect(() => {
+    const at = game.explodedAt;
+    if (at === null) return;
+    const left = NEON_EXPLOSION_MS - ((client?.now() ?? Date.now()) - at);
+    if (left <= 0) return;
+    const timer = setTimeout(() => tickExplosion((n) => n + 1), left);
+    return () => clearTimeout(timer);
+  }, [game.explodedAt]);
+  const holdingExplosion =
+    game.explodedAt !== null && (client?.now() ?? Date.now()) - game.explodedAt < NEON_EXPLOSION_MS;
+
   async function enableTilt(): Promise<void> {
     setOrientationAsked(true);
     const granted = await requestOrientation();
@@ -68,7 +97,7 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const roles =
     a && b ? (swapped ? { glider: b.id, protector: a.id } : { glider: a.id, protector: b.id }) : undefined;
 
-  if (state?.phase === 'running') {
+  if (state && (state.phase === 'running' || holdingExplosion)) {
     return (
       <NeonBoard
         game={game}

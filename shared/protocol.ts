@@ -1561,11 +1561,20 @@ export const NEON_COOLDOWN_MS = 1_500;
  * This is the real balance lever (spec §12): it is the glider's whole reaction
  * window to juke, telegraphed from the instant the bolt is fired. Too short and
  * dodging is unfair; too long and a protector who is paying attention cannot
- * land a shot. A guess, needs a playtest.
+ * land a shot. Raised from an initial 350 ms — that read as nearly instant, no
+ * real dodge window at all. A guess even at this value, needs a playtest.
  */
-export const NEON_BOLT_MS = 350;
+export const NEON_BOLT_MS = 900;
 
 export const NEON_BOUNCE_MS = 1_500;
+
+/**
+ * How long the glider's death explosion holds the screen before the results
+ * panel replaces it (spec §4) — client-side only, timed from the instant a
+ * phone first sees the fatal hit, the same way Pass the Bomb's own
+ * `BOOM_MS` holds the round screen through its explosion.
+ */
+export const NEON_EXPLOSION_MS = 900;
 
 /** How much fall progress a hit gives back — "a bit higher" per the pitch. A
  *  guess (spec §12). */

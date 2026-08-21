@@ -1,5 +1,5 @@
 import { NEON_LANES, type NeonFallState } from '../../../../shared/protocol';
-import { blinking, boltProgress, makeStars, stepStars, type Star } from './game';
+import { blinking, boltProgress, explosionProgress, explosionShards, makeStars, stepStars, type Star } from './game';
 
 /**
  * Neon Fall's canvas loop. Spec: docs/specs/games/neon-fall.md §4, §13
@@ -34,6 +34,8 @@ export function startRenderer(
   canvas: HTMLCanvasElement,
   state: () => NeonFallState | null,
   now: () => number,
+  /** Client time the fatal hit was first seen, or null — see `NeonGame.explodedAt`. */
+  explodedAt: () => number | null = () => null,
 ): Renderer {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2d canvas unavailable');
@@ -75,7 +77,10 @@ export function startRenderer(
       drawBolt(ctx!, w, h, bolt.lane, boltProgress(bolt.resolvesAt, t));
     }
 
-    if (!blinking(s.bounceUntil, t) || calm) {
+    const boom = explodedAt();
+    if (boom !== null) {
+      drawExplosion(ctx!, w, h, s.lane, s.y, calm ? 1 : explosionProgress(boom, t));
+    } else if (!blinking(s.bounceUntil, t) || calm) {
       drawGlider(ctx!, w, h, s.lane, s.y, s.bounceUntil > t);
     }
   }
@@ -150,6 +155,47 @@ function drawBolt(ctx: CanvasRenderingContext2D, w: number, h: number, lane: num
   ctx.moveTo(x, tailY);
   ctx.lineTo(x, headY);
   ctx.stroke();
+}
+
+/**
+ * The death burst: the glider's diamond come apart into shards flying outward
+ * from where it was hit, fading as they go. Spec §4, §11.
+ *
+ * `progress` 0..1 drives both how far each shard has travelled and how much
+ * it has faded — at 1 every shard is fully transparent, which is why a caller
+ * under `prefers-reduced-motion` can pass 1 directly and draw nothing at all
+ * rather than a still frame of debris frozen mid-flight.
+ */
+function drawExplosion(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  lane: number,
+  y: number,
+  progress: number,
+): void {
+  if (progress >= 1) return;
+  const x = laneX(lane, w, h);
+  const cy = fallY(y, h, w);
+  const size = Math.min(w, h) * 0.05;
+  const travel = size * 3.5;
+
+  for (const shard of explosionShards()) {
+    const d = shard.speed * travel * progress;
+    const sx = x + Math.cos(shard.angle) * d;
+    const sy = cy + Math.sin(shard.angle) * d;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(shard.angle);
+    ctx.globalAlpha = 1 - progress;
+    ctx.strokeStyle = GLIDER;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.18, 0);
+    ctx.lineTo(size * 0.18, 0);
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 /** The glider: a diamond outline, hollow while bouncing so a blink reads as "not solid". */
