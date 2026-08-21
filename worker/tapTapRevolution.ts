@@ -5,6 +5,7 @@ import {
   TAPTAP_ROUND_CAP_MS,
   TAPTAP_TOTAL,
   preroundFor,
+  taptapWindow,
   type PlayerId,
   type ServerMessage,
   type TapTapState,
@@ -23,6 +24,14 @@ import { enoughToStart } from '../shared/players';
  * this game rewinds to the last checkpoint (spec §2.2) — the built, "forgiving" answer
  * to the harsher "reset to zero" idea the spec's own §12 flagged as the real open
  * question.
+ *
+ * **Five cells are live at once, tappable in any order** (spec §2). A player's own
+ * `cleared` array is not a progress index any more — it is the exact cells they have
+ * correctly tapped, in the order they tapped them. `taptapWindow` (shared/protocol.ts)
+ * is the one function that turns `order` and that history into "which cells are lit
+ * right now," and it is shared with the client for exactly one reason: both have to
+ * agree on the window from the same two facts, or a tap that looks correct on screen
+ * could be refused here.
  */
 
 export type TapTap = {
@@ -31,8 +40,9 @@ export type TapTap = {
   endsAt: number;
   /** The 100 grid cells, in lit-up order. Identical for every player. */
   order: number[];
-  /** How far into `order` each player has correctly tapped, 0..100. */
-  progress: Record<PlayerId, number>;
+  /** Cells each player has correctly tapped, in the order they tapped them — never
+   *  reordered to match `order`, so an out-of-order clear stays exactly that. */
+  cleared: Record<PlayerId, number[]>;
   finishedAt: Record<PlayerId, number | null>;
   winner: PlayerId | null;
   phase: 'running' | 'done';
@@ -44,7 +54,7 @@ export type Ctx = {
   /** The one thing this referee needs that Grid Attack does not: a fair shuffle. */
   random(): number;
   broadcast(msg: ServerMessage): void;
-  /** A player's own progress is private — only they ever see their own index (spec §6). */
+  /** A player's own cleared history is private — only they ever see it (spec §6). */
   sendTo(playerId: PlayerId, msg: ServerMessage): void;
   load(): Promise<TapTap | null>;
   save(s: TapTap): Promise<void>;
@@ -74,9 +84,9 @@ function generateOrder(random: () => number): number[] {
   return cells;
 }
 
-/** The last checkpoint a given progress index has actually cleared. */
-function checkpointOf(index: number): number {
-  return Math.floor(index / TAPTAP_CHECKPOINT) * TAPTAP_CHECKPOINT;
+/** The last checkpoint a given cleared-count has actually reached. */
+function checkpointOf(count: number): number {
+  return Math.floor(count / TAPTAP_CHECKPOINT) * TAPTAP_CHECKPOINT;
 }
 
 export async function startTapTap(
@@ -93,10 +103,10 @@ export async function startTapTap(
   const now = ctx.now();
   const preround = preroundFor(roundId);
 
-  const progress: Record<PlayerId, number> = {};
+  const cleared: Record<PlayerId, number[]> = {};
   const finishedAt: Record<PlayerId, number | null> = {};
   for (const p of connected) {
-    progress[p] = 0;
+    cleared[p] = [];
     finishedAt[p] = null;
   }
 
@@ -105,7 +115,7 @@ export async function startTapTap(
     startsAt: now + preround,
     endsAt: now + preround + TAPTAP_ROUND_CAP_MS,
     order: generateOrder(ctx.random),
-    progress,
+    cleared,
     finishedAt,
     winner: null,
     phase: 'running',
@@ -121,7 +131,7 @@ export async function startTapTap(
 /** The round as every phone needs it: the order, everyone's remaining count. */
 export function toState(s: TapTap): TapTapState {
   const remaining: Record<PlayerId, number> = {};
-  for (const [id, p] of Object.entries(s.progress)) remaining[id] = TAPTAP_TOTAL - p;
+  for (const [id, c] of Object.entries(s.cleared)) remaining[id] = TAPTAP_TOTAL - c.length;
   return {
     roundId: s.roundId,
     startsAt: s.startsAt,
@@ -138,22 +148,23 @@ function broadcastState(ctx: Ctx, s: TapTap): void {
   ctx.broadcast({ t: 'taptap', s: ctx.nextSeq(), d: toState(s) });
 }
 
-/** A player's own progress, to that player alone (spec §6). */
+/** A player's own cleared history, to that player alone (spec §6). */
 function sendProgress(ctx: Ctx, s: TapTap, playerId: PlayerId): void {
-  const index = s.progress[playerId];
-  if (index === undefined) return;
+  const cleared = s.cleared[playerId];
+  if (cleared === undefined) return;
   ctx.sendTo(playerId, {
     t: 'taptap-progress',
     s: ctx.nextSeq(),
-    d: { roundId: s.roundId, index },
+    d: { roundId: s.roundId, cleared: [...cleared] },
   });
 }
 
 /**
  * A finger landed on `cell`. Spec §2, §6, §8.
  *
- * `cell` is a grid position, never "the lit one" — the referee is the only thing that
- * knows what `order[progress[playerId]]` actually is for this player right now.
+ * `cell` is a grid position, never "a lit one" — the referee is the only thing that
+ * knows this player's own `taptapWindow(order, cleared)` right now, the up to five
+ * cells a correct tap could be.
  */
 export async function onTapTap(
   ctx: Ctx,
@@ -169,17 +180,15 @@ export async function onTapTap(
   // own opening tap already has.
   if (ctx.now() < s.startsAt) return;
 
-  const progress = s.progress[playerId];
-  if (progress === undefined) return;
-  if (progress >= TAPTAP_TOTAL) return; // already finished; further taps are no-ops
+  const cleared = s.cleared[playerId];
+  if (cleared === undefined) return;
+  if (cleared.length >= TAPTAP_TOTAL) return; // already finished; further taps are no-ops
 
-  const target = s.order[progress];
-  if (target === undefined) return;
+  const window = taptapWindow(s.order, cleared);
 
-  if (cell === target) {
-    const next = progress + 1;
-    s.progress[playerId] = next;
-    if (next >= TAPTAP_TOTAL) {
+  if (window.includes(cell)) {
+    cleared.push(cell);
+    if (cleared.length >= TAPTAP_TOTAL) {
       const now = ctx.now();
       s.finishedAt[playerId] = now;
       // First to clear all 100 wins, and the round ends the instant they do — same
@@ -190,9 +199,11 @@ export async function onTapTap(
       }
     }
   } else {
-    // Wrong cell, gone cell, doesn't matter which — a miss rewinds to the last
-    // checkpoint, not to zero (spec §2.2).
-    s.progress[playerId] = checkpointOf(progress);
+    // Not one of the up-to-five live cells — wrong, gone, or simply not reached yet,
+    // doesn't matter which — a miss rewinds to the last checkpoint, not to zero (spec
+    // §2.2). The rewind undoes the most RECENTLY tapped cells, in tap order, whichever
+    // physical cells those happened to be — not the highest `order` positions.
+    s.cleared[playerId] = cleared.slice(0, checkpointOf(cleared.length));
   }
 
   await ctx.save(s);
@@ -219,15 +230,15 @@ export async function tick(ctx: Ctx): Promise<boolean> {
 
 function leader(s: TapTap): PlayerId | null {
   let best: PlayerId | null = null;
-  let bestProgress = -1;
+  let bestCount = -1;
   let tie = false;
 
-  for (const [id, p] of Object.entries(s.progress)) {
-    if (p > bestProgress) {
+  for (const [id, c] of Object.entries(s.cleared)) {
+    if (c.length > bestCount) {
       best = id;
-      bestProgress = p;
+      bestCount = c.length;
       tie = false;
-    } else if (p === bestProgress) {
+    } else if (c.length === bestCount) {
       tie = true;
     }
   }

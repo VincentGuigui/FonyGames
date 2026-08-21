@@ -100,13 +100,26 @@
 }
 
 /*
- * The board itself: square cells on an invisible 10x10 grid, as big as the
- * screen allows. `aspect-ratio: 1` on the container is what keeps every cell
- * square without measuring anything in JavaScript.
+ * The board's safe-area padding lives on this wrapper, and ONLY here — not on
+ * `.taptap__grid` itself. `aspect-ratio: 1` on that inner element locks its
+ * border-box to a square, and with `box-sizing: border-box` (theme.css's
+ * global reset) padding is part of that same border-box: put safe-area
+ * padding directly on the square element and an asymmetric inset (no top
+ * padding, but a bottom one that grows on a notched phone) shrinks the
+ * CONTENT box unevenly, stretching every circle into an ellipse. Keeping the
+ * padding out here, on a plain flex container, means the grid element itself
+ * has none to distort it.
  */
-.taptap__grid {
+.taptap__grid-wrap {
   flex: 1 1 auto;
   min-height: 0;
+  display: flex;
+  justify-content: center;
+  padding: 0 max(var(--space-2), env(safe-area-inset-right)) max(var(--space-2), env(safe-area-inset-bottom))
+    max(var(--space-2), env(safe-area-inset-left));
+}
+
+.taptap__grid {
   display: grid;
   grid-template-columns: repeat(var(--taptap-grid, 10), 1fr);
   grid-template-rows: repeat(var(--taptap-grid, 10), 1fr);
@@ -115,8 +128,6 @@
   max-width: 100%;
   aspect-ratio: 1;
   margin: 0 auto;
-  padding: 0 max(var(--space-2), env(safe-area-inset-right)) max(var(--space-2), env(safe-area-inset-bottom))
-    max(var(--space-2), env(safe-area-inset-left));
 }
 
 /* One circle. A real button, always mounted, tappable in every state (spec §2, §7)

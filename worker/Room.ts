@@ -1212,18 +1212,18 @@ export class Room extends DurableObject<Env> {
     }
     /*
      * Tap Tap Revolution resyncs the shared order AND, if this player has a seat in
-     * it, their own private progress index — same split as Squash Mosquitoes' board,
+     * it, their own private cleared history — same split as Squash Mosquitoes' board,
      * for the same reason: how far *this* player has gone is theirs alone to see.
      */
     const taptap = await this.#taptap();
     if (taptap && taptap.phase !== 'done') {
       this.#send(ws, { t: 'taptap', s: this.#nextSeq(), d: taptapToState(taptap) });
-      const index = taptap.progress[id];
-      if (index !== undefined) {
+      const cleared = taptap.cleared[id];
+      if (cleared !== undefined) {
         this.#send(ws, {
           t: 'taptap-progress',
           s: this.#nextSeq(),
-          d: { roundId: taptap.roundId, index },
+          d: { roundId: taptap.roundId, cleared: [...cleared] },
         });
       }
     }

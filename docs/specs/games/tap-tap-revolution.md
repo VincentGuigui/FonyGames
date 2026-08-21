@@ -5,8 +5,8 @@
 | | |
 | --- | --- |
 | **Slug** | `tap-tap-revolution` |
-| **Catchy sentence** | *Chase the lit circle. A miss only costs the last ten* |
-| **Illustration** | `www/src/games/tap-tap-revolution/art/card.svg` — a 10×10 grid of small circles, most hollow, one glowing orange mid-grid |
+| **Catchy sentence** | *Five circles light up at once. A miss only costs the last ten* |
+| **Illustration** | `www/src/games/tap-tap-revolution/art/card.svg` — a 10×10 grid of small circles, most hollow, five glowing orange across the grid |
 | **Players** | 2–8 |
 | **Round length** | 30 s – 2 min for a clean run; a rough one runs longer, capped at 3 min (§7) |
 | **Inputs** | touch |
@@ -15,60 +15,88 @@
 
 ## 1. Pitch
 
-A hundred circles, all on screen at once. Exactly one is lit. Tap it and it
-goes dark for good — and the next one lights up, somewhere else on the
-grid, in an order only the round knows. Tap anything else — including a
-circle already dark — and you fall back to your last checkpoint of ten
-(§2.2): a real setback, never the whole board.
+A hundred circles, all on screen at once. **Five are lit**, and any of them
+can be tapped in any order. Tap a live one and it goes dark for good — and
+another one lights up somewhere else on the grid, in an order only the
+round knows, to keep five live at all times. Tap anything else — a dark
+circle, or one already gone — and you fall back to your last checkpoint of
+ten (§2.2): a real setback, never the whole board.
 
 There is no score. Just a clock, running in hundredths, and whoever clears
 all hundred first.
 
 ## 2. Core loop
 
-1. Host starts the round. The referee deals one shuffled **order** — which
-   of the 100 grid cells lights up 1st, 2nd, ... 100th — shared by everyone,
-   the same way Squash Mosquitoes deals one shared pattern (spec §6).
-2. Everyone's board starts identical: cell `order[0]` lit, the other 99
-   dark and dim.
-3. Tap the lit cell: it goes **gone** (hollowed out) and `order[i+1]`
-   lights up. Each correct tap also plays the next note of the tune (§5b)
-   and lights the matching mark on the timeline above the grid (§4).
-4. **Tap anything that is not the lit cell — gone or merely dark — and you
-   fall back to your last checkpoint of ten (§2.2).** Every gone cell past
-   that checkpoint returns, the lit cell goes back to that checkpoint's
-   cell, and the timeline's marks past it lose their passed style. Nobody
-   else's board is touched.
+1. Host starts the round. The referee deals one shuffled **order** — a
+   fixed sequence of all 100 grid cells, shared by everyone, the same way
+   Squash Mosquitoes deals one shared pattern (spec §6).
+2. Everyone's board starts identical: the first five cells in `order` are
+   lit, the other 95 dark and dim.
+3. **Five cells are live at once, and any of them may be tapped in any
+   order** — this is the core mechanic, not a variation. Tap a live cell:
+   it goes **gone** (hollowed out), and the next not-yet-cleared cell in
+   `order` lights up to keep five live. Each correct tap also plays the
+   next note of the tune (§5b) and lights the matching mark on the
+   timeline above the grid (§4) — wherever in `order` that cell happens to
+   sit, since clearing is no longer sequential.
+4. **Tap anything that is not one of the five live cells — dark, or
+   already gone — and you fall back to your last checkpoint of ten
+   (§2.2).** The rewind undoes your most recently tapped cells, in the
+   order you actually tapped them — not necessarily the highest positions
+   in `order`, since out-of-order clearing can leave gaps. Every cell
+   undone returns to play (it re-enters the live window once its turn
+   comes back around) and the timeline's matching marks lose their passed
+   style. Nobody else's board is touched.
 5. Clear all 100 and the clock stops. First to finish wins.
 
 **Win condition:** first player to clear all 100 cells.
 **Scoring:** none — see §12 for why a "no score" game still needs a
 scoreboard, and what it shows instead.
 
-### 2.1 Why a shared order, not a shared board
+### 2.1 Why a shared order, not a shared board — and five live, not one
 
-Squash Mosquitoes already answered this (its own spec §2): a pattern dealt
-once by the referee's own random source is fair in a way a client-picked
-one cannot be, and dealing it once means every player's board is the same
-shape, which is what makes "how far along is everyone" a legible number
-instead of a coincidence. Tap Tap Revolution reuses the exact mechanism —
-same `random()`, same "shared order, private progress" split — for the
-same reason.
+Squash Mosquitoes already answered the first half of this (its own spec
+§2): a pattern dealt once by the referee's own random source is fair in a
+way a client-picked one cannot be, and dealing it once means every
+player's board is the same shape, which is what makes "how far along is
+everyone" a legible number instead of a coincidence. Tap Tap Revolution
+reuses the exact mechanism — same `random()`, same "shared order, private
+progress" split — for the same reason.
 
-Where it diverges from Squash Mosquitoes on purpose: that game forgives a
-miss outright ("tapping empty ground... does nothing," its spec §2) and
-rewards a hit by spawning more targets. This game does the opposite on
-both counts — a hit removes a target, and a miss costs real ground.
-Two different feelings from the same board-dealing idea, not a copy of one.
+**Five cells live at once, tappable in any order, is the one respect in
+which the built game differs from this spec's very first draft**, which
+had exactly one cell lit at a time, cleared strictly in `order`. It was
+requested directly and is the base mechanic now, not a mode or a
+variation. It changes what a player's own progress actually is: no longer
+a single index into `order` (`order[0..k-1]` cleared, `order[k]` lit), it
+is the literal, possibly-out-of-order **set of cells they have actually
+tapped**, recorded in the order they tapped them. `taptapWindow(order,
+cleared)` in `shared/protocol.ts` is the one pure function that turns that
+history plus the shared `order` back into "which five cells are live
+right now" — the referee and the client both compute it from the same two
+facts, so neither can disagree with the other about what is currently
+tappable.
+
+Where this game diverges from Squash Mosquitoes on purpose, beyond the
+board-dealing mechanism: that game forgives a miss outright ("tapping
+empty ground... does nothing," its spec §2) and rewards a hit by spawning
+more targets. This game does the opposite on both counts — a hit removes
+a target, and a miss costs real ground. Two different feelings from the
+same board-dealing idea, not a copy of one.
 
 ### 2.2 A miss costs the streak back to the last checkpoint of ten
 
 **As built**, replacing the draft's original "reset the whole board on any
-miss": progress is checked off in checkpoints of ten
-(`TAPTAP_CHECKPOINT`), and a miss rewinds to `Math.floor(progress / 10) *
-10` — the last one crossed, never further back. A miss on cell 47 costs
-cells 41–47 (seven cells); it never costs cells 1–40, and it never costs
-the whole board regardless of where it lands.
+miss": a player's cleared count is checked off in checkpoints of ten
+(`TAPTAP_CHECKPOINT`), and a miss rewinds it to
+`Math.floor(clearedCount / 10) * 10` — the last one crossed, never further
+back — by undoing the **most recently tapped cells**, in the order they
+were actually tapped. Because clearing can happen out of `order` (§2.1), a
+rewind does not necessarily undo the highest positions in `order`: a
+player who tapped cell 47 as their 3rd correct tap and cell 12 as their
+13th, then missed, loses cell 12 (the most recent) back to the checkpoint
+before it would ever touch cell 47 (tapped much earlier in their own
+history, however far ahead it sits in `order`).
 
 This was the spec's own §12 open question, drafted before any code and
 flagged there as the single biggest one in the document — whether a full
@@ -109,10 +137,10 @@ rule, for a host who wants more risk than the checkpoint gives:
   [grid-attack.md](grid-attack.md) §4) from squares to circles, but this
   board is never split into halves: there is nothing here to attack, only
   your own hundred circles. Three visual states, never colour alone:
-  **idle** (dim outline), **lit** (glowing, pulsing, the one live target),
-  **gone** (hollow, faded, still tappable — spec §7). The status bar shows
-  cells remaining (§2) and the running clock in `SS.CC`, hundredths visible
-  enough to read while a thumb is moving.
+  **idle** (dim outline), **lit** (glowing, pulsing — up to five at once,
+  §2.1), **gone** (hollow, faded, still tappable — spec §7). The status
+  bar shows cells remaining (§2) and the running clock in `SS.CC`,
+  hundredths visible enough to read while a thumb is moving.
 - **The timeline** (as built, not in the original draft): a strip above the
   grid, one mark per position in the shared order — a hundred marks in the
   game's own accent colour, every tenth (a checkpoint, §2.2) drawn a little
@@ -149,36 +177,40 @@ too) — but the notes are lifted verbatim. The API is leaner than Shake
 Rush's own, and deliberately so (`tune.ts`'s own docblock): a shake is
 guessed locally and corrected from the server a beat later, but a tap here
 is never guessed — every `taptap-progress` message (§6) already carries
-the server's own confirmed position — so the whole API is one call,
-`seekTo(index)`, driven straight off that message.
+the server's own confirmed cleared history — so the whole API is one
+call, `seekTo(count)`, driven straight off how many cells that history
+holds.
 
-Advancing plays the notes gained, one per correct tap. **A checkpoint
-rewind is silent** — the timeline (§4) already carries its own
-unmistakable beat for a miss, and the very next correct tap sings exactly
-the note it would have sung before the miss, because notes are indexed by
-*position in the order*, not by a running tap count: tap sequence #1
-always plays note #1 of the phrase regardless of which of the 100 cells
-`order[0]` happens to be this round, or how many times a rewind sent play
-back to it. The shuffled *layout* changes every round; the *tune* a clean
-run produces never does — that is what makes it recognisable at all.
+**Notes are indexed by tap count, not by position in `order`** — this is
+the one place the "five at once, any order" mechanic (§2.1) had to change
+the original single-target draft's design. Tap sequence #1 always plays
+note #1 of the phrase, whichever of the hundred cells happened to be the
+one actually tapped first; tap sequence #37 plays note #37 regardless of
+where in `order` that 37th cleared cell sits. Advancing plays the notes
+gained, one per correct tap. **A checkpoint rewind is silent** — the
+timeline (§4) already carries its own unmistakable beat for a miss — and
+because notes are indexed by count, the very next correct tap after a
+rewind sings exactly the note it would have sung before the miss. The
+shuffled *layout* changes every round; the *tune* a clean run produces
+never does — that is what makes it recognisable at all.
 
 ## 6. Networking
 
 Same split as Squash Mosquitoes (spec §6, §9): the order is public, dealt
-once by the referee; each player's own progress is a single number, and
+once by the referee; each player's own cleared history is private, and
 only its **count** goes out to everyone else.
 
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
 | `taptap-tap` | client → server | `{roundId, cell}` | A finger landed on grid cell `cell` |
-| `taptap` | server → both | `{roundId, order, remaining: Record<PlayerId, number>, finishedAt: Record<PlayerId, number \| null>, winner, phase}` | The shared, public half — never anyone's specific progress index |
-| `taptap-progress` | server → **one player only** | `{roundId, index}` | This player's own position in `order` — which cell is lit, which are gone (`order[0..index-1]`) |
+| `taptap` | server → both | `{roundId, order, remaining: Record<PlayerId, number>, finishedAt: Record<PlayerId, number \| null>, winner, phase}` | The shared, public half — never anyone's specific cleared cells |
+| `taptap-progress` | server → **one player only** | `{roundId, cleared: number[]}` | This player's own cleared cells, in the order they actually tapped them — `taptapWindow(order, cleared)` derives which five are live from this |
 
-`index` resetting to 0 is carried in the same `taptap-progress` message a
-correct tap would have used — there is no separate "you failed" message,
-the same way Squash Mosquitoes has no separate message for a mosquito that
-was already squashed. The client tells the difference by the number going
-down instead of up.
+A shrink in `cleared`'s length from the last one sent is carried in the
+same `taptap-progress` message a correct tap would have used — there is
+no separate "you failed" message, the same way Squash Mosquitoes has no
+separate message for a mosquito that was already squashed. The client
+tells the difference by the length going down instead of up.
 
 ## 7. Failure & edge cases
 
@@ -186,10 +218,10 @@ down instead of up.
 | --- | --- |
 | A player leaves mid-round | Removed from the standings; everyone else's board is untouched — there was never anything shared between boards but the order |
 | Everyone still in when the 3-minute safety cap hits | Ranked by cells remaining, fewest first; a tie in remaining is unranked between those players, same call Squash Mosquitoes makes at its own cap |
-| A tap lands on a cell that is already gone | A miss, same as tapping any other wrong cell — rewinds to the last checkpoint (§2.2) |
+| A tap lands on a cell that is already gone, or one not currently among the five live | A miss, same as tapping any other wrong cell — rewinds to the last checkpoint (§2.2) |
 | Two players finish in the same tick | The referee's own clock, not either client's, breaks the tie — whichever `finishedAt` it recorded first |
 | Fewer than 2 players | Start disabled |
-| A player refreshes mid-round | Same seat, same progress index — a refresh does not reset the board, only a wrong tap does |
+| A player refreshes mid-round | Same seat, same cleared history — a refresh does not reset the board, only a wrong tap does |
 
 ## 8. Anti-cheat
 
@@ -199,10 +231,11 @@ knows what that meant for this specific player.
 
 - **The order is dealt server-side**, from the referee's own random
   source, never a client's.
-- **Every tap is checked against the referee's own stored progress
-  index** for that player, not against anything the client claims about
-  itself. A modified client cannot claim to be further along, or to have
-  survived a miss it did not.
+- **Every tap is checked against `taptapWindow(order, cleared)`, computed
+  from the referee's own stored cleared history** for that player, not
+  against anything the client claims about itself. A modified client
+  cannot claim to be further along, to have cleared a cell it did not, or
+  to have survived a miss it did not.
 - **Finish time is the server's clock**, at the tick the 100th correct tap
   is processed — not a duration the client reports.
 
@@ -216,7 +249,7 @@ already carries.
 ## 10. Data & privacy
 
 Leaves the phone: which cell was tapped, per tap; player id, name, avatar.
-Never a progress index or the order — those are the referee's to send
+Never a cleared history or the order — those are the referee's to send
 back, not the client's to declare. Room memory only, for the life of the
 round.
 
@@ -243,7 +276,7 @@ round.
     their green style at once — never a silent, easy-to-miss change that
     would leave a player tapping a board that quietly stopped agreeing
     with them.
-- No strobing. The lit cell pulses; it does not flash. The timeline's
+- No strobing. Lit cells pulse; they do not flash. The timeline's
   pulse-once animation respects `prefers-reduced-motion` (no animation,
   the colour change alone still carries the state).
 - The clock and the remaining-count are both numbers, never a bar or a
@@ -262,6 +295,12 @@ round.
   because it divides the 100-cell board evenly and gives the timeline a
   legible "every tenth mark is a checkpoint" rule (§4) — not because it was
   measured against a real round of misses.
+- **Is five the right number of live cells?** More than one was requested
+  directly (§2.1) and five is what shipped, but nothing about that number
+  was measured against real thumbs — fewer live cells narrows the field
+  and makes each one easier to find; more spreads attention thinner across
+  a bigger grid search. `TAPTAP_WINDOW_SIZE` in `shared/protocol.ts` is the
+  one constant to change if a playtest says otherwise.
 - **"No score, shows the time" (the ask) vs. a live scoreboard (§4, §6) —
   is showing everyone's remaining count while the round runs too close to
   a score after all?** The brief asked for time-only, but with 2–8 players

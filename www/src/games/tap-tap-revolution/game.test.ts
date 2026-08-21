@@ -1,4 +1,4 @@
-import { TAPTAP_TOTAL, type ServerMessage, type TapTapState } from '../../../../shared/protocol';
+import { TAPTAP_TOTAL, TAPTAP_WINDOW_SIZE, taptapWindow, type ServerMessage, type TapTapState } from '../../../../shared/protocol';
 import { TapTapGame, elapsedMs, formatClock } from './game';
 import { MELODY, NOTES_AFTER_THE_LAST_CELL, noteFor } from './melody';
 
@@ -6,9 +6,9 @@ import { MELODY, NOTES_AFTER_THE_LAST_CELL, noteFor } from './melody';
  * Tap Tap Revolution, client side. Spec: docs/specs/games/tap-tap-revolution.md
  *
  * `TapTapGame` has no referee to catch a mistake either — it only projects the
- * public state and this phone's own private progress into what the board and the
- * timeline draw. `formatClock` and `noteFor` are the other two pure things worth
- * a direct check.
+ * public state and this phone's own private cleared history into what the
+ * board and the timeline draw. `formatClock` and `noteFor` are the other two
+ * pure things worth a direct check.
  */
 
 let failures = 0;
@@ -46,62 +46,75 @@ function taptapMsg(d: TapTapState): ServerMessage {
   return { t: 'taptap', s: 1, d };
 }
 
-function progressMsg(roundId: number, index: number): ServerMessage {
-  return { t: 'taptap-progress', s: 1, d: { roundId, index } };
+function progressMsg(roundId: number, cleared: number[]): ServerMessage {
+  return { t: 'taptap-progress', s: 1, d: { roundId, cleared } };
 }
 
-function progressing(): void {
-  console.log('\nmy own progress lights a cell and hollows the rest');
+function fiveLiveAtOnce(): void {
+  console.log('\nfive cells are live at once; clearing one slides in a sixth');
   const g = new TapTapGame();
   g.apply(taptapMsg(state()));
 
   check('nothing cleared yet', g.progress === 0);
-  check('cell 0 is lit', g.litCell() === 0);
+  check('the first five cells are live', g.litCells().join(',') === '0,1,2,3,4');
   check('nothing is gone yet', g.goneCells().size === 0);
   check('remaining is the full board', g.remaining === TAPTAP_TOTAL);
 
-  g.apply(progressMsg(1, 3));
-  check('progress advances to what the server said', g.progress === 3);
-  check('cell 3 is lit', g.litCell() === 3);
-  check('cells 0, 1, 2 are gone', [...g.goneCells()].sort().join(',') === '0,1,2');
-  check('remaining shrinks with it', g.remaining === TAPTAP_TOTAL - 3);
+  // Clear cell 3 first — out of order — via a real progress message.
+  g.apply(progressMsg(1, [3]));
+  check('progress advances to what the server said', g.progress === 1);
+  check('cell 3 is gone', g.goneCells().has(3));
+  check('the window slides in cell 5 to stay at five', g.litCells().join(',') === '0,1,2,4,5');
 }
 
 function rewinding(): void {
   console.log('\na checkpoint rewind is carried in the same message, going down instead of up');
   const g = new TapTapGame();
   g.apply(taptapMsg(state()));
-  g.apply(progressMsg(1, 13));
+  g.apply(progressMsg(1, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]));
   check('13 in', g.progress === 13);
 
-  g.apply(progressMsg(1, 10));
+  g.apply(progressMsg(1, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]));
   check('rewound to the checkpoint', g.progress === 10);
-  check('cell 10 relit', g.litCell() === 10);
-  check('only cells 0..9 are gone now', [...g.goneCells()].sort((a, b) => a - b).join(',') === Array.from({ length: 10 }, (_, i) => i).join(','));
+  check('cells 10-12 are un-gone again', !g.goneCells().has(10) && !g.goneCells().has(12));
+  check('cells 0-9 stay gone', [...Array(10).keys()].every((c) => g.goneCells().has(c)));
 }
 
 function freshRound(): void {
-  console.log('\na new roundId resets my own progress, even before the first progress message');
+  console.log('\na new roundId resets my own cleared history, even before the first progress message');
   const g = new TapTapGame();
   g.apply(taptapMsg(state()));
-  g.apply(progressMsg(1, 47));
-  check('47 in', g.progress === 47);
+  g.apply(progressMsg(1, [0, 1, 2, 3, 4, 5, 6]));
+  check('7 in', g.progress === 7);
 
   g.apply(taptapMsg(state({ roundId: 2 })));
   check('a new round starts my progress back at zero', g.progress === 0);
-  check('lit cell is the new order\'s first', g.litCell() === 0);
+  check('the first five of the new order are live again', g.litCells().join(',') === '0,1,2,3,4');
 }
 
 function stalenessAndPrivacy(): void {
   console.log('\na progress message for a stale round is ignored; other players stay in `remaining` only');
   const g = new TapTapGame();
   g.apply(taptapMsg(state()));
-  g.apply(progressMsg(1, 5));
-  g.apply(progressMsg(99, 80)); // some other, already-over round
+  g.apply(progressMsg(1, [0, 1, 2, 3, 4]));
+  g.apply(progressMsg(99, Array.from({ length: 80 }, (_, i) => i))); // some other, already-over round
   check('the stale message changed nothing', g.progress === 5);
 
   const remaining = g.remainingByPlayer();
   check('the shared panel sees counts for everyone', remaining[ME] === TAPTAP_TOTAL && remaining[OTHER] === TAPTAP_TOTAL);
+}
+
+function windowHelper(): void {
+  console.log('\ntaptapWindow: the shared function the referee and the client both compute from');
+  const order = IDENTITY_ORDER;
+  check('empty history: the first five', taptapWindow(order, []).join(',') === '0,1,2,3,4');
+  check(
+    'out-of-order clears leave gaps the window still finds',
+    taptapWindow(order, [2, 7]).join(',') === '0,1,3,4,5',
+  );
+  check('always at most the window size', taptapWindow(order, []).length === TAPTAP_WINDOW_SIZE);
+  const nearEnd = taptapWindow(order, order.slice(0, 98));
+  check('fewer than five remain near the end', nearEnd.length === 2 && nearEnd.join(',') === '98,99');
 }
 
 function clock(): void {
@@ -128,7 +141,7 @@ function melody(): void {
   check('overshooting wraps rather than falling silent', noteFor(MELODY.length) === MELODY[0]);
 }
 
-for (const t of [progressing, rewinding, freshRound, stalenessAndPrivacy, clock, melody]) t();
+for (const t of [fiveLiveAtOnce, rewinding, freshRound, stalenessAndPrivacy, windowHelper, clock, melody]) t();
 
 if (failures > 0) throw new Error(`${failures} check(s) failed`);
 console.log(`\nall ${checks} passed`);
