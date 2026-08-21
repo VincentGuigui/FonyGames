@@ -206,6 +206,27 @@ docker run --rm -d --name fony-db -e MARIADB_ROOT_PASSWORD=dev \
 FONY_TEST_PASS=dev npm test
 ```
 
+### Windows, without a system-wide install
+
+The repository has a portable setup for a Windows machine with neither PHP, MariaDB,
+Docker nor WSL:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/setup_windows_tests.ps1
+npm run test:php
+```
+
+The setup downloads official PHP 8.4 NTS and MariaDB 11.8 Windows archives into the
+gitignored `.runtime/` directory, verifies the pinned MariaDB archive checksum, and
+initialises a local root account whose password is `dev`. `scripts/php-test.mjs` then
+starts that server on `127.0.0.1:3306` only for the PHP suite and shuts it down normally
+afterwards. It passes `pdo_mysql` and `mbstring` to the portable PHP process directly,
+so no global `PATH` or `php.ini` is changed.
+
+An explicit `FONY_TEST_DSN` always wins. The launcher will not hide a broken explicit
+connection behind the portable database, matching the no-fallback rule in
+`api/tests/schema.php`.
+
 Or point it anywhere with `FONY_TEST_DSN` / `FONY_TEST_USER` / `FONY_TEST_PASS`. The
 database name **must end in `_test`** — the suite truncates every table it knows about
 and refuses anything else.

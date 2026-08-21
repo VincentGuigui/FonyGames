@@ -142,7 +142,9 @@ let seen = 0;
 for (const [slug, dir] of artDirs()) {
   for (const name of readdirSync(dir).sort()) {
     if (!name.endsWith('.svg') || name.endsWith('-hollow.svg')) continue;
-    const src = readFileSync(join(dir, name), 'utf8');
+    // A checkout's newline convention is not part of the drawing. Canonical LF keeps
+    // Windows from declaring the committed Linux-generated outline stale (and vice versa).
+    const src = readFileSync(join(dir, name), 'utf8').replace(/\r\n?/g, '\n');
     const text = derive(src, name);
     if (text === null) continue;
 
@@ -150,7 +152,7 @@ for (const [slug, dir] of artDirs()) {
     const target = join(dir, name.replace(/\.svg$/, '-hollow.svg'));
     let current = null;
     try {
-      current = readFileSync(target, 'utf8');
+      current = readFileSync(target, 'utf8').replace(/\r\n?/g, '\n');
     } catch {
       // Not generated yet.
     }

@@ -106,7 +106,9 @@ function accentOf(slug) {
 
 /** The card art with its outer <svg> stripped, so it can be placed inside another. */
 function innerArt(slug) {
-  const source = readFileSync(join(GAMES, slug, 'art/card.svg'), 'utf8');
+  // Git may check the same SVG out as CRLF on Windows and LF in CI. resvg draws both
+  // identically, so the staleness hash must describe the art rather than the checkout.
+  const source = readFileSync(join(GAMES, slug, 'art/card.svg'), 'utf8').replace(/\r\n?/g, '\n');
   const open = source.indexOf('>', source.indexOf('<svg'));
   const close = source.lastIndexOf('</svg>');
   if (open === -1 || close === -1) throw new Error(`${slug}/art/card.svg is not an svg`);
