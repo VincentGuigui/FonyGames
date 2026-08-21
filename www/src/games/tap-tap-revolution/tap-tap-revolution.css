@@ -109,11 +109,19 @@
  * CONTENT box unevenly, stretching every circle into an ellipse. Keeping the
  * padding out here, on a plain flex container, means the grid element itself
  * has none to distort it.
+ *
+ * `align-items: center` matters as much as the padding split above: a flex
+ * container's default cross-axis alignment is `stretch`, which forces the
+ * child to fill this wrapper's full height regardless of its own
+ * `aspect-ratio` — `max-width: 100%` then clamped the resulting width back
+ * down without the browser ever recomputing the height to match, which is
+ * what actually produced the stretched ellipses (not the padding alone).
  */
 .taptap__grid-wrap {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
+  align-items: center;
   justify-content: center;
   padding: 0 max(var(--space-2), env(safe-area-inset-right)) max(var(--space-2), env(safe-area-inset-bottom))
     max(var(--space-2), env(safe-area-inset-left));
