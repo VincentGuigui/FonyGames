@@ -7,6 +7,7 @@ import { useT } from '../../core/i18n/strings';
 import { trackSteer, type SteerTracker } from '../../core/sensors/steer';
 import type { NeonGame } from './game';
 import { startRenderer, type Renderer } from './render';
+import { useGameText } from '../../core/i18n/gameText';
 
 /**
  * The fall. Spec: docs/specs/games/neon-fall.md §4
@@ -41,6 +42,7 @@ export function NeonBoard({
   orientationOn: boolean;
 }): JSX.Element {
   const t = useT();
+  const text = useGameText();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
   const state = game.state;
@@ -95,9 +97,9 @@ export function NeonBoard({
     client?.send({ t: 'neon-shoot', d: { roundId, lane } });
   }
 
-  const name = (id: PlayerId): string => players.find((p) => p.id === id)?.name ?? 'Someone';
+  const name = (id: PlayerId): string => players.find((p) => p.id === id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' });
   const myLives = state?.lives ?? 0;
-  const otherRole = iAmGlider ? 'protector' : 'glider';
+  const otherRole = iAmGlider ? text({ en: 'protector', fr: 'protecteur' }) : text({ en: 'glider', fr: 'planeur' });
   const otherId = state ? (iAmGlider ? state.protectorId : state.gliderId) : undefined;
   // The round is over the instant the fatal hit lands; this board keeps rendering
   // only to hold the death explosion on screen (spec §4) — nothing is tappable
@@ -113,7 +115,7 @@ export function NeonBoard({
           score={
             iAmGlider
               ? { value: myLives, label: t.common.lives }
-              : { value: state?.ammo ?? 0, label: 'shots' }
+              : { value: state?.ammo ?? 0, label: text({ en: 'shots', fr: 'tirs' }) }
           }
           status={otherId ? `${name(otherId)}: ${otherRole}` : undefined}
           title={title}
@@ -142,15 +144,16 @@ function Triggers({
   cooling: boolean;
   onShoot: (lane: number) => void;
 }): JSX.Element {
+  const text = useGameText();
   return (
-    <div class="neon__triggers" role="group" aria-label="Fire">
+    <div class="neon__triggers" role="group" aria-label={text({ en: 'Fire', fr: 'Tirer' })}>
       {Array.from({ length: NEON_LANES }, (_, lane) => (
         <button
           key={lane}
           type="button"
           class="neon__trigger"
           disabled={ammo <= 0}
-          aria-label={`Lane ${lane + 1}${ammo <= 0 ? ': reloading' : ''}`}
+          aria-label={text({ en: `Lane ${lane + 1}${ammo <= 0 ? ': reloading' : ''}`, fr: `Voie ${lane + 1}${ammo <= 0 ? ' : rechargement' : ''}` })}
           onPointerDown={(e) => {
             e.preventDefault();
             onShoot(lane);
@@ -163,7 +166,7 @@ function Triggers({
         {Array.from({ length: ammo }, (_, i) => (
           <span key={i} class="neon__ammo-pip" />
         ))}
-        {cooling && <span class="neon__ammo-cooling">reloading…</span>}
+        {cooling && <span class="neon__ammo-cooling">{text({ en: 'reloading…', fr: 'rechargement…' })}</span>}
       </div>
     </div>
   );

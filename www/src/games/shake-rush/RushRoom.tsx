@@ -10,7 +10,7 @@ import {
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
 import { soloTesting } from '../../core/solo';
-import { useRoom, useShareRoom } from '../../core/room/useRoom';
+import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { detectShakes } from '../../core/sensors/shake';
@@ -18,6 +18,8 @@ import { motionSupport, requestMotion, type MotionSupport } from '../../core/sen
 import { applyRush, type RushState } from './game';
 import { createTune, setSoundOn, soundOn, type Tune } from './tune';
 import { RushScreen } from './RushScreen';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { PermissionPrimer } from '../../core/ui/PermissionPrimer';
 
 /**
  * Shake Rush's room screen. Spec: docs/specs/games/shake-rush.md
@@ -42,6 +44,7 @@ export function RushRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const text = useGameText();
   const [state, setState] = useState<RushState>(null);
   const [support] = useState<MotionSupport>(motionSupport);
   const [motionOn, setMotionOn] = useState(false);
@@ -58,8 +61,7 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
    */
   const solo = soloTesting();
 
-  const room = useRoom(code, card.slug, onGame);
-  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
+  const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;
 
@@ -162,7 +164,7 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     const granted = await requestMotion();
     setMotionOn(granted);
     if (!granted) {
-      room.setError('No motion access — you can watch, but not race this one.');
+      room.setError(text({ en: 'No motion access — you can watch, but not race this one.', fr: "Pas d’accès au mouvement — vous pouvez regarder, mais pas participer à cette course." }));
       return;
     }
     /*
@@ -210,10 +212,10 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughPlayers}
-      startLabel="Start the race"
+      startLabel={text({ en: 'Start the race', fr: 'Démarrer la course' })}
       onStart={again}
       readyBlocked={support !== 'unsupported' && !motionAsked}
-      note={note(room.isHost, room.connected, motionOn, solo)}
+      note={note(room.isHost, room.connected, motionOn, solo, text)}
       extras={
         <>
           {/*
@@ -222,15 +224,13 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
             exactly how the same line ended up hidden in Pass the Bomb (spec §9).
           */}
           <section class="panel rush-safety" role="note">
-            <h2 class="panel__heading">Before you start</h2>
+            <h2 class="panel__heading">{text({ en: 'Before you start', fr: 'Avant de commencer' })}</h2>
             <p class="rush-safety__body">
-              <strong>Grip it properly and keep your arm down.</strong> No throwing, no
-              swinging near faces, and take the strap or popsocket off if it makes you
-              loosen your grip.
+              <strong>{text({ en: 'Grip it properly and keep your arm down.', fr: 'Tenez-le fermement et gardez le bras baissé.' })}</strong>{' '}
+              {text({ en: 'No throwing, no swinging near faces, and take the strap or popsocket off if it makes you loosen your grip.', fr: 'Ne le lancez pas, ne l’agitez pas près des visages et retirez la dragonne ou le support s’il gêne votre prise.' })}
             </p>
             <p class="rush-safety__note">
-              Shaking harder does not help — the game counts changes of direction, not
-              force.
+              {text({ en: 'Shaking harder does not help — the game counts changes of direction, not force.', fr: 'Secouer plus fort ne sert à rien — le jeu compte les changements de direction, pas la force.' })}
             </p>
           </section>
 
@@ -264,53 +264,42 @@ function MotionPrimer({
   asked: boolean;
   onEnable: () => void;
 }): JSX.Element {
+  const text = useGameText();
+  const heading = text({ en: 'Shaking', fr: 'Secouer' });
   if (support === 'unsupported' || (asked && !on)) {
     return (
-      <section class="panel primer">
-        <h2 class="panel__heading">Shaking</h2>
-        <p class="primer__body">
-          {support === 'unsupported'
-            ? 'This phone has no motion sensor, so it cannot tell when you shake it.'
-            : 'Motion was turned down, so this phone cannot tell when you shake it.'}{' '}
-          There is no tap version of this one — a thumb is faster than an arm, so it
-          would not stand in for shaking, it would win — so you can watch the race,
-          and the track is worth watching.
-        </p>
-      </section>
+      <PermissionPrimer
+        heading={heading}
+        body={`${support === 'unsupported'
+          ? text({ en: 'This phone has no motion sensor, so it cannot tell when you shake it.', fr: 'Ce téléphone n’a pas de capteur de mouvement et ne peut pas détecter les secousses.' })
+          : text({ en: 'Motion was turned down, so this phone cannot tell when you shake it.', fr: 'L’accès au mouvement a été refusé, le téléphone ne peut donc pas détecter les secousses.' })} ${text(
+          { en: 'There is no tap version of this one — a thumb is faster than an arm, so it would not stand in for shaking, it would win — so you can watch the race, and the track is worth watching.', fr: 'Il n’existe pas de version tactile — un pouce est plus rapide qu’un bras et gagnerait au lieu de remplacer le geste — mais vous pouvez regarder la course.' },
+        )}`}
+      />
     );
   }
 
   if (on) {
-    return (
-      <section class="panel primer">
-        <h2 class="panel__heading">Shaking</h2>
-        <p class="primer__body primer__body--on">Ready. Grip it, and wait for the off.</p>
-      </section>
-    );
+    return <PermissionPrimer heading={heading} enabled body={text(
+      { en: 'Ready. Grip it, and wait for the off.', fr: 'Prêt. Tenez-le fermement et attendez le départ.' })} />;
   }
 
   return (
-    <section class="panel primer">
-      <h2 class="panel__heading">Shaking</h2>
-      <p class="primer__body">
-        Counting your shakes needs permission to read the phone's motion. Nothing is
-        recorded — the only thing sent is a count, a few times a second, never the
-        readings themselves.
-      </p>
-      <button class="btn btn--primary primer__enable" type="button" onClick={onEnable}>
-        Turn on shake detection
-      </button>
-    </section>
+    <PermissionPrimer
+      heading={heading}
+      body={text({ en: "Counting your shakes needs permission to read the phone's motion. Nothing is recorded — the only thing sent is a count, a few times a second, never the readings themselves.", fr: 'Compter les secousses nécessite l’accès au mouvement du téléphone. Rien n’est enregistré — seul un nombre est envoyé quelques fois par seconde, jamais les mesures.' })}
+      action={{ label: text({ en: 'Turn on shake detection', fr: 'Activer la détection' }), onClick: onEnable }}
+    />
   );
 }
 
-function note(isHost: boolean, connected: number, motionOn: boolean, solo: boolean): string {
+function note(isHost: boolean, connected: number, motionOn: boolean, solo: boolean, text: GameText): string {
   if (!solo && connected < RUSH_MIN_PLAYERS) {
     const missing = RUSH_MIN_PLAYERS - connected;
-    return `Need ${missing} more player${missing === 1 ? '' : 's'} — a race of one is just shaking.`;
+    return text({ en: `Need ${missing} more player${missing === 1 ? '' : 's'} — a race of one is just shaking.`, fr: `Il manque ${missing} joueur${missing === 1 ? '' : 's'} — seul, ce n’est pas une course.` });
   }
-  if (connected > RUSH_MAX_PLAYERS) return `${RUSH_MAX_PLAYERS} players is the most this one takes.`;
-  if (!isHost) return 'The host starts the race.';
-  if (!motionOn) return 'Turn on shake detection above, or start and watch.';
-  return 'Arms loose. Ready when you are.';
+  if (connected > RUSH_MAX_PLAYERS) return text({ en: `${RUSH_MAX_PLAYERS} players is the most this one takes.`, fr: `${RUSH_MAX_PLAYERS} joueurs maximum.` });
+  if (!isHost) return text({ en: 'The host starts the race.', fr: "L’hôte démarre la course." });
+  if (!motionOn) return text({ en: 'Turn on shake detection above, or start and watch.', fr: 'Activez la détection ci-dessus, ou démarrez pour regarder.' });
+  return text({ en: 'Arms loose. Ready when you are.', fr: 'Bras détendus. Démarrez quand vous voulez.' });
 }

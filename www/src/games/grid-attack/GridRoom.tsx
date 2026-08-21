@@ -4,11 +4,12 @@ import type { GameCard } from '../../core/types';
 import { GRID_MAX_PLAYERS, GRID_MIN_PLAYERS, type ServerMessage } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
 import { goFullscreen, useLandscapeRound } from '../../core/screen';
-import { useRoom, useShareRoom } from '../../core/room/useRoom';
+import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
 import { applyGrid, livesOf, sides, type GridBoard as Board } from './game';
 import { GridBoard } from './GridBoard';
 
@@ -35,14 +36,14 @@ export function GridRoom(props: { game: GameCard }): JSX.Element {
 
 function GridRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
   const t = useT();
+  const text = useGameText();
   const [state, setState] = useState<Board>(null);
 
   const onGame = useCallback((msg: ServerMessage) => {
     setState((prev) => applyGrid(prev, msg));
   }, []);
 
-  const room = useRoom(code, card.slug, onGame);
-  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
+  const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;
 
@@ -148,9 +149,9 @@ function GridRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughToStart(room.connected, [GRID_MIN_PLAYERS, GRID_MAX_PLAYERS])}
-      startLabel={state ? t.common.playAgain : 'Start the game'}
+      startLabel={state ? t.common.playAgain : text({ en: 'Start the game', fr: 'Démarrer la partie' })}
       onStart={() => client?.send({ t: 'start', d: { mode: 'grid' } })}
-      note={note(room.isHost, room.connected)}
+      note={note(room.isHost, room.connected, text)}
       /*
        * Two grids facing each other, so there is nothing to look at alone — the same
        * reason Sling Puck opts out. Solo testing would show one player attacking nobody.
@@ -180,6 +181,7 @@ function GetReady({
   theirs: boolean;
   onReady: () => void;
 }): JSX.Element {
+  const text = useGameText();
   return (
     <div class="grid-ready" style={{ '--game-accent': accent } as JSX.CSSProperties}>
       <p class="grid-ready__icon" aria-hidden="true">
@@ -188,19 +190,19 @@ function GetReady({
       <h1 class="grid-ready__title">{title}</h1>
       {mine ? (
         <>
-          <p class="grid-ready__say">Waiting for the other phone…</p>
+          <p class="grid-ready__say">{text({ en: 'Waiting for the other phone…', fr: 'En attente de l’autre téléphone…' })}</p>
           <p class="grid-ready__note">
-            {theirs ? 'Starting now.' : 'They have to tap their button too.'}
+            {theirs ? text({ en: 'Starting now.', fr: 'Démarrage immédiat.' })
+              : text({ en: 'They have to tap their button too.', fr: 'L’autre joueur doit aussi toucher son bouton.' })}
           </p>
         </>
       ) : (
         <>
           <button class="btn btn--big grid-ready__go" type="button" onClick={onReady}>
-            Go fullscreen
+            {text({ en: 'Go fullscreen', fr: 'Passer en plein écran' })}
           </button>
           <p class="grid-ready__note">
-            Turn your phone sideways. If your browser will not do fullscreen, the game plays
-            anyway.
+            {text({ en: 'Turn your phone sideways. If your browser will not do fullscreen, the game plays anyway.', fr: 'Tournez votre téléphone à l’horizontale. Si le plein écran est indisponible, la partie fonctionne quand même.' })}
           </p>
         </>
       )}
@@ -208,9 +210,9 @@ function GetReady({
   );
 }
 
-function note(isHost: boolean, connected: number): string {
-  if (connected < GRID_MIN_PLAYERS) return 'Two phones, side by side. Waiting for the second.';
-  if (connected > GRID_MAX_PLAYERS) return 'Two players only — this one is a duel.';
-  if (!isHost) return 'The host starts the game.';
-  return 'Sit opposite each other. You will both need both thumbs.';
+function note(isHost: boolean, connected: number, text: GameText): string {
+  if (connected < GRID_MIN_PLAYERS) return text({ en: 'Two phones, side by side. Waiting for the second.', fr: 'Deux téléphones côte à côte. En attente du second.' });
+  if (connected > GRID_MAX_PLAYERS) return text({ en: 'Two players only — this one is a duel.', fr: 'Deux joueurs seulement — c’est un duel.' });
+  if (!isHost) return text({ en: 'The host starts the game.', fr: "L’hôte démarre la partie." });
+  return text({ en: 'Sit opposite each other. You will both need both thumbs.', fr: 'Asseyez-vous face à face. Vous aurez tous les deux besoin de vos pouces.' });
 }

@@ -28,6 +28,17 @@ export const CARD: GameCard = {
     'The glider wins by reaching the floor with a life left; the protector wins by taking all three.',
   ],
   art: { src: art, alt: 'A cyan diamond glider falling between two magenta bolts' },
+  fr: {
+    pitch: 'Évitez cinq voies de tirs néon, ou abattez ce qui tombe',
+    concept: 'L’un descend cinq voies en inclinant son téléphone ; l’autre possède une gâchette par voie.',
+    rules: [
+      'Planeur : inclinez le téléphone pour dériver entre les cinq voies.',
+      'Protecteur : touchez une voie pour tirer — trois tirs, puis un court rechargement.',
+      'Un impact renvoie le planeur sur une voie aléatoire et le fait clignoter pendant 1,5 s.',
+      'Le planeur gagne en atteignant le sol avec une vie ; le protecteur gagne en prenant les trois.',
+    ],
+    art: { alt: 'Un planeur cyan en forme de losange tombe entre deux tirs magenta' },
+  },
   accent: '#22D3EE',
   players: PLAYERS['neon-fall'],
   duration: '~30–60 s',

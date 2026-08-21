@@ -8,6 +8,8 @@ import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { RulesPanel } from '../../core/ui/RulesPanel';
 import { SeatMap } from './SeatMap';
+import { useLocale } from '../../core/i18n/LocaleContext';
+import { useGameText } from '../../core/i18n/gameText';
 import { screenAngleTo } from '../../../../shared/spillGeometry';
 import type { Theme } from './themes';
 
@@ -76,6 +78,8 @@ export function SpillBoard({
   me: PlayerId | null;
   players: Player[];
 }): JSX.Element {
+  const text = useGameText();
+  const themeWords = theme.words[useLocale().locale];
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gestureRef = useRef<Gesture | null>(null);
   const rendererRef = useRef<Renderer | null>(null);
@@ -264,16 +268,17 @@ export function SpillBoard({
 
       <div class="spill__hud">
         <StatusBar
-          score={{ value: count, label: `${theme.words.unitPlural} left` }}
+          score={{ value: count, label: `${themeWords.unitPlural} ${text({ en: 'left', fr: 'restantes' })}` }}
           title={title}
           concept={concept}
           rules={rules}
         >
           {state && me && (
             <>
-              <h3 class="gamemenu__label">Where to put your phone</h3>
+              <h3 class="gamemenu__label">{text({ en: 'Where to put your phone', fr: 'Où placer votre téléphone' })}</h3>
               <p class="howto__aside">
-                Flat, screen up, <strong>top edge towards the middle</strong>.
+                {text({ en: 'Flat, screen up, ', fr: 'À plat, écran vers le haut, ' })}
+                <strong>{text({ en: 'top edge towards the middle', fr: 'bord supérieur vers le centre' })}</strong>.
               </p>
               <SeatMap
                 seats={state.seats}
@@ -294,7 +299,7 @@ export function SpillBoard({
       <Scoreboard
         rows={spillRows(players, levels, out)}
         me={me}
-        unit={theme.words.unitPlural}
+        unit={themeWords.unitPlural}
         best="low"
         corner="top-left"
       />
@@ -305,7 +310,7 @@ export function SpillBoard({
         slower to play, fully playable.
       */}
       <div class="spill__aimbar">
-        <span class="aimbar__label">Throw at</span>
+        <span class="aimbar__label">{text({ en: 'Throw at', fr: 'Lancer vers' })}</span>
         {seats.map((id, seat) => {
           if (seat === mySeat) return null;
           const p = players.find((q) => q.id === id);
@@ -319,7 +324,7 @@ export function SpillBoard({
               onClick={() => send(game.angleToSeat(seat), FALLBACK_SPEED)}
             >
               <span aria-hidden="true">{gone ? '·' : (p?.avatar ?? '?')}</span>
-              <span class="spill__aim-name">{gone ? 'out' : (p?.name ?? `seat ${seat + 1}`)}</span>
+              <span class="spill__aim-name">{gone ? text({ en: 'out', fr: 'éliminé' }) : (p?.name ?? text({ en: `seat ${seat + 1}`, fr: `place ${seat + 1}` }))}</span>
             </button>
           );
         })}
@@ -327,10 +332,10 @@ export function SpillBoard({
 
       <p class="spill__hint">
         {me === null
-          ? 'Watching.'
+          ? text({ en: 'Watching.', fr: 'Vous regardez.' })
           : locked
-            ? 'Wait for it to leave your screen…'
-            : `Flick towards someone to ${theme.words.verb.toLowerCase()} a ${theme.words.unit}. Tap an incoming one to catch it.`}
+            ? text({ en: 'Wait for it to leave your screen…', fr: 'Attendez qu’elle quitte votre écran…' })
+            : text({ en: `Flick towards someone to ${themeWords.verb.toLowerCase()} a ${themeWords.unit}. Tap an incoming one to catch it.`, fr: `Faites glisser vers quelqu’un pour ${themeWords.verb.toLowerCase()} une ${themeWords.unit}. Touchez une goutte qui arrive pour l’attraper.` })}
       </p>
 
       {/* Keyed on the round so "Play again" always shows a fresh panel. */}

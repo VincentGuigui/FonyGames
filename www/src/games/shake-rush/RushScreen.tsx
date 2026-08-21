@@ -6,6 +6,8 @@ import { Scoreboard } from '../../core/ui/Scoreboard';
 import { useLocale } from '../../core/i18n/LocaleContext';
 import type { Room } from '../../core/room/useRoom';
 import { progress, standings, toGo, type RushView } from './game';
+import { useGameText } from '../../core/i18n/gameText';
+import { SoundToggle } from '../../core/ui/SoundToggle';
 
 /**
  * "Home" — reaching the finish line — said three ways on this screen. Not in
@@ -77,6 +79,7 @@ export function RushScreen({
   onReadySetup: () => void;
 }): JSX.Element {
   const home = HOME_WORDS[useLocale().locale];
+  const text = useGameText();
   const byId = new Map(players.map((p) => [p.id, p]));
   const ids = standings(
     state,
@@ -106,8 +109,10 @@ export function RushScreen({
         title={title}
         concept={concept}
         rules={rules}
-        status="Finish"
-        menu={<SoundToggle on={sound} onChange={onSound} />}
+        status={text({ en: 'Finish', fr: 'Arrivée' })}
+        menu={<SoundToggle on={sound} onChange={onSound} heading={text({ en: 'Sound', fr: 'Son' })}
+          onLabel={text({ en: 'A note per shake', fr: 'Une note par secousse' })} offLabel={text({ en: 'Silent', fr: 'Silencieux' })}
+          className="rush__sound" activeClassName="rush__sound--on" />}
         rows={ids.map((id) => {
           const at = state.at[id] ?? 0;
           const short = toGo(at);
@@ -118,14 +123,14 @@ export function RushScreen({
             // "home" rather than "0 short": nought to go is the whole point of the race,
             // and a zero in a column of numbers does not read as having won.
             value: short === 0 ? home.home : short,
-            unit: 'short',
+            unit: text({ en: 'short', fr: 'restantes' }),
             ...(state.away.includes(id) ? { out: true } : {}),
           };
         })}
         me={myId}
         winner={ids[0] ?? null}
         onAgain={onAgain}
-        againLabel="Race again"
+        againLabel={text({ en: 'Race again', fr: 'Refaire la course' })}
         canAct={canAgain}
       />
     );
@@ -140,10 +145,12 @@ export function RushScreen({
         concept={concept}
         rules={rules}
       >
-        <SoundToggle on={sound} onChange={onSound} />
+        <SoundToggle on={sound} onChange={onSound} heading={text({ en: 'Sound', fr: 'Son' })}
+          onLabel={text({ en: 'A note per shake', fr: 'Une note par secousse' })} offLabel={text({ en: 'Silent', fr: 'Silencieux' })}
+          className="rush__sound" activeClassName="rush__sound--on" />
       </StatusBar>
 
-      <Scoreboard rows={rushRows(players, state)} me={myId} unit="shakes to go" best="low" />
+      <Scoreboard rows={rushRows(players, state, home.home)} me={myId} unit={text({ en: 'shakes to go', fr: 'secousses restantes' })} best="low" />
 
       {/*
         The count, not a bar. "37 to go" is a motivator; a bar filling up is
@@ -154,7 +161,7 @@ export function RushScreen({
       <p class="rush__togo" aria-hidden="true">
         {iAmHome ? '🏁' : left}
       </p>
-      <p class="rush__togo-note">{iAmHome ? home.youAreHome : 'shakes to go'}</p>
+      <p class="rush__togo-note">{iAmHome ? home.youAreHome : text({ en: 'shakes to go', fr: 'secousses restantes' })}</p>
 
       <ul class="rush__track">
         {ids.map((id) => {
@@ -166,8 +173,9 @@ export function RushScreen({
             <li key={id} class={`rush__lane ${isMe ? 'rush__lane--me' : ''} ${away ? 'rush__lane--away' : ''}`}>
               <span class="rush__lane-who">
                 <span aria-hidden="true">{p?.avatar ?? '🙂'}</span>
-                <span class="rush__lane-name">{isMe ? 'You' : (p?.name ?? 'Someone')}</span>
-                {away && <span class="rush__lane-away">away</span>}
+                <span class="rush__lane-name">{isMe ? text({ en: 'You', fr: 'Vous' })
+                  : (p?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' }))}</span>
+                {away && <span class="rush__lane-away">{text({ en: 'away', fr: 'absent' })}</span>}
               </span>
               {/*
                 Position AND a number, never position alone: the runner is the
@@ -177,7 +185,7 @@ export function RushScreen({
               <span
                 class="rush__lane-rail"
                 role="img"
-                aria-label={`${isMe ? 'You' : (p?.name ?? 'Someone')}: ${toGo(state.at[id])} shakes to go`}
+                aria-label={`${isMe ? text({ en: 'You', fr: 'Vous' }) : (p?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' }))}: ${toGo(state.at[id])} ${text({ en: 'shakes to go', fr: 'secousses restantes' })}`}
               >
                 <span class="rush__lane-fill" style={{ width: `${progress(state.at[id]) * 100}%` }} />
                 <span class="rush__runner" style={{ left: `${progress(state.at[id]) * 100}%` }} aria-hidden="true">
@@ -204,23 +212,6 @@ export function RushScreen({
  * A button with `aria-pressed`, not a checkbox: it acts immediately and has no form around
  * it, which is what that role is for.
  */
-function SoundToggle({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }): JSX.Element {
-  return (
-    <>
-      <h3 class="gamemenu__label">Sound</h3>
-      <button
-        class={`btn rush__sound ${on ? 'rush__sound--on' : ''}`}
-        type="button"
-        aria-pressed={on}
-        onClick={() => onChange(!on)}
-      >
-        <span aria-hidden="true">{on ? '🔊' : '🔇'}</span>
-        {on ? 'A note per shake' : 'Silent'}
-      </button>
-    </>
-  );
-}
-
 /**
  * How far everyone still has, for the panel.
  *
@@ -232,12 +223,12 @@ function SoundToggle({ on, onChange }: { on: boolean; onChange: (on: boolean) =>
  * uniform readout every game now has. If one has to go, it is the number on the end of
  * each lane rather than the panel.
  */
-function rushRows(players: Player[], state: RushView) {
+function rushRows(players: Player[], state: RushView, home: string) {
   return players.map((p) => ({
     id: p.id,
     avatar: p.avatar,
     name: p.name,
-    value: toGo(state.at[p.id]) === 0 ? 'home' : toGo(state.at[p.id]),
+    value: toGo(state.at[p.id]) === 0 ? home : toGo(state.at[p.id]),
     ...(state.away.includes(p.id) ? { out: true } : {}),
   }));
 }

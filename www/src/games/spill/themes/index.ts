@@ -41,7 +41,7 @@ export type Theme = {
   /** Impact at a point. `age` is 0..1 through the splash animation. */
   drawSplash(d: ThemeDraw, x: number, y: number, age: number): void;
   /** So no UI string hardcodes "drops". */
-  words: { unit: string; unitPlural: string; verb: string };
+  words: Record<'en' | 'fr', { unit: string; unitPlural: string; verb: string }>;
 };
 
 import { waterTheme } from './water';

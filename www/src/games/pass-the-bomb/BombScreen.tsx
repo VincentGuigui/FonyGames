@@ -6,6 +6,7 @@ import { Scoreboard } from '../../core/ui/Scoreboard';
 import { Blast } from './Blast';
 import { BOOM_MS } from './shockwave';
 import type { BombView } from './game';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
 
 /**
  * The round, on one phone. Spec: docs/specs/games/pass-the-bomb.md §4
@@ -60,7 +61,8 @@ export function BombScreen({
   /** Bumps are being ignored for spamming (spec §8). */
   muted: boolean;
 }): JSX.Element {
-  const name = (id: PlayerId): string => players.find((p) => p.id === id)?.name ?? 'Someone';
+  const text = useGameText();
+  const name = (id: PlayerId): string => players.find((p) => p.id === id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' });
   const avatar = (id: PlayerId): string => players.find((p) => p.id === id)?.avatar ?? '🙂';
 
   const boom = useFreshBoom(state);
@@ -77,14 +79,15 @@ export function BombScreen({
         */}
         <Blast key={boom.victim} />
         <p class="boom__who">
-          {boom.victim === myId ? 'It went off on you' : `${name(boom.victim)} is out`}
+          {boom.victim === myId ? text({ en: 'It went off on you', fr: 'Elle a explosé sur vous' })
+            : text({ en: `${name(boom.victim)} is out`, fr: `${name(boom.victim)} est éliminé` })}
         </p>
         <p class="boom__left">
           {state.phase === 'over'
             ? state.winner
-              ? `${name(state.winner)} wins`
-              : 'Nobody left'
-            : `${state.alive.length} still in`}
+              ? text({ en: `${name(state.winner)} wins`, fr: `${name(state.winner)} gagne` })
+              : text({ en: 'Nobody left', fr: 'Plus personne' })
+            : text({ en: `${state.alive.length} still in`, fr: `${state.alive.length} encore en jeu` })}
         </p>
       </div>
     );
@@ -94,7 +97,7 @@ export function BombScreen({
     return (
       <div class="bombscreen bombscreen--out" style={{ '--game-accent': accent, '--roster': String(players.length) } as JSX.CSSProperties}>
         <StatusBar
-          status={"You're out — watching"}
+          status={text({ en: "You're out — watching", fr: 'Vous êtes éliminé — regardez' })}
           title={title}
           concept={concept}
           rules={rules}
@@ -106,12 +109,12 @@ export function BombScreen({
           holding it — the holder's status bar used to say "You have it", which told you
           the one thing you already knew and nothing about anybody else.
         */}
-        <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" corner="bottom-right" />
+        <Scoreboard rows={bombRows(players, state, text)} me={myId} unit={text({ en: 'bomb', fr: 'bombe' })} best="none" corner="bottom-right" />
         <p class="bombscreen__holder-avatar" aria-hidden="true">
           {avatar(state.holder)}
         </p>
-        <p class="bombscreen__holder-name">{name(state.holder)} has it</p>
-        <p class="bombscreen__still-in">{state.alive.length} still in</p>
+        <p class="bombscreen__holder-name">{text({ en: `${name(state.holder)} has it`, fr: `${name(state.holder)} l’a` })}</p>
+        <p class="bombscreen__still-in">{text({ en: `${state.alive.length} still in`, fr: `${state.alive.length} encore en jeu` })}</p>
       </div>
     );
   }
@@ -129,13 +132,13 @@ export function BombScreen({
           they cannot see from the colour.
         */}
         <StatusBar
-          status={roundLabel(state.match, state.alive.length)}
+          status={roundLabel(state.match, state.alive.length, text)}
           title={title}
           concept={concept}
           rules={rules}
         />
 
-        <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" corner="bottom-right" />
+        <Scoreboard rows={bombRows(players, state, text)} me={myId} unit={text({ en: 'bomb', fr: 'bombe' })} best="none" corner="bottom-right" />
 
         {/*
           PASS IT is the BUTTON, not a headline over one.
@@ -161,17 +164,17 @@ export function BombScreen({
           <span class="bombscreen__icon" aria-hidden="true">
             💣
           </span>
-          PASS IT
+          {text({ en: 'PASS IT', fr: 'PASSEZ-LA' })}
         </button>
 
         <p class="bombscreen__how">
           {others.length === 0
-            ? 'Nobody to pass it to — this one is yours.'
+            ? text({ en: 'Nobody to pass it to — this one is yours.', fr: 'Personne à qui la passer — elle est pour vous.' })
             : muted
-              ? 'Too much shaking — hold still a moment.'
+              ? text({ en: 'Too much shaking — hold still a moment.', fr: 'Trop de secousses — restez immobile un instant.' })
               : canBump
-                ? 'Knock your phone against someone else’s, or hit PASS IT.'
-                : 'No motion sensor on this phone — hit PASS IT.'}
+                ? text({ en: 'Knock your phone against someone else’s, or hit PASS IT.', fr: 'Touchez doucement un autre téléphone, ou appuyez sur PASSEZ-LA.' })
+                : text({ en: 'No motion sensor on this phone — hit PASS IT.', fr: 'Pas de capteur de mouvement — appuyez sur PASSEZ-LA.' })}
         </p>
       </div>
     );
@@ -180,21 +183,21 @@ export function BombScreen({
   return (
     <div class="bombscreen bombscreen--watching" style={{ '--game-accent': accent, '--roster': String(players.length) } as JSX.CSSProperties}>
       <StatusBar
-        status={`${state.alive.length} still in`}
+        status={text({ en: `${state.alive.length} still in`, fr: `${state.alive.length} encore en jeu` })}
         title={title}
         concept={concept}
         rules={rules}
       />
 
-      <Scoreboard rows={bombRows(players, state)} me={myId} unit="bomb" best="none" corner="bottom-right" />
+      <Scoreboard rows={bombRows(players, state, text)} me={myId} unit={text({ en: 'bomb', fr: 'bombe' })} best="none" corner="bottom-right" />
       <p class="bombscreen__holder-avatar" aria-hidden="true">
         {avatar(state.holder)}
       </p>
-      <p class="bombscreen__holder-name">{name(state.holder)} has it</p>
+      <p class="bombscreen__holder-name">{text({ en: `${name(state.holder)} has it`, fr: `${name(state.holder)} l’a` })}</p>
       <p class="bombscreen__how">
         {canBump
-          ? 'Stay close — they have to knock a phone to get rid of it.'
-          : 'Waiting. This phone has no motion sensor, so they will pass by tap.'}
+          ? text({ en: 'Stay close — they have to knock a phone to get rid of it.', fr: 'Restez proche — il faut toucher un téléphone pour s’en débarrasser.' })
+          : text({ en: 'Waiting. This phone has no motion sensor, so they will pass by tap.', fr: 'Attendez. Sans capteur de mouvement, la bombe sera passée en touchant l’écran.' })}
       </p>
     </div>
   );
@@ -236,8 +239,9 @@ function useFreshBoom(state: BombView): { victim: PlayerId } | null {
  * more play a single round to a last player standing, and "Round 1/1" never changes and
  * never would — the circle shrinking is the useful thing to read there instead.
  */
-function roundLabel(m: BombMatch, stillIn: number): string {
-  return m.rounds > 1 ? `Round ${m.round}/${m.rounds}` : `${stillIn} still in`;
+function roundLabel(m: BombMatch, stillIn: number, text: GameText): string {
+  return m.rounds > 1 ? text({ en: `Round ${m.round}/${m.rounds}`, fr: `Manche ${m.round}/${m.rounds}` })
+    : text({ en: `${stillIn} still in`, fr: `${stillIn} encore en jeu` });
 }
 
 /**
@@ -248,12 +252,12 @@ function roundLabel(m: BombMatch, stillIn: number): string {
  * word, and `best: 'none'` — there is nothing to be ahead in, and a bold row would be
  * inventing a leader.
  */
-function bombRows(players: Player[], state: BombView) {
+function bombRows(players: Player[], state: BombView, text: GameText) {
   return players.map((p) => ({
     id: p.id,
     avatar: p.avatar,
     name: p.name,
-    value: state.holder === p.id ? 'has it' : 'clear',
+    value: state.holder === p.id ? text({ en: 'has it', fr: 'l’a' }) : text({ en: 'clear', fr: 'libre' }),
     ...(state.alive.includes(p.id) ? {} : { out: true }),
   }));
 }

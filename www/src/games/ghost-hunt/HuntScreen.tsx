@@ -7,7 +7,7 @@ import { GameOverScreen } from '../../core/ui/GameOver';
 import type { Room } from '../../core/room/useRoom';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import {
-  findTimesLine,
+  findTimes,
   heat,
   leaderOf,
   pointsOf,
@@ -17,6 +17,7 @@ import {
 } from './game';
 import { DragFingerIcon, TurnPhoneIcon } from './icons';
 import { RADAR_PX } from './vision';
+import { useGameText } from '../../core/i18n/gameText';
 
 /**
  * The hunt, on one phone. Spec: docs/specs/games/ghost-hunt.md §4
@@ -97,6 +98,7 @@ export function HuntScreen({
   aiming?: 'sensor' | 'drag' | undefined;
   onAiming?: ((next: 'sensor' | 'drag') => void) | undefined;
 }): JSX.Element {
+  const text = useGameText();
   const hot = heat(lock.error);
   const mine = myId ? (state.scores[myId] ?? 0) : 0;
   const myPoints = myId ? pointsOf(state, myId) : 0;
@@ -118,7 +120,7 @@ export function HuntScreen({
           is one row down in the panel, where everybody else's is.
         */}
         <StatusBar
-          score={{ value: myPoints, label: 'points' }}
+          score={{ value: myPoints, label: text({ en: 'points', fr: 'points' }) }}
           status={`${secondsLeft}s`}
           title={title}
           concept={concept}
@@ -133,7 +135,7 @@ export function HuntScreen({
          * their phone can do. On the round screen rather than in the lobby because it is
          * the kind of thing you change once you have tried the other one.
          */
-        <div class="hunt__aim" role="group" aria-label="How to look around">
+        <div class="hunt__aim" role="group" aria-label={text({ en: 'How to look around', fr: 'Comment regarder autour de vous' })}>
           <button
             class={`btn hunt__aim-pick ${aiming === 'sensor' ? 'hunt__aim-pick--on' : ''}`}
             type="button"
@@ -141,7 +143,7 @@ export function HuntScreen({
             onClick={() => onAiming('sensor')}
           >
             <TurnPhoneIcon />
-            <span class="hunt__aim-label">Turn</span>
+            <span class="hunt__aim-label">{text({ en: 'Turn', fr: 'Tourner' })}</span>
           </button>
           <button
             class={`btn hunt__aim-pick ${aiming === 'drag' ? 'hunt__aim-pick--on' : ''}`}
@@ -150,7 +152,7 @@ export function HuntScreen({
             onClick={() => onAiming('drag')}
           >
             <DragFingerIcon />
-            <span class="hunt__aim-label">Drag</span>
+            <span class="hunt__aim-label">{text({ en: 'Drag', fr: 'Faire glisser' })}</span>
           </button>
         </div>
       )}
@@ -222,7 +224,7 @@ export function HuntScreen({
           value: pointsOf(state, p.id),
         }))}
         me={myId}
-        unit="points"
+        unit={text({ en: 'points', fr: 'points' })}
         best="high"
       />
     </div>
@@ -304,6 +306,7 @@ export function HuntResults({
   readyBlocked: boolean;
   onReadySetup: () => void;
 }): JSX.Element {
+  const text = useGameText();
   const byId = new Map(players.map((p) => [p.id, p]));
   const order = ranking(state, players.map((p) => p.id));
 
@@ -317,7 +320,7 @@ export function HuntResults({
       title={title}
       concept={concept}
       rules={rules}
-      status="Hunt over"
+      status={text({ en: 'Hunt over', fr: 'Chasse terminée' })}
       /*
        * Points in the column, the catch count beside them, and the three times underneath.
        *
@@ -327,20 +330,24 @@ export function HuntResults({
        * small line under the name, which exists for exactly this.
        */
       rows={order.map((id) => {
-        const line = findTimesLine(state, id);
+        const times = findTimes(state, id);
+        const seconds = (n: number): string => `${n.toFixed(1)} s`;
+        const line = times ? text(
+          { en: `fastest ${seconds(times.fastest)} · slowest ${seconds(times.slowest)} · avg ${seconds(times.average)}`, fr: `plus rapide ${seconds(times.fastest)} · plus lent ${seconds(times.slowest)} · moy. ${seconds(times.average)}` },
+        ) : undefined;
         return {
           id,
           avatar: byId.get(id)?.avatar ?? '👻',
-          name: byId.get(id)?.name ?? 'Someone',
+          name: byId.get(id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' }),
           value: pointsOf(state, id),
-          unit: `pts · ${state.scores[id] ?? 0} found`,
+          unit: text({ en: `pts · ${state.scores[id] ?? 0} found`, fr: `pts · ${state.scores[id] ?? 0} trouvés` }),
           ...(line === undefined ? {} : { detail: line }),
         };
       })}
       me={myId}
       winner={leaderOf(state, order) ?? null}
       onAgain={onAgain}
-      againLabel="Hunt again"
+      againLabel={text({ en: 'Hunt again', fr: 'Rechasser' })}
       canAct={canAgain}
     />
   );

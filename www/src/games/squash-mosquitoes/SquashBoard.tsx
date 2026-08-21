@@ -11,6 +11,7 @@ import {
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard, type ScoreRow } from '../../core/ui/Scoreboard';
 import { RulesPanel } from '../../core/ui/RulesPanel';
+import { useGameText } from '../../core/i18n/gameText';
 import {
   entryOffset,
   entryProgress,
@@ -76,6 +77,7 @@ export function SquashBoard({
   /** One tap. The referee counts it; this only reports the cell (spec §6). */
   onTap: (position: number) => void;
 }): JSX.Element {
+  const text = useGameText();
   const state = game.state;
   const pattern = state?.pattern ?? [];
 
@@ -162,14 +164,14 @@ export function SquashBoard({
     >
       <div class="squash__bar">
         <StatusBar
-          score={{ value: game.mySquashed, label: `/ ${SQUASH_TOTAL} squashed` }}
+          score={{ value: game.mySquashed, label: text({ en: `/ ${SQUASH_TOTAL} squashed`, fr: `/ ${SQUASH_TOTAL} écrasés` }) }}
           title={title}
           concept={concept}
           rules={rules}
         />
       </div>
 
-      <div class="squash__grid" role="group" aria-label="The swarm">
+      <div class="squash__grid" role="group" aria-label={text({ en: 'The swarm', fr: 'L’essaim' })}>
         {pattern.map((position, index) => {
           const row = Math.floor(position / SQUASH_GRID_COLS) + 1;
           const col = (position % SQUASH_GRID_COLS) + 1;
@@ -239,6 +241,7 @@ function MosquitoCell({
   elRef: (el: HTMLButtonElement | null) => void;
   onTap: () => void;
 }): JSX.Element {
+  const text = useGameText();
   const state = squashed ? 'squashed' : active ? (flying ? 'flying' : 'static') : 'dormant';
 
   return (
@@ -250,10 +253,10 @@ function MosquitoCell({
         disabled={!active}
         aria-label={
           squashed
-            ? `Row ${row}, column ${col}: squashed`
+            ? text({ en: `Row ${row}, column ${col}: squashed`, fr: `Ligne ${row}, colonne ${col} : écrasé` })
             : active
-              ? `Row ${row}, column ${col}: mosquito — tap to squash`
-              : `Row ${row}, column ${col}: empty`
+              ? text({ en: `Row ${row}, column ${col}: mosquito — tap to squash`, fr: `Ligne ${row}, colonne ${col} : moustique — touchez pour l’écraser` })
+              : text({ en: `Row ${row}, column ${col}: empty`, fr: `Ligne ${row}, colonne ${col} : vide` })
         }
         onPointerDown={(e) => {
           // Mashing game: `pointerdown`, not `click`, which waits for the release —

@@ -10,7 +10,7 @@ import {
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
 import { soloTesting } from '../../core/solo';
-import { useRoom, useShareRoom } from '../../core/room/useRoom';
+import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { orientationSupport, requestOrientation, type OrientationSupport } from '../../core/sensors/orientation';
@@ -18,6 +18,8 @@ import { NeonGame } from './game';
 import { NeonBoard } from './NeonBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { PermissionPrimer } from '../../core/ui/PermissionPrimer';
 
 /**
  * Neon Fall's room screen. Spec: docs/specs/games/neon-fall.md
@@ -37,6 +39,7 @@ export function NeonRoom(props: { game: GameCard }): JSX.Element {
 
 function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
   const t = useT();
+  const text = useGameText();
   const gameRef = useRef<NeonGame | null>(null);
   if (!gameRef.current) gameRef.current = new NeonGame();
   const game = gameRef.current;
@@ -56,8 +59,7 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   );
 
   const solo = soloTesting();
-  const room = useRoom(code, card.slug, onGame);
-  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
+  const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;
 
@@ -89,7 +91,7 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     const granted = await requestOrientation();
     setOrientationOn(granted);
     if (!granted) {
-      room.setError('No tilt access — you can still be the protector, or drop back to tap zones as the glider.');
+      room.setError(text({ en: 'No tilt access — you can still be the protector, or drop back to tap zones as the glider.', fr: 'Pas d’accès à l’inclinaison — vous pouvez protéger, ou utiliser les zones tactiles comme planeur.' }));
     }
   }
 
@@ -128,12 +130,13 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        status={state.winner === state.gliderId ? 'The glider made it down' : 'The glider was shot down'}
+        status={state.winner === state.gliderId ? text({ en: 'The glider made it down', fr: 'Le planeur a atteint le sol' })
+          : text({ en: 'The glider was shot down', fr: 'Le planeur a été abattu' })}
         rows={rows.map((id) => ({
           id,
           avatar: byId.get(id)?.avatar ?? '🙂',
-          name: byId.get(id)?.name ?? 'Someone',
-          value: id === state.gliderId ? 'glider' : 'protector',
+          name: byId.get(id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' }),
+          value: id === state.gliderId ? text({ en: 'glider', fr: 'planeur' }) : text({ en: 'protector', fr: 'protecteur' }),
           unit: '',
           ...(id === state.winner ? {} : { out: true }),
         }))}
@@ -159,11 +162,11 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'neon', ...(roles ? { roles } : {}), solo } })}
       readyBlocked={support !== 'unsupported' && !orientationAsked}
-      note={note(room.isHost, room.connected, solo)}
+      note={note(room.isHost, room.connected, solo, text)}
       playerTag={(id) => {
         if (!roles) return null;
-        if (id === roles.glider) return 'glider';
-        if (id === roles.protector) return 'protector';
+        if (id === roles.glider) return text({ en: 'glider', fr: 'planeur' });
+        if (id === roles.protector) return text({ en: 'protector', fr: 'protecteur' });
         return null;
       }}
       extras={
@@ -192,20 +195,21 @@ function SeatPicker({
   swapped: boolean;
   onSwap: () => void;
 }): JSX.Element | null {
+  const text = useGameText();
   if (!a || !b) return null;
   const glider = swapped ? b.name : a.name;
   const protector = swapped ? a.name : b.name;
   return (
     <section class="panel neon-seats" role="note">
-      <h2 class="panel__heading">Who's who</h2>
+      <h2 class="panel__heading">{text({ en: "Who's who", fr: 'Qui fait quoi' })}</h2>
       <p class="neon-seats__row">
-        <span class="neon-seats__role">🕹️ Glider</span> {glider}
+        <span class="neon-seats__role">🕹️ {text({ en: 'Glider', fr: 'Planeur' })}</span> {glider}
       </p>
       <p class="neon-seats__row">
-        <span class="neon-seats__role">🎯 Protector</span> {protector}
+        <span class="neon-seats__role">🎯 {text({ en: 'Protector', fr: 'Protecteur' })}</span> {protector}
       </p>
       <button class="btn neon-seats__swap" type="button" onClick={onSwap}>
-        Swap
+        {text({ en: 'Swap', fr: 'Inverser' })}
       </button>
     </section>
   );
@@ -227,49 +231,31 @@ function TiltPrimer({
   asked: boolean;
   onEnable: () => void;
 }): JSX.Element {
+  const text = useGameText();
+  const heading = text({ en: 'Tilt to fly', fr: 'Incliner pour voler' });
   if (support === 'unsupported' || (asked && !on)) {
-    return (
-      <section class="panel primer">
-        <h2 class="panel__heading">Tilt to fly</h2>
-        <p class="primer__body">
-          {support === 'unsupported'
-            ? 'This phone has no tilt sensor.'
-            : 'Tilt was turned down.'}{' '}
-          If you end up the glider, you will get two tap zones instead — hold either side to
-          drift that way.
-        </p>
-      </section>
-    );
+    return <PermissionPrimer heading={heading} body={`${support === 'unsupported'
+      ? text({ en: 'This phone has no tilt sensor.', fr: 'Ce téléphone n’a pas de capteur d’inclinaison.' })
+      : text({ en: 'Tilt was turned down.', fr: 'L’accès à l’inclinaison a été refusé.' })} ${text(
+      { en: 'If you end up the glider, you will get two tap zones instead — hold either side to drift that way.', fr: 'Si vous êtes le planeur, deux zones tactiles remplaceront l’inclinaison — maintenez un côté pour vous déplacer.' },
+    )}`} />;
   }
 
   if (on) {
-    return (
-      <section class="panel primer">
-        <h2 class="panel__heading">Tilt to fly</h2>
-        <p class="primer__body primer__body--on">
-          Ready. If you're the glider, tilt left and right to drift between lanes.
-        </p>
-      </section>
-    );
+    return <PermissionPrimer heading={heading} enabled body={text(
+      { en: "Ready. If you're the glider, tilt left and right to drift between lanes.", fr: 'Prêt. Si vous êtes le planeur, inclinez à gauche et à droite pour changer de voie.' })} />;
   }
 
   return (
-    <section class="panel primer">
-      <h2 class="panel__heading">Tilt to fly</h2>
-      <p class="primer__body">
-        If you end up the glider, tilting steers you. Nothing is recorded — only a single
-        steering number ever leaves the phone, never the raw tilt.
-      </p>
-      <button class="btn btn--primary primer__enable" type="button" onClick={onEnable}>
-        Turn on tilt
-      </button>
-    </section>
+    <PermissionPrimer heading={heading}
+      body={text({ en: 'If you end up the glider, tilting steers you. Nothing is recorded — only a single steering number ever leaves the phone, never the raw tilt.', fr: 'Si vous êtes le planeur, l’inclinaison vous dirige. Rien n’est enregistré — seul un nombre de direction quitte le téléphone, jamais l’inclinaison brute.' })}
+      action={{ label: text({ en: 'Turn on tilt', fr: 'Activer l’inclinaison' }), onClick: onEnable }} />
   );
 }
 
-function note(isHost: boolean, connected: number, solo: boolean): string {
-  if (!solo && connected < NEON_MIN_PLAYERS) return 'Waiting for a second player…';
-  if (connected > NEON_MAX_PLAYERS) return 'Neon Fall is exactly 2 players.';
-  if (!isHost) return 'The host starts the round.';
-  return 'Pick who flies and who shoots, then start.';
+function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
+  if (!solo && connected < NEON_MIN_PLAYERS) return text({ en: 'Waiting for a second player…', fr: 'En attente d’un deuxième joueur…' });
+  if (connected > NEON_MAX_PLAYERS) return text({ en: 'Neon Fall is exactly 2 players.', fr: 'Neon Fall se joue exactement à 2.' });
+  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
+  return text({ en: 'Pick who flies and who shoots, then start.', fr: 'Choisissez qui vole et qui tire, puis démarrez.' });
 }

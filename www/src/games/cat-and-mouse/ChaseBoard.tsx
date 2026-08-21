@@ -9,6 +9,7 @@ import { StatusBar } from '../../core/ui/StatusBar';
 import { RulesPanel } from '../../core/ui/RulesPanel';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { useT } from '../../core/i18n/strings';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
 
 /**
  * The floor. Spec: docs/specs/games/cat-and-mouse.md §7
@@ -48,6 +49,7 @@ export function ChaseBoard({
   players: Player[];
 }): JSX.Element {
   const t = useT();
+  const text = useGameText();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
   /** The pointer that owns the drag. One finger moves one icon. */
@@ -142,8 +144,8 @@ export function ChaseBoard({
     return {
       id: a.playerId,
       avatar: p?.avatar ?? '?',
-      name: p?.name ?? 'them',
-      value: isCat ? 'cat' : a.lives,
+      name: p?.name ?? text({ en: 'them', fr: 'adversaire' }),
+      value: isCat ? text({ en: 'cat', fr: 'chat' }) : a.lives,
       ...(a.out && !isCat ? { out: true } : {}),
     };
   });
@@ -163,7 +165,8 @@ export function ChaseBoard({
         {/* A number as well as pips — §12 forbids a count carried by shape alone. */}
         <StatusBar
           score={iAmCat ? undefined : { value: myLives ?? 0, label: t.common.lives }}
-          status={iAmCat ? 'You’re the cat — catch them all' : '●'.repeat(Math.max(0, myLives ?? 0))}
+          status={iAmCat ? text({ en: 'You’re the cat — catch them all', fr: 'Vous êtes le chat — attrapez-les tous' })
+            : '●'.repeat(Math.max(0, myLives ?? 0))}
           title={title}
           concept={concept}
           rules={rules}
@@ -178,7 +181,7 @@ export function ChaseBoard({
 
       <Clock endsAt={game.endsAt()} now={() => client?.now() ?? Date.now()} />
 
-      <p class="chase__hint">{hint(iAmCat, state?.drag ?? 'direct', myLives)}</p>
+      <p class="chase__hint">{hint(iAmCat, state?.drag ?? 'direct', myLives, text)}</p>
 
       {/* Keyed on the round so "Play again" always shows a fresh panel. */}
       {state && (
@@ -195,11 +198,11 @@ export function ChaseBoard({
   );
 }
 
-function hint(iAmCat: boolean, drag: 'direct' | 'capped', lives: number | null): string {
-  if (lives === 0) return 'Out of lives. Watching the rest.';
-  const grab = `Hold your own ${iAmCat ? 'cat' : 'mouse'}`;
-  if (drag === 'capped') return `${grab} and drag ahead — it walks that way. Let go and it stops.`;
-  return `${grab} and drag. Let go and it stops dead.`;
+function hint(iAmCat: boolean, drag: 'direct' | 'capped', lives: number | null, text: GameText): string {
+  if (lives === 0) return text({ en: 'Out of lives. Watching the rest.', fr: 'Plus de vies. Regardez la suite.' });
+  const grab = text({ en: `Hold your own ${iAmCat ? 'cat' : 'mouse'}`, fr: `Maintenez votre ${iAmCat ? 'chat' : 'souris'}` });
+  if (drag === 'capped') return text({ en: `${grab} and drag ahead — it walks that way. Let go and it stops.`, fr: `${grab} et faites glisser devant — il marche dans cette direction. Relâchez pour l’arrêter.` });
+  return text({ en: `${grab} and drag. Let go and it stops dead.`, fr: `${grab} et faites glisser. Relâchez pour l’arrêter net.` });
 }
 
 /**
@@ -210,6 +213,7 @@ function hint(iAmCat: boolean, drag: 'direct' | 'capped', lives: number | null):
  * a 1 Hz timer visibly skips a number when it drifts against the real deadline.
  */
 function Clock({ endsAt, now }: { endsAt: number; now: () => number }): JSX.Element {
+  const text = useGameText();
   const [, beat] = useState(0);
   useEffect(() => {
     const id = setInterval(() => beat((n) => n + 1), 500);
@@ -217,7 +221,7 @@ function Clock({ endsAt, now }: { endsAt: number; now: () => number }): JSX.Elem
   }, []);
   const left = Math.max(0, Math.ceil((endsAt - now()) / 1000));
   return (
-    <p class="chase__clock" aria-label={`${left} seconds left`}>
+    <p class="chase__clock" aria-label={text({ en: `${left} seconds left`, fr: `${left} secondes restantes` })}>
       {left}
       <span>s</span>
     </p>
