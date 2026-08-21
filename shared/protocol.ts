@@ -19,6 +19,13 @@ export type Player = {
   avatar: string;
   /** False while they are dropped but still inside the reconnect grace period. */
   connected: boolean;
+  /**
+   * Marked by the player themselves, in the lobby. Reset to `false` for
+   * everyone the moment a round actually starts, so the next one needs a
+   * fresh signal rather than inheriting the last. The host's own flag is
+   * never checked — see `#onStart`'s gate in worker/Room.ts.
+   */
+  ready: boolean;
 };
 
 export type RoomSnapshot = {
@@ -43,6 +50,12 @@ export type ClientMessage =
   /** First message on every connection. `resume` re-claims a previous seat. */
   | { t: 'join'; d: { name?: string; avatar?: string; resume?: PlayerId } }
   | { t: 'set-profile'; d: { name?: string; avatar?: string } }
+  /**
+   * The lobby's ready toggle — a non-host player marking (or unmarking)
+   * themselves ready. `#onStart` refuses to begin a round until every
+   * connected non-host player has sent `ready: true`.
+   */
+  | { t: 'set-ready'; d: { ready: boolean } }
   /** Round-trip used to estimate the client's offset from server time. */
   | { t: 'ping'; d: { at: number } }
   /**
@@ -1293,6 +1306,7 @@ export function squashFlies(index: number): boolean {
 const CLIENT_TYPES = new Set([
   'join',
   'set-profile',
+  'set-ready',
   'ping',
   'start',
   'tap',

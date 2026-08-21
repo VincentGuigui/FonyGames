@@ -310,6 +310,9 @@ export class Room extends DurableObject<Env> {
       case 'set-profile':
         await this.#onSetProfile(ws, msg.d);
         return;
+      case 'set-ready':
+        await this.#onSetReady(ws, msg.d);
+        return;
       case 'ping':
         this.#send(ws, {
           t: 'pong',
@@ -631,7 +634,12 @@ export class Room extends DurableObject<Env> {
     if (tapping && tapping.phase !== 'done') return;
 
     const players = await this.#players();
-    const ready = [...players.values()].filter((p) => p.connected);
+    const connected = [...players.values()].filter((p) => p.connected);
+
+    // TODO(ready-state): gate this on `connected.filter(p => p.id !== hostId).every(p =>
+    // p.ready)` once the lobby actually has a way to send `set-ready` — see the note at
+    // the bottom of docs/roadmap.md's milestones. Enforcing it now, with no client ever
+    // sending `set-ready: true`, would make every multiplayer round unstartable.
 
     if (
       mode === 'bomb' ||
@@ -649,7 +657,7 @@ export class Room extends DurableObject<Env> {
     ) {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
-      const ids = ready.map((p) => p.id);
+      const ids = connected.map((p) => p.id);
       if (mode === 'bomb') await startBomb(this.#bombCtx(), roundId, ids, solo);
       else if (mode === 'grid') await startGrid(this.#gridCtx(), roundId, ids);
       else if (mode === 'squash') await startSquash(this.#squashCtx(), roundId, ids, solo);
@@ -676,7 +684,7 @@ export class Room extends DurableObject<Env> {
     // and spectate, which is a designed behaviour — Sling Puck is exactly two and
     // shows a third player the board with `spectating` set.
     const [duelMin, duelMax] = PLAYERS['tap-duel'];
-    if (ready.length < duelMin || ready.length > duelMax) return;
+    if (connected.length < duelMin || connected.length > duelMax) return;
 
     const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
     const spread = FIRE_MAX_MS - FIRE_MIN_MS;
@@ -710,7 +718,7 @@ export class Room extends DurableObject<Env> {
       taps: {},
       // Only those present when the duel started are in it; late joiners
       // spectate and play the next one.
-      entrants: ready.map((p) => p.id),
+      entrants: connected.map((p) => p.id),
     });
 
     this.#broadcast({ t: 'arm', s: this.#nextSeq(), d: { roundId, fireAt, startsAt, target, speed } });
@@ -1125,6 +1133,7 @@ export class Room extends DurableObject<Env> {
         name: sanitiseName(d.name) ?? randomName(),
         avatar: sanitiseAvatar(d.avatar) ?? randomAvatar(),
         connected: true,
+        ready: false,
       });
     }
 
@@ -1246,6 +1255,24 @@ export class Room extends DurableObject<Env> {
     if (!name && !avatar) return;
     if (name) me.name = name;
     if (avatar) me.avatar = avatar;
+
+    await this.#savePlayers(players);
+    await this.#broadcastPresence();
+  }
+
+  /**
+   * The lobby's ready toggle. Deliberately unguarded against the host sending
+   * one too — the host's flag simply is never read (`#onStart`'s gate below)
+   * rather than being a message this handler has to reject.
+   */
+  async #onSetReady(ws: WebSocket, d: { ready: boolean }): Promise<void> {
+    const id = this.#idOf(ws);
+    if (!id) return;
+    const players = await this.#players();
+    const me = players.get(id);
+    if (!me) return;
+
+    me.ready = !!d.ready;
 
     await this.#savePlayers(players);
     await this.#broadcastPresence();
@@ -1407,11 +1434,12 @@ export class Room extends DurableObject<Env> {
     const map = players ?? (await this.#players());
     const code = (await this.ctx.storage.get<string>('code')) ?? '';
     const hostId = (await this.ctx.storage.get<PlayerId>('hostId')) ?? null;
-    const list: Player[] = [...map.values()].map(({ id, name, avatar, connected }) => ({
+    const list: Player[] = [...map.values()].map(({ id, name, avatar, connected, ready }) => ({
       id,
       name,
       avatar,
       connected,
+      ready,
     }));
     return { code, players: list, hostId };
   }
