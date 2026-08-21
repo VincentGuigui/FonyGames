@@ -12,6 +12,17 @@ type LocaleState = { locale: Locale; setLocale: (next: Locale) => void };
  */
 const LocaleContext = createContext<LocaleState>({ locale: 'en', setLocale: () => {} });
 
+/** Fixed locale for SSR/unit fixtures; production pages use `LocaleProvider`. */
+export function LocaleTestProvider({
+  locale,
+  children,
+}: {
+  locale: Locale;
+  children: ComponentChildren;
+}): JSX.Element {
+  return <LocaleContext.Provider value={{ locale, setLocale: () => {} }}>{children}</LocaleContext.Provider>;
+}
+
 /**
  * Seeds the locale once per page load — a stored choice first, then the browser's own
  * preference list, English if neither says anything — and remembers a change for next

@@ -1,5 +1,6 @@
 import type { JSX } from 'preact';
 import { TAPTAP_CHECKPOINT, TAPTAP_TOTAL } from '../../../../shared/protocol';
+import { useGameText } from '../../core/i18n/gameText';
 
 /**
  * The progress line above the grid. Spec: docs/specs/games/tap-tap-revolution.md §4
@@ -28,12 +29,13 @@ export function Timeline({
   order: readonly number[];
   cleared: readonly number[];
 }): JSX.Element {
+  const text = useGameText();
   const done = new Set(cleared);
   return (
     <div
       class="taptap__timeline"
       role="img"
-      aria-label={`Progress: ${cleared.length} of ${TAPTAP_TOTAL} cells cleared`}
+      aria-label={text({ en: `Progress: ${cleared.length} of ${TAPTAP_TOTAL} cells cleared`, fr: `Progression : ${cleared.length} cases effacées sur ${TAPTAP_TOTAL}` })}
     >
       {order.map((cell, i) => {
         const major = i % TAPTAP_CHECKPOINT === 0;

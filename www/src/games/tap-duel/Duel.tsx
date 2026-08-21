@@ -7,6 +7,7 @@ import { GameOverScreen } from '../../core/ui/GameOver';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { driftAt } from './drift';
 import type { Room } from '../../core/room/useRoom';
+import { useGameText } from '../../core/i18n/gameText';
 
 /**
  * Tap Duel — `pistol` mode, presentational. Spec: docs/specs/games/tap-duel.md
@@ -73,6 +74,7 @@ export function Duel(props: {
   concept: string;
   rules: string[];
 }): JSX.Element | null {
+  const text = useGameText();
   const { players, me, phase, result, tally, onTap, onAgain, isHost, title, concept, rules, target, accent, slug } =
     props;
   const { armed, now } = props;
@@ -192,12 +194,12 @@ export function Duel(props: {
         value: tally[p.id] ?? 0,
       }))}
       me={me}
-      unit="points"
+      unit={text({ en: 'points', fr: 'points' })}
     />
   );
 
   const nameOf = (id: PlayerId): string =>
-    players.find((p) => p.id === id)?.name ?? 'Someone';
+    players.find((p) => p.id === id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' });
 
   /*
    * Tapped, waiting for the server to say what that was worth.
@@ -213,8 +215,8 @@ export function Duel(props: {
       <div class="duel duel--waiting">
         {menu}
         {scores}
-        <h2 class="duel__headline">Got it</h2>
-        <p class="duel__sub">Waiting for everyone else…</p>
+        <h2 class="duel__headline">{text({ en: 'Got it', fr: 'Touché' })}</h2>
+        <p class="duel__sub">{text({ en: 'Waiting for everyone else…', fr: 'En attente des autres…' })}</p>
       </div>
     );
   }
@@ -229,11 +231,11 @@ export function Duel(props: {
     const tookMatch = result.matchWinnerId !== null;
 
     const headline = result.noContest
-      ? 'No contest'
+      ? text({ en: 'No contest', fr: 'Manche annulée' })
       : tookMatch
         ? result.matchWinnerId === me
-          ? `You win, ${DUEL_MATCH_TARGET}`
-          : `${nameOf(result.matchWinnerId ?? '')} takes the match`
+          ? text({ en: `You win, ${DUEL_MATCH_TARGET}`, fr: `Vous gagnez, ${DUEL_MATCH_TARGET}` })
+          : text({ en: `${nameOf(result.matchWinnerId ?? '')} takes the match`, fr: `${nameOf(result.matchWinnerId ?? '')} remporte le match` })
         : undefined;
 
     /*
@@ -244,7 +246,8 @@ export function Duel(props: {
      */
     const times = result.ranking
       .map((r) => {
-        const said = r.falseStart ? 'too early' : r.ms === null ? 'no tap' : `${r.ms}ms`;
+        const said = r.falseStart ? text({ en: 'too early', fr: 'trop tôt' }) : r.ms === null
+          ? text({ en: 'no tap', fr: 'aucune touche' }) : `${r.ms} ms`;
         return `${nameOf(r.playerId)} ${said}`;
       })
       .join(' · ');
@@ -257,13 +260,13 @@ export function Duel(props: {
         title={title}
         concept={concept}
         rules={rules}
-        status={tookMatch ? 'Match over' : 'Duel over'}
+        status={tookMatch ? text({ en: 'Match over', fr: 'Match terminé' }) : text({ en: 'Duel over', fr: 'Duel terminé' })}
         rows={result.ranking.map((r) => ({
           id: r.playerId,
           avatar: players.find((p) => p.id === r.playerId)?.avatar ?? '🙂',
           name: nameOf(r.playerId),
           value: result.scores[r.playerId] ?? 0,
-          unit: 'points',
+          unit: text({ en: 'points', fr: 'points' }),
           ...(r.falseStart ? { out: true } : {}),
         }))}
         me={me}
@@ -271,17 +274,17 @@ export function Duel(props: {
         {...(headline === undefined ? {} : { headline })}
         note={
           tookMatch
-            ? `${times}. First to ${DUEL_MATCH_TARGET} takes it — the next one is a new match.`
+            ? text({ en: `${times}. First to ${DUEL_MATCH_TARGET} takes it — the next one is a new match.`, fr: `${times}. Le premier à ${DUEL_MATCH_TARGET} gagne — la prochaine manche ouvre un nouveau match.` })
             : times
         }
         {...(tookMatch
-          ? { onAgain, againLabel: 'New match' }
-          : { onNext: onAgain, nextLabel: 'Next duel' })}
+          ? { onAgain, againLabel: text({ en: 'New match', fr: 'Nouveau match' }) }
+          : { onNext: onAgain, nextLabel: text({ en: 'Next duel', fr: 'Duel suivant' }) })}
         canAct={isHost}
         waiting={
           tookMatch
-            ? 'Waiting for the host to start a new match…'
-            : 'Waiting for the host to start the next one…'
+            ? text({ en: 'Waiting for the host to start a new match…', fr: "En attente du nouveau match lancé par l’hôte…" })
+            : text({ en: 'Waiting for the host to start the next one…', fr: "En attente du prochain duel lancé par l’hôte…" })
         }
       />
     );
@@ -292,8 +295,8 @@ export function Duel(props: {
       <div class="duel duel--burned">
         {menu}
         {scores}
-        <h2 class="duel__headline">Too early</h2>
-        <p class="duel__sub">You’re out of this one. Watch the others suffer.</p>
+        <h2 class="duel__headline">{text({ en: 'Too early', fr: 'Trop tôt' })}</h2>
+        <p class="duel__sub">{text({ en: 'You’re out of this one. Watch the others suffer.', fr: 'Vous êtes éliminé de ce duel. Regardez les autres souffrir.' })}</p>
       </div>
     );
   }
@@ -317,7 +320,7 @@ export function Duel(props: {
           type="button"
           // pointerdown, not click: the reaction is measured at finger-down.
           onPointerDown={onTap}
-          aria-label="Tap the target now"
+          aria-label={text({ en: 'Tap the target now', fr: 'Touchez la cible maintenant' })}
         >
           {/* Rings are drawn in CSS so there is one element to hit, not five. */}
           <span class="duel__bullseye-rings" aria-hidden="true" />
@@ -337,7 +340,7 @@ export function Duel(props: {
     return (
       <>
         <div class="duel duel--fire">
-          <span class="duel__word duel__word--fire">NOW</span>
+          <span class="duel__word duel__word--fire">{text({ en: 'NOW', fr: 'MAINTENANT' })}</span>
         </div>
         {bullseye}
         {menu}
@@ -355,10 +358,10 @@ export function Duel(props: {
         // target included — is a false start, and that rule is what stops a
         // player spamming their way in.
         onPointerDown={onTap}
-        aria-label="Get ready. Follow the target and tap it the moment it lights up"
+        aria-label={text({ en: 'Get ready. Follow the target and tap it the moment it lights up', fr: 'Préparez-vous. Suivez la cible et touchez-la dès qu’elle s’allume' })}
       >
-        <span class="duel__word">GET READY</span>
-        <span class="duel__sub">Stay with the target. Tap it the moment it lights up</span>
+        <span class="duel__word">{text({ en: 'GET READY', fr: 'PRÉPAREZ-VOUS' })}</span>
+        <span class="duel__sub">{text({ en: 'Stay with the target. Tap it the moment it lights up', fr: 'Suivez la cible. Touchez-la dès qu’elle s’allume' })}</span>
       </button>
       {bullseye}
       {menu}

@@ -6,6 +6,7 @@ import type { SiegeGame } from './game';
 import { startRenderer, type Renderer } from './render';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { RulesPanel } from '../../core/ui/RulesPanel';
+import { useGameText } from '../../core/i18n/gameText';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 
 /**
@@ -40,6 +41,7 @@ export function SiegeBoard({
   client: RoomClient | null;
   players: Player[];
 }): JSX.Element {
+  const text = useGameText();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
   // Seeded from the game: zero cabbages means you are out, so a board that
@@ -93,7 +95,7 @@ export function SiegeBoard({
     return {
       id,
       avatar: p?.avatar ?? '?',
-      name: p?.name ?? 'neighbour',
+      name: p?.name ?? text({ en: 'neighbour', fr: 'voisin' }),
       value: state?.cabbages[id] ?? 0,
       out: !!state?.out.includes(id),
     };
@@ -105,7 +107,7 @@ export function SiegeBoard({
 
       <div class="siege__hud">
         <StatusBar
-          score={{ value: cabbages, label: 'cabbages' }}
+          score={{ value: cabbages, label: text({ en: 'cabbages', fr: 'choux' }) }}
           title={title}
           concept={concept}
           rules={rules}
@@ -117,10 +119,10 @@ export function SiegeBoard({
         screen, and a panel over the neighbours' attack buttons would be a panel over
         the game's only control.
       */}
-      <Scoreboard rows={scores} me={client?.playerId} unit="cabbages" corner="top-right" />
+      <Scoreboard rows={scores} me={client?.playerId} unit={text({ en: 'cabbages', fr: 'choux' })} corner="top-right" />
 
       <div class="siege__lobbar">
-        <span class="aimbar__label">Attack</span>
+        <span class="aimbar__label">{text({ en: 'Attack', fr: 'Attaquer' })}</span>
         {game.targets().map((id) => {
           const p = players.find((q) => q.id === id);
           return (
@@ -132,7 +134,7 @@ export function SiegeBoard({
               onClick={() => lob(id)}
             >
               <span aria-hidden="true">{p?.avatar ?? '?'}</span>
-              <span class="siege__lob-name">{p?.name ?? 'neighbour'}</span>
+              <span class="siege__lob-name">{p?.name ?? text({ en: 'neighbour', fr: 'voisin' })}</span>
             </button>
           );
         })}
@@ -140,8 +142,8 @@ export function SiegeBoard({
 
       <p class="siege__hint">
         {out
-          ? 'Your patch is bare. Watching the rest of them.'
-          : 'Tap a goat to shoo it — it splits into two kids, so tap those too.'}
+          ? text({ en: 'Your patch is bare. Watching the rest of them.', fr: 'Votre potager est vide. Regardez les autres.' })
+          : text({ en: 'Tap a goat to shoo it — it splits into two kids, so tap those too.', fr: 'Touchez une chèvre pour la chasser — elle se sépare en deux chevreaux, touchez-les aussi.' })}
       </p>
 
       {/* Keyed on the round so "Play again" always shows a fresh panel. */}

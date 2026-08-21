@@ -16,6 +16,11 @@ fixed:
 5. **Start / Ready** — Start for the host, Ready for every guest, plus one line of
    context, **stuck to the bottom of the screen**.
 
+Every room screen opens the connection and its five share controls through
+`core/room/useGameRoom()`. It composes `useRoom()` with `useShareRoom()` once; games still
+own their referee messages, but do not repeat the slug/title/error plumbing needed by
+every lobby.
+
 ### Ready is a room rule, not a game feature
 
 Every connected guest must press **Ready** before the host's **Start** button enables.
@@ -148,6 +153,17 @@ always contains:
   component the lobby and the pre-round panel use (§2).
 - **Leave game** — a real `<a href="/">`, not a router call, because leaving the
   page is what drops the socket and frees the seat.
+
+Two smaller pieces are shared once a second game needs them:
+
+- `core/ui/PermissionPrimer.tsx` owns the common sensor-primer panel, resolved state and
+  action layout; each game still supplies its own translated explanation and fallback.
+- `core/ui/SoundToggle.tsx` owns the immediate `aria-pressed` mute control; each game
+  supplies its translated on/off wording and keeps its own sound implementation.
+
+The boundary is visual and behavioural, not vocabulary. A permission primer does not
+decide whether denial means touch fallback or spectating, and a sound toggle never imports
+a game's tune.
 
 A game may add anything else through `children`; Spill puts its table diagram
 and theme picker there. Nothing else may be *required*, because the two items

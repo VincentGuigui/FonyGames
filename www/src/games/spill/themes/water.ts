@@ -145,5 +145,8 @@ export const waterTheme: Theme = {
     ctx.restore();
   },
 
-  words: { unit: 'drop', unitPlural: 'drops', verb: 'Fling' },
+  words: {
+    en: { unit: 'drop', unitPlural: 'drops', verb: 'Fling' },
+    fr: { unit: 'goutte', unitPlural: 'gouttes', verb: 'Lancer' },
+  },
 };

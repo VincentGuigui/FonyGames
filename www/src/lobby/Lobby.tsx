@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../core/types';
 import type { PlayerId, RoundResult } from '../../../shared/protocol';
-import { useRoom, useShareRoom } from '../core/room/useRoom';
+import { useGameRoom } from '../core/room/useRoom';
 import { PLAYERS } from '../../../shared/players';
 import { RoomGate } from './RoomGate';
 import { GameLobby } from './GameLobby';
 import { RulesPanel } from '../core/ui/RulesPanel';
 import { useT } from '../core/i18n/strings';
+import { useGameText, type GameText } from '../core/i18n/gameText';
 import { Duel, type DuelPhase } from '../games/tap-duel/Duel';
 
 /**
@@ -33,6 +34,7 @@ export function Lobby(props: { game: GameCard }): JSX.Element {
 
 function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Element {
   const t = useT();
+  const text = useGameText();
   const [phase, setPhase] = useState<DuelPhase>('idle');
   const [result, setResult] = useState<RoundResult | null>(null);
   /**
@@ -67,8 +69,7 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
   /** Where the target will appear. From the server, so it is the same for all. */
   const [target, setTarget] = useState<{ x: number; y: number } | null>(null);
 
-  const room = useRoom(code, game.slug);
-  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, game.title, room.setError);
+  const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, game);
   const client = room.client;
 
   useEffect(() => {
@@ -180,16 +181,16 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
       canStart={canStart}
       startLabel={t.common.startRound}
       onStart={startDuel}
-      note={note(room.isHost, room.connected)}
+      note={note(room.isHost, room.connected, text)}
     />
   );
 }
 
-function note(isHost: boolean, connected: number): string {
+function note(isHost: boolean, connected: number, text: GameText): string {
   const [min, max] = PLAYERS['tap-duel'];
-  if (!isHost) return 'The host starts the round.';
-  if (connected < min) return 'Waiting for one more player…';
+  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
+  if (connected < min) return text({ en: 'Waiting for one more player…', fr: 'En attente d’un joueur supplémentaire…' });
   // Say the number rather than leaving a dead button and no explanation.
-  if (connected > max) return `Tap Duel is ${min}–${max} players. Someone has to sit out.`;
-  return 'Wait for the signal, then tap. Moving early loses the duel.';
+  if (connected > max) return text({ en: `Tap Duel is ${min}–${max} players. Someone has to sit out.`, fr: `Tap Duel se joue de ${min} à ${max} joueurs. Quelqu’un doit attendre.` });
+  return text({ en: 'Wait for the signal, then tap. Moving early loses the duel.', fr: 'Attendez le signal, puis touchez. Partir trop tôt fait perdre le duel.' });
 }

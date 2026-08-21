@@ -1,5 +1,6 @@
 import type { JSX } from 'preact';
 import { GAP_FRACTION } from './physics';
+import { useGameText } from '../../core/i18n/gameText';
 
 /**
  * How to lay the two phones down. Spec: docs/specs/games/sling-puck.md §8
@@ -13,6 +14,7 @@ import { GAP_FRACTION } from './physics';
  * the player actually has of the arrangement.
  */
 export function HeadToHead({ size = 210 }: { size?: number }): JSX.Element {
+  const text = useGameText();
   const w = size;
   const h = size * 0.86;
 
@@ -55,7 +57,7 @@ export function HeadToHead({ size = 210 }: { size?: number }): JSX.Element {
       width={w}
       height={h}
       role="img"
-      aria-label="Two phones laid on a table, top edge to top edge, with the gap where they meet"
+      aria-label={text({ en: 'Two phones laid on a table, top edge to top edge, with the gap where they meet', fr: 'Deux téléphones posés sur une table, bord supérieur contre bord supérieur, avec une ouverture à leur jonction' })}
     >
       {phone(midY - ph - 2, true)}
       {phone(midY + 2, false)}
@@ -93,10 +95,10 @@ export function HeadToHead({ size = 210 }: { size?: number }): JSX.Element {
       />
 
       <text x={cx} y={midY + ph + 16} class="h2h__label" text-anchor="middle">
-        you
+        {text({ en: 'you', fr: 'vous' })}
       </text>
       <text x={cx} y={midY - ph - 8} class="h2h__label" text-anchor="middle">
-        them
+        {text({ en: 'them', fr: 'adversaire' })}
       </text>
     </svg>
   );
