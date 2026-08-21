@@ -121,6 +121,7 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
 
     return (
       <GameOverScreen
+        room={room}
         slug={card.slug}
         accent={card.accent}
         title={card.title}

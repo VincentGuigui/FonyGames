@@ -223,6 +223,10 @@ a.btn {
   letter-spacing: 0.06em;
 }
 
+.player__tag--ready {
+  color: var(--game-accent, var(--color-accent));
+}
+
 /*
  * "Change" — name and avatar, on your own row and nowhere else.
  *
@@ -335,6 +339,22 @@ a.btn {
   padding-top: var(--space-3);
   padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
   background: linear-gradient(to bottom, transparent, var(--color-bg) 22%);
+}
+
+.ready-button {
+  width: 100%;
+}
+
+.ready-button--on {
+  background: var(--game-accent, var(--color-accent));
+  color: var(--color-on-accent);
+  border-color: transparent;
+}
+
+.lobby__ready-note {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-dim);
+  font-size: var(--font-small);
 }
 
 .lobby__note {

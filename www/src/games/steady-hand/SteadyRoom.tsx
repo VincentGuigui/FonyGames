@@ -124,6 +124,9 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
     const ranked = [...players].sort((a, b) => (state.times[b.id] ?? 0) - (state.times[a.id] ?? 0));
     return (
       <GameOverScreen
+        room={room}
+        readyBlocked={support !== 'unsupported' && !motionAsked}
+        onReadySetup={enableMotion}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
@@ -177,6 +180,7 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
       canStart={room.isHost && enoughPlayers}
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'steady', solo } })}
+      readyBlocked={support !== 'unsupported' && !motionAsked}
       note={note(room.isHost, room.connected, motionOn, solo)}
       playerTag={(id) => {
         if (!state) return null;

@@ -146,6 +146,7 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
           armed={armedAt}
           now={() => client?.now() ?? Date.now()}
           isHost={room.isHost}
+          room={room}
           title={game.title}
           concept={game.concept}
           rules={game.rules}

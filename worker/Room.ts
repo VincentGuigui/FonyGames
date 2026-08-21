@@ -24,6 +24,7 @@ import {
   type ServerMessage,
 } from '../shared/protocol';
 import { PLAYERS } from '../shared/players';
+import { guestsReady, resetReadiness } from '../shared/readiness';
 import { playsUrl, reportPlay, roundKey } from './plays';
 /*
  * Type-only, so it is erased at build time and the cycle with index.ts (which imports this
@@ -635,11 +636,7 @@ export class Room extends DurableObject<Env> {
 
     const players = await this.#players();
     const connected = [...players.values()].filter((p) => p.connected);
-
-    // TODO(ready-state): gate this on `connected.filter(p => p.id !== hostId).every(p =>
-    // p.ready)` once the lobby actually has a way to send `set-ready` — see the note at
-    // the bottom of docs/roadmap.md's milestones. Enforcing it now, with no client ever
-    // sending `set-ready: true`, would make every multiplayer round unstartable.
+    if (!guestsReady(connected, hostId)) return;
 
     if (
       mode === 'bomb' ||
@@ -658,20 +655,23 @@ export class Room extends DurableObject<Env> {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
       const ids = connected.map((p) => p.id);
-      if (mode === 'bomb') await startBomb(this.#bombCtx(), roundId, ids, solo);
-      else if (mode === 'grid') await startGrid(this.#gridCtx(), roundId, ids);
-      else if (mode === 'squash') await startSquash(this.#squashCtx(), roundId, ids, solo);
-      else if (mode === 'steady') await startSteady(this.#steadyCtx(), roundId, ids, solo);
-      else if (mode === 'rush') await startRush(this.#rushCtx(), roundId, ids, solo);
-      else if (mode === 'hunt') await startHunt(this.#huntCtx(), roundId, ids, solo);
-      else if (mode === 'spill') await startSpill(this.#spillCtx(), roundId, ids, solo);
-      else if (mode === 'siege') await startSiege(this.#siegeCtx(), roundId, ids, solo);
-      else if (mode === 'sling') await startSling(this.#slingCtx(), roundId, ids);
-      else if (mode === 'neon') await startNeon(this.#neonCtx(), roundId, ids, roles, solo);
-      else if (mode === 'taptap') await startTapTap(this.#taptapCtx(), roundId, ids, solo);
+      let started: boolean;
+      if (mode === 'bomb') started = await startBomb(this.#bombCtx(), roundId, ids, solo);
+      else if (mode === 'grid') started = await startGrid(this.#gridCtx(), roundId, ids);
+      else if (mode === 'squash') started = await startSquash(this.#squashCtx(), roundId, ids, solo);
+      else if (mode === 'steady') started = await startSteady(this.#steadyCtx(), roundId, ids, solo);
+      else if (mode === 'rush') started = await startRush(this.#rushCtx(), roundId, ids, solo);
+      else if (mode === 'hunt') started = await startHunt(this.#huntCtx(), roundId, ids, solo);
+      else if (mode === 'spill') started = await startSpill(this.#spillCtx(), roundId, ids, solo);
+      else if (mode === 'siege') started = await startSiege(this.#siegeCtx(), roundId, ids, solo);
+      else if (mode === 'sling') started = await startSling(this.#slingCtx(), roundId, ids);
+      else if (mode === 'neon') started = await startNeon(this.#neonCtx(), roundId, ids, roles, solo);
+      else if (mode === 'taptap') started = await startTapTap(this.#taptapCtx(), roundId, ids, solo);
       // `direct` is the default because it needs no explanation: grab your icon
       // and it follows your finger. `capped` is the deliberate choice.
-      else await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct', solo);
+      else started = await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct', solo);
+      if (!started) return;
+      await this.#consumeReadiness(players);
       await this.#rearm(players);
       return;
     }
@@ -725,7 +725,15 @@ export class Room extends DurableObject<Env> {
 
     // The server owns the timer, not the host — so a host dropping mid-duel
     // cannot stall it. This alarm resolves the duel if nobody taps.
+    await this.#consumeReadiness(players);
     await this.#rearm(players);
+  }
+
+  /** Persist and publish the fresh-ready requirement for the round after this one. */
+  async #consumeReadiness(players: Map<PlayerId, StoredPlayer>): Promise<void> {
+    resetReadiness(players.values());
+    await this.#savePlayers(players);
+    await this.#broadcastPresence();
   }
 
   async #onTap(ws: WebSocket, d: { at: number; roundId: number }): Promise<void> {

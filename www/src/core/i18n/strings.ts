@@ -57,6 +57,11 @@ export interface UiStrings {
   lobby: {
     soloOn: string;
     soloOnUnsupported: string;
+    ready: string;
+    readyOn: string;
+    finishSetup: string;
+    waitingReady: string;
+    setUpControls: string;
   };
   noSuchRoom: {
     title: string;
@@ -95,6 +100,8 @@ export interface UiStrings {
     host: string;
     away: string;
     change: string;
+    ready: string;
+    notReady: string;
     profileSheetLabel: string;
     you: string;
     cancel: string;
@@ -146,6 +153,11 @@ const en: UiStrings = {
       'Solo testing is on: you can start on your own, and a round that would normally end when one player is left runs to its clock instead. Everything else is the real game.',
     soloOnUnsupported:
       'Solo testing is on, but not for this one — it is two phones facing each other across a gap, so there is no board to render alone. It still needs a second player.',
+    ready: 'Ready',
+    readyOn: 'Ready ✓',
+    finishSetup: 'Choose the sensor or fallback option above before marking yourself ready.',
+    waitingReady: 'Waiting for every player to be ready.',
+    setUpControls: 'Set up controls',
   },
   noSuchRoom: {
     title: "This room doesn't exist",
@@ -186,6 +198,8 @@ const en: UiStrings = {
     host: 'host',
     away: 'away',
     change: 'Change',
+    ready: 'ready',
+    notReady: 'not ready',
     profileSheetLabel: 'Your name and avatar',
     you: 'You',
     cancel: 'Cancel',
@@ -237,6 +251,11 @@ const fr: UiStrings = {
       "Le test en solo est activé : vous pouvez démarrer seul, et une manche qui se terminerait normalement quand il ne reste qu'un joueur va jusqu'au bout du chrono à la place. Tout le reste est le jeu réel.",
     soloOnUnsupported:
       "Le test en solo est activé, mais pas pour ce jeu — ce sont deux téléphones face à face, donc il n'y a pas de plateau à afficher seul. Il faut toujours un second joueur.",
+    ready: 'Prêt',
+    readyOn: 'Prêt ✓',
+    finishSetup: "Choisissez le capteur ou l'option de secours ci-dessus avant de vous déclarer prêt.",
+    waitingReady: 'En attente de tous les joueurs.',
+    setUpControls: 'Configurer les commandes',
   },
   noSuchRoom: {
     title: "Cette salle n'existe pas",
@@ -278,6 +297,8 @@ const fr: UiStrings = {
     host: 'hôte',
     away: 'absent',
     change: 'Modifier',
+    ready: 'prêt',
+    notReady: 'pas prêt',
     profileSheetLabel: 'Votre nom et avatar',
     you: 'Vous',
     cancel: 'Annuler',

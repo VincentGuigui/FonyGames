@@ -97,6 +97,7 @@ function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const ranked = [...state.players].sort((a, b) => (state.cabbages[b] ?? 0) - (state.cabbages[a] ?? 0));
     return (
       <GameOverScreen
+        room={room}
         slug={card.slug}
         accent={card.accent}
         title={card.title}

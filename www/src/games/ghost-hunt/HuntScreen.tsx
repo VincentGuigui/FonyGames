@@ -4,6 +4,7 @@ import type { Player, PlayerId } from '../../../../shared/protocol';
 import { RADAR_FOV_DEG } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import type { Room } from '../../core/room/useRoom';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import {
   findTimesLine,
@@ -283,6 +284,9 @@ export function HuntResults({
   accent,
   onAgain,
   canAgain,
+  room,
+  readyBlocked,
+  onReadySetup,
 }: {
   state: HuntView;
   players: Player[];
@@ -296,12 +300,18 @@ export function HuntResults({
   accent: string;
   onAgain: () => void;
   canAgain: boolean;
+  room: Room;
+  readyBlocked: boolean;
+  onReadySetup: () => void;
 }): JSX.Element {
   const byId = new Map(players.map((p) => [p.id, p]));
   const order = ranking(state, players.map((p) => p.id));
 
   return (
     <GameOverScreen
+      room={room}
+      readyBlocked={readyBlocked}
+      onReadySetup={onReadySetup}
       slug={slug}
       accent={accent}
       title={title}

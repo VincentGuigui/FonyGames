@@ -194,6 +194,9 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
 
     return (
       <GameOverScreen
+        room={room}
+        readyBlocked={support !== 'unsupported' && !motionAsked}
+        onReadySetup={enableMotion}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
@@ -243,6 +246,7 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       canStart={room.isHost && enoughToStart(room.connected, [BOMB_MIN_PLAYERS, BOMB_MAX_PLAYERS], solo)}
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'bomb', solo } })}
+      readyBlocked={support !== 'unsupported' && !motionAsked}
       note={note(room.isHost, room.connected, solo)}
       playerTag={(id) => {
         if (!state) return null;

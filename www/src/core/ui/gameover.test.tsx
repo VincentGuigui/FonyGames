@@ -1,6 +1,7 @@
 import { renderToString } from 'preact-render-to-string';
 import type { PlayerId } from '../../../../shared/protocol';
 import { GameOver } from './GameOver';
+import type { Room } from '../room/useRoom';
 
 /**
  * The shared end screen's markup.
@@ -35,6 +36,25 @@ const rows = [
   { id: A, avatar: '🦊', name: 'Ana', value: 12, unit: 'left' },
   { id: B, avatar: '🐢', name: 'Bo', value: 4, unit: 'left' },
 ];
+
+function readyRoom(isHost: boolean, guestReady: boolean): Room {
+  const players = [
+    { id: A, avatar: '🦊', name: 'Ana', connected: true, ready: false },
+    { id: B, avatar: '🐢', name: 'Bo', connected: true, ready: guestReady },
+  ];
+  const me = isHost ? players[0] : players[1];
+  return {
+    client: null,
+    status: 'open',
+    room: { code: 'ABCDEF', players, hostId: A },
+    error: null,
+    setError: () => {},
+    me,
+    isHost,
+    connected: 2,
+    setProfile: () => {},
+  };
+}
 
 const html = (props: Partial<Parameters<typeof GameOver>[0]> = {}): string =>
   renderToString(
@@ -104,6 +124,14 @@ console.log('\nwhat happens next');
   check('and can be told something else while waiting',
     html({ canAct: false, waiting: 'Waiting for the host to start a new match…' })
       .includes('start a new match'));
+
+  const unreadyHost = html({ room: readyRoom(true, false) });
+  check('the host cannot replay before the guest is ready', /gameover__go[^>]*disabled/.test(unreadyHost));
+  check('the host is told what is missing', unreadyHost.includes('Waiting for every player to be ready.'));
+
+  const readyGuest = html({ room: readyRoom(false, true), canAct: false });
+  check('a guest can mark readiness on the result screen too', readyGuest.includes('Ready ✓'));
+  check('the ready control exposes its pressed state', readyGuest.includes('aria-pressed="true"'));
 }
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);

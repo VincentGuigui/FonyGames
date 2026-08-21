@@ -4,6 +4,7 @@ import { StatusBar } from '../../core/ui/StatusBar';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { useLocale } from '../../core/i18n/LocaleContext';
+import type { Room } from '../../core/room/useRoom';
 import { progress, standings, toGo, type RushView } from './game';
 
 /**
@@ -44,6 +45,9 @@ export function RushScreen({
   canAgain,
   sound,
   onSound,
+  room,
+  readyBlocked,
+  onReadySetup,
 }: {
   state: RushView;
   players: Player[];
@@ -68,6 +72,9 @@ export function RushScreen({
   /** The tune: on by default, and a race is loud enough that some rooms need it off. */
   sound: boolean;
   onSound: (on: boolean) => void;
+  room: Room;
+  readyBlocked: boolean;
+  onReadySetup: () => void;
 }): JSX.Element {
   const home = HOME_WORDS[useLocale().locale];
   const byId = new Map(players.map((p) => [p.id, p]));
@@ -91,6 +98,9 @@ export function RushScreen({
      */
     return (
       <GameOverScreen
+        room={room}
+        readyBlocked={readyBlocked}
+        onReadySetup={onReadySetup}
         slug={slug}
         accent={accent}
         title={title}

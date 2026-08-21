@@ -120,6 +120,9 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     const rows: PlayerId[] = [state.gliderId, state.protectorId];
     return (
       <GameOverScreen
+        room={room}
+        readyBlocked={support !== 'unsupported' && !orientationAsked}
+        onReadySetup={enableTilt}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
@@ -155,6 +158,7 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       canStart={room.isHost && enoughToStart(room.connected, [NEON_MIN_PLAYERS, NEON_MAX_PLAYERS], solo)}
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'neon', ...(roles ? { roles } : {}), solo } })}
+      readyBlocked={support !== 'unsupported' && !orientationAsked}
       note={note(room.isHost, room.connected, solo)}
       playerTag={(id) => {
         if (!roles) return null;
