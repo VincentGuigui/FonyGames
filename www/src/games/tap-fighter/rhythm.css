@@ -2,6 +2,12 @@
   animation: fighter-rhythm 1s steps(4, end) infinite;
 }
 
+/* The base action animation used to translate 4px horizontally, making every
+   sprite-sheet pose look like the fighter was scrolling across the stage. */
+.fighter-sprite {
+  animation-name: fighter-pose-stable;
+}
+
 @keyframes fighter-rhythm {
   0%, 100% { translate: 0 0; rotate: 0deg; }
   25% { translate: 2px -2px; rotate: -1deg; }
@@ -9,6 +15,11 @@
   75% { translate: -2px -1px; rotate: -1deg; }
 }
 
+@keyframes fighter-pose-stable {
+  0%, 100% { translate: 0 0; }
+  42% { translate: 0 -2px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .fighter-sprite.is-rhythm { animation: none; }
+  .fighter-sprite { animation: none; }
 }
