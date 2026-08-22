@@ -3,7 +3,7 @@
 | | |
 | --- | --- |
 | **Slug** | `tic-tac-tic-tac-toe` |
-| **Catchy sentence** | *Win the little boards to conquer the big one* |
+| **Catchy sentence** | *Play tic-tac-toe inside a giant tic-tac-toe* |
 | **Illustration** | `www/src/games/tic-tac-tic-tac-toe/art/card.svg` — a 3×3 meta grid whose centre cell opens into a tiny X/O grid |
 | **Players** | 2 (exactly) |
 | **Round length** | 2–5 min, hard cap 5 min |

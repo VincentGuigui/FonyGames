@@ -659,7 +659,7 @@ export class Room extends DurableObject<Env> {
 
     const players = await this.#players();
     const connected = [...players.values()].filter((p) => p.connected);
-    if (!guestsReady(connected, hostId)) return;
+    if (!solo && !guestsReady(connected, hostId)) return;
 
     if (
       mode === 'bomb' ||
