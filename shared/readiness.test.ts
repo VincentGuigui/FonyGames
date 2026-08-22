@@ -1,4 +1,4 @@
-import { guestsReady, resetReadiness, type ReadyPlayer } from './readiness';
+import { guestsReady, type ReadyPlayer } from './readiness';
 
 let failures = 0;
 let checks = 0;
@@ -28,11 +28,8 @@ check('every connected guest unblocks it', guestsReady([host(), guest('a', true)
 check('an away guest does not strand the room', guestsReady([host(), guest('a', false, false)], 'host'));
 check('a room without a host still requires every connected player', !guestsReady([guest('a', false)], null));
 
-console.log('\na round consumes readiness');
-
-const players = [host(), guest('a', true), guest('b', true)];
-resetReadiness(players);
-check('every flag is cleared', players.every((player) => !player.ready));
+console.log('\nready persists for replay');
+check('ready guests remain eligible for another round', guestsReady([host(), guest('a', true)], 'host'));
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);
 console.log(`\nall passed (${checks} checks)`);

@@ -20,10 +20,9 @@ export type Player = {
   /** False while they are dropped but still inside the reconnect grace period. */
   connected: boolean;
   /**
-   * Marked by the player themselves, in the lobby. Reset to `false` for
-   * everyone the moment a round actually starts, so the next one needs a
-   * fresh signal rather than inheriting the last. The host's own flag is
-   * never checked — see `#onStart`'s gate in worker/Room.ts.
+   * Marked by the player themselves in the lobby. It stays true across rounds, so a
+   * replay does not ask everyone to press Ready again; a newly joined seat starts false.
+   * The host's own flag is never checked — see `#onStart`'s gate in worker/Room.ts.
    */
   ready: boolean;
 };
@@ -32,6 +31,23 @@ export type RoomSnapshot = {
   code: string;
   players: Player[];
   hostId: PlayerId | null;
+};
+
+export type TttState = {
+  roundId: number;
+  phase: 'choosing' | 'playing' | 'over';
+  symbols: Record<PlayerId, 'x' | 'o'>;
+  meta: Array<'x' | 'o' | 'draw' | null>;
+  small: Array<'x' | 'o' | null>;
+  selectedMeta: number | null;
+  chooser: PlayerId | null;
+  turn: PlayerId | null;
+  miniWinner: 'x' | 'o' | 'draw' | null;
+  winner: PlayerId | null;
+  draw: boolean;
+  startsAt: number;
+  zoomAt: number;
+  endsAt: number;
 };
 
 /** Why the server closed or refused a connection. */
@@ -77,6 +93,8 @@ export type ClientMessage =
          * (`assignRoles` in worker/neonFall.ts).
          */
         roles?: { glider: PlayerId; protector: PlayerId };
+        /** Tic-Tac-Tic-Tac-Toe's fixed symbol assignment and first chooser. */
+        symbols?: { x: PlayerId; o: PlayerId; chooser: PlayerId };
         /**
          * Solo test mode — start with one player, for looking at a game rather than
          * playing it. Set by a browser that has signed into the admin centre; the
@@ -177,7 +195,11 @@ export type ClientMessage =
    * whether this was this player's own lit cell (spec §8), the same
    * reasoning Squash Mosquitoes' `squash-tap` already established.
    */
-  | { t: 'taptap-tap'; d: { roundId: number; cell: number } };
+  | { t: 'taptap-tap'; d: { roundId: number; cell: number } }
+  /** Tic-Tac-Tic-Tac-Toe: choose the next unresolved meta board. */
+  | { t: 'tttt-select'; d: { roundId: number; metaCell: number } }
+  /** Tic-Tac-Tic-Tac-Toe: play a move in the selected small board. */
+  | { t: 'tttt-tap'; d: { roundId: number; smallCell: number } };
 
 /* ------------------------------------------------------------------ */
 /* server -> client                                                     */
@@ -604,6 +626,7 @@ export type ServerMessage =
   | { t: 'neon'; s: number; d: NeonFallState }
   /** Tap Tap Revolution: the shared state — order, everyone's remaining count, phase, winner. */
   | { t: 'taptap'; s: number; d: TapTapState }
+  | { t: 'tttt'; s: number; d: TttState }
   /**
    * Tap Tap Revolution: sent to **one player only** — their own cleared
    * cells, in the order they actually tapped them (spec §2, §6).
@@ -616,6 +639,8 @@ export type ServerMessage =
    * already gone.
    */
   | { t: 'taptap-progress'; s: number; d: { roundId: number; cleared: number[] } }
+  /** Tic-Tac-Tic-Tac-Toe: the authoritative nested-board state. */
+  | { t: 'tttt'; s: number; d: TttState }
   /** Pass the Bomb: too many bumps too fast — this player's bumps are muted briefly. */
   | { t: 'calm-down'; d: { untilServerTime: number } }
   /** Steady Hand: the state of the room. `w` is everyone's last wobble, for the meters. */
@@ -1279,16 +1304,10 @@ export const SQUASH_GRID_CELLS = SQUASH_GRID_COLS * SQUASH_GRID_ROWS;
 /** The pattern is this many of the grid's cells, no duplicates (spec §2). */
 export const SQUASH_TOTAL = 66;
 
-/**
- * Mosquito **N** (1-indexed) in the pattern flies once N reaches this. A property
- * of the pattern position, not a clock or a running count — so whether a given
- * mosquito flies is fixed the moment the pattern is dealt, and both ends of the
- * wire can derive it from the same array without a flag travelling per mosquito
- * (spec §2.2).
- */
+/** Mosquito **N** (1-indexed) in the pattern flies once N reaches this. */
 export const SQUASH_STATIC_COUNT = 33;
 
-/** A flying mosquito, and its hitbox, at this fraction of a static one's size. */
+/** The flying motion's hitbox fraction; visual size is rolled independently on each phone. */
 export const SQUASH_FLY_SCALE = 1 / 2;
 
 /** A round is capped like every other, so a swarm nobody can finish still ends. */
@@ -1327,6 +1346,8 @@ const CLIENT_TYPES = new Set([
   'neon-steer',
   'neon-shoot',
   'taptap-tap',
+  'tttt-select',
+  'tttt-tap',
 ]);
 
 export function isClientMessage(value: unknown): value is ClientMessage {

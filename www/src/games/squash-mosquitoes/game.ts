@@ -27,7 +27,18 @@ export type MosquitoView = {
   row: number;
   col: number;
   flying: boolean;
+  size: MosquitoSize;
 };
+
+export type MosquitoSize = 'large' | 'normal' | 'small';
+
+/** Size is cosmetic and private to each phone; it is deliberately not progression-based. */
+export function randomMosquitoSize(random = Math.random): MosquitoSize {
+  const roll = random();
+  if (roll < 1 / 3) return 'large';
+  if (roll < 2 / 3) return 'normal';
+  return 'small';
+}
 
 /** Which edge of the screen a mosquito flew in from. */
 export type EntrySide = 'top' | 'right' | 'bottom' | 'left';
@@ -55,6 +66,8 @@ export type MosquitoVisual = {
   phase: number;
   /** Server time this mosquito was first seen active. */
   spawnedAt: number;
+  /** Visual size, rolled independently from the pattern's flight progression. */
+  size: MosquitoSize;
 };
 
 const ENTRY_SIDES: EntrySide[] = ['top', 'right', 'bottom', 'left'];
@@ -125,7 +138,7 @@ export class SquashGame {
     const s = this.#state;
     const b = this.#board;
     if (!s || !b) return [];
-    return b.active.map((index) => toView(s, index));
+    return b.active.map((index) => toView(s, index, this.visual(index).size));
   }
 
   /** Every mosquito I have already squashed — drawn as a permanent blood mark. */
@@ -133,7 +146,7 @@ export class SquashGame {
     const s = this.#state;
     const b = this.#board;
     if (!s || !b) return [];
-    return b.squashed.map((index) => toView(s, index));
+    return b.squashed.map((index) => toView(s, index, this.visual(index).size));
   }
 
   /**
@@ -163,6 +176,7 @@ export class SquashGame {
         lateral: Math.random(),
         phase: Math.random() * Math.PI * 2,
         spawnedAt: this.#now(),
+        size: randomMosquitoSize(),
       };
       this.#visuals.set(index, v);
     }
@@ -170,7 +184,7 @@ export class SquashGame {
   }
 }
 
-function toView(s: SquashState, index: number): MosquitoView {
+function toView(s: SquashState, index: number, size: MosquitoSize): MosquitoView {
   // Always a valid pattern index: it came from THIS player's own board, which the
   // referee only ever fills with indices into its own 66-long pattern.
   const position = s.pattern[index]!;
@@ -180,6 +194,7 @@ function toView(s: SquashState, index: number): MosquitoView {
     row: Math.floor(position / SQUASH_GRID_COLS),
     col: position % SQUASH_GRID_COLS,
     flying: squashFlies(index),
+    size,
   };
 }
 

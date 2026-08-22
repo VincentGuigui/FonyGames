@@ -138,6 +138,7 @@ export function SquashBoard({
   }, []);
 
   const activeViews = game.active();
+  const sizeByIndex = new Map([...activeViews, ...game.squashed()].map((v) => [v.index, v.size]));
   const activeSet = new Set(activeViews.map((v) => v.index));
   const flyingSet = new Set(activeViews.filter((v) => v.flying).map((v) => v.index));
   const squashedSet = new Set(game.squashed().map((v) => v.index));
@@ -187,6 +188,7 @@ export function SquashBoard({
               active={active}
               squashed={squashed}
               flying={flying}
+              size={sizeByIndex.get(index) ?? 'normal'}
               elRef={(el) => {
                 if (el) refs.current.set(index, el);
                 else refs.current.delete(index);
@@ -230,6 +232,7 @@ function MosquitoCell({
   active,
   squashed,
   flying,
+  size,
   elRef,
   onTap,
 }: {
@@ -238,6 +241,7 @@ function MosquitoCell({
   active: boolean;
   squashed: boolean;
   flying: boolean;
+  size: 'large' | 'normal' | 'small';
   elRef: (el: HTMLButtonElement | null) => void;
   onTap: () => void;
 }): JSX.Element {
@@ -249,7 +253,7 @@ function MosquitoCell({
       <button
         ref={elRef}
         type="button"
-        class={`squash__mosquito squash__mosquito--${state}`}
+        class={`squash__mosquito squash__mosquito--${state} squash__mosquito--${size}`}
         disabled={!active}
         aria-label={
           squashed

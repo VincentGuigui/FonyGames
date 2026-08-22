@@ -53,6 +53,7 @@ export const PLAYERS = {
   'squash-mosquitoes': [2, 8],
   'neon-fall': [2, 2],
   'tap-tap-revolution': [2, 8],
+  'tic-tac-tic-tac-toe': [2, 2],
 } as const satisfies Record<string, PlayerLimits>;
 
 export type GameSlug = keyof typeof PLAYERS;

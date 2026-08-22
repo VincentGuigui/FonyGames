@@ -24,7 +24,7 @@ import {
   type ServerMessage,
 } from '../shared/protocol';
 import { PLAYERS } from '../shared/players';
-import { guestsReady, resetReadiness } from '../shared/readiness';
+import { guestsReady } from '../shared/readiness';
 import { playsUrl, reportPlay, roundKey } from './plays';
 /*
  * Type-only, so it is erased at build time and the cycle with index.ts (which imports this
@@ -71,6 +71,16 @@ import {
   type Ctx as TapTapCtx,
   type TapTap,
 } from './tapTapRevolution';
+import {
+  nextDeadline as ttttDeadline,
+  onSelect as onTtttSelect,
+  onTap as onTtttTap,
+  startTttt,
+  tick as ttttTick,
+  toState as ttttToState,
+  type Ctx as TtttCtx,
+  type Ttt as Tttt,
+} from './ticTacTicTacToe';
 import {
   onBump as bombBump,
   onFuse as bombFuse,
@@ -321,7 +331,7 @@ export class Room extends DurableObject<Env> {
         });
         return;
       case 'start':
-        await this.#onStart(ws, msg.d.mode, msg.d.drag, msg.d.roles, msg.d.solo === true);
+        await this.#onStart(ws, msg.d.mode, msg.d.drag, msg.d.roles, msg.d.symbols, msg.d.solo === true);
         return;
       case 'tap':
         await this.#onTap(ws, msg.d);
@@ -370,6 +380,12 @@ export class Room extends DurableObject<Env> {
         const id = this.#idOf(ws);
         if (id) await onTapTap(this.#taptapCtx(), id, msg.d.roundId, msg.d.cell);
         return;
+      }
+      case 'tttt-select': {
+        const id = this.#idOf(ws); if (id) await onTtttSelect(this.#ttttCtx(), id, msg.d.roundId, msg.d.metaCell); return;
+      }
+      case 'tttt-tap': {
+        const id = this.#idOf(ws); if (id) await onTtttTap(this.#ttttCtx(), id, msg.d.roundId, msg.d.smallCell); return;
       }
       case 'neon-steer': {
         const id = this.#idOf(ws);
@@ -532,6 +548,10 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const tttt = await this.#tttt();
+    if (tttt && tttt.phase !== 'over' && Date.now() >= ttttDeadline(tttt)) {
+      await ttttTick(this.#ttttCtx()); await this.#rearm(); return;
+    }
 
     const chase = await this.#catMouse();
     if (chase && chase.phase === 'running' && Date.now() >= cmDeadline(chase)) {
@@ -596,6 +616,7 @@ export class Room extends DurableObject<Env> {
     drag?: 'direct' | 'capped',
     /** Neon Fall's seat picks — orthogonal to `mode`, same as `drag` above. */
     roles?: { glider: PlayerId; protector: PlayerId },
+    symbols?: { x: PlayerId; o: PlayerId; chooser: PlayerId },
     /**
      * Solo test mode. Relaxes the minimum player count and the "last one standing"
      * end condition, and nothing else — `enoughToStart` in shared/players.ts lists
@@ -633,6 +654,8 @@ export class Room extends DurableObject<Env> {
     if (falling && falling.phase !== 'done') return;
     const tapping = await this.#taptap();
     if (tapping && tapping.phase !== 'done') return;
+    const tttt = await this.#tttt();
+    if (tttt && tttt.phase !== 'over') return;
 
     const players = await this.#players();
     const connected = [...players.values()].filter((p) => p.connected);
@@ -650,7 +673,8 @@ export class Room extends DurableObject<Env> {
       mode === 'grid' ||
       mode === 'squash' ||
       mode === 'neon' ||
-      mode === 'taptap'
+      mode === 'taptap' ||
+      mode === 'tttt'
     ) {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
@@ -667,11 +691,11 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'sling') started = await startSling(this.#slingCtx(), roundId, ids);
       else if (mode === 'neon') started = await startNeon(this.#neonCtx(), roundId, ids, roles, solo);
       else if (mode === 'taptap') started = await startTapTap(this.#taptapCtx(), roundId, ids, solo);
+      else if (mode === 'tttt') started = await startTttt(this.#ttttCtx(), roundId, ids, symbols, solo);
       // `direct` is the default because it needs no explanation: grab your icon
       // and it follows your finger. `capped` is the deliberate choice.
       else started = await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct', solo);
       if (!started) return;
-      await this.#consumeReadiness(players);
       await this.#rearm(players);
       return;
     }
@@ -725,15 +749,7 @@ export class Room extends DurableObject<Env> {
 
     // The server owns the timer, not the host — so a host dropping mid-duel
     // cannot stall it. This alarm resolves the duel if nobody taps.
-    await this.#consumeReadiness(players);
     await this.#rearm(players);
-  }
-
-  /** Persist and publish the fresh-ready requirement for the round after this one. */
-  async #consumeReadiness(players: Map<PlayerId, StoredPlayer>): Promise<void> {
-    resetReadiness(players.values());
-    await this.#savePlayers(players);
-    await this.#broadcastPresence();
   }
 
   async #onTap(ws: WebSocket, d: { at: number; roundId: number }): Promise<void> {
@@ -941,6 +957,18 @@ export class Room extends DurableObject<Env> {
       load: () => this.#taptap(),
       save: (s) => this.ctx.storage.put('taptap', s),
       setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #tttt(): Promise<Tttt | null> {
+    return (await this.ctx.storage.get<Tttt>('tttt')) ?? null;
+  }
+
+  #ttttCtx(): TtttCtx {
+    return {
+      now: () => Date.now(), nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg), load: () => this.#tttt(),
+      save: (s) => this.ctx.storage.put('tttt', s), setAlarm: () => this.#rearm(),
     };
   }
 
@@ -1227,6 +1255,8 @@ export class Room extends DurableObject<Env> {
     if (neon && neon.phase === 'running') {
       this.#send(ws, { t: 'neon', s: this.#nextSeq(), d: neonToState(neon) });
     }
+    const tttt = await this.#tttt();
+    if (tttt && tttt.phase !== 'over') this.#send(ws, { t: 'tttt', s: this.#nextSeq(), d: ttttToState(tttt) });
     /*
      * Tap Tap Revolution resyncs the shared order AND, if this player has a seat in
      * it, their own private cleared history — same split as Squash Mosquitoes' board,
@@ -1401,6 +1431,8 @@ export class Room extends DurableObject<Env> {
 
     const squash = await this.#squash();
     if (squash?.phase === 'running') return squashDeadline(squash);
+    const tttt = await this.#tttt();
+    if (tttt && tttt.phase !== 'over') return ttttDeadline(tttt);
 
     const neon = await this.#neon();
     if (neon?.phase === 'running') return neonDeadline(neon);

@@ -128,12 +128,13 @@
 }
 
 .taptap__grid {
+  flex: 0 0 auto;
   display: grid;
   grid-template-columns: repeat(var(--taptap-grid, 10), 1fr);
   grid-template-rows: repeat(var(--taptap-grid, 10), 1fr);
   gap: 3px;
-  max-height: 100%;
-  max-width: 100%;
+  width: 100%;
+  max-width: none;
   aspect-ratio: 1;
   margin: 0 auto;
 }
