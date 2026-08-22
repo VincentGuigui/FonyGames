@@ -437,15 +437,21 @@ async function loadAnalytics(panel: HTMLElement, days: number): Promise<void> {
 async function loadIpInfoDiagnostic(panel: HTMLElement): Promise<void> {
   const { status, data } = await api('ipinfo-diagnostic');
   panel.replaceChildren(el('h2', 'ops__subtitle', 'IPinfo diagnostic (8.8.8.8)'));
+  panel.append(el('p', 'ops__note', `Referer used: ${String(data['referer'] ?? 'not returned')}`));
   if (status !== 200) {
     panel.append(el('p', 'ops__note ops__warn', `Could not read it (${status}).`));
+    const raw = el('pre', 'ops__diagnostic-result');
+    raw.textContent = JSON.stringify(data, null, 2);
+    panel.append(raw);
     return;
   }
-  panel.append(el('p', 'ops__note', `Referer: ${String(data['referer'] ?? 'not configured')}`));
-  const diagnostic = (data['diagnostic'] ?? {}) as { status?: number | null; ok?: boolean; result?: Record<string, unknown> | null };
-  panel.append(el('p', 'ops__note', `IPinfo response: ${diagnostic.status ?? 'not queried'} (${diagnostic.ok ? 'ok' : 'unavailable'})`));
+  const diagnostic = (data['diagnostic'] ?? {}) as { status?: number | null; ok?: boolean; raw?: string | null; error?: string | null; result?: Record<string, unknown> | null };
+  panel.append(el('p', 'ops__note', `IPinfo response: ${diagnostic.status ?? 'not queried'} (${diagnostic.ok ? 'ok' : 'unavailable'})${diagnostic.error ? ` — ${diagnostic.error}` : ''}`));
+  const raw = el('pre', 'ops__diagnostic-result');
+  raw.textContent = diagnostic.raw ?? '(empty response)';
+  panel.append(raw);
   if (!diagnostic.result || Object.keys(diagnostic.result).length === 0) {
-    panel.append(el('p', 'ops__note', 'No lookup result. Configure IPINFO_TOKEN to enable the diagnostic.'));
+    panel.append(el('p', 'ops__note', 'No parsed lookup result.'));
     return;
   }
   const result = el('pre', 'ops__diagnostic-result');

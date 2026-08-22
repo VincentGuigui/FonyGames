@@ -86,9 +86,9 @@ final class IpInfoGeolocator implements Geolocator
     public function diagnostic(string $ip): array
     {
         if ($this->token === '' || !self::routable($ip)) {
-            return ['status' => null, 'ok' => false, 'result' => null];
+            return ['status' => null, 'ok' => false, 'raw' => null, 'error' => 'IPINFO_TOKEN is not configured', 'result' => null];
         }
-        [$status, $body] = $this->request($ip);
+        [$status, $body, $error] = $this->request($ip);
         $decoded = is_string($body) ? json_decode($body, true) : null;
         $result = is_array($decoded) ? [] : null;
         if (is_array($decoded)) {
@@ -104,7 +104,13 @@ final class IpInfoGeolocator implements Geolocator
             };
             $result = $clean($decoded);
         }
-        return ['status' => $status, 'ok' => $status === 200 && $result !== null, 'result' => $result];
+        return [
+            'status' => $status,
+            'ok' => $status === 200 && $result !== null,
+            'raw' => is_string($body) ? substr($body, 0, 65536) : null,
+            'error' => $error,
+            'result' => $result,
+        ];
     }
 
     public function referer(): string
@@ -112,7 +118,7 @@ final class IpInfoGeolocator implements Geolocator
         return $this->referer;
     }
 
-    /** @return array{0: int, 1: string|false} */
+    /** @return array{0: int, 1: string|false, 2: string|null} */
     private function request(string $ip): array
     {
         $handle = curl_init('https://ipinfo.io/' . urlencode($ip) . '/json');
@@ -128,8 +134,9 @@ final class IpInfoGeolocator implements Geolocator
         ]);
         $body = curl_exec($handle);
         $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+        $error = curl_error($handle) ?: null;
         curl_close($handle);
-        return [$status, $body];
+        return [$status, $body, $error];
     }
 
     /**
