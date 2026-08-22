@@ -65,6 +65,48 @@ final class IpInfoGeolocator implements Geolocator
             return $none;
         }
 
+        [$status, $body] = $this->request($ip);
+        if ($body === false || $status !== 200) return $none;
+
+        $decoded = json_decode((string) $body, true);
+        if (!is_array($decoded)) return $none;
+
+        return [
+            'city' => self::text($decoded['city'] ?? null, 100),
+            // `country` is alpha-2 from ipinfo. Anything else is not a country code, and
+            // a CHAR(2) column would silently truncate it into a wrong one.
+            'country' => is_string($decoded['country'] ?? null)
+                && preg_match('/^[A-Za-z]{2}$/D', $decoded['country']) === 1
+                ? strtoupper($decoded['country'])
+                : null,
+        ];
+    }
+
+    /** A bounded, sanitized diagnostic for the authenticated admin stats page. */
+    public function diagnostic(string $ip): array
+    {
+        if ($this->token === '' || !self::routable($ip)) {
+            return ['status' => null, 'ok' => false, 'result' => null];
+        }
+        [$status, $body] = $this->request($ip);
+        $decoded = is_string($body) ? json_decode($body, true) : null;
+        $result = is_array($decoded) ? [] : null;
+        if (is_array($decoded)) {
+            foreach (['ip', 'hostname', 'city', 'region', 'country', 'postal', 'timezone', 'org'] as $key) {
+                if (isset($decoded[$key]) && is_scalar($decoded[$key])) $result[$key] = self::text((string) $decoded[$key], 160);
+            }
+        }
+        return ['status' => $status, 'ok' => $status === 200 && $result !== null, 'result' => $result];
+    }
+
+    public function referer(): string
+    {
+        return $this->referer;
+    }
+
+    /** @return array{0: int, 1: string|false} */
+    private function request(string $ip): array
+    {
         $handle = curl_init('https://ipinfo.io/' . urlencode($ip) . '/json');
         curl_setopt_array($handle, [
             CURLOPT_RETURNTRANSFER => true,
@@ -79,25 +121,7 @@ final class IpInfoGeolocator implements Geolocator
         $body = curl_exec($handle);
         $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
         curl_close($handle);
-
-        if ($body === false || $status !== 200) {
-            return $none;
-        }
-
-        $decoded = json_decode((string) $body, true);
-        if (!is_array($decoded)) {
-            return $none;
-        }
-
-        return [
-            'city' => Analytics::text($decoded['city'] ?? null, 100),
-            // `country` is alpha-2 from ipinfo. Anything else is not a country code, and
-            // a CHAR(2) column would silently truncate it into a wrong one.
-            'country' => is_string($decoded['country'] ?? null)
-                && preg_match('/^[A-Za-z]{2}$/D', $decoded['country']) === 1
-                ? strtoupper($decoded['country'])
-                : null,
-        ];
+        return [$status, $body];
     }
 
     /**

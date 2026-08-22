@@ -183,7 +183,9 @@ inherits the admin directory's noindex/no-store headers. The screen has two tabs
   `?a=analytics&days=N`. Per-game analytics are a client-side sortable table;
   changing a sort header makes no new request. Countries form a master table,
   and selecting one displays its sortable city detail table. Referrers remain
-  aggregated by host.
+  aggregated by host. The same route includes an authenticated IPinfo diagnostic
+  for `8.8.8.8`, showing the configured Referer, response status and sanitized
+  location fields without exposing the token.
 
 Full page replace on every tab or window switch, the same style `signIn()`/`render()`
 already use elsewhere in this file — one user, and the cost of tracking which half of

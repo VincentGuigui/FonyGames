@@ -291,6 +291,8 @@ group('ipinfo authentication and site identity are explicit headers');
     check('App supplies its configured site origin', str_contains((string) $appSource, "\$this->config['site_origin']"));
     $workflow = file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/main.yml');
     check('the deploy selects that origin from hosts.json', str_contains((string) $workflow, 'hosts.environments?.[process.argv[1]]'));
+    $index = file_get_contents(dirname(__DIR__) . '/index.php');
+    check('the authenticated diagnostic action exists', str_contains((string) $index, "case 'ipinfo-diagnostic'"));
 }
 
 group('the endpoint and the client agree on the vocabulary');

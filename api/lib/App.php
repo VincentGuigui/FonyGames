@@ -232,6 +232,16 @@ final class App
         );
     }
 
+    /** Diagnostic used only by the authenticated admin stats route. */
+    public function ipInfoDiagnostic(): array
+    {
+        $token = (string) $this->config['ipinfo_token'];
+        $referer = rtrim((string) $this->config['site_origin'], '/');
+        if ($token === '') return ['ip' => '8.8.8.8', 'referer' => $referer, 'diagnostic' => ['status' => null, 'ok' => false, 'result' => null]];
+        $geo = new IpInfoGeolocator($token, $referer);
+        return ['ip' => '8.8.8.8', 'referer' => $geo->referer(), 'diagnostic' => $geo->diagnostic('8.8.8.8')];
+    }
+
     public function health(): Health
     {
         return new Health();
