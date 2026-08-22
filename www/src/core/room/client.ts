@@ -49,6 +49,20 @@ export type RoomEvents = {
 };
 
 const BACKOFF_MS = [500, 1000, 2000, 4000, 8000, 15000];
+export const RESULT_HOLD_MS = 500;
+
+/** Frames that replace a live board with a round or match result. */
+export function endsPresentation(msg: ServerMessage): boolean {
+  switch (msg.t) {
+    case 'result': case 'steady-end': case 'hunt-end': case 'rush-end': case 'spill-over':
+    case 'siege-over': case 'sling-over': case 'cm-over': return true;
+    case 'boom': return msg.d.over;
+    case 'grid': case 'squash': case 'neon': case 'taptap': return msg.d.phase === 'done';
+    case 'tttt': return msg.d.phase === 'over';
+    case 'fighter': return msg.d.phase === 'round-over' || msg.d.phase === 'match-over';
+    default: return false;
+  }
+}
 
 export class RoomClient {
   #url: string;
@@ -59,6 +73,7 @@ export class RoomClient {
   #attempt = 0;
   #closedByUs = false;
   #reconnectTimer: number | null = null;
+  #endTimer: number | null = null;
 
   /** Our seat, replayed on reconnect so the server gives it back. */
   #playerId: PlayerId | null = null;
@@ -120,6 +135,10 @@ export class RoomClient {
     }
     this.#ws?.close(1000, 'client-close');
     this.#ws = null;
+    if (this.#endTimer !== null) clearTimeout(this.#endTimer);
+    this.#endTimer = null;
+    const app = typeof document === 'undefined' ? null : document.getElementById('app');
+    if (app) app.inert = false;
     this.#setStatus('closed');
   }
 
@@ -209,7 +228,7 @@ export class RoomClient {
       case 'result':
         if (msg.s <= this.#seq) return;
         this.#seq = msg.s;
-        this.#handlers.result?.(msg.d);
+        this.#holdBoard(() => this.#handlers.result?.(msg.d));
         return;
 
       case 'error':
@@ -227,7 +246,8 @@ export class RoomClient {
           if (msg.s <= this.#seq) return;
           this.#seq = msg.s;
         }
-        this.#handlers.game?.(msg);
+        if (endsPresentation(msg)) this.#holdBoard(() => this.#handlers.game?.(msg));
+        else this.#handlers.game?.(msg);
         return;
     }
   }
@@ -240,6 +260,17 @@ export class RoomClient {
       this.#reconnectTimer = null;
       this.#open(profile);
     }, delay) as unknown as number;
+  }
+
+  #holdBoard(deliver: () => void): void {
+    const app = typeof document === 'undefined' ? null : document.getElementById('app');
+    if (app) app.inert = true;
+    if (this.#endTimer !== null) clearTimeout(this.#endTimer);
+    this.#endTimer = setTimeout(() => {
+      this.#endTimer = null;
+      deliver();
+      if (app) app.inert = false;
+    }, RESULT_HOLD_MS) as unknown as number;
   }
 
   #setStatus(status: RoomStatus): void {
