@@ -6,6 +6,7 @@ import './core/ui/theme.css';
 import './lobby/lobby.css';
 import './core/ui/game-chrome.css';
 import './games/tap-fighter/tap-fighter.css';
+import './games/tap-fighter/rhythm.css';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('#app missing from index.html');

@@ -9,7 +9,7 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { soloTesting } from '../../core/solo';
+import { useSoloTesting } from '../../core/useSolo';
 import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
@@ -58,7 +58,7 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     [game],
   );
 
-  const solo = soloTesting();
+  const solo = useSoloTesting();
   const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;

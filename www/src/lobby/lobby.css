@@ -853,3 +853,15 @@ a.btn {
 .disclosure[open] .disclosure__chevron {
   transform: rotate(-135deg);
 }
+
+.lobby__solo-admin {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--game-accent);
+  border-radius: var(--radius);
+  color: var(--game-accent);
+  font-weight: 700;
+}

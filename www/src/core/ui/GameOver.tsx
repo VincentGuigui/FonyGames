@@ -8,6 +8,7 @@ import { useT } from '../i18n/strings';
 import type { Room } from '../room/useRoom';
 import { guestsReady } from '../../../../shared/readiness';
 import { ReadyButton } from './ReadyButton';
+import { playOutcomeSound, type OutcomeSounds } from '../audio/outcome';
 
 /**
  * The end of a round, in every game.
@@ -122,6 +123,7 @@ export function GameOver({
   room,
   readyBlocked = false,
   onReadySetup,
+  sounds,
 }: {
   /**
    * For the two activity events this screen is solely responsible for reporting:
@@ -160,6 +162,8 @@ export function GameOver({
   readyBlocked?: boolean | undefined;
   /** Lets a late spectator answer the sensor primer without leaving the result. */
   onReadySetup?: (() => void) | undefined;
+  /** Optional per-game replacements for the shared win/lose cues. */
+  sounds?: OutcomeSounds | undefined;
 }): JSX.Element {
   const settled = useSettled();
   const t = useT();
@@ -180,6 +184,12 @@ export function GameOver({
   const everybodyReady = guestsReady(room?.room?.players ?? [], room?.room?.hostId ?? null);
   const hostView = room?.isHost ?? canAct;
   const hostCanAct = canAct && !readyBlocked && everybodyReady;
+
+  useEffect(() => {
+    if (typeof me !== 'string' || winner === null) return;
+    const kind = winner === me ? 'win' : 'lose';
+    playOutcomeSound(kind, sounds?.[kind]);
+  }, [winner, me]);
 
   return (
     <section class="gameover" aria-label="Result">

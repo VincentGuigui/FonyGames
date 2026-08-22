@@ -421,6 +421,17 @@ Nine games had nine endings, in two families:
   left over and wrapped it mid-number. A row with nothing to say renders no second line
   at all, so a game not using it keeps one line per player.
 
+- **The board holds for 0.5 seconds before any result panel.** The room client delays
+  delivery of every authoritative round/match-end frame for 500 ms and marks the existing
+  app tree `inert` during that hold. The last board frame therefore remains visible but
+  cannot accept another action. This is shared protocol presentation, not fifteen copied
+  timers in fifteen games.
+- **Every decided result has a sound.** The shared result component synthesizes the same
+  short ascending win cue or descending lose cue after the board hold. The audio context
+  is armed by an earlier ordinary game tap; sound never delays or decides a result. A game
+  may pass its own `win`/`lose` cue through `GameOverScreen.sounds`, but silence is not an
+  override. Draws have no winner/loser cue.
+
 - **Nothing takes a tap for the first two seconds.** Half the catalogue ends a round with
   a thumb still going — Grid Attack and Pass the Bomb are mashing games, Tap Duel's whole
   skill is tapping the instant something appears — and the panel lands under the finger

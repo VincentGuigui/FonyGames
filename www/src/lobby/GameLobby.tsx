@@ -1,5 +1,5 @@
 import type { ComponentChildren, JSX } from 'preact';
-import { useContext, useState } from 'preact/hooks';
+import { useContext, useEffect, useState } from 'preact/hooks';
 import type { PlayerId } from '../../../shared/protocol';
 import type { GameCard } from '../core/types';
 import type { Room } from '../core/room/useRoom';
@@ -10,7 +10,8 @@ import { LocalePicker } from '../core/ui/LocalePicker';
 import { useT } from '../core/i18n/strings';
 import { track } from '../core/analytics';
 import { ArrivedByLink } from './arrival';
-import { soloTesting } from '../core/solo';
+import { hasAdminSession, setSoloTesting } from '../core/solo';
+import { useSoloTesting } from '../core/useSolo';
 import { guestsReady } from '../../../shared/readiness';
 import { ReadyButton } from '../core/ui/ReadyButton';
 
@@ -85,10 +86,12 @@ export function GameLobby({
    * room, and threading it through seven call sites would invite one of them to pass
    * something different from what its start button actually sends.
    */
-  const solo = soloTesting();
+  const solo = useSoloTesting();
+  const [admin, setAdmin] = useState(false);
   const [editing, setEditing] = useState(false);
   const t = useT();
   const everybodyReady = guestsReady(room.room?.players ?? [], room.room?.hostId ?? null);
+  useEffect(() => { void hasAdminSession().then(setAdmin); }, []);
 
   return (
     <div class="lobby" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
@@ -120,6 +123,15 @@ export function GameLobby({
         <p class="lobby__error" role="alert">
           {room.error}
         </p>
+      )}
+
+      {admin && (
+        <section class="lobby__solo-admin" aria-label={t.lobby.soloAdminLabel}>
+          <span>{t.lobby.soloAdminLabel}</span>
+          <button class="btn" type="button" aria-pressed={solo} onClick={() => setSoloTesting(!solo)}>
+            {solo ? t.lobby.soloDisable : t.lobby.soloEnable}
+          </button>
+        </section>
       )}
 
       {/*

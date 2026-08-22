@@ -27,18 +27,20 @@ any unresolved meta cell. The screen zooms into that board, and the two players
 play ordinary alternating tic-tac-toe there, with the chooser making the first
 move using their own fixed symbol. When that small
 board ends, it zooms back out and its meta cell becomes the small-board winner's
-symbol. A drawn small board becomes closed and stays blank. The other player
+symbol. A drawn small board becomes blocked. If the meta grid fills without a
+winning line, every blocked cell reopens for another small round. The other player
 chooses the next unresolved meta cell, and the loop repeats.
 
 1. Choose an unresolved cell in the meta grid.
 2. Zoom into its 3×3 board and alternate X/O taps.
-3. Zoom out and claim the meta cell, or close it as a draw.
+3. Zoom out and claim the meta cell, or block it as a draw.
 4. Hand meta-cell choice to the other player.
 5. Continue until the meta board is won or has no unresolved cells.
 
 **Win condition:** three claimed X or O meta cells in a row, column or diagonal
 wins the match. If all nine small boards are closed without a meta line, the
-match is a draw.
+match is a draw only when it fills without a line and has no blocked cells to
+reopen.
 **Scoring:** none. There is one winner, one loser, or a draw — no points or
 carry-over tally.
 
@@ -70,7 +72,9 @@ Every mode shares the core loop. A mode that doesn't is a different game.
 - **Results:** the shared end screen names the meta winner or draw and shows the
   final meta grid. No score panel is shown.
 
-The zoom is cosmetic and keyed to the server's `zoomAt` time. A reduced-motion
+The zoom lasts 1000 ms and is keyed to the server's `zoomAt` time. Reopened cells
+blink and fade their blocked dot out while their empty mini grid fades in over
+the same 1000 ms. A reduced-motion
 preference skips the animation but preserves the same state sequence.
 
 ## 5. Inputs & sensors
@@ -107,7 +111,8 @@ the same event.
 | Host leaves in the lobby | Normal room host reassignment applies before start |
 | A small board is a draw | Its meta cell closes blank; the other player chooses next |
 | A meta line appears | The match ends immediately; unresolved small boards stop accepting taps |
-| All nine small boards close with no line | The match ends as a draw |
+| Meta grid fills with no line and has blocked cells | Every blocked cell clears and becomes playable again after its 1000 ms transition |
+| Meta grid fills with no line and no blocked cells | The match ends as a draw |
 | Backgrounded tab | On return, render the latest authoritative phase and board; never resume a stale zoom or turn |
 | Duplicate or stale tap | Ignore by round id, phase, turn and cell bounds |
 
@@ -150,7 +155,7 @@ room's existing optional nickname are added.
   The chooser starts each selected small board with their own symbol, then hands
   chooser duty to the other player after every small board. Confirm this
   alternating advantage is desired.
-- **Drawn small boards:** this draft closes a drawn cell blank and continues;
-  confirm that a draw should not be replayable.
+- **Drawn small boards:** a draw blocks the cell until a full meta grid has no
+  winner, then all blocked cells reopen together.
 - **Forfeit:** this draft awards the match to the remaining player rather than
   claiming the current small board; confirm the desired leave behaviour.

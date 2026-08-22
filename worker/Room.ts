@@ -23,7 +23,7 @@ import {
   type RoomSnapshot,
   type ServerMessage,
 } from '../shared/protocol';
-import { PLAYERS } from '../shared/players';
+import { enoughToStart, PLAYERS } from '../shared/players';
 import { guestsReady } from '../shared/readiness';
 import { playsUrl, reportPlay, roundKey } from './plays';
 /*
@@ -728,7 +728,7 @@ export class Room extends DurableObject<Env> {
     // and spectate, which is a designed behaviour — Sling Puck is exactly two and
     // shows a third player the board with `spectating` set.
     const [duelMin, duelMax] = PLAYERS['tap-duel'];
-    if (connected.length < duelMin || connected.length > duelMax) return;
+    if (!enoughToStart(connected.length, [duelMin, duelMax], solo)) return;
 
     const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
     const spread = FIRE_MAX_MS - FIRE_MIN_MS;

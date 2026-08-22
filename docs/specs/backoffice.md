@@ -454,7 +454,10 @@ The admin centre is PHP behind a magic-link session; the game pages are static f
 talking to a Worker and have no session of their own. There is no shared login to
 consult — but there **is** the browser you signed in with, so the admin page writes
 `fony.solo` to `localStorage` ([`www/src/core/solo.ts`](../../www/src/core/solo.ts))
-and the game lobbies read it, sending `solo: true` with `start`.
+and the game lobbies read it, sending `solo: true` with `start`. Every shared game
+lobby also checks the HttpOnly admin session through the same-origin API. Only an
+authenticated admin browser sees the Enable/Disable solo-testing switch there;
+changing it updates every mounted game screen in that browser immediately.
 
 That is a convenience, not a control. Anyone can set the same key from a console, and
 what they win is the ability to play by themselves in their own room. The same

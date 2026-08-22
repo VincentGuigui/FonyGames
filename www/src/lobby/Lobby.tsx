@@ -3,7 +3,8 @@ import type { JSX } from 'preact';
 import type { GameCard } from '../core/types';
 import type { PlayerId, RoundResult } from '../../../shared/protocol';
 import { useGameRoom } from '../core/room/useRoom';
-import { PLAYERS } from '../../../shared/players';
+import { enoughToStart, PLAYERS } from '../../../shared/players';
+import { useSoloTesting } from '../core/useSolo';
 import { RoomGate } from './RoomGate';
 import { GameLobby } from './GameLobby';
 import { RulesPanel } from '../core/ui/RulesPanel';
@@ -35,6 +36,7 @@ export function Lobby(props: { game: GameCard }): JSX.Element {
 function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Element {
   const t = useT();
   const text = useGameText();
+  const solo = useSoloTesting();
   const [phase, setPhase] = useState<DuelPhase>('idle');
   const [result, setResult] = useState<RoundResult | null>(null);
   /**
@@ -114,7 +116,7 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
   }, [client]);
 
   function startDuel(): void {
-    client?.send({ t: 'start', d: { mode: 'pistol' } });
+    client?.send({ t: 'start', d: { mode: 'pistol', solo } });
   }
 
   function tap(): void {
@@ -123,14 +125,13 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
     // Sent as our clock-corrected server time; the server re-validates it.
     client.send({ t: 'tap', d: { at: client.now(), roundId } });
     // Local feedback only — the server decides the outcome.
-    setPhase((p) => (p === 'fire' ? 'result' : p === 'armed' ? 'burned' : p));
+    setPhase((p) => (p === 'fire' ? 'submitted' : p === 'armed' ? 'burned' : p));
   }
 
   const [minPlayers, maxPlayers] = PLAYERS['tap-duel'];
   // Matches what the server will accept. Offering Start when the referee would
   // refuse it is the silent no-op this project keeps having to fix.
-  const canStart =
-    room.isHost && room.connected >= minPlayers && room.connected <= maxPlayers;
+  const canStart = room.isHost && enoughToStart(room.connected, [minPlayers, maxPlayers], solo);
 
   if (phase !== 'idle') {
     return (

@@ -28,6 +28,8 @@
  */
 
 const KEY = 'fony.solo';
+const CHANGE = 'fony:solo-change';
+let adminCheck: Promise<boolean> | null = null;
 
 /** Is this browser allowed to start a round on its own? */
 export function soloTesting(): boolean {
@@ -45,7 +47,26 @@ export function setSoloTesting(on: boolean): void {
   try {
     if (on) localStorage.setItem(KEY, '1');
     else localStorage.removeItem(KEY);
+    window.dispatchEvent(new Event(CHANGE));
   } catch {
     /* nothing to do — see above */
   }
+}
+
+export function subscribeSoloTesting(refresh: () => void): () => void {
+  window.addEventListener(CHANGE, refresh);
+  window.addEventListener('storage', refresh);
+  return () => { window.removeEventListener(CHANGE, refresh); window.removeEventListener('storage', refresh); };
+}
+
+/** The HttpOnly admin session can only be checked by asking the same-origin API. */
+export function hasAdminSession(): Promise<boolean> {
+  adminCheck ??= fetch('/api/index.php?a=state', { credentials: 'same-origin' })
+    .then(async (response) => {
+      if (response.status !== 200 || !response.headers.get('content-type')?.includes('application/json')) return false;
+      const body = await response.json() as { flags?: unknown };
+      return typeof body.flags === 'object' && body.flags !== null;
+    })
+    .catch(() => false);
+  return adminCheck;
 }

@@ -10,6 +10,7 @@ import { useLocale } from '../core/i18n/LocaleContext';
 import { useT } from '../core/i18n/strings';
 import { localizeCard } from '../core/i18n/localizeCard';
 import { track } from '../core/analytics';
+import { prepareOutcomeAudio } from '../core/audio/outcome';
 
 /** Which room the player is in, and how they got there. */
 type Entered = { code: string; byLink: boolean };
@@ -72,6 +73,7 @@ export function RoomGate({
    * component's position, the two are indistinguishable and equally a join.
    */
   useEffect(() => {
+    prepareOutcomeAudio();
     track('game_select', game.slug);
     if (entered !== null && entered.byLink) {
       track('room_join', game.slug);
