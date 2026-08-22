@@ -51,6 +51,8 @@ export function Duel(props: {
   onAgain: () => void;
   /** Where the target starts, as fractions of the viewport. From the server. */
   target: { x: number; y: number } | null;
+  /** The target shrinks by 30% after every duel in the current match. */
+  targetScale: number;
   /**
    * The round's timing, for the drift: it runs from `startsAt` and freezes at
    * `fireAt`. Null outside a live round.
@@ -75,7 +77,7 @@ export function Duel(props: {
   rules: string[];
 }): JSX.Element | null {
   const text = useGameText();
-  const { players, me, phase, result, tally, onTap, onAgain, isHost, title, concept, rules, target, accent, slug } =
+  const { players, me, phase, result, tally, onTap, onAgain, isHost, title, concept, rules, target, targetScale, accent, slug } =
     props;
   const { armed, now } = props;
   /*
@@ -324,6 +326,7 @@ export function Duel(props: {
         left: `${visible.x * 100}%`,
         top: `${visible.y * 100}%`,
         ...(fire ? { transform: 'translate(-50%, -50%)' } : {}),
+        '--target-scale': targetScale,
       }}
     >
       {fire ? (
