@@ -49,7 +49,10 @@ export default defineConfig({
         // that was four extra requests on the one page with a first-load target.
         // Absorbing chunks this small into their importers duplicates a few hundred
         // bytes and puts the hub back to one request.
-        experimentalMinChunkSize: 4000,
+        // Keep per-route chunks isolated. A larger value causes Rollup to merge small
+        // game helpers into an arbitrary shared chunk (previously motion), which made
+        // every game preload the motion, photosphere and audio bundles.
+        experimentalMinChunkSize: 0,
       },
     },
     // Payload budget in docs/architecture.md §4 is 150 KB gzipped for the hub.
