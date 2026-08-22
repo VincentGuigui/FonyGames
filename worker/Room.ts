@@ -23,7 +23,7 @@ import {
   type RoomSnapshot,
   type ServerMessage,
 } from '../shared/protocol';
-import { enoughToStart, PLAYERS } from '../shared/players';
+import { BUILT_GAMES, enoughToStart, PLAYERS } from '../shared/players';
 import { guestsReady } from '../shared/readiness';
 import { playsUrl, reportPlay, roundKey } from './plays';
 /*
@@ -399,6 +399,10 @@ export class Room extends DurableObject<Env> {
       case 'fighter-lock': {
         const id = this.#idOf(ws); if (id) await onFighterLock(this.#fighterCtx(), id, msg.d.roundId, msg.d.actions, msg.d.seat); return;
       }
+      case 'switch-game': {
+        await this.#onSwitchGame(ws, msg.d.game, msg.d.bring);
+        return;
+      }
       case 'neon-steer': {
         const id = this.#idOf(ws);
         if (id) await neonSteer(this.#neonCtx(), id, msg.d.roundId, msg.d.steer);
@@ -770,6 +774,30 @@ export class Room extends DurableObject<Env> {
     // The server owns the timer, not the host — so a host dropping mid-duel
     // cannot stall it. This alarm resolves the duel if nobody taps.
     await this.#rearm(players);
+  }
+
+  async #onSwitchGame(ws: WebSocket, game: string, bring: boolean): Promise<void> {
+    if (!bring || !/^[a-z][a-z0-9-]{0,31}$/.test(game)) return;
+    const id = this.#idOf(ws);
+    const hostId = await this.ctx.storage.get<PlayerId>('hostId');
+    if (!id || !hostId || id !== hostId) return;
+    if (!(BUILT_GAMES as readonly string[]).includes(game)) return;
+    const limits = (PLAYERS as Record<string, readonly [number, number]>)[game];
+    if (!limits) return;
+    const players = await this.#players();
+    const connected = [...players.values()].filter((player) => player.connected);
+    if (!enoughToStart(connected.length, limits, false)) {
+      this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
+      return;
+    }
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'tttt', 'fighter', 'roundId', 'scores']) {
+      await this.ctx.storage.delete(key);
+    }
+    for (const player of players.values()) player.ready = false;
+    await this.#savePlayers(players);
+    await this.ctx.storage.put('game', game);
+    const code = (await this.ctx.storage.get<string>('code')) ?? '';
+    this.#broadcast({ t: 'room-redirect', s: this.#nextSeq(), d: { code, game } });
   }
 
   async #onTap(ws: WebSocket, d: { at: number; roundId: number }): Promise<void> {

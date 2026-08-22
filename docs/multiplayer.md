@@ -34,6 +34,20 @@ so a host leaving never kills the game.
 ```
 Hub → Game card → "Play"
    → Lobby: mode picker (host) · player list · room code + QR + share button
+
+### Explicit host game switching
+
+The first connection still fixes `CODE → game`; a code alone can never repoint an
+active room. The exception is an explicit `switch-game` message sent while the
+current socket is still authenticated as `hostId`. The host chooses a built game,
+confirms bringing everyone, and the Durable Object checks the connected roster
+against the destination game's `[min,max]` limits before clearing the old game
+state and broadcasting `room-redirect` with the same code. Every browser then
+navigates to the destination game's `/<slug>/#<code>` lobby together. A declined
+confirmation navigates only the host to the normal create/join screen; the old
+room remains untouched. Mid-round gear menus, lobby controls and result panels
+all use this same action, so there is no post-navigation host inference or code
+hijack window.
    → Permission primer (only for the sensors this mode needs)
    → Countdown (3·2·1)
    → Round

@@ -5,6 +5,7 @@ import { roomServerUrl } from './config';
 import { loadSeat, saveSeat } from './seat';
 import { generateRoomCode, isRoomCode, ROOM_CODE_GROUP, ROOM_CODE_LENGTH } from './code';
 import { loadProfile, saveProfile } from '../profile';
+import { clearActiveRoom, setActiveRoom, updateActiveSnapshot } from './active';
 
 /**
  * What the URL hash says about which room we are in.
@@ -135,13 +136,14 @@ export function useRoom(
     // same player instead of spawning a ghost alongside the old one.
     const client = new RoomClient(roomServerUrl(), code, game, loadSeat(code));
     clientRef.current = client;
+    setActiveRoom({ client, code, game, room: null });
     client.on('status', setStatus);
-    client.on('presence', setRoom);
+    client.on('presence', (next) => { setRoom(next); updateActiveSnapshot(next); });
     client.on('error', setError);
     client.on('seat', (id) => saveSeat(code, id));
     client.on('game', (msg) => gameRef.current?.(msg));
     client.connect(loadProfile());
-    return () => client.close();
+    return () => { clearActiveRoom(client); client.close(); };
   }, [code, game]);
 
   const me = room?.players.find((p) => p.id === clientRef.current?.playerId);

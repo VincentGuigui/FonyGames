@@ -59,6 +59,13 @@ export const PLAYERS = {
 
 export type GameSlug = keyof typeof PLAYERS;
 
+/** Routes with implemented game pages; idea/soon cards cannot be switch targets. */
+export const BUILT_GAMES = [
+  'tap-duel', 'tap-fighter', 'spill', 'pass-the-bomb', 'goat-siege', 'sling-puck',
+  'cat-and-mouse', 'shake-rush', 'steady-hand', 'ghost-hunt', 'grid-attack',
+  'squash-mosquitoes', 'neon-fall', 'tap-tap-revolution', 'tic-tac-tic-tac-toe',
+] as const;
+
 /**
  * Solo test mode: one operator, one phone, no game rules bent except the two that
  * make a solo round impossible to look at.

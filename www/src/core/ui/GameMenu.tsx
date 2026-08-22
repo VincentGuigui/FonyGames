@@ -3,6 +3,7 @@ import type { ComponentChildren, JSX } from 'preact';
 import { HowToPlay } from './HowToPlay';
 import { Sheet } from './Sheet';
 import { useT } from '../i18n/strings';
+import { GameSwitcher } from '../../lobby/GameSwitcher';
 
 /**
  * The in-game menu: a gear in the corner of every game, opening a sheet.
@@ -55,6 +56,8 @@ export function GameMenu({
           <HowToPlay concept={concept} rules={rules} />
 
           {children}
+
+          <GameSwitcher />
 
           {/* A real link, not a router call: leaving the page is what drops
               the socket and frees the seat. */}
