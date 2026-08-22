@@ -38,6 +38,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Squash Mosquitoes](games/squash-mosquitoes.md) | *Squash all 66 before anyone else does* | touch | 2–8 | 🚧 building |
 | [Neon Fall](games/neon-fall.md) | *Dodge five lanes of neon fire, or shoot down what falls* | orientation + touch | 2 | 🎮 beta — plain `<canvas>`; numbers untested on real phones tilting |
 | [Tap Tap Revolution](games/tap-tap-revolution.md) | *Five circles light up at once. A miss only costs the last ten* | touch | 2–8 | 🎮 beta — checkpoint and window size untested on real thumbs |
+| [Tic-Tac-Tic-Tac-Toe](games/tic-tac-tic-tac-toe.md) | *Win the little boards to conquer the big one* | touch | 2 | 📝 draft — awaiting approval |
 
 ### Idea notes (not yet specs)
 
