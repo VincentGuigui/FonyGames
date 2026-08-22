@@ -29,5 +29,7 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
 }
 function Board({ state, onSelect, onTap }: { state: TttState; onSelect: (i: number) => void; onTap: (i: number) => void }): JSX.Element {
   const mini = (cells: readonly (string | null)[], click?: (i: number) => void) => <div class="tttt-mini">{cells.map((v, i) => <button type="button" class="tttt-cell" disabled={!click || v !== null} onClick={() => click?.(i)}>{v?.toUpperCase() ?? ''}</button>)}</div>;
-  return <section class={`tttt-board ${state.phase === 'playing' ? 'is-playing' : ''}`}>{state.phase === 'playing' ? mini(state.small, onTap) : state.meta.map((v, i) => <button type="button" class="tttt-meta" disabled={v !== null} onClick={() => onSelect(i)}>{mini(Array(9).fill(v === 'draw' ? '·' : v), undefined)}</button>)}</section>;
+  return <section class={`tttt-board ${state.phase === 'playing' ? 'is-playing' : ''}`}>
+    {state.phase === 'playing' ? mini(state.small, onTap) : state.meta.map((v, i) => v === 'x' || v === 'o' ? <div class="tttt-meta tttt-meta--claimed" aria-label={`Cell ${v.toUpperCase()}`}>{v.toUpperCase()}</div> : <button type="button" class="tttt-meta" disabled={v !== null} onClick={() => onSelect(i)}>{v === 'draw' ? <span class="tttt-draw">·</span> : mini(Array(9).fill(null), undefined)}</button>)}
+  </section>;
 }
