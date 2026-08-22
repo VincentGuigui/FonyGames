@@ -44,6 +44,7 @@ export default defineConfig({
         // path cannot be committed (docs/deployment.md §3.4).
         ops: 'www/ops-placeholder/index.html',
         'ops-stats': 'www/ops-placeholder/stats/index.html',
+        'ops-stats-diagnostic': 'www/ops-placeholder/stats/diagnostic/index.html',
       },
       output: {
         // A card imported by BOTH the hub and its own game page would otherwise be

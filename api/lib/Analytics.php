@@ -92,9 +92,17 @@ final class IpInfoGeolocator implements Geolocator
         $decoded = is_string($body) ? json_decode($body, true) : null;
         $result = is_array($decoded) ? [] : null;
         if (is_array($decoded)) {
-            foreach (['ip', 'hostname', 'city', 'region', 'country', 'postal', 'timezone', 'org'] as $key) {
-                if (isset($decoded[$key]) && is_scalar($decoded[$key])) $result[$key] = self::text((string) $decoded[$key], 160);
-            }
+            $clean = static function (mixed $value, int $depth = 0) use (&$clean): mixed {
+                if ($depth > 3) return null;
+                if (is_scalar($value)) return self::text((string) $value, 500);
+                if (!is_array($value)) return null;
+                $out = [];
+                foreach ($value as $key => $child) {
+                    if (is_string($key)) $out[$key] = $clean($child, $depth + 1);
+                }
+                return $out;
+            };
+            $result = $clean($decoded);
         }
         return ['status' => $status, 'ok' => $status === 200 && $result !== null, 'result' => $result];
     }

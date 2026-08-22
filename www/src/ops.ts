@@ -307,6 +307,9 @@ function stats(tab: StatsTab = 'analytics'): void {
   const back = el('a', 'ops__link', '← back');
   back.href = '../';
   head.append(back);
+  const diagnosticLink = el('a', 'ops__link', 'IPinfo diagnostic');
+  diagnosticLink.href = 'diagnostic/';
+  head.append(diagnosticLink);
   root!.append(head);
 
   const tabs = el('div', 'ops__controls');
@@ -333,10 +336,20 @@ function stats(tab: StatsTab = 'analytics'): void {
   } else {
     void loadAnalytics(panel, 7);
   }
-  const diagnostic = el('section', 'ops__log ops__diagnostic');
-  diagnostic.append(el('p', 'ops__note', 'Checking IPinfo diagnostic…'));
-  root!.append(diagnostic);
-  void loadIpInfoDiagnostic(diagnostic);
+}
+
+function diagnosticPage(): void {
+  root!.replaceChildren();
+  const head = el('header', 'ops__head');
+  head.append(el('h1', 'ops__title', 'IPinfo diagnostic'));
+  const back = el('a', 'ops__link', '← back to stats');
+  back.href = '../';
+  head.append(back);
+  root!.append(head);
+  const panel = el('section', 'ops__log ops__diagnostic');
+  panel.append(el('p', 'ops__note', 'Checking IPinfo diagnostic…'));
+  root!.append(panel);
+  void loadIpInfoDiagnostic(panel);
 }
 
 /**
@@ -429,21 +442,15 @@ async function loadIpInfoDiagnostic(panel: HTMLElement): Promise<void> {
     return;
   }
   panel.append(el('p', 'ops__note', `Referer: ${String(data['referer'] ?? 'not configured')}`));
-  const diagnostic = (data['diagnostic'] ?? {}) as { status?: number | null; ok?: boolean; result?: Record<string, string> | null };
+  const diagnostic = (data['diagnostic'] ?? {}) as { status?: number | null; ok?: boolean; result?: Record<string, unknown> | null };
   panel.append(el('p', 'ops__note', `IPinfo response: ${diagnostic.status ?? 'not queried'} (${diagnostic.ok ? 'ok' : 'unavailable'})`));
   if (!diagnostic.result || Object.keys(diagnostic.result).length === 0) {
     panel.append(el('p', 'ops__note', 'No lookup result. Configure IPINFO_TOKEN to enable the diagnostic.'));
     return;
   }
-  const table = el('table', 'ops__table');
-  const body = el('tbody');
-  for (const [key, value] of Object.entries(diagnostic.result)) {
-    const row = el('tr');
-    row.append(el('th', undefined, key), el('td', undefined, value));
-    body.append(row);
-  }
-  table.append(body);
-  panel.append(table);
+  const result = el('pre', 'ops__diagnostic-result');
+  result.textContent = JSON.stringify(diagnostic.result, null, 2);
+  panel.append(result);
 }
 
 /** Sorts entirely in this browser; changing a column never repeats the API query. */
@@ -934,6 +941,13 @@ async function boot(): Promise<void> {
     }
   }
 
+  if (/\/stats\/diagnostic\/?$/.test(location.pathname)) {
+    const { status } = await api('usage');
+    if (status === 401) { signIn(); return; }
+    if (status !== 200) { signIn(`The admin API answered ${status}.`); return; }
+    diagnosticPage();
+    return;
+  }
   if (/\/stats\/?$/.test(location.pathname)) {
     const { status } = await api('usage');
     if (status === 401) { signIn(); return; }

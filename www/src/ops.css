@@ -254,6 +254,18 @@ body {
   color: var(--color-accent);
 }
 
+.ops__diagnostic-result {
+  max-height: 32rem;
+  overflow: auto;
+  padding: .8rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: .78rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .ops__master-detail {
   display: grid;
   grid-template-columns: minmax(8rem, 0.8fr) minmax(12rem, 1.2fr);
