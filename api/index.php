@@ -115,14 +115,20 @@ function body(): array
  * a cross-origin request carrying a custom header needs a CORS preflight, and there is
  * no CORS here to succeed at.
  */
+/** 12 hours from the redeem, checked server-side and mirrored in PHP's session storage. */
+const SESSION_TTL_MS = 43_200_000;
+
 function beginSession(): void
 {
     if (session_status() === PHP_SESSION_ACTIVE) {
         return;
     }
 
+    // The default PHP gc_maxlifetime is often 24 minutes, which would discard an
+    // otherwise valid admin session long before our documented 12-hour TTL.
+    ini_set('session.gc_maxlifetime', (string) (SESSION_TTL_MS / 1000));
     session_set_cookie_params([
-        'lifetime' => 0,
+        'lifetime' => (int) (SESSION_TTL_MS / 1000),
         'path' => '/',
         'httponly' => true,
         // Only over HTTPS in production. Computed rather than hardcoded true, or the
@@ -134,9 +140,6 @@ function beginSession(): void
     session_name('fonyops');
     session_start();
 }
-
-/** 12 hours from the redeem, checked here rather than trusted to the cookie. */
-const SESSION_TTL_MS = 43_200_000;
 
 function signedIn(): bool
 {
