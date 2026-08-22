@@ -39,6 +39,7 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
   const o = swap ? ids[0] : ids[1];
   const chooser = swap ? o : x;
   const symbol = (id: PlayerId | null) => id && state?.symbols[id] ? state.symbols[id].toUpperCase() : '';
+  const playerName = (id: PlayerId | null) => players.find((player) => player.id === id)?.name ?? text({ en: 'Player', fr: 'Joueur' });
   const start = () => client?.send({ t: 'start', d: { mode: 'tttt', solo, symbols: { x: x ?? '', o: o ?? '', chooser: chooser ?? '' } } });
 
   if (state?.phase === 'over') {
@@ -49,7 +50,7 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
   if (state) {
     return <main class="tttt-game">
       <h1>{game.title}</h1>
-      <p>{state.phase === 'choosing' ? `${symbol(state.chooser)} ${text({ en: 'chooses a board', fr: 'choisit un plateau' })}` : `${symbol(state.turn)} ${text({ en: 'plays', fr: 'joue' })}`}</p>
+      <p>{state.phase === 'choosing' ? `${playerName(state.chooser)} (${symbol(state.chooser)}) ${text({ en: 'chooses a board', fr: 'choisit le plateau' })}` : `${playerName(state.turn)} (${symbol(state.turn)}) ${text({ en: 'plays', fr: 'joue' })}`}</p>
       <Board state={state} onSelect={(cell) => client?.send({ t: 'tttt-select', d: { roundId: state.roundId, metaCell: cell } })} onTap={(cell) => client?.send({ t: 'tttt-tap', d: { roundId: state.roundId, smallCell: cell } })} />
     </main>;
   }
