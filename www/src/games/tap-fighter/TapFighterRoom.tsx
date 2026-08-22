@@ -101,7 +101,7 @@ function FightScreen({ state, players, me, isHost, onNext, clock }: { state: Tap
     <div class="fighter-score"><span>{nameOf(BLUE)} {pips(state.roundWins.blue)}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(state.roundWins.green)} {nameOf(GREEN)}</span></div>
     <section class="fighter-stage">
       <div class="fighter-side"><FighterSprite key={`b-${beatIndex}`} seat={BLUE} pose={pose(BLUE)} /><HealthBar value={health.blue} seat={BLUE} name={nameOf(BLUE)} /></div>
-      <div class="fighter-versus">{text({ en: 'VS', fr: 'VS' })}</div>
+      <div class="fighter-versus">{nameOf(BLUE)} {text({ en: 'VS', fr: 'VS' })} {nameOf(GREEN)}</div>
       <div class="fighter-side fighter-side--green"><FighterSprite key={`g-${beatIndex}`} seat={GREEN} pose={pose(GREEN)} /><HealthBar value={health.green} seat={GREEN} name={nameOf(GREEN)} /></div>
       {state.phase !== 'fighting' && <div class="fighter-round-overlay"><strong>{roundHeadline}</strong>{isHost ? <button type="button" onClick={onNext}>{text({ en: 'Next round', fr: 'Manche suivante' })}</button> : <p>{text({ en: 'Waiting for the host…', fr: 'En attente de l’hôte…' })}</p>}</div>}
     </section>

@@ -481,6 +481,9 @@ switch ($action) {
         $days = (int) ($_GET['days'] ?? 7);
         reply(200, $app->analytics()->summary($days > 0 ? $days : 7));
 
+    case 'ipinfo-diagnostic':
+        reply(200, $app->ipInfoDiagnostic());
+
         // no break
 }
 
