@@ -72,7 +72,7 @@ final class IpInfoGeolocator implements Geolocator
         if (!is_array($decoded)) return $none;
 
         return [
-            'city' => self::text($decoded['city'] ?? null, 100),
+            'city' => Analytics::text($decoded['city'] ?? null, 100),
             // `country` is alpha-2 from ipinfo. Anything else is not a country code, and
             // a CHAR(2) column would silently truncate it into a wrong one.
             'country' => is_string($decoded['country'] ?? null)
@@ -94,7 +94,7 @@ final class IpInfoGeolocator implements Geolocator
         if (is_array($decoded)) {
             $clean = static function (mixed $value, int $depth = 0) use (&$clean): mixed {
                 if ($depth > 3) return null;
-                if (is_scalar($value)) return self::text((string) $value, 500);
+                if (is_scalar($value)) return Analytics::text((string) $value, 500);
                 if (!is_array($value)) return null;
                 $out = [];
                 foreach ($value as $key => $child) {
