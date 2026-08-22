@@ -237,7 +237,7 @@ final class App
     {
         $token = (string) $this->config['ipinfo_token'];
         $referer = rtrim((string) $this->config['site_origin'], '/');
-        if ($token === '') return ['ip' => '8.8.8.8', 'referer' => $referer, 'diagnostic' => ['status' => null, 'ok' => false, 'result' => null]];
+        if ($token === '') return ['ip' => '8.8.8.8', 'referer' => $referer, 'diagnostic' => ['status' => null, 'ok' => false, 'raw' => null, 'error' => 'IPINFO_TOKEN is not configured', 'result' => null]];
         $geo = new IpInfoGeolocator($token, $referer);
         return ['ip' => '8.8.8.8', 'referer' => $geo->referer(), 'diagnostic' => $geo->diagnostic('8.8.8.8')];
     }

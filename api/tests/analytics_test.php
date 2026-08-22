@@ -293,6 +293,7 @@ group('ipinfo authentication and site identity are explicit headers');
     check('the deploy selects that origin from hosts.json', str_contains((string) $workflow, 'hosts.environments?.[process.argv[1]]'));
     $index = file_get_contents(dirname(__DIR__) . '/index.php');
     check('the authenticated diagnostic action exists', str_contains((string) $index, "case 'ipinfo-diagnostic'"));
+    check('the diagnostic exposes raw and error fields', str_contains((string) $source, "'raw' =>") && str_contains((string) $source, "'error' =>"));
 }
 
 group('the endpoint and the client agree on the vocabulary');
