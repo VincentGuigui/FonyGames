@@ -25,6 +25,7 @@ export default defineConfig({
       input: {
         hub: 'www/index.html',
         'tap-duel': 'www/tap-duel/index.html',
+        'tap-fighter': 'www/tap-fighter/index.html',
         spill: 'www/spill/index.html',
         'goat-siege': 'www/goat-siege/index.html',
         'sling-puck': 'www/sling-puck/index.html',

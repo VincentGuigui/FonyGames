@@ -26,7 +26,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | Tilt Arena | *Tilt to steer, crash to win* | orientation | 2–6 | 💡 idea |
 | [Steady Hand](games/steady-hand.md) | *Hold your phone perfectly still. Longer than everyone else* | motion | 2–8 | 🎮 beta — tolerance curve untested on real hands |
 | [Tap Duel](games/tap-duel.md) | *The fastest thumb in the room takes the round* | touch | 2–8 | 🎮 `pistol` live · `sprint`/`simon` to come |
-| [Tap Fighter](games/tap-fighter.md) | *Pick six moves, then watch the fight unfold* | touch | 2 | 📝 draft — awaiting approval |
+| [Tap Fighter](games/tap-fighter.md) | *Pick six moves, then watch the fight unfold* | touch | 2 | 🎮 beta — balance and animation timing untested on two real phones |
 | Ghost Tag | *One ghost, a whole neighbourhood, and a map that only whispers* | GPS | 3–10 | 💡 idea — **name clashes with Ghost Hunt** |
 | Zone Rush | *Claim real streets by standing on them longer than your rivals* | GPS | 2–10 | 💡 idea |
 | [Ghost Hunt](games/ghost-hunt.md) | *Sweep the room for ghosts only your phone can see* | orientation + camera | 2–10 | 🎮 beta — cone and dwell untested in a real room; **name still clashes with Ghost Tag** |

@@ -9,7 +9,7 @@
 | **Round length** | 15–75 s; first to 3 round wins |
 | **Inputs** | touch |
 | **Accent colour** | `#F97316` orange |
-| **Status** | draft — awaiting approval |
+| **Status** | live · beta |
 
 ## 1. Pitch
 
@@ -131,6 +131,16 @@ Each one-second beat reserves time for anticipation, contact and recovery. A
 hit flash and health-bar change occur at contact, not at the start of the beat.
 The next beat cannot visually begin early.
 
+### 4.1 Rendering decision
+
+Tap Fighter uses original SVG sprite sheets plus CSS pose/impact animation. Two
+fighters, seven discrete poses and six fixed beats need neither a scene graph
+nor a physics engine. PixiJS's previously measured minimal import (~221 KB
+gzipped in this repository) exceeds the per-game budget by itself; Phaser is
+larger and adds a game loop, input system and physics abstractions this design
+would not use. Custom rendering keeps the fighter route small and its timing
+driven directly by the authoritative server timestamps.
+
 ## 5. Inputs & sensors
 
 Touch only. There are no permissions or sensor fallbacks. Every action tile and
@@ -204,13 +214,11 @@ analytics or permanent storage.
 - The action sequence is keyboard-focusable on desktop and exposes slot order,
   action names and lock state to assistive technology.
 
-## 12. Open questions
+## 12. Validated decisions
 
-1. Confirm the normalized health rule: the losing bar always reaches zero,
-   meaning identical impacts can remove different absolute health between
-   rounds depending on the resolved plan.
-2. Confirm that a positive-impact draw should knock both fighters out at zero,
-   while a zero-impact draw leaves both at full health.
-3. Confirm that action repetitions are allowed without a per-action limit.
-4. Confirm that only the host receives an active Next round button; the guest
-   sees a waiting state on the same overlay.
+- Health is normalized per round so the losing bar reaches zero.
+- A positive-impact draw knocks both fighters out at zero; a zero-impact draw
+  leaves both at full health.
+- Actions may repeat without a per-action limit.
+- Only the host receives the active Next round button; the guest sees a waiting
+  state on the same overlay.

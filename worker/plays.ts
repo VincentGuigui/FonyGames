@@ -119,6 +119,9 @@ export function endsRound(msg: ServerMessage): boolean {
     case 'taptap':
       return msg.d.phase === 'done' && msg.d.winner !== null;
 
+    case 'fighter':
+      return msg.d.phase === 'match-over' && msg.d.matchWinner !== null;
+
     default:
       return false;
   }
