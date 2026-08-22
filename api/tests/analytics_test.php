@@ -281,11 +281,16 @@ group('the caller address is read from the proxy headers, and validated');
     ) === '2001:db8::1');
 }
 
-group('ipinfo authentication stays out of the Authorization header');
+group('ipinfo authentication and site identity are explicit headers');
 {
     $source = file_get_contents(dirname(__DIR__) . '/lib/Analytics.php');
-    check('the token uses the documented query parameter', str_contains((string) $source, "'/json?token='"));
-    check('the custom lookup sends no bearer header', !str_contains((string) $source, "'Authorization: Bearer ' . \$this->token"));
+    check('the token is a bearer header', str_contains((string) $source, "'Authorization: Bearer ' . \$this->token"));
+    check('the current site is the Referer header', str_contains((string) $source, "'Referer: ' . \$this->referer"));
+    check('the token is absent from the query string', !str_contains((string) $source, "'/json?token='"));
+    $appSource = file_get_contents(dirname(__DIR__) . '/lib/App.php');
+    check('App supplies its configured site origin', str_contains((string) $appSource, "\$this->config['site_origin']"));
+    $workflow = file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/main.yml');
+    check('the deploy selects that origin from hosts.json', str_contains((string) $workflow, 'hosts.environments?.[process.argv[1]]'));
 }
 
 group('the endpoint and the client agree on the vocabulary');

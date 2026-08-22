@@ -74,9 +74,10 @@ event, written by `api/lib/Analytics.php` through the public endpoint `api/analy
 straight to a `Geolocator` — `IpInfoGeolocator` (ipinfo.io, when `ipinfo_token` is
 configured) or `NoGeolocator` (when it is not) — and then goes out of scope. `city` and
 `country` are the only trace that survives; there is no column, no log line and no
-cache keyed on the address anywhere in this path. The ipinfo token is sent through
-its documented `token` query parameter; the custom analytics call carries no
-`Authorization: Bearer` header. `api/tests/analytics_test.php`
+cache keyed on the address anywhere in this path. The ipinfo request carries the
+token as an `Authorization: Bearer` header and the current environment's public
+FonyGames origin as `Referer`. That origin is selected by environment from
+`shared/hosts.json`, never copied into the PHP client. `api/tests/analytics_test.php`
 asserts the schema has no such column by name, and that a recorded row never contains
 the test address as a substring.
 

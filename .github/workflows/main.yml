@@ -223,14 +223,18 @@ jobs:
         mv dist/ops-placeholder "dist/$ADMIN_PATH"
         cp api/htaccess-admin "dist/$ADMIN_PATH/.htaccess"
 
-        # The origin the magic link points at. From the branch, NOT from
-        # $_SERVER['HTTP_HOST'] at runtime: a poisoned Host header would otherwise mail
-        # the operator a link to somebody else's site carrying a valid token.
+        # The origin for magic links and outbound analytics Referer headers. The current
+        # branch names the environment; shared/hosts.json remains the one hostname map.
+        SITE_HOST="$(node -e '
+          const hosts = require("./shared/hosts.json");
+          const environment = hosts.environments?.[process.argv[1]];
+          if (!environment?.site) process.exit(1);
+          process.stdout.write(environment.site);
+        ' "${{ github.ref_name }}")"
+        SITE_ORIGIN="https://$SITE_HOST"
         if [ "${{ github.ref_name }}" = "prod" ]; then
-          SITE_ORIGIN="https://fonygames.guigui.fr"
           SHOW_ALL="false"
         else
-          SITE_ORIGIN="https://fonygames-dev.guigui.fr"
           # dev shows every game with a badge stating what prod would do, so it is a
           # preview of the catalogue rather than a copy of prod's restrictions
           # (docs/specs/backoffice.md §2b).
