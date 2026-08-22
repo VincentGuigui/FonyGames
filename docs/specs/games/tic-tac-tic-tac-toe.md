@@ -21,10 +21,11 @@ feel like the arena.
 ## 2. Core loop
 
 The lobby shows the empty 3×3 meta board and all nine empty 3×3 small boards.
-The host starts the match; the host is X and the other player is O. The player
-whose turn it is to choose a small board selects any unresolved meta cell. The
-screen zooms into that board, and the two players play ordinary alternating
-tic-tac-toe there, with the chooser making the first move as X. When that small
+The host starts the match; the host keeps X and the other player keeps O for
+the entire match. The player whose turn it is to choose a small board selects
+any unresolved meta cell. The screen zooms into that board, and the two players
+play ordinary alternating tic-tac-toe there, with the chooser making the first
+move using their own fixed symbol. When that small
 board ends, it zooms back out and its meta cell becomes the small-board winner's
 symbol. A drawn small board becomes closed and stays blank. The other player
 chooses the next unresolved meta cell, and the loop repeats.
@@ -145,9 +146,10 @@ room's existing optional nickname are added.
 
 ## 12. Open questions
 
-- **Chooser and first move:** this draft makes the chooser start the selected
-  small board as X, then hands chooser duty to the other player after every
-  small board. Confirm this alternating advantage is desired.
+- **Chooser and first move:** symbols stay fixed for the match (host X, guest O).
+  The chooser starts each selected small board with their own symbol, then hands
+  chooser duty to the other player after every small board. Confirm this
+  alternating advantage is desired.
 - **Drawn small boards:** this draft closes a drawn cell blank and continues;
   confirm that a draw should not be replayable.
 - **Forfeit:** this draft awards the match to the remaining player rather than
