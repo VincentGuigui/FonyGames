@@ -82,6 +82,15 @@ import {
   type Ttt as Tttt,
 } from './ticTacTicTacToe';
 import {
+  nextDeadline as fighterDeadline,
+  onFighterLock,
+  startTapFighter,
+  tick as fighterTick,
+  toState as fighterToState,
+  type Ctx as FighterCtx,
+  type TapFighter,
+} from './tapFighter';
+import {
   onBump as bombBump,
   onFuse as bombFuse,
   onPass as bombPass,
@@ -387,6 +396,9 @@ export class Room extends DurableObject<Env> {
       case 'tttt-tap': {
         const id = this.#idOf(ws); if (id) await onTtttTap(this.#ttttCtx(), id, msg.d.roundId, msg.d.smallCell); return;
       }
+      case 'fighter-lock': {
+        const id = this.#idOf(ws); if (id) await onFighterLock(this.#fighterCtx(), id, msg.d.roundId, msg.d.actions, msg.d.seat); return;
+      }
       case 'neon-steer': {
         const id = this.#idOf(ws);
         if (id) await neonSteer(this.#neonCtx(), id, msg.d.roundId, msg.d.steer);
@@ -552,6 +564,10 @@ export class Room extends DurableObject<Env> {
     if (tttt && tttt.phase !== 'over' && Date.now() >= ttttDeadline(tttt)) {
       await ttttTick(this.#ttttCtx()); await this.#rearm(); return;
     }
+    const fighter = await this.#fighter();
+    if (fighter && Number.isFinite(fighterDeadline(fighter)) && Date.now() >= fighterDeadline(fighter)) {
+      await fighterTick(this.#fighterCtx()); await this.#rearm(); return;
+    }
 
     const chase = await this.#catMouse();
     if (chase && chase.phase === 'running' && Date.now() >= cmDeadline(chase)) {
@@ -656,6 +672,8 @@ export class Room extends DurableObject<Env> {
     if (tapping && tapping.phase !== 'done') return;
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over') return;
+    const fighter = await this.#fighter();
+    if (fighter && (fighter.phase === 'planning' || fighter.phase === 'fighting')) return;
 
     const players = await this.#players();
     const connected = [...players.values()].filter((p) => p.connected);
@@ -675,6 +693,7 @@ export class Room extends DurableObject<Env> {
       mode === 'neon' ||
       mode === 'taptap' ||
       mode === 'tttt'
+      || mode === 'fighter'
     ) {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
@@ -692,6 +711,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'neon') started = await startNeon(this.#neonCtx(), roundId, ids, roles, solo);
       else if (mode === 'taptap') started = await startTapTap(this.#taptapCtx(), roundId, ids, solo);
       else if (mode === 'tttt') started = await startTttt(this.#ttttCtx(), roundId, ids, symbols, solo);
+      else if (mode === 'fighter') started = await startTapFighter(this.#fighterCtx(), roundId, ids, solo);
       // `direct` is the default because it needs no explanation: grab your icon
       // and it follows your finger. `capped` is the deliberate choice.
       else started = await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct', solo);
@@ -969,6 +989,18 @@ export class Room extends DurableObject<Env> {
       now: () => Date.now(), nextSeq: () => this.#nextSeq(),
       broadcast: (msg) => this.#broadcast(msg), load: () => this.#tttt(),
       save: (s) => this.ctx.storage.put('tttt', s), setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #fighter(): Promise<TapFighter | null> {
+    return (await this.ctx.storage.get<TapFighter>('fighter')) ?? null;
+  }
+
+  #fighterCtx(): FighterCtx {
+    return {
+      now: () => Date.now(), nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg), load: () => this.#fighter(),
+      save: (state) => this.ctx.storage.put('fighter', state), setAlarm: () => this.#rearm(),
     };
   }
 
@@ -1257,6 +1289,8 @@ export class Room extends DurableObject<Env> {
     }
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over') this.#send(ws, { t: 'tttt', s: this.#nextSeq(), d: ttttToState(tttt) });
+    const fighter = await this.#fighter();
+    if (fighter) this.#send(ws, { t: 'fighter', s: this.#nextSeq(), d: fighterToState(fighter) });
     /*
      * Tap Tap Revolution resyncs the shared order AND, if this player has a seat in
      * it, their own private cleared history — same split as Squash Mosquitoes' board,
@@ -1433,6 +1467,8 @@ export class Room extends DurableObject<Env> {
     if (squash?.phase === 'running') return squashDeadline(squash);
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over') return ttttDeadline(tttt);
+    const fighter = await this.#fighter();
+    if (fighter && Number.isFinite(fighterDeadline(fighter))) return fighterDeadline(fighter);
 
     const neon = await this.#neon();
     if (neon?.phase === 'running') return neonDeadline(neon);

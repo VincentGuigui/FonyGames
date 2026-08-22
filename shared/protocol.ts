@@ -1,4 +1,5 @@
 import { PLAYERS } from './players';
+import type { FighterAction, FighterBeat, FighterSeat } from './tapFighter';
 
 /**
  * The wire protocol, shared verbatim by the browser and the Durable Object.
@@ -48,6 +49,23 @@ export type TttState = {
   startsAt: number;
   zoomAt: number;
   endsAt: number;
+};
+
+export type TapFighterState = {
+  roundId: number;
+  matchRound: number;
+  phase: 'planning' | 'fighting' | 'round-over' | 'match-over';
+  seats: Record<FighterSeat, PlayerId>;
+  ready: Record<FighterSeat, boolean>;
+  actions: Record<FighterSeat, FighterAction[]> | null;
+  beats: FighterBeat[];
+  roundWins: Record<FighterSeat, number>;
+  startsAt: number;
+  endsAt: number;
+  roundWinner: FighterSeat | null;
+  matchWinner: FighterSeat | null;
+  draw: boolean;
+  solo: boolean;
 };
 
 /** Why the server closed or refused a connection. */
@@ -199,7 +217,8 @@ export type ClientMessage =
   /** Tic-Tac-Tic-Tac-Toe: choose the next unresolved meta board. */
   | { t: 'tttt-select'; d: { roundId: number; metaCell: number } }
   /** Tic-Tac-Tic-Tac-Toe: play a move in the selected small board. */
-  | { t: 'tttt-tap'; d: { roundId: number; smallCell: number } };
+  | { t: 'tttt-tap'; d: { roundId: number; smallCell: number } }
+  | { t: 'fighter-lock'; d: { roundId: number; actions: FighterAction[]; seat?: FighterSeat } };
 
 /* ------------------------------------------------------------------ */
 /* server -> client                                                     */
@@ -627,6 +646,7 @@ export type ServerMessage =
   /** Tap Tap Revolution: the shared state — order, everyone's remaining count, phase, winner. */
   | { t: 'taptap'; s: number; d: TapTapState }
   | { t: 'tttt'; s: number; d: TttState }
+  | { t: 'fighter'; s: number; d: TapFighterState }
   /**
    * Tap Tap Revolution: sent to **one player only** — their own cleared
    * cells, in the order they actually tapped them (spec §2, §6).
@@ -1348,6 +1368,7 @@ const CLIENT_TYPES = new Set([
   'taptap-tap',
   'tttt-select',
   'tttt-tap',
+  'fighter-lock',
 ]);
 
 export function isClientMessage(value: unknown): value is ClientMessage {

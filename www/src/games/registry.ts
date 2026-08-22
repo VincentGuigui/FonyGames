@@ -1,4 +1,5 @@
 import { CARD as TAP_DUEL_CARD } from './tap-duel/card';
+import { CARD as TAP_FIGHTER_CARD } from './tap-fighter/card';
 import { CARD as SPILL_CARD } from './spill/card';
 import { CARD as GOAT_SIEGE_CARD } from './goat-siege/card';
 import { CARD as SLING_PUCK_CARD } from './sling-puck/card';
@@ -33,6 +34,7 @@ import type { GameCard } from '../core/types';
  */
 export const GAMES: GameCard[] = [
   TAP_DUEL_CARD,
+  TAP_FIGHTER_CARD,
   SPILL_CARD,
   BUMP_RELAY_CARD,
   GOAT_SIEGE_CARD,
