@@ -1,0 +1,10 @@
+import { onSelect, onTap, startTttt, type Ttt } from './ticTacTicTacToe';
+import type { ServerMessage } from '../shared/protocol';
+const sent: ServerMessage[] = []; let state: Ttt | null = null; let now = 1_000;
+const ctx = { now: () => now, nextSeq: () => sent.length + 1, broadcast: (m: ServerMessage) => sent.push(m), load: async () => state, save: async (s: Ttt) => { state = s; }, setAlarm: async () => {} };
+await startTttt(ctx, 1, ['a', 'b'], { x: 'a', o: 'b', chooser: 'a' });
+await onSelect(ctx, 'a', 1, 0);
+await onTap(ctx, 'a', 1, 0); await onTap(ctx, 'b', 1, 1); await onTap(ctx, 'a', 1, 3); await onTap(ctx, 'b', 1, 2); await onTap(ctx, 'a', 1, 6);
+const finalState = state as Ttt | null;
+if (finalState?.meta[0] !== 'x' || finalState.phase !== 'choosing' || finalState.chooser !== 'b') throw new Error('mini board winner or next chooser is wrong');
+console.log('tic-tac-tic-tac-toe referee passed');
