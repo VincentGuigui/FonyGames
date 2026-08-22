@@ -14,7 +14,7 @@ import { GameLobby } from '../../lobby/GameLobby';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
 import { useGameText, type GameText } from '../../core/i18n/gameText';
-import { soloTesting } from '../../core/solo';
+import { useSoloTesting } from '../../core/useSolo';
 import { SoundToggle, TapTapBoard } from './TapTapBoard';
 import { TapTapGame, formatClock } from './game';
 import { createTune, setSoundOn, soundOn, type Tune } from './tune';
@@ -62,7 +62,7 @@ function TapTapRoomInner({ game: card, code }: { game: GameCard; code: string })
     [game],
   );
 
-  const solo = soloTesting();
+  const solo = useSoloTesting();
   const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;

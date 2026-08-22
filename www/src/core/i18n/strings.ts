@@ -57,6 +57,9 @@ export interface UiStrings {
   lobby: {
     soloOn: string;
     soloOnUnsupported: string;
+    soloAdminLabel: string;
+    soloEnable: string;
+    soloDisable: string;
     ready: string;
     readyOn: string;
     finishSetup: string;
@@ -158,6 +161,9 @@ const en: UiStrings = {
     finishSetup: 'Choose the sensor or fallback option above before marking yourself ready.',
     waitingReady: 'Waiting for every player to be ready.',
     setUpControls: 'Set up controls',
+    soloAdminLabel: 'Admin solo testing',
+    soloEnable: 'Enable',
+    soloDisable: 'Disable',
   },
   noSuchRoom: {
     title: "This room doesn't exist",
@@ -256,6 +262,9 @@ const fr: UiStrings = {
     finishSetup: "Choisissez le capteur ou l'option de secours ci-dessus avant de vous déclarer prêt.",
     waitingReady: 'En attente de tous les joueurs.',
     setUpControls: 'Configurer les commandes',
+    soloAdminLabel: 'Test solo administrateur',
+    soloEnable: 'Activer',
+    soloDisable: 'Désactiver',
   },
   noSuchRoom: {
     title: "Cette salle n'existe pas",

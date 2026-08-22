@@ -8,7 +8,7 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { soloTesting } from '../../core/solo';
+import { useSoloTesting } from '../../core/useSolo';
 import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
@@ -67,7 +67,7 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
    * Read once per render rather than per click: it changes only when the admin
    * centre writes it, which cannot happen while this page is open.
    */
-  const solo = soloTesting();
+  const solo = useSoloTesting();
 
   const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;

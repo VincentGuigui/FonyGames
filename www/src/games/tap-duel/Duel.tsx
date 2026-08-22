@@ -28,7 +28,7 @@ import { useGameText } from '../../core/i18n/gameText';
  * punishment enough and is self-limiting.
  */
 
-export type DuelPhase = 'idle' | 'armed' | 'fire' | 'burned' | 'result';
+export type DuelPhase = 'idle' | 'armed' | 'fire' | 'submitted' | 'burned' | 'result';
 
 /**
  * Rank colour: green for the fastest through to red for the slowest.
@@ -312,13 +312,14 @@ export function Duel(props: {
   }
 
   const fire = phase === 'fire';
+  const liveBoard = fire || phase === 'submitted';
 
   // The same target both before and after the signal — only its colour, whether it
   // takes taps, and whether it is still moving change.
   const bullseye = (
     <span
       ref={dot}
-      class={`duel__bullseye ${fire ? 'duel__bullseye--live' : 'duel__bullseye--waiting'}`}
+      class={`duel__bullseye ${liveBoard ? 'duel__bullseye--live' : 'duel__bullseye--waiting'}`}
       style={{
         left: `${visible.x * 100}%`,
         top: `${visible.y * 100}%`,
@@ -344,7 +345,7 @@ export function Duel(props: {
     </span>
   );
 
-  if (fire) {
+  if (liveBoard) {
     // The backdrop is a plain div now: after the signal only the target scores,
     // so the rest of the screen must not be tappable at all rather than
     // tappable-and-ignored.
