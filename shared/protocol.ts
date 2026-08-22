@@ -33,6 +33,23 @@ export type RoomSnapshot = {
   hostId: PlayerId | null;
 };
 
+export type TttState = {
+  roundId: number;
+  phase: 'choosing' | 'playing' | 'over';
+  symbols: Record<PlayerId, 'x' | 'o'>;
+  meta: Array<'x' | 'o' | 'draw' | null>;
+  small: Array<'x' | 'o' | null>;
+  selectedMeta: number | null;
+  chooser: PlayerId | null;
+  turn: PlayerId | null;
+  miniWinner: 'x' | 'o' | 'draw' | null;
+  winner: PlayerId | null;
+  draw: boolean;
+  startsAt: number;
+  zoomAt: number;
+  endsAt: number;
+};
+
 /** Why the server closed or refused a connection. */
 export type ErrorCode =
   | 'bad-room-code'
@@ -76,6 +93,8 @@ export type ClientMessage =
          * (`assignRoles` in worker/neonFall.ts).
          */
         roles?: { glider: PlayerId; protector: PlayerId };
+        /** Tic-Tac-Tic-Tac-Toe's fixed symbol assignment and first chooser. */
+        symbols?: { x: PlayerId; o: PlayerId; chooser: PlayerId };
         /**
          * Solo test mode — start with one player, for looking at a game rather than
          * playing it. Set by a browser that has signed into the admin centre; the
@@ -176,7 +195,11 @@ export type ClientMessage =
    * whether this was this player's own lit cell (spec §8), the same
    * reasoning Squash Mosquitoes' `squash-tap` already established.
    */
-  | { t: 'taptap-tap'; d: { roundId: number; cell: number } };
+  | { t: 'taptap-tap'; d: { roundId: number; cell: number } }
+  /** Tic-Tac-Tic-Tac-Toe: choose the next unresolved meta board. */
+  | { t: 'tttt-select'; d: { roundId: number; metaCell: number } }
+  /** Tic-Tac-Tic-Tac-Toe: play a move in the selected small board. */
+  | { t: 'tttt-tap'; d: { roundId: number; smallCell: number } };
 
 /* ------------------------------------------------------------------ */
 /* server -> client                                                     */
@@ -603,6 +626,7 @@ export type ServerMessage =
   | { t: 'neon'; s: number; d: NeonFallState }
   /** Tap Tap Revolution: the shared state — order, everyone's remaining count, phase, winner. */
   | { t: 'taptap'; s: number; d: TapTapState }
+  | { t: 'tttt'; s: number; d: TttState }
   /**
    * Tap Tap Revolution: sent to **one player only** — their own cleared
    * cells, in the order they actually tapped them (spec §2, §6).
@@ -615,6 +639,8 @@ export type ServerMessage =
    * already gone.
    */
   | { t: 'taptap-progress'; s: number; d: { roundId: number; cleared: number[] } }
+  /** Tic-Tac-Tic-Tac-Toe: the authoritative nested-board state. */
+  | { t: 'tttt'; s: number; d: TttState }
   /** Pass the Bomb: too many bumps too fast — this player's bumps are muted briefly. */
   | { t: 'calm-down'; d: { untilServerTime: number } }
   /** Steady Hand: the state of the room. `w` is everyone's last wobble, for the meters. */
@@ -1320,6 +1346,8 @@ const CLIENT_TYPES = new Set([
   'neon-steer',
   'neon-shoot',
   'taptap-tap',
+  'tttt-select',
+  'tttt-tap',
 ]);
 
 export function isClientMessage(value: unknown): value is ClientMessage {
