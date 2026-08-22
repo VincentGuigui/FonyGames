@@ -315,7 +315,9 @@ and it is same-origin with the page.
    is not sent to the server, so it cannot land in an access log or a `Referer`.
    The page reads it and posts it to `session.php`.
 4. PHP hashes, compares, **deletes** (single use), and calls `session_start()`.
-   The cookie is `HttpOnly; Secure; SameSite=Lax`, valid 12 hours.
+   The persistent cookie is `HttpOnly; Secure; SameSite=Lax`, valid 12 hours;
+   PHP's session garbage collector is configured to the same lifetime so it cannot
+   discard the server session after its short default interval.
 5. Every later call is same-origin and carries the cookie automatically.
 
 **A session cookie, not a bearer token.** The earlier design was forced into a
