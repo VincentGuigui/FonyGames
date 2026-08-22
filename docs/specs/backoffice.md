@@ -56,10 +56,11 @@ warning before the free tier runs out, not pretty graphs.
 completion rate, no peak concurrent rooms — it answers "which game is played most",
 not the fuller question this section originally asked.
 
-### Activity dashboard — ✅ built, a different answer to the rest of that question
+### Activity stats — ✅ built, a different answer to the rest of that question
 Per game and site-wide: card taps, rooms created and joined, rounds started and
-finished, over a 7/30/90-day window, plus where visitors are roughly coming from. Full
-design: [analytics.md](analytics.md).
+finished, over a 7/30/90-day window, plus where visitors are roughly coming from.
+It lives at `/<ADMIN_PATH>/stats/`, with sortable game columns and country/city
+master-detail tables. Full design: [analytics.md](analytics.md).
 
 **Not the design below.** That design blocked on authenticating a
 Durable-Object-to-PHP write without a second shared secret (`MAIL_SECRET`'s own

@@ -65,12 +65,12 @@ final class IpInfoGeolocator implements Geolocator
             return $none;
         }
 
-        $handle = curl_init('https://ipinfo.io/' . urlencode($ip) . '/json');
+        $handle = curl_init('https://ipinfo.io/' . urlencode($ip) . '/json?token=' . rawurlencode($this->token));
         curl_setopt_array($handle, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => self::TIMEOUT_S,
             CURLOPT_CONNECTTIMEOUT => 2,
-            CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $this->token, 'Accept: application/json'],
+            CURLOPT_HTTPHEADER => ['Accept: application/json'],
         ]);
         $body = curl_exec($handle);
         $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
@@ -303,7 +303,7 @@ final class Analytics
      *   uniqueVisitors: int,
      *   topGames: list<array{slug: string, gameSelect: int, roomCreate: int, roomJoin: int, gameStart: int, gamePlayed: int}>,
      *   countries: list<array{country: string, count: int}>,
-     *   cities: list<array{city: string, count: int}>,
+     *   cities: list<array{country: string, city: string, count: int}>,
      *   referrers: list<array{host: string, count: int}>,
      * }
      */
@@ -330,14 +330,16 @@ final class Analytics
         );
         $visitors->execute([$since]);
 
+        $countries = $this->grouped('country', $since, 10);
+
         return [
             'windowDays' => $days,
             'since' => $since,
             'totals' => $totals,
             'uniqueVisitors' => (int) $visitors->fetchColumn(),
             'topGames' => $this->topGames($since),
-            'countries' => $this->grouped('country', $since, 10),
-            'cities' => $this->grouped('city', $since, 10),
+            'countries' => $countries,
+            'cities' => $this->citiesByCountry($since, $countries, 10),
             'referrers' => $this->referrerHosts($since, 10),
         ];
     }
@@ -406,6 +408,30 @@ final class Analytics
             static fn (array $row): array => [$column => (string) $row['v'], 'count' => (int) $row['n']],
             $statement->fetchAll(PDO::FETCH_ASSOC),
         );
+    }
+
+    /**
+     * Up to `$limit` cities for each country in the master table.
+     *
+     * @param list<array{country: string, count: int}> $countries
+     * @return list<array{country: string, city: string, count: int}>
+     */
+    private function citiesByCountry(int $since, array $countries, int $limit): array
+    {
+        $statement = $this->pdo->prepare(
+            "SELECT city, COUNT(*) AS n FROM analytics_event"
+            . " WHERE at >= ? AND country = ? AND city IS NOT NULL"
+            . " GROUP BY city ORDER BY n DESC LIMIT {$limit}",
+        );
+        $rows = [];
+        foreach ($countries as $countryRow) {
+            $country = (string) $countryRow['country'];
+            $statement->execute([$since, $country]);
+            foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $rows[] = ['country' => $country, 'city' => (string) $row['city'], 'count' => (int) $row['n']];
+            }
+        }
+        return $rows;
     }
 
     /**

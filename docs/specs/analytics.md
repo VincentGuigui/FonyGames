@@ -74,7 +74,9 @@ event, written by `api/lib/Analytics.php` through the public endpoint `api/analy
 straight to a `Geolocator` — `IpInfoGeolocator` (ipinfo.io, when `ipinfo_token` is
 configured) or `NoGeolocator` (when it is not) — and then goes out of scope. `city` and
 `country` are the only trace that survives; there is no column, no log line and no
-cache keyed on the address anywhere in this path. `api/tests/analytics_test.php`
+cache keyed on the address anywhere in this path. The ipinfo token is sent through
+its documented `token` query parameter; the custom analytics call carries no
+`Authorization: Bearer` header. `api/tests/analytics_test.php`
 asserts the schema has no such column by name, and that a recorded row never contains
 the test address as a substring.
 
@@ -143,7 +145,7 @@ reads the client file as text and fails if the two lists disagree — the same t
 `config_test.php` uses for config keys, for the same reason: a silent rename is a
 silently dropped event.
 
-## 6. The dashboard's queries — `Analytics::summary()`
+## 6. The stats queries — `Analytics::summary()`
 
 One method, and everything it returns is a `COUNT` or a `GROUP BY` — there is no
 "events for visitor X" query anywhere in this class, on purpose. That is how the
@@ -157,14 +159,19 @@ actually enforced: not by a check inside the method, but by the method never bei
 - **`topGames`** — every slug that appears as an `object`, with a count per action,
   ranked by `game_played`. Keyed on the slug as it was reported, not joined against the
   live catalogue, so a renamed or removed game still shows its history.
-- **`countries`, `cities`** — the ten most common non-null values.
+- **`countries`** — the ten most common non-null country values.
+- **`cities`** — up to ten cities for each country in that master list, carrying
+  their country code so the UI can present a country master table and city detail.
 - **`referrers`** — grouped by **host**, not the exact URL (`referrerHosts()`, via
   `parse_url()`). A raw referrer is close to unique per visit; the host
   ("came from a link on x.com") is the aggregate that means something.
 
-## 7. The dashboard — `www/src/ops.ts`
+## 7. Stats — `www/src/ops.ts`
 
-A "dashboard" link on the main admin page opens a two-tab screen (`dashboard()`):
+A **stats** link on the main admin page opens the dedicated relative route
+`stats/` under the deployed secret admin directory (`/<ADMIN_PATH>/stats/`). It
+is a separate Vite page, remains protected by the same HttpOnly session and
+inherits the admin directory's noindex/no-store headers. The screen has two tabs:
 
 - **Cloudflare monitoring** — the health checks and Cloudflare Worker usage that used
   to share the main flags page. Moved here because both make outbound calls with their
@@ -172,8 +179,10 @@ A "dashboard" link on the main admin page opens a two-tab screen (`dashboard()`)
   going — exactly the reasoning `loadUsage()` already gave for loading them apart from
   everything else; only the page they load into changed.
 - **Analytics** — `loadAnalytics()`, a 7/30/90-day window selector over
-  `?a=analytics&days=N`, showing the totals, the per-game breakdown and the
-  country/city/referrer lists from §6.
+  `?a=analytics&days=N`. Per-game analytics are a client-side sortable table;
+  changing a sort header makes no new request. Countries form a master table,
+  and selecting one displays its sortable city detail table. Referrers remain
+  aggregated by host.
 
 Full page replace on every tab or window switch, the same style `signIn()`/`render()`
 already use elsewhere in this file — one user, and the cost of tracking which half of
