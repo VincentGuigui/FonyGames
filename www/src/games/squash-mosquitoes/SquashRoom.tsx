@@ -8,11 +8,13 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { useRoom, useShareRoom } from '../../core/room/useRoom';
+import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { GameOverScreen } from '../../core/ui/GameOver';
-import { soloTesting } from '../../core/solo';
+import { useT } from '../../core/i18n/strings';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useSoloTesting } from '../../core/useSolo';
 import { SquashBoard } from './SquashBoard';
 import { SquashGame } from './game';
 
@@ -32,6 +34,8 @@ export function SquashRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function SquashRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
+  const text = useGameText();
   const [, redraw] = useState(0);
 
   // Created before the socket, because the first `squash` frame can arrive before
@@ -50,9 +54,8 @@ function SquashRoomInner({ game: card, code }: { game: GameCard; code: string })
     [game],
   );
 
-  const solo = soloTesting();
-  const room = useRoom(code, card.slug, onGame);
-  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
+  const solo = useSoloTesting();
+  const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;
 
@@ -90,6 +93,7 @@ function SquashRoomInner({ game: card, code }: { game: GameCard; code: string })
 
     return (
       <GameOverScreen
+        room={room}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
@@ -122,18 +126,18 @@ function SquashRoomInner({ game: card, code }: { game: GameCard; code: string })
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughToStart(room.connected, limits, solo)}
-      startLabel={state ? 'Play again' : 'Start the swarm'}
+      startLabel={state ? t.common.playAgain : text({ en: 'Start the swarm', fr: 'Lancer l’essaim' })}
       onStart={() => client?.send({ t: 'start', d: { mode: 'squash', solo } })}
-      note={note(room.isHost, room.connected, solo)}
+      note={note(room.isHost, room.connected, solo, text)}
     />
   );
 }
 
-function note(isHost: boolean, connected: number, solo: boolean): string {
-  if (!solo && connected < SQUASH_MIN_PLAYERS) return 'Waiting for one more player…';
+function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
+  if (!solo && connected < SQUASH_MIN_PLAYERS) return text({ en: 'Waiting for one more player…', fr: 'En attente d’un joueur supplémentaire…' });
   if (connected > SQUASH_MAX_PLAYERS) {
-    return `Squash Mosquitoes is ${SQUASH_MIN_PLAYERS}–${SQUASH_MAX_PLAYERS} players.`;
+    return text({ en: `Squash Mosquitoes is ${SQUASH_MIN_PLAYERS}–${SQUASH_MAX_PLAYERS} players.`, fr: `Squash Mosquitoes se joue de ${SQUASH_MIN_PLAYERS} à ${SQUASH_MAX_PLAYERS} joueurs.` });
   }
-  if (!isHost) return 'The host starts the swarm.';
-  return `Everyone gets the same ${SQUASH_TOTAL} mosquitoes. First to squash them all wins.`;
+  if (!isHost) return text({ en: 'The host starts the swarm.', fr: "L’hôte lance l’essaim." });
+  return text({ en: `Everyone gets the same ${SQUASH_TOTAL} mosquitoes. First to squash them all wins.`, fr: `Tout le monde reçoit les mêmes ${SQUASH_TOTAL} moustiques. Le premier à tous les écraser gagne.` });
 }

@@ -36,9 +36,9 @@ payload, the same way Shake Rush's shared track is.
 4. Squashed mosquitoes are never removed. They stay on the board as a red
    smear, so late in a round the grid is a scoreboard of its own: a spreading
    stain of everywhere you have already hit.
-5. The 34th mosquito spawned onward **flies** — a third the size, wandering
-   inside its own cell — because a static swarm that size would be a chore,
-   not a panic.
+5. The 34th mosquito spawned onward **flies** — while its visual size is chosen
+   randomly as large, normal or small — wandering inside its own cell. A static
+   swarm that size would be a chore, not a panic.
 6. First phone to squash all 66 wins. The round ends the instant they do.
 
 **Win condition:** first to 66 on your own board.
@@ -62,22 +62,20 @@ because nothing spawns without a squash to pay for it — which is also why
 this can never be a game you lose by doing nothing. Standing still just
 means nobody plays it, not that it beats you.
 
-### 2.2 Static, then flying — a property of the pattern, not a clock
+### 2.2 Movement progression and random size are separate
 
 Mosquito **N** in the pattern (1-indexed) is static for N ≤ 33 and flying for
-N ≥ 34 — `SQUASH_STATIC_COUNT` in `shared/protocol.ts`. Spawn order is
-strictly the pattern order regardless of how fast anyone squashes, so which
-half of the swarm a given mosquito belongs to is fixed the moment the
-pattern is dealt, and both the referee and the client can decide "is this one
-flying?" from its position in the pattern alone — no separate flag, no
-timer, and nothing that needs to travel on the wire per mosquito.
+N ≥ 34 — `SQUASH_STATIC_COUNT` in `shared/protocol.ts`. This movement progression
+remains shared and deterministic. **Size is independent:** each phone rolls each
+mosquito as large (120% of normal), normal, or small (the existing half-cell size)
+when it first appears. Size is private cosmetic state and never travels on the wire.
 
-- **Static** (1–33): the hitbox is the whole cell. Slow and generous, because
-  this half exists to let the swarm build before it gets hard.
-- **Flying** (34–66): `SQUASH_FLY_SCALE` (½) the size, hitbox included, and it
-  wanders continuously inside the bounds of its own cell — never past the
-  edge, because a mosquito that could drift into a neighbour's territory
-  would make one cell's fate depend on another's.
+- **Static** (1–33): the hitbox follows its random size. Slow and generous,
+  because this half exists to let the swarm build before it gets hard.
+- **Flying** (34–66): it wanders continuously inside the bounds of its own
+  cell — never past the edge, because a mosquito that could drift into a
+  neighbour's territory would make one cell's fate depend on another's. Its
+  random size remains visible while it flies.
 
 ### 2.3 Each mosquito picks its own spot, and flies in to reach it
 

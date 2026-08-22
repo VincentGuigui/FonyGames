@@ -1,4 +1,5 @@
 import { CARD as TAP_DUEL_CARD } from './tap-duel/card';
+import { CARD as TAP_FIGHTER_CARD } from './tap-fighter/card';
 import { CARD as SPILL_CARD } from './spill/card';
 import { CARD as GOAT_SIEGE_CARD } from './goat-siege/card';
 import { CARD as SLING_PUCK_CARD } from './sling-puck/card';
@@ -15,6 +16,7 @@ import { CARD as GRID_ATTACK_CARD } from './grid-attack/card';
 import { CARD as SQUASH_MOSQUITOES_CARD } from './squash-mosquitoes/card';
 import { CARD as NEON_FALL_CARD } from './neon-fall/card';
 import { CARD as TAP_TAP_REVOLUTION_CARD } from './tap-tap-revolution/card';
+import { CARD as TTTT_CARD } from './tic-tac-tic-tac-toe/card';
 import type { GameCard } from '../core/types';
 
 /**
@@ -32,6 +34,7 @@ import type { GameCard } from '../core/types';
  */
 export const GAMES: GameCard[] = [
   TAP_DUEL_CARD,
+  TAP_FIGHTER_CARD,
   SPILL_CARD,
   BUMP_RELAY_CARD,
   GOAT_SIEGE_CARD,
@@ -47,6 +50,7 @@ export const GAMES: GameCard[] = [
   SQUASH_MOSQUITOES_CARD,
   NEON_FALL_CARD,
   TAP_TAP_REVOLUTION_CARD,
+  TTTT_CARD,
   SCREAM_METER_CARD,
 ];
 

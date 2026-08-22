@@ -53,7 +53,7 @@ final class IpInfoGeolocator implements Geolocator
      */
     private const TIMEOUT_S = 2;
 
-    public function __construct(private string $token)
+    public function __construct(private string $token, private string $referer)
     {
     }
 
@@ -65,28 +65,14 @@ final class IpInfoGeolocator implements Geolocator
             return $none;
         }
 
-        $handle = curl_init('https://ipinfo.io/' . urlencode($ip) . '/json');
-        curl_setopt_array($handle, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => self::TIMEOUT_S,
-            CURLOPT_CONNECTTIMEOUT => 2,
-            CURLOPT_HTTPHEADER => ['Authorization: Bearer ' . $this->token, 'Accept: application/json'],
-        ]);
-        $body = curl_exec($handle);
-        $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
-        curl_close($handle);
-
-        if ($body === false || $status !== 200) {
-            return $none;
-        }
+        [$status, $body] = $this->request($ip);
+        if ($body === false || $status !== 200) return $none;
 
         $decoded = json_decode((string) $body, true);
-        if (!is_array($decoded)) {
-            return $none;
-        }
+        if (!is_array($decoded)) return $none;
 
         return [
-            'city' => Analytics::text($decoded['city'] ?? null, 100),
+            'city' => self::text($decoded['city'] ?? null, 100),
             // `country` is alpha-2 from ipinfo. Anything else is not a country code, and
             // a CHAR(2) column would silently truncate it into a wrong one.
             'country' => is_string($decoded['country'] ?? null)
@@ -94,6 +80,48 @@ final class IpInfoGeolocator implements Geolocator
                 ? strtoupper($decoded['country'])
                 : null,
         ];
+    }
+
+    /** A bounded, sanitized diagnostic for the authenticated admin stats page. */
+    public function diagnostic(string $ip): array
+    {
+        if ($this->token === '' || !self::routable($ip)) {
+            return ['status' => null, 'ok' => false, 'result' => null];
+        }
+        [$status, $body] = $this->request($ip);
+        $decoded = is_string($body) ? json_decode($body, true) : null;
+        $result = is_array($decoded) ? [] : null;
+        if (is_array($decoded)) {
+            foreach (['ip', 'hostname', 'city', 'region', 'country', 'postal', 'timezone', 'org'] as $key) {
+                if (isset($decoded[$key]) && is_scalar($decoded[$key])) $result[$key] = self::text((string) $decoded[$key], 160);
+            }
+        }
+        return ['status' => $status, 'ok' => $status === 200 && $result !== null, 'result' => $result];
+    }
+
+    public function referer(): string
+    {
+        return $this->referer;
+    }
+
+    /** @return array{0: int, 1: string|false} */
+    private function request(string $ip): array
+    {
+        $handle = curl_init('https://ipinfo.io/' . urlencode($ip) . '/json');
+        curl_setopt_array($handle, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => self::TIMEOUT_S,
+            CURLOPT_CONNECTTIMEOUT => 2,
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $this->token,
+                'Referer: ' . $this->referer,
+                'Accept: application/json',
+            ],
+        ]);
+        $body = curl_exec($handle);
+        $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+        curl_close($handle);
+        return [$status, $body];
     }
 
     /**
@@ -303,7 +331,7 @@ final class Analytics
      *   uniqueVisitors: int,
      *   topGames: list<array{slug: string, gameSelect: int, roomCreate: int, roomJoin: int, gameStart: int, gamePlayed: int}>,
      *   countries: list<array{country: string, count: int}>,
-     *   cities: list<array{city: string, count: int}>,
+     *   cities: list<array{country: string, city: string, count: int}>,
      *   referrers: list<array{host: string, count: int}>,
      * }
      */
@@ -330,14 +358,16 @@ final class Analytics
         );
         $visitors->execute([$since]);
 
+        $countries = $this->grouped('country', $since, 10);
+
         return [
             'windowDays' => $days,
             'since' => $since,
             'totals' => $totals,
             'uniqueVisitors' => (int) $visitors->fetchColumn(),
             'topGames' => $this->topGames($since),
-            'countries' => $this->grouped('country', $since, 10),
-            'cities' => $this->grouped('city', $since, 10),
+            'countries' => $countries,
+            'cities' => $this->citiesByCountry($since, $countries, 10),
             'referrers' => $this->referrerHosts($since, 10),
         ];
     }
@@ -406,6 +436,30 @@ final class Analytics
             static fn (array $row): array => [$column => (string) $row['v'], 'count' => (int) $row['n']],
             $statement->fetchAll(PDO::FETCH_ASSOC),
         );
+    }
+
+    /**
+     * Up to `$limit` cities for each country in the master table.
+     *
+     * @param list<array{country: string, count: int}> $countries
+     * @return list<array{country: string, city: string, count: int}>
+     */
+    private function citiesByCountry(int $since, array $countries, int $limit): array
+    {
+        $statement = $this->pdo->prepare(
+            "SELECT city, COUNT(*) AS n FROM analytics_event"
+            . " WHERE at >= ? AND country = ? AND city IS NOT NULL"
+            . " GROUP BY city ORDER BY n DESC LIMIT {$limit}",
+        );
+        $rows = [];
+        foreach ($countries as $countryRow) {
+            $country = (string) $countryRow['country'];
+            $statement->execute([$since, $country]);
+            foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                $rows[] = ['country' => $country, 'city' => (string) $row['city'], 'count' => (int) $row['n']];
+            }
+        }
+        return $rows;
     }
 
     /**

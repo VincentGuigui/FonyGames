@@ -11,8 +11,8 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { soloTesting } from '../../core/solo';
-import { useRoom, useShareRoom } from '../../core/room/useRoom';
+import { useSoloTesting } from '../../core/useSolo';
+import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { detectBumps } from '../../core/sensors/bump';
@@ -20,7 +20,10 @@ import { motionSupport, requestMotion, type MotionSupport } from '../../core/sen
 import { applyBomb, type BombState } from './game';
 import { BombScreen } from './BombScreen';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
 import { BOOM_MS } from './shockwave';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { PermissionPrimer } from '../../core/ui/PermissionPrimer';
 
 /**
  * Pass the Bomb's room screen. Spec: docs/specs/games/pass-the-bomb.md
@@ -44,6 +47,8 @@ export function BombRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
+  const text = useGameText();
   const [state, setState] = useState<BombState>(null);
   /** Server time until which our bumps are being ignored, from a `calm-down` frame. */
   const [mutedUntil, setMutedUntil] = useState(0);
@@ -63,10 +68,9 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
    * Read once per render rather than per click: it changes only when the admin
    * centre writes it, which cannot happen while this page is open.
    */
-  const solo = soloTesting();
+  const solo = useSoloTesting();
 
-  const room = useRoom(code, card.slug, onGame);
-  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
+  const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;
 
@@ -139,7 +143,7 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     const granted = await requestMotion();
     setMotionOn(granted);
     if (!granted) {
-      room.setError('No motion access — you can still pass with a tap.');
+      room.setError(text({ en: 'No motion access — you can still pass with a tap.', fr: 'Pas d’accès au mouvement — vous pouvez toujours passer la bombe en touchant l’écran.' }));
     }
   }
 
@@ -192,6 +196,9 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
 
     return (
       <GameOverScreen
+        room={room}
+        readyBlocked={support !== 'unsupported' && !motionAsked}
+        onReadySetup={enableMotion}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
@@ -212,16 +219,16 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
             avatar: p.avatar,
             name: p.name,
             value: n,
-            unit: n === 1 ? 'round' : 'rounds',
+            unit: n === 1 ? text({ en: 'round', fr: 'manche' }) : text({ en: 'rounds', fr: 'manches' }),
             ...(eliminates && !state.alive.includes(p.id) ? { out: true } : {}),
           };
         })}
         me={myId}
         winner={another ? state.winner : m.champion}
-        headline={another ? roundHeadline(state.winner, myId, players) : undefined}
-        note={matchNote(m)}
+        headline={another ? roundHeadline(state.winner, myId, players, text) : undefined}
+        note={matchNote(m, text)}
         {...(another
-          ? { onNext: start, nextLabel: 'Next round' }
+          ? { onNext: start, nextLabel: t.common.nextRound }
           : { onAgain: start })}
         canAct={room.isHost && enoughToStart(room.connected, [BOMB_MIN_PLAYERS, BOMB_MAX_PLAYERS], solo)}
       />
@@ -239,13 +246,14 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughToStart(room.connected, [BOMB_MIN_PLAYERS, BOMB_MAX_PLAYERS], solo)}
-      startLabel={state ? 'Play again' : 'Start round'}
+      startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'bomb', solo } })}
-      note={note(room.isHost, room.connected, solo)}
+      readyBlocked={support !== 'unsupported' && !motionAsked}
+      note={note(room.isHost, room.connected, solo, text)}
       playerTag={(id) => {
         if (!state) return null;
-        if (state.winner === id) return 'won';
-        return state.alive.includes(id) ? null : 'out';
+        if (state.winner === id) return text({ en: 'won', fr: 'gagnant' });
+        return state.alive.includes(id) ? null : text({ en: 'out', fr: 'éliminé' });
       }}
       extras={
         <>
@@ -257,10 +265,10 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
             lives in its own always-open panel, above the primer, as the spec orders it.
           */}
           <section class="panel safety" role="note">
-            <h2 class="panel__heading">Before you start</h2>
+            <h2 class="panel__heading">{text({ en: 'Before you start', fr: 'Avant de commencer' })}</h2>
             <p class="safety__body">
-              Tap phones <strong>gently</strong>, corner to corner. Keep your cases on. Stand
-              still — no running, no throwing.
+              {text({ en: 'Tap phones ', fr: 'Touchez les téléphones ' })}<strong>{text({ en: 'gently', fr: 'doucement' })}</strong>,{' '}
+              {text({ en: 'corner to corner. Keep your cases on. Stand still — no running, no throwing.', fr: 'coin contre coin. Gardez les coques. Restez immobile — ne courez pas et ne lancez rien.' })}
             </p>
           </section>
 
@@ -294,42 +302,25 @@ function MotionPrimer({
   asked: boolean;
   onEnable: () => void;
 }): JSX.Element {
+  const text = useGameText();
+  const heading = text({ en: 'Passing the bomb', fr: 'Passer la bombe' });
   if (support === 'unsupported') {
-    return (
-      <section class="panel primer">
-        <h2 class="panel__heading">Passing the bomb</h2>
-        <p class="primer__body">
-          This phone has no motion sensor, so bumping won't register. You can still play — the
-          bomb passes with a tap, and the round works the same way.
-        </p>
-      </section>
-    );
+    return <PermissionPrimer heading={heading} body={text(
+      { en: "This phone has no motion sensor, so bumping won't register. You can still play — the bomb passes with a tap, and the round works the same way.", fr: 'Ce téléphone n’a pas de capteur de mouvement. Vous pouvez quand même jouer — touchez l’écran pour passer la bombe.' })} />;
   }
 
   if (on) {
-    return (
-      <section class="panel primer">
-        <h2 class="panel__heading">Passing the bomb</h2>
-        <p class="primer__body primer__body--on">
-          Bumping is on. Knock your phone gently against someone else's to pass it.
-        </p>
-      </section>
-    );
+    return <PermissionPrimer heading={heading} enabled body={text(
+      { en: "Bumping is on. Knock your phone gently against someone else's to pass it.", fr: 'Le contact est activé. Touchez doucement le téléphone de quelqu’un pour passer la bombe.' })} />;
   }
 
   return (
-    <section class="panel primer">
-      <h2 class="panel__heading">Passing the bomb</h2>
-      <p class="primer__body">
-        {asked
-          ? 'Motion was turned down, so bumping is off. Tap-to-pass still works — or allow motion in your browser settings and reload.'
-          : 'Bumping needs permission to read this phone’s motion. Nothing is recorded — the only thing sent is “a bump happened”, never the readings themselves.'}
-      </p>
-      <button class="btn btn--primary primer__enable" type="button" onClick={onEnable}>
-        {asked ? 'Try again' : 'Turn on bumping'}
-      </button>
-      <p class="primer__opt-out">Rather not? Tap-to-pass is always available in the round.</p>
-    </section>
+    <PermissionPrimer heading={heading}
+      body={asked
+        ? text({ en: 'Motion was turned down, so bumping is off. Tap-to-pass still works — or allow motion in your browser settings and reload.', fr: 'L’accès au mouvement a été refusé. Le passage tactile fonctionne toujours — ou autorisez le mouvement dans le navigateur puis rechargez.' })
+        : text({ en: 'Bumping needs permission to read this phone’s motion. Nothing is recorded — the only thing sent is “a bump happened”, never the readings themselves.', fr: 'Le contact nécessite l’accès au mouvement du téléphone. Rien n’est enregistré — seul « un contact a eu lieu » est envoyé, jamais les mesures.' })}
+      action={{ label: asked ? text({ en: 'Try again', fr: 'Réessayer' }) : text({ en: 'Turn on bumping', fr: 'Activer le contact' }), onClick: onEnable }}
+      optOut={text({ en: 'Rather not? Tap-to-pass is always available in the round.', fr: 'Vous préférez éviter ? Le passage tactile reste disponible pendant la manche.' })} />
   );
 }
 
@@ -340,26 +331,28 @@ function MotionPrimer({
  * just taken the second of five rounds has not won anything yet. Two words of difference,
  * and it is the difference between a scoreboard that reads and one that misleads.
  */
-function roundHeadline(winner: PlayerId | null, me: PlayerId | undefined, players: Player[]): string {
-  if (winner === null) return 'Nobody survived that one';
-  if (winner === me) return 'You take the round';
-  return `${players.find((p) => p.id === winner)?.name ?? 'Someone'} takes the round`;
+function roundHeadline(winner: PlayerId | null, me: PlayerId | undefined, players: Player[], text: GameText): string {
+  if (winner === null) return text({ en: 'Nobody survived that one', fr: 'Personne n’a survécu' });
+  if (winner === me) return text({ en: 'You take the round', fr: 'Vous remportez la manche' });
+  const name = players.find((p) => p.id === winner)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' });
+  return text({ en: `${name} takes the round`, fr: `${name} remporte la manche` });
 }
 
 /** Where the match is up to, under the standings. */
-function matchNote(m: BombMatch): string {
-  if (m.done) return m.rounds === BOMB_CLASSIC_ROUNDS ? 'Last one standing' : `${m.rounds} rounds played`;
-  return `Round ${m.round} of ${m.rounds}`;
+function matchNote(m: BombMatch, text: GameText): string {
+  if (m.done) return m.rounds === BOMB_CLASSIC_ROUNDS ? text({ en: 'Last one standing', fr: 'Dernier survivant' })
+    : text({ en: `${m.rounds} rounds played`, fr: `${m.rounds} manches jouées` });
+  return text({ en: `Round ${m.round} of ${m.rounds}`, fr: `Manche ${m.round} sur ${m.rounds}` });
 }
 
-function note(isHost: boolean, connected: number, solo: boolean): string {
+function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
   if (!solo && connected < BOMB_MIN_PLAYERS) {
     const missing = BOMB_MIN_PLAYERS - connected;
-    return `Need ${missing} more player${missing === 1 ? '' : 's'} — it takes ${BOMB_MIN_PLAYERS} to pass a bomb around.`;
+    return text({ en: `Need ${missing} more player${missing === 1 ? '' : 's'} — it takes ${BOMB_MIN_PLAYERS} to pass a bomb around.`, fr: `Il manque ${missing} joueur${missing === 1 ? '' : 's'} — il faut être ${BOMB_MIN_PLAYERS} pour faire circuler la bombe.` });
   }
   if (connected > BOMB_MAX_PLAYERS) {
-    return `${BOMB_MAX_PLAYERS} players is the most this one takes.`;
+    return text({ en: `${BOMB_MAX_PLAYERS} players is the most this one takes.`, fr: `${BOMB_MAX_PLAYERS} joueurs maximum.` });
   }
-  if (!isHost) return 'The host starts the round.';
-  return 'Stand in a circle, arms out. The fuse is hidden.';
+  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
+  return text({ en: 'Stand in a circle, arms out. The fuse is hidden.', fr: 'Placez-vous en cercle, bras tendus. La mèche est cachée.' });
 }

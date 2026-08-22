@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks';
 import type { ComponentChildren, JSX } from 'preact';
 import { HowToPlay } from './HowToPlay';
 import { Sheet } from './Sheet';
+import { useT } from '../i18n/strings';
 
 /**
  * The in-game menu: a gear in the corner of every game, opening a sheet.
@@ -27,6 +28,7 @@ export function GameMenu({
   children?: ComponentChildren;
 }): JSX.Element {
   const [open, setOpen] = useState(false);
+  const t = useT();
 
   return (
     <>
@@ -45,11 +47,11 @@ export function GameMenu({
           <div class="gamemenu__head">
             <h2 class="gamemenu__title">{title}</h2>
             <button class="btn gamemenu__close" type="button" onClick={() => setOpen(false)}>
-              Close
+              {t.common.close}
             </button>
           </div>
 
-          <h3 class="gamemenu__label">How to play</h3>
+          <h3 class="gamemenu__label">{t.common.howToPlay}</h3>
           <HowToPlay concept={concept} rules={rules} />
 
           {children}
@@ -57,7 +59,7 @@ export function GameMenu({
           {/* A real link, not a router call: leaving the page is what drops
               the socket and frees the seat. */}
           <a class="btn btn--big gamemenu__exit" href="/">
-            Leave game
+            {t.common.leaveGame}
           </a>
         </Sheet>
       )}

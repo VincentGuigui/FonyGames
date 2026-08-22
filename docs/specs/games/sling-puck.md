@@ -39,6 +39,10 @@ First one to clear their side wins.
 **Win condition:** first player with **no pucks on their side**.
 **Scoring:** none beyond the win. Rounds are short; "again?" is the scoring.
 
+The result panel therefore reports **Win** or **Lose** for each player, not the
+number of pucks remaining. Remaining pucks decide the referee's winner, but are
+not a score to carry into the result screen.
+
 ## 3. Modes / variations
 
 | Mode | Blurb | Difference from core |

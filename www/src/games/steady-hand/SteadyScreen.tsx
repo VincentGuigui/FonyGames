@@ -4,7 +4,9 @@ import type { Player, PlayerId } from '../../../../shared/protocol';
 import { STEADY_LIVES } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard } from '../../core/ui/Scoreboard';
+import { useT } from '../../core/i18n/strings';
 import { meterFill, type SteadyView } from './game';
+import { useGameText } from '../../core/i18n/gameText';
 
 /** How long the "you lost a life" beat holds. Shorter than the grace window on purpose. */
 const HIT_MS = 700;
@@ -46,7 +48,9 @@ export function SteadyScreen({
   /** Server time, for the settle countdown. */
   now: () => number;
 }): JSX.Element {
-  const name = (id: PlayerId): string => players.find((p) => p.id === id)?.name ?? 'Someone';
+  const t = useT();
+  const text = useGameText();
+  const name = (id: PlayerId): string => players.find((p) => p.id === id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' });
   const avatar = (id: PlayerId): string => players.find((p) => p.id === id)?.avatar ?? '🙂';
 
   const iAmOut = !!myId && !state.alive.includes(myId);
@@ -61,18 +65,19 @@ export function SteadyScreen({
     return (
       <div class="steady steady--out" style={{ '--game-accent': accent } as JSX.CSSProperties}>
         <StatusBar
-          status={reason === 'parked' ? 'Phone put down' : reason === 'left' ? 'You dropped out' : 'You moved'}
+          status={reason === 'parked' ? text({ en: 'Phone put down', fr: 'Téléphone posé' }) : reason === 'left'
+            ? text({ en: 'You dropped out', fr: 'Vous avez quitté la manche' }) : text({ en: 'You moved', fr: 'Vous avez bougé' })}
           title={title}
           concept={concept}
           rules={rules}
         />
 
-        <Scoreboard rows={livesRows(players, state)} me={myId} unit="lives" best="none" />
+        <Scoreboard rows={livesRows(players, state)} me={myId} unit={t.common.lives} best="none" />
 
         <p class="steady__gone" aria-hidden="true">
           ✋
         </p>
-        <p class="steady__gone-note">You're out — watching</p>
+        <p class="steady__gone-note">{text({ en: "You're out — watching", fr: 'Vous êtes éliminé — regardez' })}</p>
 
         {/* The best seat in the house: everyone else's meters, live. */}
         <ul class="steady__others">
@@ -96,20 +101,20 @@ export function SteadyScreen({
       style={{ '--game-accent': accent } as JSX.CSSProperties}
     >
       <StatusBar
-        status={`${state.alive.length} still in`}
+        status={text({ en: `${state.alive.length} still in`, fr: `${state.alive.length} encore en jeu` })}
         title={title}
         concept={concept}
         rules={rules}
       />
 
-      <Scoreboard rows={livesRows(players, state)} me={myId} unit="lives" best="none" />
+      <Scoreboard rows={livesRows(players, state)} me={myId} unit={t.common.lives} best="none" />
 
       {settling !== null ? (
         <>
           <p class="steady__settle-count" aria-hidden="true">
             {settling}
           </p>
-          <p class="steady__settle">Get into position — hold it up and still</p>
+          <p class="steady__settle">{text({ en: 'Get into position — hold it up and still', fr: 'Mettez-vous en position — tenez-le levé et immobile' })}</p>
         </>
       ) : (
         <>
@@ -123,7 +128,7 @@ export function SteadyScreen({
           </div>
           <p class="steady__reading" role="status" aria-live="polite">
             <strong>{myW.toFixed(2)}</strong>
-            <span> of {state.tolerance.toFixed(2)}</span>
+            <span> {text({ en: 'of', fr: 'sur' })} {state.tolerance.toFixed(2)}</span>
           </p>
 
           <p class="steady__lives">
@@ -133,13 +138,13 @@ export function SteadyScreen({
               {'○'.repeat(Math.max(0, STEADY_LIVES - myLives))}
             </span>
             <span class="steady__lives-n">
-              {myLives} {myLives === 1 ? 'life' : 'lives'}
+              {myLives} {t.common.lives}
             </span>
           </p>
 
           {hit && (
             <p class="steady__hit-note" role="alert">
-              {myLives} left
+              {text({ en: `${myLives} left`, fr: `${myLives} restantes` })}
             </p>
           )}
         </>

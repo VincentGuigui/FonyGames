@@ -4,6 +4,8 @@ import {
   TAPTAP_MIN_PLAYERS,
   TAPTAP_ROUND_CAP_MS,
   TAPTAP_TOTAL,
+  TAPTAP_WINDOW_SIZE,
+  taptapWindow,
   type ServerMessage,
 } from '../shared/protocol';
 import { nextDeadline, onTapTap, startTapTap, tick, type Ctx, type TapTap } from './tapTapRevolution';
@@ -12,13 +14,17 @@ import { nextDeadline, onTapTap, startTapTap, tick, type Ctx, type TapTap } from
  * Tap Tap Revolution's referee.
  * Spec: docs/specs/games/tap-tap-revolution.md
  *
- * Three rules carry the whole game:
+ * Four rules carry the whole game:
  *
  * 1. **The order is dealt once, shared by everyone**, and every cell in it is used —
  *    unlike Squash Mosquitoes' pattern, nothing is held in reserve.
- * 2. **A miss rewinds to the last checkpoint, not to zero.** This is the built,
- *    "forgiving" rule — the spec's own harsher idea never shipped.
- * 3. **First to clear all 100 ends the round immediately**, for everyone — not just for
+ * 2. **Five cells are live at once, tappable in any order** — `taptapWindow` is the
+ *    one function that decides which five, from `order` and a player's own cleared
+ *    history, and it is shared between referee and client on purpose.
+ * 3. **A miss rewinds to the last checkpoint, not to zero.** This is the built,
+ *    "forgiving" rule — the spec's own harsher idea never shipped. A rewind undoes
+ *    the most RECENTLY tapped cells, in tap order — not the highest `order` positions.
+ * 4. **First to clear all 100 ends the round immediately**, for everyone — not just for
  *    the finisher.
  */
 
@@ -96,6 +102,12 @@ async function running(players: string[] = [A, B]) {
   return h;
 }
 
+/** This player's own window right now — the up to five cells a correct tap could be. */
+function windowFor(h: ReturnType<typeof harness>, id: string): number[] {
+  const s = h.state()!;
+  return taptapWindow(s.order, s.cleared[id] ?? []);
+}
+
 /* ---------------------------------------------------------------- */
 
 async function dealing(): Promise<void> {
@@ -112,7 +124,7 @@ async function dealing(): Promise<void> {
   const s = h.state()!;
   check('the order has all 100 cells', s.order.length === TAPTAP_TOTAL, s.order.length);
   check('every cell appears exactly once', new Set(s.order).size === TAPTAP_TOTAL);
-  check('everyone starts at zero progress', s.progress[A] === 0 && s.progress[B] === 0);
+  check('everyone starts with nothing cleared', s.cleared[A]!.length === 0 && s.cleared[B]!.length === 0);
 
   const solo = harness();
   check('solo test mode allows one', await startTapTap(solo.ctx, 1, [A], true));
@@ -122,118 +134,174 @@ async function preRound(): Promise<void> {
   console.log('\nthe rules panel window');
   const h = harness();
   await startTapTap(h.ctx, 1, [A, B]);
-  const s = h.state()!;
+  const win = windowFor(h, A);
 
-  await onTapTap(h.ctx, A, 1, s.order[0]!);
-  check('no tapping while the rules are up', h.state()!.progress[A] === 0);
+  await onTapTap(h.ctx, A, 1, win[0]!);
+  check('no tapping while the rules are up', h.state()!.cleared[A]!.length === 0);
 
   h.advance(PREROUND_MS + 1);
-  await onTapTap(h.ctx, A, 1, s.order[0]!);
-  check('allowed once play begins', h.state()!.progress[A] === 1);
+  await onTapTap(h.ctx, A, 1, win[0]!);
+  check('allowed once play begins', h.state()!.cleared[A]!.length === 1);
+}
+
+async function fiveAtOnce(): Promise<void> {
+  console.log('\nfive cells are live at once, tappable in any order');
+  const h = await running();
+  const win = windowFor(h, A);
+
+  check('exactly five cells are live', win.length === TAPTAP_WINDOW_SIZE, win);
+  check('all five distinct', new Set(win).size === TAPTAP_WINDOW_SIZE);
+
+  // Tap the LAST of the five first — out of order on purpose.
+  await onTapTap(h.ctx, A, 1, win[4]!);
+  check('a correct tap counts wherever it sits in the window', h.state()!.cleared[A]!.length === 1);
+  check('it is the one actually tapped', h.state()!.cleared[A]![0] === win[4]);
+
+  const nextWin = windowFor(h, A);
+  check('the window slides in a new sixth cell to stay at five', nextWin.length === TAPTAP_WINDOW_SIZE);
+  check(
+    'the four untouched cells are still live',
+    [win[0], win[1], win[2], win[3]].every((c) => nextWin.includes(c!)),
+  );
+
+  // Now tap the remaining original four, in a scrambled order.
+  for (const c of [win[1]!, win[3]!, win[0]!, win[2]!]) {
+    await onTapTap(h.ctx, A, 1, c);
+  }
+  check('all five original cells are cleared', h.state()!.cleared[A]!.length === 5);
+  check(
+    'cleared holds them in the order actually tapped, not order[] order',
+    h.state()!.cleared[A]!.join(',') === [win[4], win[1], win[3], win[0], win[2]].join(','),
+  );
 }
 
 async function correctTaps(): Promise<void> {
-  console.log('\na correct tap advances by one');
+  console.log('\na correct tap advances by one; a cell outside the window misses');
   const h = await running();
   const order = h.state()!.order;
 
-  await onTapTap(h.ctx, A, 1, order[0]!);
-  check('progress advanced', h.state()!.progress[A] === 1);
+  const win = windowFor(h, A);
+  await onTapTap(h.ctx, A, 1, win[0]!);
+  check('progress advanced', h.state()!.cleared[A]!.length === 1);
 
-  await onTapTap(h.ctx, A, 1, order[1]!);
-  await onTapTap(h.ctx, A, 1, order[2]!);
-  check('and again, each time the actual lit cell', h.state()!.progress[A] === 3);
+  check('B is untouched by A\'s taps', h.state()!.cleared[B]!.length === 0);
 
-  check('B is untouched by A\'s taps', h.state()!.progress[B] === 0);
+  const before = h.state()!.cleared[A]!.length;
+  // The very last cell in the shuffle cannot be among the five earliest uncleared
+  // cells with only one of a hundred cleared so far — it is nowhere near the window.
+  const farAhead = order[order.length - 1]!;
+  check('confirms it is outside the window', !windowFor(h, A).includes(farAhead));
 
-  const before = h.state()!.progress[A];
-  await onTapTap(h.ctx, A, 1, order[7]!); // not the lit cell for A right now
+  await onTapTap(h.ctx, A, 1, farAhead);
   check(
-    'a cell that is not yet lit for this player misses, rewinding to the checkpoint at 0',
-    h.state()!.progress[A] === 0,
-    { before, after: h.state()!.progress[A] },
+    'a cell outside the current window misses, rewinding to the checkpoint at 0',
+    h.state()!.cleared[A]!.length === 0,
+    { before, after: h.state()!.cleared[A]!.length },
   );
 }
 
-async function checkpointRewind(): Promise<void> {
-  console.log('\na miss rewinds to the last checkpoint, not to zero');
+async function alreadyGoneIsAMiss(): Promise<void> {
+  console.log('\ntapping an already-cleared cell misses, same as any other wrong cell');
   const h = await running();
+  const win = windowFor(h, A);
+  await onTapTap(h.ctx, A, 1, win[0]!);
+  check('one cleared', h.state()!.cleared[A]!.length === 1);
+
+  await onTapTap(h.ctx, A, 1, win[0]!); // tap the same, now-gone cell again
+  check('tapping it again is a miss, not a no-op', h.state()!.cleared[A]!.length === 0);
+}
+
+async function checkpointRewind(): Promise<void> {
+  console.log('\na miss rewinds to the last checkpoint, not to zero — undoing the most recently tapped cells');
+  const h = await running();
+
+  const tapped: number[] = [];
+  for (let i = 0; i < 13; i++) {
+    const win = windowFor(h, A);
+    const cell = win[0]!;
+    await onTapTap(h.ctx, A, 1, cell);
+    tapped.push(cell);
+  }
+  check('13 correct taps in', h.state()!.cleared[A]!.length === 13);
+
+  // A wrong tap: anything not currently live.
+  const win = windowFor(h, A);
   const order = h.state()!.order;
-
-  for (let i = 0; i < 13; i++) await onTapTap(h.ctx, A, 1, order[i]!);
-  check('13 correct taps in', h.state()!.progress[A] === 13);
-
-  // A wrong tap: anything that is not order[13].
-  const wrong = order.find((c) => c !== order[13]);
+  const wrong = order.find((c) => !win.includes(c) && !tapped.includes(c));
   await onTapTap(h.ctx, A, 1, wrong!);
+  const after = h.state()!.cleared[A]!;
+  check('rewound to the checkpoint at 10, not to 0', after.length === 10, after);
   check(
-    'rewound to the checkpoint at 10, not to 0',
-    h.state()!.progress[A] === 10,
-    h.state()!.progress[A],
+    'the checkpoint kept the FIRST ten taps, in the order they were tapped',
+    after.join(',') === tapped.slice(0, 10).join(','),
   );
-
-  // From the checkpoint, the next correct tap is order[10] again.
-  await onTapTap(h.ctx, A, 1, order[10]!);
-  check('resumes from the checkpoint', h.state()!.progress[A] === 11);
 }
 
 async function checkpointAtExactBoundary(): Promise<void> {
   console.log('\na miss exactly on a checkpoint stays there');
   const h = await running();
+
+  for (let i = 0; i < 10; i++) {
+    const cell = windowFor(h, A)[0]!;
+    await onTapTap(h.ctx, A, 1, cell);
+  }
+  check('exactly at a checkpoint', h.state()!.cleared[A]!.length === 10);
+
+  const win = windowFor(h, A);
   const order = h.state()!.order;
-
-  for (let i = 0; i < 10; i++) await onTapTap(h.ctx, A, 1, order[i]!);
-  check('exactly at a checkpoint', h.state()!.progress[A] === 10);
-
-  const wrong = order.find((c) => c !== order[10]);
+  const cleared = h.state()!.cleared[A]!;
+  const wrong = order.find((c) => !win.includes(c) && !cleared.includes(c));
   await onTapTap(h.ctx, A, 1, wrong!);
-  check('a miss right at the checkpoint does not go any further back', h.state()!.progress[A] === 10);
+  check('a miss right at the checkpoint does not go any further back', h.state()!.cleared[A]!.length === 10);
 }
 
 async function winning(): Promise<void> {
   console.log('\nfirst to clear all 100 wins, immediately');
   const h = await running();
-  const order = h.state()!.order;
 
   for (let i = 0; i < TAPTAP_TOTAL; i++) {
-    await onTapTap(h.ctx, A, 1, order[i]!);
+    const cell = windowFor(h, A)[0]!;
+    await onTapTap(h.ctx, A, 1, cell);
   }
 
   const done = h.state()!;
-  check('A cleared all 100', done.progress[A] === TAPTAP_TOTAL);
+  check('A cleared all 100', done.cleared[A]!.length === TAPTAP_TOTAL);
   check('A is the winner', done.winner === A);
   check('the round reports done', done.phase === 'done');
   check('A has a finish time', done.finishedAt[A] !== null);
 
   const sentBefore = h.sent.length;
-  await onTapTap(h.ctx, B, 1, order[0]!);
+  await onTapTap(h.ctx, B, 1, done.order[0]!);
   check('no more taps count once the round is done', h.sent.length === sentBefore);
 }
 
 async function finishedPlayerTapsAreNoOps(): Promise<void> {
   console.log('\na finished player tapping again does nothing (round still running for others)');
   const h = await running([A, B, C]);
-  const order = h.state()!.order;
 
-  for (let i = 0; i < TAPTAP_TOTAL; i++) await onTapTap(h.ctx, A, 1, order[i]!);
+  for (let i = 0; i < TAPTAP_TOTAL; i++) {
+    const cell = windowFor(h, A)[0]!;
+    await onTapTap(h.ctx, A, 1, cell);
+  }
   check('A finished but the round is done for everyone', h.state()!.phase === 'done');
 
   // Once the round is done, nobody's taps are processed further — confirmed above by
   // "no more taps count once the round is done" in winning(); this checks the
   // finished-player guard specifically, before the round ends, with a fresh room.
   const h2 = await running([A, B]);
-  const order2 = h2.state()!.order;
-  for (let i = 0; i < TAPTAP_TOTAL - 1; i++) await onTapTap(h2.ctx, A, 1, order2[i]!);
-  check('A is one tap from finishing', h2.state()!.progress[A] === TAPTAP_TOTAL - 1);
+  for (let i = 0; i < TAPTAP_TOTAL - 1; i++) {
+    const cell = windowFor(h2, A)[0]!;
+    await onTapTap(h2.ctx, A, 1, cell);
+  }
+  check('A is one tap from finishing', h2.state()!.cleared[A]!.length === TAPTAP_TOTAL - 1);
 }
 
 async function capping(): Promise<void> {
   console.log('\nthe safety cap');
   const h = await running([A, B, C]);
-  const order = h.state()!.order;
 
-  for (let i = 0; i < 40; i++) await onTapTap(h.ctx, A, 1, order[i]!);
-  for (let i = 0; i < 20; i++) await onTapTap(h.ctx, B, 1, order[i]!);
+  for (let i = 0; i < 40; i++) await onTapTap(h.ctx, A, 1, windowFor(h, A)[0]!);
+  for (let i = 0; i < 20; i++) await onTapTap(h.ctx, B, 1, windowFor(h, B)[0]!);
 
   h.advance(TAPTAP_ROUND_CAP_MS + 1);
   const ended = await tick(h.ctx);
@@ -248,18 +316,21 @@ async function capping(): Promise<void> {
 }
 
 async function privacy(): Promise<void> {
-  console.log('\nprogress is private; remaining count is public');
+  console.log('\ncleared history is private; remaining count is public');
   const h = await running();
-  const order = h.state()!.order;
+  const win = windowFor(h, A);
 
-  await onTapTap(h.ctx, A, 1, order[0]!);
+  await onTapTap(h.ctx, A, 1, win[0]!);
 
   const broadcast = h.last()!;
   check('the public frame carries remaining COUNTS', typeof broadcast.d.remaining[A] === 'number');
-  check('and the order, not anyone\'s progress index', 'order' in broadcast.d && !('progress' in broadcast.d));
+  check(
+    'and the order, not anyone\'s cleared history',
+    'order' in broadcast.d && !('cleared' in broadcast.d),
+  );
 
   const mine = h.progressFor(A);
-  check('A is sent A\'s own progress', mine.length === 1 && mine[0]!.d.index === 1);
+  check('A is sent A\'s own cleared history', mine.length === 1 && mine[0]!.d.cleared.length === 1);
 
   const theirs = h.progressFor(B);
   check('B is sent nothing after A\'s tap', theirs.length === 0);
@@ -268,15 +339,14 @@ async function privacy(): Promise<void> {
 async function cheating(): Promise<void> {
   console.log('\nclamping and stale rounds');
   const h = await running();
-  const order = h.state()!.order;
 
-  await onTapTap(h.ctx, A, 99, order[0]!);
-  check('a stale roundId is ignored', h.state()!.progress[A] === 0);
+  await onTapTap(h.ctx, A, 99, windowFor(h, A)[0]!);
+  check('a stale roundId is ignored', h.state()!.cleared[A]!.length === 0);
 
   await onTapTap(h.ctx, A, 1, -1);
   await onTapTap(h.ctx, A, 1, TAPTAP_TOTAL);
   await onTapTap(h.ctx, A, 1, 1.5);
-  check('out-of-range and non-integer cells are ignored', h.state()!.progress[A] === 0);
+  check('out-of-range and non-integer cells are ignored', h.state()!.cleared[A]!.length === 0);
 
   check('nextDeadline is the cap while running', nextDeadline(h.state()!) === h.state()!.endsAt);
 }
@@ -284,7 +354,9 @@ async function cheating(): Promise<void> {
 for (const t of [
   dealing,
   preRound,
+  fiveAtOnce,
   correctTaps,
+  alreadyGoneIsAMiss,
   checkpointRewind,
   checkpointAtExactBoundary,
   winning,

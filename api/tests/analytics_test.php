@@ -281,6 +281,20 @@ group('the caller address is read from the proxy headers, and validated');
     ) === '2001:db8::1');
 }
 
+group('ipinfo authentication and site identity are explicit headers');
+{
+    $source = file_get_contents(dirname(__DIR__) . '/lib/Analytics.php');
+    check('the token is a bearer header', str_contains((string) $source, "'Authorization: Bearer ' . \$this->token"));
+    check('the current site is the Referer header', str_contains((string) $source, "'Referer: ' . \$this->referer"));
+    check('the token is absent from the query string', !str_contains((string) $source, "'/json?token='"));
+    $appSource = file_get_contents(dirname(__DIR__) . '/lib/App.php');
+    check('App supplies its configured site origin', str_contains((string) $appSource, "\$this->config['site_origin']"));
+    $workflow = file_get_contents(dirname(__DIR__, 2) . '/.github/workflows/main.yml');
+    check('the deploy selects that origin from hosts.json', str_contains((string) $workflow, 'hosts.environments?.[process.argv[1]]'));
+    $index = file_get_contents(dirname(__DIR__) . '/index.php');
+    check('the authenticated diagnostic action exists', str_contains((string) $index, "case 'ipinfo-diagnostic'"));
+}
+
 group('the endpoint and the client agree on the vocabulary');
 
 {
@@ -359,7 +373,7 @@ group('summary(): the dashboard, in counts — never a list of what one visitor 
     check('spill outranks grid-attack by plays', $summary['topGames'][0]['slug'] === 'spill');
 
     check('one country, from the geolocator', $summary['countries'] === [['country' => 'FR', 'count' => 9]]);
-    check('one city, same reason', $summary['cities'] === [['city' => 'Paris', 'count' => 9]]);
+    check('one city, nested under its country', $summary['cities'] === [['country' => 'FR', 'city' => 'Paris', 'count' => 9]]);
 
     check('the referrer is grouped by host, not the full URL', $summary['referrers'] === [
         ['host' => 'example.com', 'count' => 1],

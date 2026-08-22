@@ -1,6 +1,7 @@
 import type { JSX } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
 import { screenAngleTo, seatLayout } from '../../../../shared/spillGeometry';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
 
 /**
  * Where to put your phone, drawn **from your own point of view**.
@@ -28,6 +29,7 @@ export function SeatMap({
   out?: PlayerId[];
   size?: number;
 }): JSX.Element | null {
+  const text = useGameText();
   const n = seats.length;
   const mine = seats.indexOf(me);
   if (n < 2 || mine < 0) return null;
@@ -54,7 +56,7 @@ export function SeatMap({
       width={size}
       height={size}
       role="img"
-      aria-label={describe(seats, byId, me, mine, n)}
+      aria-label={describe(seats, byId, me, mine, n, text)}
     >
       <circle cx={c} cy={c} r={r * 0.62} class="seatmap__table" />
       {seats.map((id, seat) => {
@@ -77,7 +79,7 @@ export function SeatMap({
               {gone ? '·' : (person?.avatar ?? '?')}
             </text>
             <text x={p.x} y={p.y + 30} class="seatmap__name">
-              {seat === mine ? 'you' : (person?.name ?? '')}
+              {seat === mine ? text({ en: 'you', fr: 'vous' }) : (person?.name ?? '')}
             </text>
           </g>
         );
@@ -93,21 +95,23 @@ function describe(
   me: PlayerId,
   mine: number,
   n: number,
+  text: GameText,
 ): string {
   const parts = seats
     .map((id, seat) => {
       if (id === me) return null;
-      const name = byId.get(id)?.name ?? 'someone';
-      return `${name} is ${clockwords(screenAngleTo(mine, seat, n))}`;
+      const name = byId.get(id)?.name ?? text({ en: 'someone', fr: 'quelqu’un' });
+      return text({ en: `${name} is ${clockwords(screenAngleTo(mine, seat, n), text)}`, fr: `${name} est ${clockwords(screenAngleTo(mine, seat, n), text)}` });
     })
     .filter(Boolean);
-  return `Table layout. ${parts.join('; ')}.`;
+  return text({ en: `Table layout. ${parts.join('; ')}.`, fr: `Disposition de la table. ${parts.join('; ')}.` });
 }
 
-function clockwords(angle: number): string {
+function clockwords(angle: number, text: GameText): string {
   const deg = (angle * 180) / Math.PI;
-  if (Math.abs(deg) < 22) return 'straight ahead';
-  if (Math.abs(deg) > 158) return 'behind you';
-  const side = deg > 0 ? 'right' : 'left';
-  return Math.abs(deg) > 68 ? `to your ${side}` : `ahead and to your ${side}`;
+  if (Math.abs(deg) < 22) return text({ en: 'straight ahead', fr: 'juste devant vous' });
+  if (Math.abs(deg) > 158) return text({ en: 'behind you', fr: 'derrière vous' });
+  const side = deg > 0 ? text({ en: 'right', fr: 'droite' }) : text({ en: 'left', fr: 'gauche' });
+  return Math.abs(deg) > 68 ? text({ en: `to your ${side}`, fr: `à votre ${side}` })
+    : text({ en: `ahead and to your ${side}`, fr: `devant vous, sur votre ${side}` });
 }

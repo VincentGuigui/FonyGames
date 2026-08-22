@@ -135,6 +135,22 @@ function cardsAreLeaves() {
   }
 }
 
+function liveCardsHaveFrench() {
+  console.log('\nlive cards have complete French copy');
+  for (const game of withCard) {
+    const src = readFileSync(join(GAMES_DIR, game, 'card.ts'), 'utf8');
+    if (!/status:\s*'(live|new)'/.test(src)) continue;
+    const start = src.indexOf('fr: {');
+    const end = src.indexOf('\n  accent:', start);
+    const fr = start >= 0 && end > start ? src.slice(start, end) : '';
+    check(`${game} has a French block`, fr !== '');
+    check(`${game} translates pitch`, /\bpitch\s*:/.test(fr));
+    check(`${game} translates concept`, /\bconcept\s*:/.test(fr));
+    check(`${game} translates rules`, /\brules\s*:/.test(fr));
+    check(`${game} translates art alt text`, /\bart\s*:\s*\{\s*alt\s*:/.test(fr));
+  }
+}
+
 function artIsSelfContained() {
   console.log('\nart files carry their own colour');
   const cards = folders
@@ -186,6 +202,7 @@ function artIsSelfContained() {
 
 folderHygiene();
 cardsAreLeaves();
+liveCardsHaveFrench();
 artIsSelfContained();
 
 if (failures > 0) throw new Error(`${failures} check(s) failed`);

@@ -12,10 +12,35 @@ fixed:
 2. **How to play** — the concept, then the bullets (§2).
 3. **Invite a player** — the code, share link and QR, in a panel that collapses.
 4. **Players** — the list. Your own row carries **Change**, which opens a sheet with
-   your name and the avatars in it.
-5. **Start** — the button and one line of context, **stuck to the bottom of the screen**.
+   your name and the avatars in it; every connected guest also shows ready/not ready.
+5. **Start / Ready** — Start for the host, Ready for every guest, plus one line of
+   context, at the bottom of the lobby's normal document flow.
 
-### Why the start button is sticky
+Every room screen opens the connection and its five share controls through
+`core/room/useGameRoom()`. It composes `useRoom()` with `useShareRoom()` once; games still
+own their referee messages, but do not repeat the slug/title/error plumbing needed by
+every lobby.
+
+### Ready is a room rule, not a game feature
+
+Every connected guest must press **Ready** before the host's **Start** button enables.
+The Worker checks the same rule, so a crafted Start frame cannot bypass the lobby. Away
+seats inside the reconnect grace period are ignored: losing one connection must not
+strand everyone who is still at the table.
+
+Readiness is required before the first round and then persists for replay. A guest who
+joins later still starts unready; existing players do not need to press Ready between
+rounds. The shared result screen only shows Ready to an unready guest and holds Play again
+/ Next round for the host until that late guest is resolved.
+
+Sensor games pass one local `readyBlocked` fact into the shared chrome. Ready (or Start
+for the host) stays disabled until that game's primer has resolved: permission granted,
+permission declined, an unsupported sensor with its documented fallback, or an explicit
+fallback route. A late spectator can run the same setup action from the result screen.
+The browser owns this part because sensor permissions never leave the phone; the Worker
+owns the room-wide guest flags.
+
+### Why the start button stays in flow
 
 Because it was below the fold in every game. Measured at 390×844 with one player: Pass the
 Bomb's start button sat at 964px, Shake Rush's at 1064, Steady Hand's at 1005, Ghost Hunt's
@@ -24,9 +49,9 @@ safety copy to start a round — every round.
 
 The cause is not one fat panel. A lobby legitimately has a lot in it: a code to read out,
 everyone who has joined, and whatever a game must say before anybody points a camera at
-anything. Sticky keeps all of that and stops it burying the one control the host is there
-to press. The gradient behind it fades to the page colour rather than being a flat fill,
-because a hard edge across the middle of a panel reads as the page having ended.
+anything. The control remains at the natural end of that content in normal document flow.
+It can be below the fold, but it never covers content or traps the last instruction under
+an overlay.
 
 ### Why the room code collapses
 
@@ -128,6 +153,17 @@ always contains:
   component the lobby and the pre-round panel use (§2).
 - **Leave game** — a real `<a href="/">`, not a router call, because leaving the
   page is what drops the socket and frees the seat.
+
+Two smaller pieces are shared once a second game needs them:
+
+- `core/ui/PermissionPrimer.tsx` owns the common sensor-primer panel, resolved state and
+  action layout; each game still supplies its own translated explanation and fallback.
+- `core/ui/SoundToggle.tsx` owns the immediate `aria-pressed` mute control; each game
+  supplies its translated on/off wording and keeps its own sound implementation.
+
+The boundary is visual and behavioural, not vocabulary. A permission primer does not
+decide whether denial means touch fallback or spectating, and a sound toggle never imports
+a game's tune.
 
 A game may add anything else through `children`; Spill puts its table diagram
 and theme picker there. Nothing else may be *required*, because the two items
@@ -385,6 +421,17 @@ Nine games had nine endings, in two families:
   left over and wrapped it mid-number. A row with nothing to say renders no second line
   at all, so a game not using it keeps one line per player.
 
+- **The board holds for 0.5 seconds before any result panel.** The room client delays
+  delivery of every authoritative round/match-end frame for 500 ms and marks the existing
+  app tree `inert` during that hold. The last board frame therefore remains visible but
+  cannot accept another action. This is shared protocol presentation, not fifteen copied
+  timers in fifteen games.
+- **Every decided result has a sound.** The shared result component synthesizes the same
+  short ascending win cue or descending lose cue after the board hold. The audio context
+  is armed by an earlier ordinary game tap; sound never delays or decides a result. A game
+  may pass its own `win`/`lose` cue through `GameOverScreen.sounds`, but silence is not an
+  override. Draws have no winner/loser cue.
+
 - **Nothing takes a tap for the first two seconds.** Half the catalogue ends a round with
   a thumb still going — Grid Attack and Pass the Bomb are mashing games, Tap Duel's whole
   skill is tapping the instant something appears — and the panel lands under the finger
@@ -403,12 +450,13 @@ Nine games had nine endings, in two families:
   crest shrinks, the gaps tighten, the rows scroll and the two buttons sit side by side.
   Grid Attack's board is sideways and so is its result, and a height query rather than an
   orientation one means no game has to opt in.
-- **Mid-match gets one button**, the next round: Tap Duel at 6–4 does not want to be
+- **Mid-match gets one host button**, the next round: Tap Duel at 6–4 does not want to be
   asked whether to play again. A finished match gets two — play again, and leave.
 - **Leave is a link, not a button.** Leaving the page is what drops the socket and frees
   the seat, the same reason the gear menu's exit is one.
-- **A non-host is told who they are waiting for, and can still leave.** Not being the
-  host is not a reason to be trapped in a room.
+- **A non-host gets Ready and can still leave.** The host's action stays disabled until
+  every connected guest is ready. Not being the host is not a reason to be trapped in
+  a room.
 - The screen keeps the **status bar**, so how-to-play and the way out stay where they
   are in every other screen of every other game.
 

@@ -102,7 +102,7 @@ Standard flow ([../../multiplayer.md](../../multiplayer.md) §3). Specifics:
   play means one of them is lying with no way to tell which
   ([../../design/game-chrome.md](../../design/game-chrome.md) §1).
 - **Fire** — the viewport becomes the accent colour and the target **lights up**
-  where it already was. Only a tap on the target counts.
+  at the exact position reached by its armed movement. Only a tap on the target counts.
 
   This replaces the original design where the whole screen was the target, on the
   reasoning that "aiming is not the skill being measured". Reaction alone turned
@@ -147,6 +147,8 @@ Standard flow ([../../multiplayer.md](../../multiplayer.md) §3). Specifics:
       fires. The frozen position still matches every other phone exactly, and a tab
       brought back mid-window jumps to where the drift *is now* rather than
       resuming from where it stopped — measured at one frame.
+    - The fire render uses the same `fireAt` sample as the armed walk, before the
+      animation effect runs, so there is no one-frame snap back to the origin.
     - `prefers-reduced-motion` does **not** switch it off, for the reason
       [sling-puck.md](sling-puck.md) §13 gives: motion that *is* the game stays,
       decoration goes. A still target is an easier game, and it would also put that
@@ -264,8 +266,8 @@ nothing is stored at all.
 ## 11. Accessibility
 
 - **Reaching a target does need aiming**, which the full-screen version did not.
-  Three things keep the cost small: the target is **large** (`min(42vw, 42vh,
-  15rem)`, far above the 44 px minimum), it is **visible from the start** so there
+  Three things keep the cost small: the target is **large** (`min(28vw, 28vh,
+  10rem)`, above the 44 px minimum), it is **visible from the start** so there
   is no time pressure on finding it, and it is one element with one focus stop, so
   a keyboard or switch user activates it the same way. It is still a real cost to
   anyone who cannot move a thumb across a screen quickly; `sprint` and `simon`

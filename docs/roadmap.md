@@ -18,6 +18,7 @@
 | M8 | **Backoffice** | Health, Cloudflare usage vs free tier, aggregate activity, **feature flags per game** — all in **PHP on the web host**, not the Worker. Spec: [specs/backoffice.md](specs/backoffice.md) | 🔨 in progress |
 | M8b | **Findable and shareable** | `og:`/`twitter:` tags so a shared link previews as the game rather than a bare URL, a rasterised preview image per game, and the hub's HTML rendered by PHP per request so a flag change needs no rebuild. Spec: [specs/seo.md](specs/seo.md) | 🔨 in progress |
 | M9 | **Smart join** | Draw-across-devices join (flagship) + shake-together fallback. Spec: [specs/join.md](specs/join.md) | |
+| M10 | **Lobby ready state** | Every connected guest marks themselves ready before the first round; readiness persists for replay, while a newly joined seat still starts false. Pass the Bomb, Shake Rush, Steady Hand, Neon Fall and Ghost Hunt keep Ready disabled until their permission or fallback choice is resolved. The rule is shared by the client and Worker (`shared/readiness.ts`) and enforced again in `Room.#onStart`. | ✅ done |
 
 ## Open decisions
 

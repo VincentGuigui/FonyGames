@@ -8,13 +8,16 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { soloTesting } from '../../core/solo';
-import { useRoom, useShareRoom } from '../../core/room/useRoom';
+import { useSoloTesting } from '../../core/useSolo';
+import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { SeatMap } from './SeatMap';
 import { SpillBoard } from './SpillBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
+import { useLocale } from '../../core/i18n/LocaleContext';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
 import { SpillGame } from './game';
 import { SPILL_THEME } from './themes';
 
@@ -39,6 +42,9 @@ export function SpillRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
+  const text = useGameText();
+  const themeWords = SPILL_THEME.words[useLocale().locale];
   const [, redraw] = useState(0);
 
   // Created before the socket, because the first `spill` frame can arrive
@@ -61,10 +67,9 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
    * Read once per render rather than per click: it changes only when the admin
    * centre writes it, which cannot happen while this page is open.
    */
-  const solo = soloTesting();
+  const solo = useSoloTesting();
 
-  const room = useRoom(code, card.slug, onGame);
-  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
+  const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;
 
@@ -108,18 +113,18 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const ranked = [...state.seats].sort((a, b) => (state.levels[a] ?? 0) - (state.levels[b] ?? 0));
     return (
       <GameOverScreen
+        room={room}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        status="Round over"
         rows={ranked.map((id) => ({
           id,
           avatar: byId.get(id)?.avatar ?? '🙂',
-          name: byId.get(id)?.name ?? 'Someone',
+          name: byId.get(id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' }),
           value: state.levels[id] ?? 0,
-          unit: `${SPILL_THEME.words.unitPlural} left`,
+          unit: `${themeWords.unitPlural} ${t.common.left}`,
           ...(state.out.includes(id) ? { out: true } : {}),
         }))}
         me={myId}
@@ -145,12 +150,12 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
       canStart={
         room.isHost && enoughToStart(room.connected, [SPILL_MIN_PLAYERS, SPILL_MAX_PLAYERS], solo)
       }
-      startLabel={state ? 'Play again' : 'Start round'}
+      startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'spill', solo } })}
-      note={note(room.isHost, room.connected, solo)}
+      note={note(room.isHost, room.connected, solo, text)}
       playerTag={(id) => {
         const i = state?.seats.indexOf(id) ?? -1;
-        return i < 0 ? null : `seat ${i + 1}`;
+        return i < 0 ? null : text({ en: `seat ${i + 1}`, fr: `place ${i + 1}` });
       }}
       aside={
         <>
@@ -164,12 +169,12 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
             />
           ) : (
             <p class="howto__aside">
-              Your spot on the table appears here when the round starts —{' '}
-              {SPILL_MIN_PLAYERS} to {SPILL_MAX_PLAYERS} players in a ring.
+              {text({ en: 'Your spot on the table appears here when the round starts —', fr: 'Votre place autour de la table apparaîtra ici au début de la manche —' })}{' '}
+              {text({ en: `${SPILL_MIN_PLAYERS} to ${SPILL_MAX_PLAYERS} players in a ring.`, fr: `${SPILL_MIN_PLAYERS} à ${SPILL_MAX_PLAYERS} joueurs en cercle.` })}
             </p>
           )}
           <p class="howto__warn" role="note">
-            No actual liquids near the phones.
+            {text({ en: 'No actual liquids near the phones.', fr: 'Aucun vrai liquide près des téléphones.' })}
           </p>
         </>
       }
@@ -177,12 +182,12 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
   );
 }
 
-function note(isHost: boolean, connected: number, solo: boolean): string {
-  if (!isHost) return 'The host starts the round.';
-  if (!solo && connected < SPILL_MIN_PLAYERS) return 'Waiting for one more player…';
+function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
+  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
+  if (!solo && connected < SPILL_MIN_PLAYERS) return text({ en: 'Waiting for one more player…', fr: 'En attente d’un joueur supplémentaire…' });
   if (connected > SPILL_MAX_PLAYERS) {
-    return `Spill is ${SPILL_MIN_PLAYERS}–${SPILL_MAX_PLAYERS} players — beyond that the ring gets too crowded to aim.`;
+    return text({ en: `Spill is ${SPILL_MIN_PLAYERS}–${SPILL_MAX_PLAYERS} players — beyond that the ring gets too crowded to aim.`, fr: `Spill se joue de ${SPILL_MIN_PLAYERS} à ${SPILL_MAX_PLAYERS} joueurs — au-delà, le cercle est trop serré pour viser.` });
   }
-  return `Empty your phone to win. Reach ${SPILL_LOSE_LEVEL} and you are out.`;
+  return text({ en: `Empty your phone to win. Reach ${SPILL_LOSE_LEVEL} and you are out.`, fr: `Videz votre téléphone pour gagner. À ${SPILL_LOSE_LEVEL}, vous êtes éliminé.` });
 }
 

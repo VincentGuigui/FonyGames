@@ -8,8 +8,8 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { soloTesting } from '../../core/solo';
-import { useRoom, useShareRoom } from '../../core/room/useRoom';
+import { useSoloTesting } from '../../core/useSolo';
+import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { detectSteady } from '../../core/sensors/steady';
@@ -17,6 +17,9 @@ import { motionSupport, requestMotion, type MotionSupport } from '../../core/sen
 import { applySteady, type SteadyState } from './game';
 import { SteadyScreen } from './SteadyScreen';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { PermissionPrimer } from '../../core/ui/PermissionPrimer';
 
 /**
  * Steady Hand's room screen. Spec: docs/specs/games/steady-hand.md
@@ -39,6 +42,8 @@ export function SteadyRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
+  const text = useGameText();
   const [state, setState] = useState<SteadyState>(null);
   const [support] = useState<MotionSupport>(motionSupport);
   const [motionOn, setMotionOn] = useState(false);
@@ -52,10 +57,9 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
    * Read once per render rather than per click: it changes only when the admin
    * centre writes it, which cannot happen while this page is open.
    */
-  const solo = soloTesting();
+  const solo = useSoloTesting();
 
-  const room = useRoom(code, card.slug, onGame);
-  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
+  const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;
 
@@ -107,7 +111,7 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
     setMotionAsked(true);
     const granted = await requestMotion();
     setMotionOn(granted);
-    if (!granted) room.setError('No motion access — you can watch, but not play this one.');
+    if (!granted) room.setError(text({ en: 'No motion access — you can watch, but not play this one.', fr: 'Pas d’accès au mouvement — vous pouvez regarder, mais pas jouer.' }));
   }
 
   /*
@@ -122,18 +126,20 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
     const ranked = [...players].sort((a, b) => (state.times[b.id] ?? 0) - (state.times[a.id] ?? 0));
     return (
       <GameOverScreen
+        room={room}
+        readyBlocked={support !== 'unsupported' && !motionAsked}
+        onReadySetup={enableMotion}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        status="Round over"
         rows={ranked.map((p) => ({
           id: p.id,
           avatar: p.avatar,
           name: p.name,
           value: ((state.times[p.id] ?? 0) / 1000).toFixed(1),
-          unit: 's held',
+          unit: text({ en: 's held', fr: 's tenues' }),
           // Struck through only for the ones actually knocked out, not for everyone who
           // is not the winner: a round can end with more than one hand still steady.
           ...(state.alive.includes(p.id) ? {} : { out: true }),
@@ -174,15 +180,16 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughPlayers}
-      startLabel={state ? 'Play again' : 'Start round'}
+      startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'steady', solo } })}
-      note={note(room.isHost, room.connected, motionOn, solo)}
+      readyBlocked={support !== 'unsupported' && !motionAsked}
+      note={note(room.isHost, room.connected, motionOn, solo, text)}
       playerTag={(id) => {
         if (!state) return null;
-        if (state.winner === id) return 'won';
-        const t = state.times[id];
-        if (t === undefined) return null;
-        return `${Math.round(t / 1000)}s`;
+        if (state.winner === id) return text({ en: 'won', fr: 'gagnant' });
+        const held = state.times[id];
+        if (held === undefined) return null;
+        return `${Math.round(held / 1000)}s`;
       }}
       extras={
         <>
@@ -192,11 +199,10 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
             not folded into How to play, which now arrives collapsed for the host.
           */}
           <section class="panel steady-rule" role="note">
-            <h2 class="panel__heading">The one rule</h2>
+            <h2 class="panel__heading">{text({ en: 'The one rule', fr: 'La règle unique' })}</h2>
             <p class="steady-rule__body">
-              Hold the phone <strong>up</strong>, screen towards you. Resting it on a table
-              or your lap ends your round — that is the one thing the game can tell you
-              are doing.
+              {text({ en: 'Hold the phone ', fr: 'Tenez le téléphone ' })}<strong>{text({ en: 'up', fr: 'levé' })}</strong>,{' '}
+              {text({ en: 'screen towards you. Resting it on a table or your lap ends your round — that is the one thing the game can tell you are doing.', fr: 'écran vers vous. Le poser sur une table ou sur vos genoux termine votre manche — c’est la seule chose que le jeu peut détecter.' })}
             </p>
           </section>
 
@@ -230,54 +236,37 @@ function MotionPrimer({
   asked: boolean;
   onEnable: () => void;
 }): JSX.Element {
+  const text = useGameText();
+  const heading = text({ en: 'Holding still', fr: 'Rester immobile' });
   if (support === 'unsupported' || (asked && !on)) {
     return (
-      <section class="panel primer">
-        <h2 class="panel__heading">Holding still</h2>
-        <p class="primer__body">
-          {support === 'unsupported'
-            ? 'This phone has no motion sensor, so it cannot measure how still you are holding it.'
-            : 'Motion was turned down, so this phone cannot measure how still you are holding it.'}{' '}
-          There is no tap version of this one — holding a phone still is the whole game — so
-          you can watch the round, and the meters are worth watching.
-        </p>
-      </section>
+      <PermissionPrimer heading={heading} body={`${support === 'unsupported'
+        ? text({ en: 'This phone has no motion sensor, so it cannot measure how still you are holding it.', fr: 'Ce téléphone n’a pas de capteur de mouvement et ne peut pas mesurer son immobilité.' })
+        : text({ en: 'Motion was turned down, so this phone cannot measure how still you are holding it.', fr: 'L’accès au mouvement a été refusé, le téléphone ne peut donc pas mesurer son immobilité.' })} ${text(
+        { en: 'There is no tap version of this one — holding a phone still is the whole game — so you can watch the round, and the meters are worth watching.', fr: 'Il n’existe pas de version tactile — tenir le téléphone immobile est le jeu — mais vous pouvez regarder la manche et ses jauges.' },
+      )}`} />
     );
   }
 
   if (on) {
-    return (
-      <section class="panel primer">
-        <h2 class="panel__heading">Holding still</h2>
-        <p class="primer__body primer__body--on">
-          Ready. Hold the phone up in front of you and try not to breathe.
-        </p>
-      </section>
-    );
+    return <PermissionPrimer heading={heading} enabled body={text(
+      { en: 'Ready. Hold the phone up in front of you and try not to breathe.', fr: 'Prêt. Tenez le téléphone devant vous et essayez de ne plus respirer.' })} />;
   }
 
   return (
-    <section class="panel primer">
-      <h2 class="panel__heading">Holding still</h2>
-      <p class="primer__body">
-        Measuring how still you are holding the phone needs permission to read its motion.
-        Nothing is recorded — the only thing sent is one number per fifth of a second,
-        never the readings themselves.
-      </p>
-      <button class="btn btn--primary primer__enable" type="button" onClick={onEnable}>
-        Turn on the meter
-      </button>
-    </section>
+    <PermissionPrimer heading={heading}
+      body={text({ en: 'Measuring how still you are holding the phone needs permission to read its motion. Nothing is recorded — the only thing sent is one number per fifth of a second, never the readings themselves.', fr: 'Mesurer l’immobilité du téléphone nécessite l’accès à son mouvement. Rien n’est enregistré — seul un nombre est envoyé cinq fois par seconde, jamais les mesures.' })}
+      action={{ label: text({ en: 'Turn on the meter', fr: 'Activer la jauge' }), onClick: onEnable }} />
   );
 }
 
-function note(isHost: boolean, connected: number, motionOn: boolean, solo: boolean): string {
+function note(isHost: boolean, connected: number, motionOn: boolean, solo: boolean, text: GameText): string {
   if (!solo && connected < STEADY_MIN_PLAYERS) {
     const missing = STEADY_MIN_PLAYERS - connected;
-    return `Need ${missing} more player${missing === 1 ? '' : 's'} — being still alone proves nothing.`;
+    return text({ en: `Need ${missing} more player${missing === 1 ? '' : 's'} — being still alone proves nothing.`, fr: `Il manque ${missing} joueur${missing === 1 ? '' : 's'} — rester immobile seul ne prouve rien.` });
   }
-  if (connected > STEADY_MAX_PLAYERS) return `${STEADY_MAX_PLAYERS} players is the most this one takes.`;
-  if (!isHost) return 'The host starts the round.';
-  if (!motionOn) return 'Turn on the meter above, or start and watch.';
-  return 'Arms out. It gets harder the longer it goes on.';
+  if (connected > STEADY_MAX_PLAYERS) return text({ en: `${STEADY_MAX_PLAYERS} players is the most this one takes.`, fr: `${STEADY_MAX_PLAYERS} joueurs maximum.` });
+  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
+  if (!motionOn) return text({ en: 'Turn on the meter above, or start and watch.', fr: 'Activez la jauge ci-dessus, ou démarrez pour regarder.' });
+  return text({ en: 'Arms out. It gets harder the longer it goes on.', fr: 'Bras tendus. La difficulté augmente avec le temps.' });
 }

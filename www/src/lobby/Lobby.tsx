@@ -2,11 +2,14 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../core/types';
 import type { PlayerId, RoundResult } from '../../../shared/protocol';
-import { useRoom, useShareRoom } from '../core/room/useRoom';
-import { PLAYERS } from '../../../shared/players';
+import { useGameRoom } from '../core/room/useRoom';
+import { enoughToStart, PLAYERS } from '../../../shared/players';
+import { useSoloTesting } from '../core/useSolo';
 import { RoomGate } from './RoomGate';
 import { GameLobby } from './GameLobby';
 import { RulesPanel } from '../core/ui/RulesPanel';
+import { useT } from '../core/i18n/strings';
+import { useGameText, type GameText } from '../core/i18n/gameText';
 import { Duel, type DuelPhase } from '../games/tap-duel/Duel';
 
 /**
@@ -31,6 +34,9 @@ export function Lobby(props: { game: GameCard }): JSX.Element {
 }
 
 function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
+  const text = useGameText();
+  const solo = useSoloTesting();
   const [phase, setPhase] = useState<DuelPhase>('idle');
   const [result, setResult] = useState<RoundResult | null>(null);
   /**
@@ -65,8 +71,7 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
   /** Where the target will appear. From the server, so it is the same for all. */
   const [target, setTarget] = useState<{ x: number; y: number } | null>(null);
 
-  const room = useRoom(code, game.slug);
-  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, game.title, room.setError);
+  const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, game);
   const client = room.client;
 
   useEffect(() => {
@@ -111,7 +116,7 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
   }, [client]);
 
   function startDuel(): void {
-    client?.send({ t: 'start', d: { mode: 'pistol' } });
+    client?.send({ t: 'start', d: { mode: 'pistol', solo } });
   }
 
   function tap(): void {
@@ -120,14 +125,13 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
     // Sent as our clock-corrected server time; the server re-validates it.
     client.send({ t: 'tap', d: { at: client.now(), roundId } });
     // Local feedback only — the server decides the outcome.
-    setPhase((p) => (p === 'fire' ? 'result' : p === 'armed' ? 'burned' : p));
+    setPhase((p) => (p === 'fire' ? 'submitted' : p === 'armed' ? 'burned' : p));
   }
 
   const [minPlayers, maxPlayers] = PLAYERS['tap-duel'];
   // Matches what the server will accept. Offering Start when the referee would
   // refuse it is the silent no-op this project keeps having to fix.
-  const canStart =
-    room.isHost && room.connected >= minPlayers && room.connected <= maxPlayers;
+  const canStart = room.isHost && enoughToStart(room.connected, [minPlayers, maxPlayers], solo);
 
   if (phase !== 'idle') {
     return (
@@ -144,6 +148,7 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
           armed={armedAt}
           now={() => client?.now() ?? Date.now()}
           isHost={room.isHost}
+          room={room}
           title={game.title}
           concept={game.concept}
           rules={game.rules}
@@ -175,18 +180,18 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
       onShare={share}
       onToggleQr={toggleQr}
       canStart={canStart}
-      startLabel="Start round"
+      startLabel={t.common.startRound}
       onStart={startDuel}
-      note={note(room.isHost, room.connected)}
+      note={note(room.isHost, room.connected, text)}
     />
   );
 }
 
-function note(isHost: boolean, connected: number): string {
+function note(isHost: boolean, connected: number, text: GameText): string {
   const [min, max] = PLAYERS['tap-duel'];
-  if (!isHost) return 'The host starts the round.';
-  if (connected < min) return 'Waiting for one more player…';
+  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
+  if (connected < min) return text({ en: 'Waiting for one more player…', fr: 'En attente d’un joueur supplémentaire…' });
   // Say the number rather than leaving a dead button and no explanation.
-  if (connected > max) return `Tap Duel is ${min}–${max} players. Someone has to sit out.`;
-  return 'Wait for the signal, then tap. Moving early loses the duel.';
+  if (connected > max) return text({ en: `Tap Duel is ${min}–${max} players. Someone has to sit out.`, fr: `Tap Duel se joue de ${min} à ${max} joueurs. Quelqu’un doit attendre.` });
+  return text({ en: 'Wait for the signal, then tap. Moving early loses the duel.', fr: 'Attendez le signal, puis touchez. Partir trop tôt fait perdre le duel.' });
 }

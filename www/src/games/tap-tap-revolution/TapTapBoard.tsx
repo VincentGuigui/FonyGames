@@ -6,14 +6,17 @@ import { Scoreboard, type ScoreRow } from '../../core/ui/Scoreboard';
 import { RulesPanel } from '../../core/ui/RulesPanel';
 import { formatClock, elapsedMs, type TapTapGame } from './game';
 import { Timeline } from './Timeline';
+import { useGameText } from '../../core/i18n/gameText';
+import { SoundToggle as SharedSoundToggle } from '../../core/ui/SoundToggle';
 
 /**
  * The board: a hundred circles on a 10×10 grid. Spec: docs/specs/games/tap-tap-revolution.md §4
  *
  * Unlike Squash Mosquitoes' board, every cell is always tappable, gone ones
  * included — tapping a gone cell is exactly as wrong as tapping any other cell
- * that is not the lit one (spec §2, §7), and the referee is the only thing that
- * tells the difference. There is nothing here for the client to guess at.
+ * that is not one of the up to five live ones (spec §2, §7), and the referee
+ * is the only thing that tells the difference. There is nothing here for the
+ * client to guess at.
  */
 export function TapTapBoard({
   game,
@@ -42,8 +45,9 @@ export function TapTapBoard({
   sound: boolean;
   onSound: (on: boolean) => void;
 }): JSX.Element {
+  const text = useGameText();
   const state = game.state;
-  const lit = game.litCell();
+  const lit = new Set(game.litCells());
   const gone = game.goneCells();
 
   /*
@@ -74,7 +78,7 @@ export function TapTapBoard({
     >
       <div class="taptap__bar">
         <StatusBar
-          score={{ value: game.remaining, label: `/ ${TAPTAP_TOTAL} left` }}
+          score={{ value: game.remaining, label: `/ ${TAPTAP_TOTAL} ${text({ en: 'left', fr: 'restantes' })}` }}
           title={title}
           concept={concept}
           rules={rules}
@@ -88,41 +92,43 @@ export function TapTapBoard({
         </p>
       </div>
 
-      <Timeline progress={game.progress} />
+      <Timeline order={state?.order ?? []} cleared={game.clearedCells()} />
 
-      <div class="taptap__grid" role="group" aria-label="The board">
-        {Array.from({ length: TAPTAP_TOTAL }, (_, cell) => {
-          const isLit = cell === lit;
-          const isGone = gone.has(cell);
-          const s = isGone ? 'gone' : isLit ? 'lit' : 'idle';
-          const row = Math.floor(cell / TAPTAP_GRID_SIZE) + 1;
-          const col = (cell % TAPTAP_GRID_SIZE) + 1;
-          return (
-            <button
-              key={cell}
-              type="button"
-              class={`taptap__cell taptap__cell--${s}`}
-              style={{ gridRow: row, gridColumn: col }}
-              aria-label={
-                isLit
-                  ? `Row ${row}, column ${col}: lit — tap it`
-                  : isGone
-                    ? `Row ${row}, column ${col}: cleared`
-                    : `Row ${row}, column ${col}`
-              }
-              onPointerDown={(e) => {
-                e.preventDefault();
-                onTap(cell);
-              }}
-            />
-          );
-        })}
+      <div class="taptap__grid-wrap">
+        <div class="taptap__grid" role="group" aria-label={text({ en: 'The board', fr: 'Le plateau' })}>
+          {Array.from({ length: TAPTAP_TOTAL }, (_, cell) => {
+            const isLit = lit.has(cell);
+            const isGone = gone.has(cell);
+            const s = isGone ? 'gone' : isLit ? 'lit' : 'idle';
+            const row = Math.floor(cell / TAPTAP_GRID_SIZE) + 1;
+            const col = (cell % TAPTAP_GRID_SIZE) + 1;
+            return (
+              <button
+                key={cell}
+                type="button"
+                class={`taptap__cell taptap__cell--${s}`}
+                style={{ gridRow: row, gridColumn: col }}
+                aria-label={
+                  isLit
+                    ? text({ en: `Row ${row}, column ${col}: lit — tap it`, fr: `Ligne ${row}, colonne ${col} : allumée — touchez-la` })
+                    : isGone
+                      ? text({ en: `Row ${row}, column ${col}: cleared`, fr: `Ligne ${row}, colonne ${col} : effacée` })
+                      : text({ en: `Row ${row}, column ${col}`, fr: `Ligne ${row}, colonne ${col}` })
+                }
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  onTap(cell);
+                }}
+              />
+            );
+          })}
+        </div>
       </div>
 
       <Scoreboard
         rows={rows(players, game.remainingByPlayer())}
         me={me}
-        unit={`/ ${TAPTAP_TOTAL} left`}
+        unit={`/ ${TAPTAP_TOTAL} ${text({ en: 'left', fr: 'restantes' })}`}
         best="low"
         corner="bottom-right"
       />
@@ -161,18 +167,8 @@ function rows(players: Player[], remaining: Record<PlayerId, number>): ScoreRow[
  * around it.
  */
 export function SoundToggle({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }): JSX.Element {
-  return (
-    <>
-      <h3 class="gamemenu__label">Sound</h3>
-      <button
-        class={`btn taptap__sound ${on ? 'taptap__sound--on' : ''}`}
-        type="button"
-        aria-pressed={on}
-        onClick={() => onChange(!on)}
-      >
-        <span aria-hidden="true">{on ? '🔊' : '🔇'}</span>
-        {on ? 'A note per tap' : 'Silent'}
-      </button>
-    </>
-  );
+  const text = useGameText();
+  return <SharedSoundToggle on={on} onChange={onChange} heading={text({ en: 'Sound', fr: 'Son' })}
+    onLabel={text({ en: 'A note per tap', fr: 'Une note par touche' })} offLabel={text({ en: 'Silent', fr: 'Silencieux' })}
+    className="taptap__sound" activeClassName="taptap__sound--on" />;
 }

@@ -8,12 +8,14 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { soloTesting } from '../../core/solo';
-import { useRoom, useShareRoom } from '../../core/room/useRoom';
+import { useSoloTesting } from '../../core/useSolo';
+import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { ChaseBoard } from './ChaseBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
 import { CatMouseGame } from './game';
 
 /**
@@ -36,6 +38,8 @@ export function ChaseRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
+  const text = useGameText();
   const [, redraw] = useState(0);
   /*
    * `capped` by default — the walk-where-I-point chase.
@@ -68,10 +72,9 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
    * Read once per render rather than per click: it changes only when the admin
    * centre writes it, which cannot happen while this page is open.
    */
-  const solo = soloTesting();
+  const solo = useSoloTesting();
 
-  const room = useRoom(code, card.slug, onGame);
-  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
+  const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;
 
@@ -119,35 +122,36 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
 
     return (
       <GameOverScreen
+        room={room}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        status="Round over"
         rows={[
           ...ranked.map((a) => ({
             id: a.playerId,
             avatar: byId.get(a.playerId)?.avatar ?? '🐭',
-            name: byId.get(a.playerId)?.name ?? 'Someone',
-            value: a.out ? 'caught' : a.lives,
-            unit: 'lives',
+            name: byId.get(a.playerId)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' }),
+            value: a.out ? text({ en: 'caught', fr: 'attrapé' }) : a.lives,
+            unit: t.common.lives,
             ...(a.out ? { out: true } : {}),
           })),
           {
             id: state.catId,
             avatar: cat?.avatar ?? '🐱',
-            name: cat?.name ?? 'The cat',
-            value: 'cat',
+            name: cat?.name ?? text({ en: 'The cat', fr: 'Le chat' }),
+            value: text({ en: 'cat', fr: 'chat' }),
           },
         ]}
         me={myId}
         winner={winner}
-        headline={catWon ? `${cat?.name ?? 'The cat'} caught everyone` : 'The mice got away'}
+        headline={catWon ? text({ en: `${cat?.name ?? text({ en: 'The cat', fr: 'Le chat' })} caught everyone`, fr: `${cat?.name ?? text({ en: 'The cat', fr: 'Le chat' })} a attrapé tout le monde` })
+          : text({ en: 'The mice got away', fr: 'Les souris se sont échappées' })}
         note={
           game.result
-            ? `The mice lasted ${(game.result.lastedMs / 1000).toFixed(0)}s. Next round the cat is someone else.`
-            : 'Next round the cat is someone else.'
+            ? text({ en: `The mice lasted ${(game.result.lastedMs / 1000).toFixed(0)}s. Next round the cat is someone else.`, fr: `Les souris ont tenu ${(game.result.lastedMs / 1000).toFixed(0)} s. Le chat changera à la prochaine manche.` })
+            : text({ en: 'Next round the cat is someone else.', fr: 'Le chat changera à la prochaine manche.' })
         }
         onAgain={() => client?.send({ t: 'start', d: { mode: 'chase', solo } })}
         canAct={room.isHost && enoughToStart(room.connected, [CM_MIN_PLAYERS, CM_MAX_PLAYERS], solo)}
@@ -166,40 +170,39 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughToStart(room.connected, [CM_MIN_PLAYERS, CM_MAX_PLAYERS], solo)}
-      startLabel={state ? 'Play again' : 'Start round'}
+      startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'chase', drag, solo } })}
-      note={note(room.isHost, room.connected, solo)}
+      note={note(room.isHost, room.connected, solo, text)}
       playerTag={(id) => {
         const a = state?.actors.find((q) => q.playerId === id);
         if (!a) return null;
-        if (id === state?.catId) return 'was the cat';
-        return a.out ? 'out' : `${a.lives} lives`;
+        if (id === state?.catId) return text({ en: 'was the cat', fr: 'était le chat' });
+        return a.out ? text({ en: 'out', fr: 'éliminé' }) : text({ en: `${a.lives} lives`, fr: `${a.lives} vies` });
       }}
       aside={
         // Spec §12: the one game that names who it excludes rather than shipping a
         // fallback it does not believe in. It belongs here, before anyone joins,
         // not buried in a doc.
         <p class="howto__warn" role="note">
-          This one is all dragging, for the whole round — there is no tap-only way to
-          play it.
+          {text({ en: 'This one is all dragging, for the whole round — there is no tap-only way to play it.', fr: 'Toute la manche se joue en faisant glisser — il n’existe pas de version uniquement tactile.' })}
         </p>
       }
       extras={
         room.isHost ? (
           <DragPicker value={drag} onPick={setDrag} />
         ) : (
-          <p class="howto__aside">The host picks the game mode.</p>
+          <p class="howto__aside">{text({ en: 'The host picks the game mode.', fr: "L’hôte choisit le mode de jeu." })}</p>
         )
       }
     />
   );
 }
 
-function note(isHost: boolean, connected: number, solo: boolean): string {
-  if (!isHost) return 'The host starts the round.';
-  if (!solo && connected < CM_MIN_PLAYERS) return 'Waiting for one more…';
-  if (connected > CM_MAX_PLAYERS) return `Cat and Mouse is ${CM_MIN_PLAYERS}–${CM_MAX_PLAYERS} players.`;
-  return `One cat, ${CM_LIVES} lives each. Survive the clock and the mice win.`;
+function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
+  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
+  if (!solo && connected < CM_MIN_PLAYERS) return text({ en: 'Waiting for one more…', fr: 'En attente d’un joueur…' });
+  if (connected > CM_MAX_PLAYERS) return text({ en: `Cat and Mouse is ${CM_MIN_PLAYERS}–${CM_MAX_PLAYERS} players.`, fr: `Cat and Mouse se joue de ${CM_MIN_PLAYERS} à ${CM_MAX_PLAYERS} joueurs.` });
+  return text({ en: `One cat, ${CM_LIVES} lives each. Survive the clock and the mice win.`, fr: `Un chat, ${CM_LIVES} vies chacun. Si elles tiennent jusqu’au bout, les souris gagnent.` });
 }
 
 /**
@@ -217,16 +220,19 @@ function DragPicker({
   value: 'direct' | 'capped';
   onPick: (v: 'direct' | 'capped') => void;
 }): JSX.Element {
+  const text = useGameText();
   // The default leads, because a list is read top down and the first entry is what a host
   // in a hurry picks. That used to be `direct`, which is the lesser of the two games.
   const options: { id: 'direct' | 'capped'; label: string; blurb: string }[] = [
-    { id: 'capped', label: 'Walk where I point', blurb: 'A real chase — the cat gains slowly.' },
-    { id: 'direct', label: 'Follow my finger', blurb: 'Fast and frantic. Reaction tag.' },
+    { id: 'capped', label: text({ en: 'Walk where I point', fr: 'Marcher vers mon doigt' }),
+      blurb: text({ en: 'A real chase — the cat gains slowly.', fr: 'Une vraie poursuite — le chat se rapproche lentement.' }) },
+    { id: 'direct', label: text({ en: 'Follow my finger', fr: 'Suivre mon doigt' }),
+      blurb: text({ en: 'Fast and frantic. Reaction tag.', fr: 'Rapide et frénétique. Un jeu de réflexes.' }) },
   ];
   return (
     <section class="panel">
       {/* Shared wording with Ghost Hunt's route picker — see the note there. */}
-      <h2 class="panel__heading">Select a game mode</h2>
+      <h2 class="panel__heading">{text({ en: 'Select a game mode', fr: 'Choisissez un mode de jeu' })}</h2>
       <ul class="dragpick">
         {options.map((o) => (
           <li key={o.id}>

@@ -8,6 +8,7 @@ import { toBoard, onBoard } from './layout';
 import { PUCK_RADIUS } from './physics';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { RulesPanel } from '../../core/ui/RulesPanel';
+import { useGameText } from '../../core/i18n/gameText';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 
 /**
@@ -49,6 +50,7 @@ export function SlingBoard({
   client: RoomClient | null;
   players: Player[];
 }): JSX.Element {
+  const text = useGameText();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<Renderer | null>(null);
   // The pointer that owns the current drag. One finger at a time on the band.
@@ -131,7 +133,7 @@ export function SlingBoard({
     return {
       id,
       avatar: p?.avatar ?? '?',
-      name: p?.name ?? 'them',
+      name: p?.name ?? text({ en: 'them', fr: 'adversaire' }),
       value: state?.pucks[id] ?? 0,
     };
   });
@@ -149,7 +151,7 @@ export function SlingBoard({
 
       <div class="sling__hud">
         <StatusBar
-          score={{ value: view.mine, label: 'yours' }}
+          score={{ value: view.mine, label: text({ en: 'yours', fr: 'à vous' }) }}
           title={title}
           concept={concept}
           rules={rules}
@@ -163,12 +165,12 @@ export function SlingBoard({
         Top right, because the bottom half of this screen is the player's own board and
         a panel over it would be a panel over the thing they are flicking.
       */}
-      <Scoreboard rows={scores} me={client?.playerId} unit="pucks" best="low" corner="top-right" />
+      <Scoreboard rows={scores} me={client?.playerId} unit={text({ en: 'pucks', fr: 'palets' })} best="low" corner="top-right" />
 
       <p class="sling__hint">
         {view.spectating
-          ? 'Watching this one out.'
-          : 'Drag a puck down onto the elastic, pull back and let go.'}
+          ? text({ en: 'Watching this one out.', fr: 'Vous regardez cette manche.' })
+          : text({ en: 'Drag a puck down onto the elastic, pull back and let go.', fr: 'Faites glisser un palet sur l’élastique, tirez puis relâchez.' })}
       </p>
 
       {/* Keyed on the round so "Play again" always shows a fresh panel. */}

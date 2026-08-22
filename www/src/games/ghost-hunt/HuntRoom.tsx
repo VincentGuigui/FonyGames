@@ -7,8 +7,8 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { soloTesting } from '../../core/solo';
-import { useRoom, useShareRoom } from '../../core/room/useRoom';
+import { useSoloTesting } from '../../core/useSolo';
+import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import {
@@ -31,6 +31,7 @@ import {
 import { HuntResults, HuntScreen } from './HuntScreen';
 import { paintEdges, startCamera, RADAR_FPS, RADAR_PX, type Camera } from './vision';
 import { CameraIcon, RoomImageIcon } from './icons';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
 import { drawSphere, dragTo, trackDrag } from './photosphere';
 import { ghostAt } from './radar';
 
@@ -94,6 +95,7 @@ export function HuntRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const text = useGameText();
   const [state, setState] = useState<HuntState>(null);
   const [support] = useState<OrientationSupport>(orientationSupport);
   /*
@@ -122,10 +124,9 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
    * Read once per render rather than per click: it changes only when the admin
    * centre writes it, which cannot happen while this page is open.
    */
-  const solo = soloTesting();
+  const solo = useSoloTesting();
 
-  const room = useRoom(code, card.slug, onGame);
-  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
+  const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;
 
@@ -363,7 +364,8 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     setOrientationAsked(true);
     const granted = await requestOrientation();
     if (!granted) {
-      room.setError('No motion access — use your finger to explore instead.');
+      setRoute('sphere');
+      room.setError(text({ en: 'No motion access — use your finger to explore instead.', fr: 'Pas d’accès au mouvement — explorez avec votre doigt.' }));
       return false;
     }
     trackerRef.current?.stop();
@@ -375,7 +377,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     const cam = await startCamera();
     cameraRef.current = cam;
     setCameraOn(!!cam);
-    if (!cam) room.setError('No camera — the radar works on a dark ground instead.');
+    if (!cam) room.setError(text({ en: 'No camera — the radar works on a dark ground instead.', fr: 'Pas de caméra — le radar fonctionne sur un fond sombre.' }));
     // The camera is allowed to fail; the orientation is not, and it is the one this
     // answer is about — the round is playable on a dark ground, not without an aim.
     return true;
@@ -399,7 +401,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       setOrientationAsked(true);
       const granted = await requestOrientation();
       if (!granted) {
-        room.setError('No motion access — keep using your finger.');
+        room.setError(text({ en: 'No motion access — keep using your finger.', fr: 'Pas d’accès au mouvement — continuez avec votre doigt.' }));
         return;
       }
       trackerRef.current?.stop();
@@ -427,7 +429,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     setTimeout(() => {
       if (trackerRef.current?.ready()) return;
       setAiming('drag');
-      room.setError('This phone is not reporting movement — keep using your finger.');
+      room.setError(text({ en: 'This phone is not reporting movement — keep using your finger.', fr: 'Ce téléphone ne signale aucun mouvement — continuez avec votre doigt.' }));
     }, SENSOR_GRACE_MS);
   }
 
@@ -451,6 +453,9 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         accent={card.accent}
         onAgain={again}
         canAgain={room.isHost && enough}
+        room={room}
+        readyBlocked={route === 'camera' && !orientationOn}
+        onReadySetup={() => void enableCameraRoute()}
       />
     );
   }
@@ -488,7 +493,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enough}
-      startLabel={state ? 'Hunt again' : 'Start the hunt'}
+      startLabel={state ? text({ en: 'Hunt again', fr: 'Rechasser' }) : text({ en: 'Start the hunt', fr: 'Démarrer la chasse' })}
       onStart={() => {
         /*
          * The camera route is the default, so most players reach this button without
@@ -515,7 +520,8 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
          */
         again();
       }}
-      note={note(room.isHost, room.connected, route, orientationOn, solo)}
+      readyBlocked={route === 'camera' && !orientationOn}
+      note={note(room.isHost, room.connected, route, orientationOn, solo, text)}
       /*
        * The physical warning rides with the rules rather than in a panel of its own.
        *
@@ -527,8 +533,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
        */
       aside={
         <p class="howto__warn" role="note">
-          Feet planted, turn slowly, and keep an arm's length from the furniture and from
-          each other — the screen is not a window, and you cannot see the floor in it.
+          {text({ en: "Feet planted, turn slowly, and keep an arm's length from the furniture and from each other — the screen is not a window, and you cannot see the floor in it.", fr: 'Gardez les pieds au sol, tournez lentement et restez à une longueur de bras des meubles et des autres — l’écran n’est pas une fenêtre et vous ne voyez pas le sol.' })}
         </p>
       }
       extras={
@@ -685,6 +690,7 @@ function RoutePicker({
   onCameraRoute: () => void;
   onFingerRoute: () => void;
 }): JSX.Element {
+  const text = useGameText();
   const denied = orientationAsked && !orientationOn;
 
   return (
@@ -695,7 +701,7 @@ function RoutePicker({
         without reading it — which they could not while one was called "How you want to
         play" and the other "Dragging", two names for one idea, neither of them the idea.
       */}
-      <h2 class="panel__heading">Select a game mode</h2>
+      <h2 class="panel__heading">{text({ en: 'Select a game mode', fr: 'Choisissez un mode de jeu' })}</h2>
 
       <div class="hunt-route">
         <button
@@ -708,19 +714,19 @@ function RoutePicker({
           <span class="hunt-route__icon">
             <CameraIcon />
           </span>
-          <span class="hunt-route__title">Use your camera to find the ghost</span>
+          <span class="hunt-route__title">{text({ en: 'Use your camera to find the ghost', fr: 'Utilisez votre caméra pour trouver le fantôme' })}</span>
           <span class="hunt-route__note">
             {support === 'unsupported'
-              ? 'This phone has no motion sensor'
+              ? text({ en: 'This phone has no motion sensor', fr: 'Ce téléphone n’a pas de capteur de mouvement' })
               : denied
-                ? 'Motion was turned down — use your finger instead'
+                ? text({ en: 'Motion was turned down — use your finger instead', fr: 'Le mouvement a été refusé — utilisez votre doigt' })
                 : orientationOn && cameraOn
-                  ? 'Ready. Your room is the hunting ground.'
+                  ? text({ en: 'Ready. Your room is the hunting ground.', fr: 'Prêt. Votre pièce devient le terrain de chasse.' })
                   : orientationOn && cameraAsked
-                    ? 'No camera — the radar works on a dark ground'
+                    ? text({ en: 'No camera — the radar works on a dark ground', fr: 'Pas de caméra — le radar fonctionne sur un fond sombre' })
                     : orientationOn
-                      ? 'Ready — hold the phone up and turn'
-                      : 'Hold the phone up and turn. Needs motion and the camera.'}
+                      ? text({ en: 'Ready — hold the phone up and turn', fr: 'Prêt — levez le téléphone et tournez' })
+                      : text({ en: 'Hold the phone up and turn. Needs motion and the camera.', fr: 'Levez le téléphone et tournez. Nécessite le mouvement et la caméra.' })}
           </span>
           {/*
             The privacy answer, on the button that asks for the camera.
@@ -732,8 +738,7 @@ function RoutePicker({
             is part of the thing you are about to tap (spec §10).
           */}
           <span class="hunt-route__privacy">
-            No worry — no picture ever leaves your phone. The feed goes straight to the
-            outline on screen and is thrown away frame by frame.
+            {text({ en: 'No worry — no picture ever leaves your phone. The feed goes straight to the outline on screen and is thrown away frame by frame.', fr: 'Pas d’inquiétude — aucune image ne quitte votre téléphone. Le flux sert directement au contour à l’écran puis est jeté image par image.' })}
           </span>
         </button>
 
@@ -751,7 +756,7 @@ function RoutePicker({
         */}
         {route === 'camera' && support !== 'unsupported' && !orientationOn && (
           <button class="btn btn--primary hunt-route__allow" type="button" onClick={onCameraRoute}>
-            {denied ? 'Try again' : 'Allow motion and camera'}
+            {denied ? text({ en: 'Try again', fr: 'Réessayer' }) : text({ en: 'Allow motion and camera', fr: 'Autoriser le mouvement et la caméra' })}
           </button>
         )}
 
@@ -763,10 +768,9 @@ function RoutePicker({
           <span class="hunt-route__icon">
             <RoomImageIcon />
           </span>
-          <span class="hunt-route__title">Find the ghost in a virtual room</span>
+          <span class="hunt-route__title">{text({ en: 'Find the ghost in a virtual room', fr: 'Trouvez le fantôme dans une pièce virtuelle' })}</span>
           <span class="hunt-route__note">
-            Somewhere else entirely. Look around by turning the phone or dragging — you
-            can swap mid-hunt — and it needs no permissions.
+            {text({ en: 'Somewhere else entirely. Look around by turning the phone or dragging — you can swap mid-hunt — and it needs no permissions.', fr: 'Dans un autre lieu. Regardez autour de vous en tournant le téléphone ou en faisant glisser — vous pouvez changer pendant la chasse — sans aucune autorisation.' })}
           </span>
         </button>
       </div>
@@ -780,16 +784,17 @@ function note(
   route: Route,
   orientationOn: boolean,
   solo: boolean,
+  text: GameText,
 ): string {
   if (!solo && connected < HUNT_MIN_PLAYERS) {
     const missing = HUNT_MIN_PLAYERS - connected;
-    return `Need ${missing} more player${missing === 1 ? '' : 's'} — hunting alone proves nothing.`;
+    return text({ en: `Need ${missing} more player${missing === 1 ? '' : 's'} — hunting alone proves nothing.`, fr: `Il manque ${missing} joueur${missing === 1 ? '' : 's'} — chasser seul ne prouve rien.` });
   }
-  if (connected > HUNT_MAX_PLAYERS) return `${HUNT_MAX_PLAYERS} players is the most this one takes.`;
-  if (!isHost) return 'The host starts the hunt.';
-  if (route === 'camera' && !orientationOn) return 'Camera and motion are asked for when you start.';
+  if (connected > HUNT_MAX_PLAYERS) return text({ en: `${HUNT_MAX_PLAYERS} players is the most this one takes.`, fr: `${HUNT_MAX_PLAYERS} joueurs maximum.` });
+  if (!isHost) return text({ en: 'The host starts the hunt.', fr: "L’hôte démarre la chasse." });
+  if (route === 'camera' && !orientationOn) return text({ en: 'Camera and motion are asked for when you start.', fr: 'La caméra et le mouvement seront demandés au démarrage.' });
   // Worth saying once, plainly: forward is set here and there is no re-centre on the
   // round screen to fix it with.
-  if (route === 'camera') return 'Face the way you want to call forward, then start.';
-  return 'Look around the virtual room. Ready when you are.';
+  if (route === 'camera') return text({ en: 'Face the way you want to call forward, then start.', fr: 'Tournez-vous dans la direction qui sera devant, puis démarrez.' });
+  return text({ en: 'Look around the virtual room. Ready when you are.', fr: 'Explorez la pièce virtuelle. Démarrez quand vous voulez.' });
 }

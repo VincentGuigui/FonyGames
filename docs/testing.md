@@ -118,6 +118,12 @@ two debugging rounds and produced one convincing false failure.
 `api/tests/page_test.php` covers the assembly against a fixture and needs **no build
 output** — that matters, see below.
 
+`scripts/ssr-paths.test.mjs` covers the path boundary in the Node half of that build.
+Generated JavaScript import specifiers are JSON-escaped, local dynamic imports use
+`pathToFileURL`, and Node-relative asset paths are normalised to Vite's `/`-separated
+manifest keys. Those are portability rules, not Windows long-path workarounds: raw
+backslashes were being consumed as JavaScript escapes before esbuild saw the path.
+
 The one coupling worth naming lives in `api/tests/ssr_check.php`, which runs as
 **`postbuild`**: `scripts/ssr.mjs` invents the variant-key format and `Page::variantKey()`
 reconstructs it, so it reads the **real generated `dist/_hub/cards.php`** and asserts every

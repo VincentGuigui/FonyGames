@@ -37,6 +37,7 @@ export type PlayerLimits = readonly [min: number, max: number];
  */
 export const PLAYERS = {
   'tap-duel': [2, 8],
+  'tap-fighter': [2, 2],
   spill: [2, 4],
   'pass-the-bomb': [2, 8],
   'goat-siege': [2, 4],
@@ -53,6 +54,7 @@ export const PLAYERS = {
   'squash-mosquitoes': [2, 8],
   'neon-fall': [2, 2],
   'tap-tap-revolution': [2, 8],
+  'tic-tac-tic-tac-toe': [2, 2],
 } as const satisfies Record<string, PlayerLimits>;
 
 export type GameSlug = keyof typeof PLAYERS;

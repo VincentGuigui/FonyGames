@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { GRID_SIZE, GRID_TAPS, type GridCell, type Player, type PlayerId } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
+import { useT } from '../../core/i18n/strings';
 import { cellsOf, fuseProgress, livesOf, pulseMs, tapCounter, type GridView } from './game';
+import { useGameText } from '../../core/i18n/gameText';
 
 /**
  * The board: two four-by-four grids side by side, sideways.
@@ -51,13 +53,15 @@ export function GridBoard({
   onTap: (cell: number, side: 'mine' | 'theirs') => void;
 }): JSX.Element {
   const now = useAnimationClock(clock);
-  const name = (id: PlayerId): string => players.find((p) => p.id === id)?.name ?? 'Someone';
+  const t = useT();
+  const text = useGameText();
+  const name = (id: PlayerId): string => players.find((p) => p.id === id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' });
 
   return (
     <div class="grid-attack" style={{ '--game-accent': accent } as JSX.CSSProperties}>
       <div class="grid-attack__bar">
         <StatusBar
-          score={{ value: livesOf(state, myId), label: 'lives' }}
+          score={{ value: livesOf(state, myId), label: t.common.lives }}
           status={`${name(theirId)}: ${livesOf(state, theirId)}`}
           title={title}
           concept={concept}
@@ -68,14 +72,14 @@ export function GridBoard({
       <div class="grid-attack__halves">
         <Half
           side="mine"
-          label="Yours — save it"
+          label={text({ en: 'Yours — save it', fr: 'Le vôtre — sauvez-le' })}
           cells={cellsOf(state, myId)}
           now={now}
           onTap={onTap}
         />
         <Half
           side="theirs"
-          label={`${name(theirId)}'s — break it`}
+          label={text({ en: `${name(theirId)}'s — break it`, fr: `Celui de ${name(theirId)} — cassez-le` })}
           cells={cellsOf(state, theirId)}
           now={now}
           onTap={onTap}
@@ -170,6 +174,7 @@ function Cell({
   showing: number;
   onTap: () => void;
 }): JSX.Element {
+  const text = useGameText();
   const fuse = fuseProgress(cell, now);
   const row = Math.floor(index / GRID_SIZE) + 1;
   const column = (index % GRID_SIZE) + 1;
@@ -178,7 +183,7 @@ function Cell({
     return (
       <div
         class="grid-attack__cell grid-attack__cell--gone"
-        aria-label={`Row ${row}, column ${column}: gone`}
+        aria-label={text({ en: `Row ${row}, column ${column}: gone`, fr: `Ligne ${row}, colonne ${column} : détruite` })}
       />
     );
   }
@@ -207,14 +212,14 @@ function Cell({
       }
       style={style}
       aria-label={
-        `Row ${row}, column ${column}` +
+        text({ en: `Row ${row}, column ${column}`, fr: `Ligne ${row}, colonne ${column}` }) +
         (fuse === null
           ? side === 'mine'
             ? ''
-            : ': tap three times to attack'
+            : text({ en: ': tap three times to attack', fr: ' : touchez trois fois pour attaquer' })
           : side === 'mine'
-            ? ': going off, tap three times to save it'
-            : ': going off')
+            ? text({ en: ': going off, tap three times to save it', fr: ' : va exploser, touchez trois fois pour la sauver' })
+            : text({ en: ': going off', fr: ' : va exploser' }))
       }
       onPointerDown={(e) => {
         // `pointerdown`, not `click`: this is a mashing game, and a click waits for the

@@ -25,6 +25,7 @@ export default defineConfig({
       input: {
         hub: 'www/index.html',
         'tap-duel': 'www/tap-duel/index.html',
+        'tap-fighter': 'www/tap-fighter/index.html',
         spill: 'www/spill/index.html',
         'goat-siege': 'www/goat-siege/index.html',
         'sling-puck': 'www/sling-puck/index.html',
@@ -37,10 +38,12 @@ export default defineConfig({
         'ghost-hunt': 'www/ghost-hunt/index.html',
         'neon-fall': 'www/neon-fall/index.html',
         'tap-tap-revolution': 'www/tap-tap-revolution/index.html',
+        'tic-tac-tic-tac-toe': 'www/tic-tac-tic-tac-toe/index.html',
         // The admin centre. Built to a PLACEHOLDER directory name and renamed to the
         // ADMIN_PATH secret by the deploy — this repository is public, so the real
         // path cannot be committed (docs/deployment.md §3.4).
         ops: 'www/ops-placeholder/index.html',
+        'ops-stats': 'www/ops-placeholder/stats/index.html',
       },
       output: {
         // A card imported by BOTH the hub and its own game page would otherwise be
@@ -48,7 +51,10 @@ export default defineConfig({
         // that was four extra requests on the one page with a first-load target.
         // Absorbing chunks this small into their importers duplicates a few hundred
         // bytes and puts the hub back to one request.
-        experimentalMinChunkSize: 4000,
+        // Keep per-route chunks isolated. A larger value causes Rollup to merge small
+        // game helpers into an arbitrary shared chunk (previously motion), which made
+        // every game preload the motion, photosphere and audio bundles.
+        experimentalMinChunkSize: 0,
       },
     },
     // Payload budget in docs/architecture.md §4 is 150 KB gzipped for the hub.

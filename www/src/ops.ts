@@ -17,6 +17,7 @@ import { cardState, DEFAULT_FLAG, type FlagState, type GameFlag } from '../../sh
 import { setSoloTesting, soloTesting } from './core/solo';
 import './core/ui/theme.css';
 import './ops.css';
+import { citiesForCountry, sortStatsRows, type StatsValue } from './core/admin/stats';
 
 const API = '/api/index.php';
 
@@ -148,13 +149,9 @@ function render(state: State): void {
     ),
   );
 
-  const dash = el('a', 'ops__link', 'dashboard');
-  dash.href = '#';
-  dash.addEventListener('click', (event) => {
-    event.preventDefault();
-    dashboard();
-  });
-  head.append(dash);
+  const statsLink = el('a', 'ops__link', 'stats');
+  statsLink.href = 'stats/';
+  head.append(statsLink);
 
   const out = el('button', 'ops__link', 'sign out');
   out.addEventListener('click', () => {
@@ -283,13 +280,13 @@ function render(state: State): void {
   root!.append(schema);
   void loadSchema(schema);
 
-  // Health and Cloudflare usage moved to their own page — see `dashboard()`. Flag
+  // Health and Cloudflare usage moved to their own route — see `stats()`. Flag
   // switches make an outbound call each (health checks, the Cloudflare API) with their
   // own timeouts, and they were sharing this page with switches that must stay usable
   // however slow those calls are.
 }
 
-type DashboardTab = 'cloudflare' | 'analytics';
+type StatsTab = 'cloudflare' | 'analytics';
 
 /**
  * Two views of "is anyone playing", on their own page.
@@ -302,17 +299,13 @@ type DashboardTab = 'cloudflare' | 'analytics';
  * already do: this page has one user, and the cost of re-rendering a handful of DOM
  * nodes is not worth tracking which half changed.
  */
-function dashboard(tab: DashboardTab = 'cloudflare'): void {
+function stats(tab: StatsTab = 'analytics'): void {
   root!.replaceChildren();
 
   const head = el('header', 'ops__head');
-  head.append(el('h1', 'ops__title', 'Dashboard'));
+  head.append(el('h1', 'ops__title', 'FonyGames stats'));
   const back = el('a', 'ops__link', '← back');
-  back.href = '#';
-  back.addEventListener('click', (event) => {
-    event.preventDefault();
-    void load();
-  });
+  back.href = '../';
   head.append(back);
   root!.append(head);
 
@@ -325,8 +318,8 @@ function dashboard(tab: DashboardTab = 'cloudflare'): void {
   analyticsTab.classList.toggle('is-on', tab === 'analytics');
   cloudflareTab.setAttribute('aria-selected', String(tab === 'cloudflare'));
   analyticsTab.setAttribute('aria-selected', String(tab === 'analytics'));
-  cloudflareTab.addEventListener('click', () => dashboard('cloudflare'));
-  analyticsTab.addEventListener('click', () => dashboard('analytics'));
+  cloudflareTab.addEventListener('click', () => { history.replaceState(null, '', '?tab=cloudflare'); stats('cloudflare'); });
+  analyticsTab.addEventListener('click', () => { history.replaceState(null, '', '?tab=analytics'); stats('analytics'); });
   tabs.append(cloudflareTab, analyticsTab);
   tabs.setAttribute('role', 'tablist');
   root!.append(tabs);
@@ -340,10 +333,14 @@ function dashboard(tab: DashboardTab = 'cloudflare'): void {
   } else {
     void loadAnalytics(panel, 7);
   }
+  const diagnostic = el('section', 'ops__log ops__diagnostic');
+  diagnostic.append(el('p', 'ops__note', 'Checking IPinfo diagnostic…'));
+  root!.append(diagnostic);
+  void loadIpInfoDiagnostic(diagnostic);
 }
 
 /**
- * The activity dashboard's own tab.
+ * The activity stats route's own tab.
  * Spec: docs/specs/analytics.md §7
  *
  * Every number here is a count or a `GROUP BY` — the same shape `Analytics::summary()`
@@ -363,7 +360,7 @@ type AnalyticsSummary = {
     gamePlayed: number;
   }>;
   countries: Array<{ country: string; count: number }>;
-  cities: Array<{ city: string; count: number }>;
+  cities: Array<{ country: string; city: string; count: number }>;
   referrers: Array<{ host: string; count: number }>;
 };
 
@@ -410,23 +407,130 @@ async function loadAnalytics(panel: HTMLElement, days: number): Promise<void> {
   if (summary.topGames.length === 0) {
     panel.append(el('p', 'ops__note', 'Nothing yet.'));
   } else {
-    const games = el('ul');
-    for (const g of summary.topGames) {
-      games.append(
-        el(
-          'li',
-          undefined,
-          `${g.slug} — selected ${g.gameSelect}, created ${g.roomCreate}, joined ${g.roomJoin},` +
-            ` started ${g.gameStart}, played ${g.gamePlayed}`,
-        ),
-      );
-    }
-    panel.append(games);
+    panel.append(sortableTable(
+      [
+        ['slug', 'Game'], ['gameSelect', 'Selected'], ['roomCreate', 'Created'],
+        ['roomJoin', 'Joined'], ['gameStart', 'Started'], ['gamePlayed', 'Played'],
+      ],
+      summary.topGames,
+      'gamePlayed',
+    ));
   }
 
-  countedList(panel, 'countries', summary.countries.map((r) => [r.country, r.count]));
-  countedList(panel, 'cities', summary.cities.map((r) => [r.city, r.count]));
+  placesMasterDetail(panel, summary.countries, summary.cities);
   countedList(panel, 'referrers', summary.referrers.map((r) => [r.host, r.count]));
+}
+
+async function loadIpInfoDiagnostic(panel: HTMLElement): Promise<void> {
+  const { status, data } = await api('ipinfo-diagnostic');
+  panel.replaceChildren(el('h2', 'ops__subtitle', 'IPinfo diagnostic (8.8.8.8)'));
+  if (status !== 200) {
+    panel.append(el('p', 'ops__note ops__warn', `Could not read it (${status}).`));
+    return;
+  }
+  panel.append(el('p', 'ops__note', `Referer: ${String(data['referer'] ?? 'not configured')}`));
+  const diagnostic = (data['diagnostic'] ?? {}) as { status?: number | null; ok?: boolean; result?: Record<string, string> | null };
+  panel.append(el('p', 'ops__note', `IPinfo response: ${diagnostic.status ?? 'not queried'} (${diagnostic.ok ? 'ok' : 'unavailable'})`));
+  if (!diagnostic.result || Object.keys(diagnostic.result).length === 0) {
+    panel.append(el('p', 'ops__note', 'No lookup result. Configure IPINFO_TOKEN to enable the diagnostic.'));
+    return;
+  }
+  const table = el('table', 'ops__table');
+  const body = el('tbody');
+  for (const [key, value] of Object.entries(diagnostic.result)) {
+    const row = el('tr');
+    row.append(el('th', undefined, key), el('td', undefined, value));
+    body.append(row);
+  }
+  table.append(body);
+  panel.append(table);
+}
+
+/** Sorts entirely in this browser; changing a column never repeats the API query. */
+function sortableTable(
+  columns: Array<[string, string]>,
+  source: Array<Record<string, StatsValue>>,
+  initial: string,
+): HTMLTableElement {
+  const table = el('table', 'ops__table');
+  const head = el('thead');
+  const headRow = el('tr');
+  const body = el('tbody');
+  let sortKey = initial;
+  let ascending = false;
+
+  const render = (): void => {
+    body.replaceChildren();
+    const rows = sortStatsRows(source, sortKey, ascending);
+    for (const row of rows) {
+      const tr = el('tr');
+      for (const [key] of columns) tr.append(el('td', undefined, String(row[key] ?? '')));
+      body.append(tr);
+    }
+  };
+
+  for (const [key, label] of columns) {
+    const th = el('th');
+    const button = el('button', 'ops__sort', label);
+    button.type = 'button';
+    button.addEventListener('click', () => {
+      ascending = sortKey === key ? !ascending : false;
+      sortKey = key;
+      render();
+    });
+    th.append(button);
+    headRow.append(th);
+  }
+  head.append(headRow);
+  table.append(head, body);
+  render();
+  return table;
+}
+
+function placesMasterDetail(
+  panel: HTMLElement,
+  countries: Array<{ country: string; count: number }>,
+  cities: Array<{ country: string; city: string; count: number }>,
+): void {
+  panel.append(el('h2', 'ops__subtitle', 'countries and cities'));
+  if (countries.length === 0) {
+    panel.append(el('p', 'ops__note', 'None yet.'));
+    return;
+  }
+  const layout = el('div', 'ops__master-detail');
+  const master = el('table', 'ops__table');
+  const masterHead = el('thead');
+  const masterHeadRow = el('tr');
+  masterHeadRow.append(el('th', undefined, 'Country'), el('th', undefined, 'Events'));
+  masterHead.append(masterHeadRow);
+  const masterBody = el('tbody');
+  const detail = el('div');
+
+  const show = (country: string): void => {
+    detail.replaceChildren(el('h3', 'ops__subtitle', `Cities in ${country}`));
+    const rows = citiesForCountry(cities, country);
+    if (rows.length === 0) detail.append(el('p', 'ops__note', 'No city reported.'));
+    else detail.append(sortableTable([['city', 'City'], ['count', 'Events']], rows, 'count'));
+    for (const button of masterBody.querySelectorAll('button')) {
+      button.classList.toggle('is-on', button.dataset.country === country);
+    }
+  };
+
+  for (const row of countries) {
+    const tr = el('tr');
+    const cell = el('td');
+    const button = el('button', 'ops__master', row.country);
+    button.type = 'button';
+    button.dataset.country = row.country;
+    button.addEventListener('click', () => show(row.country));
+    cell.append(button);
+    tr.append(cell, el('td', undefined, String(row.count)));
+    masterBody.append(tr);
+  }
+  master.append(masterHead, masterBody);
+  layout.append(master, detail);
+  panel.append(layout);
+  show(countries[0]?.country ?? '');
 }
 
 /** A `<h2>` plus its list of "label: count" rows, or a "none yet" line when there are none. */
@@ -828,6 +932,15 @@ async function boot(): Promise<void> {
       signIn('That link has been used already, or it expired.');
       return;
     }
+  }
+
+  if (/\/stats\/?$/.test(location.pathname)) {
+    const { status } = await api('usage');
+    if (status === 401) { signIn(); return; }
+    if (status !== 200) { signIn(`The admin API answered ${status}.`); return; }
+    const tab = new URLSearchParams(location.search).get('tab') === 'cloudflare' ? 'cloudflare' : 'analytics';
+    stats(tab);
+    return;
   }
 
   await load();

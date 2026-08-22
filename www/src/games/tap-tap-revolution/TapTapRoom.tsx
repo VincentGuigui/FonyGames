@@ -8,11 +8,13 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { useRoom, useShareRoom } from '../../core/room/useRoom';
+import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { GameOverScreen } from '../../core/ui/GameOver';
-import { soloTesting } from '../../core/solo';
+import { useT } from '../../core/i18n/strings';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useSoloTesting } from '../../core/useSolo';
 import { SoundToggle, TapTapBoard } from './TapTapBoard';
 import { TapTapGame, formatClock } from './game';
 import { createTune, setSoundOn, soundOn, type Tune } from './tune';
@@ -34,6 +36,8 @@ export function TapTapRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function TapTapRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
+  const text = useGameText();
   const [, redraw] = useState(0);
   const [sound, setSound] = useState(soundOn);
 
@@ -58,9 +62,8 @@ function TapTapRoomInner({ game: card, code }: { game: GameCard; code: string })
     [game],
   );
 
-  const solo = soloTesting();
-  const room = useRoom(code, card.slug, onGame);
-  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
+  const solo = useSoloTesting();
+  const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;
 
@@ -126,12 +129,13 @@ function TapTapRoomInner({ game: card, code }: { game: GameCard; code: string })
 
     return (
       <GameOverScreen
+        room={room}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        status="Time"
+        status={text({ en: 'Time', fr: 'Temps' })}
         menu={<SoundToggle on={sound} onChange={setSound} />}
         rows={ranked.map((p) => {
           const at = finishedAt[p.id];
@@ -143,7 +147,7 @@ function TapTapRoomInner({ game: card, code }: { game: GameCard; code: string })
             avatar: p.avatar,
             name: p.name,
             value: remaining[p.id] ?? TAPTAP_TOTAL,
-            unit: 'left',
+            unit: text({ en: 'left', fr: 'restantes' }),
             out: true,
           };
         })}
@@ -166,18 +170,18 @@ function TapTapRoomInner({ game: card, code }: { game: GameCard; code: string })
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enoughToStart(room.connected, limits, solo)}
-      startLabel={state ? 'Play again' : 'Start the board'}
+      startLabel={state ? t.common.playAgain : text({ en: 'Start the board', fr: 'Démarrer le plateau' })}
       onStart={() => client?.send({ t: 'start', d: { mode: 'taptap', solo } })}
-      note={note(room.isHost, room.connected, solo)}
+      note={note(room.isHost, room.connected, solo, text)}
     />
   );
 }
 
-function note(isHost: boolean, connected: number, solo: boolean): string {
-  if (!solo && connected < TAPTAP_MIN_PLAYERS) return 'Waiting for one more player…';
+function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
+  if (!solo && connected < TAPTAP_MIN_PLAYERS) return text({ en: 'Waiting for one more player…', fr: 'En attente d’un joueur supplémentaire…' });
   if (connected > TAPTAP_MAX_PLAYERS) {
-    return `Tap Tap Revolution is ${TAPTAP_MIN_PLAYERS}–${TAPTAP_MAX_PLAYERS} players.`;
+    return text({ en: `Tap Tap Revolution is ${TAPTAP_MIN_PLAYERS}–${TAPTAP_MAX_PLAYERS} players.`, fr: `Tap Tap Revolution se joue de ${TAPTAP_MIN_PLAYERS} à ${TAPTAP_MAX_PLAYERS} joueurs.` });
   }
-  if (!isHost) return 'The host starts the board.';
-  return `Everyone gets the same ${TAPTAP_TOTAL} cells, in the same order. First to clear them wins.`;
+  if (!isHost) return text({ en: 'The host starts the board.', fr: "L’hôte démarre le plateau." });
+  return text({ en: `Everyone gets the same ${TAPTAP_TOTAL} cells, in the same order. First to clear them wins.`, fr: `Tout le monde reçoit les mêmes ${TAPTAP_TOTAL} cases, dans le même ordre. Le premier à tout effacer gagne.` });
 }

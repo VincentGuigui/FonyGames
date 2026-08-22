@@ -157,6 +157,13 @@ console.log('\na round somebody won counts');
   won(taptap('done', A), 'tap tap revolution: somebody cleared all 100');
   not(taptap('done', null), 'tap tap revolution: not a tie at the cap');
   not(taptap('running', null), 'tap tap revolution: not mid-round');
+
+  const fighter = (phase: 'planning' | 'fighting' | 'round-over' | 'match-over', matchWinner: 'blue' | 'green' | null): ServerMessage => ({
+    t: 'fighter', s: 1, d: { roundId: 1, matchRound: 5, phase, seats: { blue: A, green: B }, ready: { blue: true, green: true }, actions: null, beats: [], roundWins: { blue: 3, green: 1 }, startsAt: 0, endsAt: 1, roundWinner: 'blue', matchWinner, draw: false, solo: false },
+  });
+  won(fighter('match-over', 'blue'), 'tap fighter: the first fighter to three rounds');
+  not(fighter('round-over', null), 'tap fighter: not each round inside the match');
+  not(fighter('fighting', null), 'tap fighter: not mid-fight');
 }
 
 console.log('\nnothing mid-round counts');

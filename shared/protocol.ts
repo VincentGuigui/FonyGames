@@ -1,4 +1,5 @@
 import { PLAYERS } from './players';
+import type { FighterAction, FighterBeat, FighterSeat } from './tapFighter';
 
 /**
  * The wire protocol, shared verbatim by the browser and the Durable Object.
@@ -19,12 +20,54 @@ export type Player = {
   avatar: string;
   /** False while they are dropped but still inside the reconnect grace period. */
   connected: boolean;
+  /**
+   * Marked by the player themselves in the lobby. It stays true across rounds, so a
+   * replay does not ask everyone to press Ready again; a newly joined seat starts false.
+   * The host's own flag is never checked — see `#onStart`'s gate in worker/Room.ts.
+   */
+  ready: boolean;
 };
 
 export type RoomSnapshot = {
   code: string;
   players: Player[];
   hostId: PlayerId | null;
+};
+
+export type TttState = {
+  roundId: number;
+  phase: 'choosing' | 'playing' | 'over';
+  symbols: Record<PlayerId, 'x' | 'o'>;
+  meta: Array<'x' | 'o' | 'draw' | null>;
+  small: Array<'x' | 'o' | null>;
+  selectedMeta: number | null;
+  chooser: PlayerId | null;
+  turn: PlayerId | null;
+  miniWinner: 'x' | 'o' | 'draw' | null;
+  winner: PlayerId | null;
+  draw: boolean;
+  startsAt: number;
+  zoomAt: number;
+  reopened: number[];
+  reopenedAt: number;
+  endsAt: number;
+};
+
+export type TapFighterState = {
+  roundId: number;
+  matchRound: number;
+  phase: 'planning' | 'fighting' | 'round-over' | 'match-over';
+  seats: Record<FighterSeat, PlayerId>;
+  ready: Record<FighterSeat, boolean>;
+  actions: Record<FighterSeat, FighterAction[]> | null;
+  beats: FighterBeat[];
+  roundWins: Record<FighterSeat, number>;
+  startsAt: number;
+  endsAt: number;
+  roundWinner: FighterSeat | null;
+  matchWinner: FighterSeat | null;
+  draw: boolean;
+  solo: boolean;
 };
 
 /** Why the server closed or refused a connection. */
@@ -43,6 +86,12 @@ export type ClientMessage =
   /** First message on every connection. `resume` re-claims a previous seat. */
   | { t: 'join'; d: { name?: string; avatar?: string; resume?: PlayerId } }
   | { t: 'set-profile'; d: { name?: string; avatar?: string } }
+  /**
+   * The lobby's ready toggle — a non-host player marking (or unmarking)
+   * themselves ready. `#onStart` refuses to begin a round until every
+   * connected non-host player has sent `ready: true`.
+   */
+  | { t: 'set-ready'; d: { ready: boolean } }
   /** Round-trip used to estimate the client's offset from server time. */
   | { t: 'ping'; d: { at: number } }
   /**
@@ -64,6 +113,8 @@ export type ClientMessage =
          * (`assignRoles` in worker/neonFall.ts).
          */
         roles?: { glider: PlayerId; protector: PlayerId };
+        /** Tic-Tac-Tic-Tac-Toe's fixed symbol assignment and first chooser. */
+        symbols?: { x: PlayerId; o: PlayerId; chooser: PlayerId };
         /**
          * Solo test mode — start with one player, for looking at a game rather than
          * playing it. Set by a browser that has signed into the admin centre; the
@@ -164,7 +215,12 @@ export type ClientMessage =
    * whether this was this player's own lit cell (spec §8), the same
    * reasoning Squash Mosquitoes' `squash-tap` already established.
    */
-  | { t: 'taptap-tap'; d: { roundId: number; cell: number } };
+  | { t: 'taptap-tap'; d: { roundId: number; cell: number } }
+  /** Tic-Tac-Tic-Tac-Toe: choose the next unresolved meta board. */
+  | { t: 'tttt-select'; d: { roundId: number; metaCell: number } }
+  /** Tic-Tac-Tic-Tac-Toe: play a move in the selected small board. */
+  | { t: 'tttt-tap'; d: { roundId: number; smallCell: number } }
+  | { t: 'fighter-lock'; d: { roundId: number; actions: FighterAction[]; seat?: FighterSeat } };
 
 /* ------------------------------------------------------------------ */
 /* server -> client                                                     */
@@ -343,8 +399,8 @@ export type NeonFallState = {
  * Tap Tap Revolution: the shared, public half of the round.
  *
  * Same split as `SquashState`/`SquashBoard`: `order` and `remaining` are
- * public — a shuffle everyone raced through, and a count, never a board —
- * and each player's own progress index arrives separately as
+ * public — a shuffle everyone raced through, and a count, never which
+ * cells — and each player's own cleared history arrives separately as
  * `taptap-progress`, to that player alone (spec §6).
  */
 export type TapTapState = {
@@ -354,13 +410,34 @@ export type TapTapState = {
   endsAt: number;
   /** The 100 grid cells, in lit-up order. Identical for every player. */
   order: number[];
-  /** Cells not yet cleared, per player — 100 minus their own progress. */
+  /** Cells not yet cleared, per player — 100 minus their own cleared count. */
   remaining: Record<PlayerId, number>;
   /** Server time each player finished, or null while still racing. */
   finishedAt: Record<PlayerId, number | null>;
   winner: PlayerId | null;
   phase: 'running' | 'done';
 };
+
+/**
+ * The next `TAPTAP_WINDOW_SIZE` cells a player may correctly tap right now —
+ * the earliest entries of `order` this player has not yet cleared, in order.
+ *
+ * Pure and shared between the referee (which decides whether a tap is
+ * correct) and the client (which draws these as lit): both must compute the
+ * identical window from the same two public/private facts — `order` and
+ * this player's own `cleared` history — or a tap that looks correct on
+ * screen could be refused by the referee, and vice versa.
+ */
+export function taptapWindow(order: readonly number[], cleared: readonly number[]): number[] {
+  const done = new Set(cleared);
+  const win: number[] = [];
+  for (const cell of order) {
+    if (done.has(cell)) continue;
+    win.push(cell);
+    if (win.length >= TAPTAP_WINDOW_SIZE) break;
+  }
+  return win;
+}
 
 /** Spill: one projectile, described once and animated locally from then on. */
 export type SpillDrop = {
@@ -570,14 +647,22 @@ export type ServerMessage =
   | { t: 'neon'; s: number; d: NeonFallState }
   /** Tap Tap Revolution: the shared state — order, everyone's remaining count, phase, winner. */
   | { t: 'taptap'; s: number; d: TapTapState }
+  | { t: 'tttt'; s: number; d: TttState }
+  | { t: 'fighter'; s: number; d: TapFighterState }
   /**
-   * Tap Tap Revolution: sent to **one player only** — their own progress.
+   * Tap Tap Revolution: sent to **one player only** — their own cleared
+   * cells, in the order they actually tapped them (spec §2, §6).
    *
-   * A drop in `index` from the last one sent IS the "you missed" signal —
-   * there is no separate message for it, the same way Squash Mosquitoes has
-   * none for a mosquito that was already squashed (spec §6).
+   * A shrink from the last one sent IS the "you missed" signal — there is
+   * no separate message for it, the same way Squash Mosquitoes has none for
+   * a mosquito that was already squashed. `taptapWindow(order, cleared)`
+   * derives the up-to-`TAPTAP_WINDOW_SIZE` lit cells from this and the
+   * public `order` — nothing here says which cells are lit, only which are
+   * already gone.
    */
-  | { t: 'taptap-progress'; s: number; d: { roundId: number; index: number } }
+  | { t: 'taptap-progress'; s: number; d: { roundId: number; cleared: number[] } }
+  /** Tic-Tac-Tic-Tac-Toe: the authoritative nested-board state. */
+  | { t: 'tttt'; s: number; d: TttState }
   /** Pass the Bomb: too many bumps too fast — this player's bumps are muted briefly. */
   | { t: 'calm-down'; d: { untilServerTime: number } }
   /** Steady Hand: the state of the room. `w` is everyone's last wobble, for the meters. */
@@ -1241,16 +1326,10 @@ export const SQUASH_GRID_CELLS = SQUASH_GRID_COLS * SQUASH_GRID_ROWS;
 /** The pattern is this many of the grid's cells, no duplicates (spec §2). */
 export const SQUASH_TOTAL = 66;
 
-/**
- * Mosquito **N** (1-indexed) in the pattern flies once N reaches this. A property
- * of the pattern position, not a clock or a running count — so whether a given
- * mosquito flies is fixed the moment the pattern is dealt, and both ends of the
- * wire can derive it from the same array without a flag travelling per mosquito
- * (spec §2.2).
- */
+/** Mosquito **N** (1-indexed) in the pattern flies once N reaches this. */
 export const SQUASH_STATIC_COUNT = 33;
 
-/** A flying mosquito, and its hitbox, at this fraction of a static one's size. */
+/** The flying motion's hitbox fraction; visual size is rolled independently on each phone. */
 export const SQUASH_FLY_SCALE = 1 / 2;
 
 /** A round is capped like every other, so a swarm nobody can finish still ends. */
@@ -1268,6 +1347,7 @@ export function squashFlies(index: number): boolean {
 const CLIENT_TYPES = new Set([
   'join',
   'set-profile',
+  'set-ready',
   'ping',
   'start',
   'tap',
@@ -1288,6 +1368,9 @@ const CLIENT_TYPES = new Set([
   'neon-steer',
   'neon-shoot',
   'taptap-tap',
+  'tttt-select',
+  'tttt-tap',
+  'fighter-lock',
 ]);
 
 export function isClientMessage(value: unknown): value is ClientMessage {
@@ -1561,11 +1644,20 @@ export const NEON_COOLDOWN_MS = 1_500;
  * This is the real balance lever (spec §12): it is the glider's whole reaction
  * window to juke, telegraphed from the instant the bolt is fired. Too short and
  * dodging is unfair; too long and a protector who is paying attention cannot
- * land a shot. A guess, needs a playtest.
+ * land a shot. Raised from an initial 350 ms — that read as nearly instant, no
+ * real dodge window at all. A guess even at this value, needs a playtest.
  */
-export const NEON_BOLT_MS = 350;
+export const NEON_BOLT_MS = 900;
 
 export const NEON_BOUNCE_MS = 1_500;
+
+/**
+ * How long the glider's death explosion holds the screen before the results
+ * panel replaces it (spec §4) — client-side only, timed from the instant a
+ * phone first sees the fatal hit, the same way Pass the Bomb's own
+ * `BOOM_MS` holds the round screen through its explosion.
+ */
+export const NEON_EXPLOSION_MS = 900;
 
 /** How much fall progress a hit gives back — "a bit higher" per the pitch. A
  *  guess (spec §12). */
@@ -1590,6 +1682,13 @@ export const NEON_MAX_PLAYERS = PLAYERS['neon-fall'][1];
 /** The board: a 10×10 grid, a hundred cells, every one of them lit exactly once a round. */
 export const TAPTAP_GRID_SIZE = 10;
 export const TAPTAP_TOTAL = TAPTAP_GRID_SIZE * TAPTAP_GRID_SIZE;
+
+/**
+ * How many cells are live at once — tappable in any order, not just the
+ * next one in `order`. `taptapWindow` below is what turns this number and
+ * a player's own cleared history into the actual set of lit cells.
+ */
+export const TAPTAP_WINDOW_SIZE = 5;
 
 /**
  * A wrong tap rewinds to the last completed multiple of this, not to zero.

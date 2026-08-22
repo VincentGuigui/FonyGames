@@ -1,4 +1,5 @@
 import type { ComponentChildren, JSX } from 'preact';
+import { useT } from '../i18n/strings';
 
 /**
  * A panel that slides up from the bottom over whatever was there.
@@ -32,9 +33,10 @@ export function Sheet({
   onClose: () => void;
   children: ComponentChildren;
 }): JSX.Element {
+  const t = useT();
   return (
     <div class="sheet">
-      <button class="sheet__scrim" type="button" aria-label="Close" onClick={onClose} />
+      <button class="sheet__scrim" type="button" aria-label={t.common.close} onClick={onClose} />
       <div class="sheet__panel" role="dialog" aria-modal="true" aria-label={label}>
         {children}
       </div>

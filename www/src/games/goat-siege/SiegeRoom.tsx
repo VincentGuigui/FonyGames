@@ -8,12 +8,14 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { soloTesting } from '../../core/solo';
-import { useRoom, useShareRoom } from '../../core/room/useRoom';
+import { useSoloTesting } from '../../core/useSolo';
+import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { SiegeBoard } from './SiegeBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
 import { SiegeGame } from './game';
 
 /**
@@ -36,6 +38,8 @@ export function SiegeRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
+  const text = useGameText();
   const [, redraw] = useState(0);
 
   const gameRef = useRef<SiegeGame | null>(null);
@@ -54,10 +58,9 @@ function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }):
    * Read once per render rather than per click: it changes only when the admin
    * centre writes it, which cannot happen while this page is open.
    */
-  const solo = soloTesting();
+  const solo = useSoloTesting();
 
-  const room = useRoom(code, card.slug, onGame);
-  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
+  const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;
 
@@ -95,18 +98,18 @@ function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const ranked = [...state.players].sort((a, b) => (state.cabbages[b] ?? 0) - (state.cabbages[a] ?? 0));
     return (
       <GameOverScreen
+        room={room}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        status="Round over"
         rows={ranked.map((id) => ({
           id,
           avatar: byId.get(id)?.avatar ?? '🙂',
-          name: byId.get(id)?.name ?? 'Someone',
+          name: byId.get(id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' }),
           value: state.cabbages[id] ?? 0,
-          unit: 'left',
+          unit: t.common.left,
           ...(state.out.includes(id) ? { out: true } : {}),
         }))}
         me={myId}
@@ -132,23 +135,23 @@ function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }):
       canStart={
         room.isHost && enoughToStart(room.connected, [SIEGE_MIN_PLAYERS, SIEGE_MAX_PLAYERS], solo)
       }
-      startLabel={state ? 'Play again' : 'Start round'}
+      startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'siege', solo } })}
-      note={note(room.isHost, room.connected, solo)}
+      note={note(room.isHost, room.connected, solo, text)}
       playerTag={(id) => {
         const n = state?.cabbages[id];
-        return n === undefined ? null : `${n} left`;
+        return n === undefined ? null : text({ en: `${n} left`, fr: `${n} restantes` });
       }}
     />
   );
 }
 
-function note(isHost: boolean, connected: number, solo: boolean): string {
-  if (!isHost) return 'The host starts the round.';
-  if (!solo && connected < SIEGE_MIN_PLAYERS) return 'Waiting for one more player…';
+function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
+  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
+  if (!solo && connected < SIEGE_MIN_PLAYERS) return text({ en: 'Waiting for one more player…', fr: 'En attente d’un joueur supplémentaire…' });
   if (connected > SIEGE_MAX_PLAYERS) {
-    return `Goat Siege is ${SIEGE_MIN_PLAYERS}–${SIEGE_MAX_PLAYERS} players.`;
+    return text({ en: `Goat Siege is ${SIEGE_MIN_PLAYERS}–${SIEGE_MAX_PLAYERS} players.`, fr: `Goat Siege se joue de ${SIEGE_MIN_PLAYERS} à ${SIEGE_MAX_PLAYERS} joueurs.` });
   }
-  return `${SIEGE_CABBAGES} cabbages each. Last patch standing wins.`;
+  return text({ en: `${SIEGE_CABBAGES} cabbages each. Last patch standing wins.`, fr: `${SIEGE_CABBAGES} choux chacun. Le dernier potager gagne.` });
 }
 

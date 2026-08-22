@@ -6,11 +6,13 @@ import {
   SLING_START_PUCKS,
   type ServerMessage,
 } from '../../../../shared/protocol';
-import { useRoom, useShareRoom } from '../../core/room/useRoom';
+import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { SlingBoard } from './SlingBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
+import { useT } from '../../core/i18n/strings';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
 import { HeadToHead } from './HeadToHead';
 import { SlingGame } from './game';
 
@@ -34,6 +36,8 @@ export function SlingRoom(props: { game: GameCard }): JSX.Element {
 }
 
 function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
+  const t = useT();
+  const text = useGameText();
   const [, redraw] = useState(0);
 
   const gameRef = useRef<SlingGame | null>(null);
@@ -53,8 +57,7 @@ function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }):
     [game],
   );
 
-  const room = useRoom(code, card.slug, onGame);
-  const { joinUrl, copied, showQr, share, toggleQr } = useShareRoom(code, card.title, room.setError);
+  const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;
 
@@ -88,18 +91,17 @@ function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const ranked = [...state.players].sort((a, b) => (state.pucks[a] ?? 0) - (state.pucks[b] ?? 0));
     return (
       <GameOverScreen
+        room={room}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        status="Round over"
         rows={ranked.map((id) => ({
           id,
           avatar: byId.get(id)?.avatar ?? '🙂',
-          name: byId.get(id)?.name ?? 'Someone',
-          value: state.pucks[id] ?? 0,
-          unit: 'left',
+          name: byId.get(id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' }),
+          value: id === game.winner ? text({ en: 'Win', fr: 'Gagné' }) : text({ en: 'Lose', fr: 'Perdu' }),
         }))}
         me={myId}
         winner={game.winner}
@@ -120,24 +122,25 @@ function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }):
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && room.connected === SLING_PLAYERS}
-      startLabel={state ? 'Play again' : 'Start round'}
+      startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'sling' } })}
-      note={note(room.isHost, room.connected)}
+      note={note(room.isHost, room.connected, text)}
       soloSupported={false}
       playerTag={(id) => {
         const n = state?.pucks[id];
-        return n === undefined ? null : `${n} left`;
+        return n === undefined ? null : text({ en: `${n} left`, fr: `${n} restants` });
       }}
       aside={
         <>
           <HeadToHead />
           <p class="howto__aside">
-            Lay the two phones flat, <strong>top edge to top edge</strong>. The join
-            between them is the gap.
+            {text({ en: 'Lay the two phones flat, ', fr: 'Posez les deux téléphones à plat, ' })}
+            <strong>{text({ en: 'top edge to top edge', fr: 'bord supérieur contre bord supérieur' })}</strong>.{' '}
+            {text({ en: 'The join between them is the gap.', fr: 'La jonction entre eux forme l’ouverture.' })}
           </p>
           {/* Spec §11: the only caution this game has. */}
           <p class="howto__warn" role="note">
-            Two phones nose to nose get nudged — keep them off the table edge.
+            {text({ en: 'Two phones nose to nose get nudged — keep them off the table edge.', fr: 'Deux téléphones face à face peuvent bouger — éloignez-les du bord de la table.' })}
           </p>
         </>
       }
@@ -145,11 +148,11 @@ function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }):
   );
 }
 
-function note(isHost: boolean, connected: number): string {
-  if (!isHost) return 'The host starts the round.';
-  if (connected < SLING_PLAYERS) return 'Waiting for your opponent…';
+function note(isHost: boolean, connected: number, text: GameText): string {
+  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
+  if (connected < SLING_PLAYERS) return text({ en: 'Waiting for your opponent…', fr: 'En attente de votre adversaire…' });
   // Exactly two, so "too many" is a real state and needs saying plainly.
-  if (connected > SLING_PLAYERS) return 'Sling Puck is exactly two players.';
-  return `${SLING_START_PUCKS} pucks each. First side clear wins.`;
+  if (connected > SLING_PLAYERS) return text({ en: 'Sling Puck is exactly two players.', fr: 'Sling Puck se joue exactement à deux.' });
+  return text({ en: `${SLING_START_PUCKS} pucks each. First side clear wins.`, fr: `${SLING_START_PUCKS} palets chacun. Le premier à vider son côté gagne.` });
 }
 

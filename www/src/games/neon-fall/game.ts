@@ -1,4 +1,10 @@
-import { NEON_BOLT_MS, type NeonFallState, type PlayerId, type ServerMessage } from '../../../../shared/protocol';
+import {
+  NEON_BOLT_MS,
+  NEON_EXPLOSION_MS,
+  type NeonFallState,
+  type PlayerId,
+  type ServerMessage,
+} from '../../../../shared/protocol';
 
 /**
  * Neon Fall's client-side state and its pure helpers.
@@ -17,9 +23,34 @@ function clamp(v: number, min: number, max: number): number {
 
 export class NeonGame {
   state: NeonFallState | null = null;
+  /**
+   * Client time the fatal hit was first seen, or null the rest of the time.
+   * Stamped once per round, from the shared clock (`identify`) — this is what
+   * lets the room hold the death explosion on screen for `NEON_EXPLOSION_MS`
+   * before showing results, the same way Pass the Bomb stamps its own
+   * `lastBoom.at` the moment a boom frame arrives.
+   */
+  explodedAt: number | null = null;
+  #now: () => number = () => Date.now();
+
+  /** Say whose clock to trust. Separate from the constructor for the same
+   *  reason SquashGame's `identify` is: the object exists before the socket. */
+  identify(now: () => number): void {
+    this.#now = now;
+  }
 
   apply(msg: ServerMessage): void {
-    if (msg.t === 'neon') this.state = msg.d;
+    if (msg.t !== 'neon') return;
+    if (this.state?.roundId !== msg.d.roundId) this.explodedAt = null;
+    if (
+      this.explodedAt === null &&
+      msg.d.phase === 'done' &&
+      msg.d.winner === msg.d.protectorId &&
+      msg.d.lives <= 0
+    ) {
+      this.explodedAt = this.#now();
+    }
+    this.state = msg.d;
   }
 
   isGlider(me: PlayerId): boolean {
@@ -83,5 +114,31 @@ export function stepStars(stars: Star[], dt: number, baseSpeed: number): void {
     s.y -= baseSpeed * s.depth * dt;
     if (s.y < 0) s.y += 1;
   }
+}
+
+/**
+ * The glider's death burst: a fixed ring of shards flying outward from where
+ * it was hit. Spec §4, §11.
+ *
+ * Deterministic on purpose — no `Math.random()` — so the same death always
+ * explodes the same way and this is testable without a seed. `angle` is
+ * evenly spaced around the ring; `speed` gets a little per-shard variety from
+ * the index alone, not chance, so the burst still reads as debris rather than
+ * a perfect uniform ring.
+ */
+const EXPLOSION_SHARD_COUNT = 14;
+
+export type ExplosionShard = { angle: number; speed: number };
+
+export function explosionShards(): ExplosionShard[] {
+  return Array.from({ length: EXPLOSION_SHARD_COUNT }, (_, i) => ({
+    angle: (i / EXPLOSION_SHARD_COUNT) * Math.PI * 2,
+    speed: 0.55 + ((i * 37) % 10) / 20,
+  }));
+}
+
+/** 0 the instant the glider is hit, 1 once the burst has fully played out. */
+export function explosionProgress(explodedAt: number, now: number): number {
+  return clamp((now - explodedAt) / NEON_EXPLOSION_MS, 0, 1);
 }
 

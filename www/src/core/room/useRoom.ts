@@ -219,6 +219,17 @@ export function useShareRoom(
   };
 }
 
+/** The room connection and share controls every game lobby opens together. */
+export function useGameRoom(
+  code: string,
+  game: { slug: string; title: string },
+  onGame?: (msg: ServerMessage) => void,
+): { room: Room } & ReturnType<typeof useShareRoom> {
+  const room = useRoom(code, game.slug, onGame);
+  const sharing = useShareRoom(code, game.title, room.setError);
+  return { room, ...sharing };
+}
+
 /** Share the join link, falling back to the clipboard when there is no share sheet. */
 export async function shareRoom(
   title: string,

@@ -1,0 +1,30 @@
+import { onSelect, onTap, startTttt, type Ttt } from './ticTacTicTacToe';
+import type { ServerMessage } from '../shared/protocol';
+const sent: ServerMessage[] = []; let state: Ttt | null = null; let now = 1_000;
+const ctx = { now: () => now, nextSeq: () => sent.length + 1, broadcast: (m: ServerMessage) => sent.push(m), load: async () => state, save: async (s: Ttt) => { state = s; }, setAlarm: async () => {} };
+await startTttt(ctx, 1, ['a', 'b'], { x: 'a', o: 'b', chooser: 'a' });
+await onSelect(ctx, 'a', 1, 0);
+await onTap(ctx, 'a', 1, 0); await onTap(ctx, 'b', 1, 1); await onTap(ctx, 'a', 1, 3); await onTap(ctx, 'b', 1, 2); await onTap(ctx, 'a', 1, 6);
+const finalState = state as Ttt | null;
+if (finalState?.meta[0] !== 'x' || finalState.phase !== 'choosing' || finalState.chooser !== 'b') throw new Error('mini board winner or next chooser is wrong');
+console.log('tic-tac-tic-tac-toe referee passed');
+
+state = null; sent.length = 0;
+await startTttt(ctx, 2, ['host'], undefined, true);
+await onSelect(ctx, 'host', 2, 0);
+await onTap(ctx, 'host', 2, 0);
+await onTap(ctx, 'host', 2, 1);
+const soloState = state as Ttt | null;
+if (soloState?.small[0] !== 'x' || soloState.small[1] !== 'o') throw new Error('solo mode must alternate X then O for the host');
+console.log('tic-tac-tic-tac-toe solo mode passed');
+
+state = null; sent.length = 0; now = 5_000;
+await startTttt(ctx, 3, ['a', 'b'], { x: 'a', o: 'b', chooser: 'a' });
+const reopening = state as unknown as Ttt;
+reopening.phase = 'playing'; reopening.selectedMeta = 8; reopening.turn = 'b';
+reopening.meta = ['x', 'o', 'x', 'o', 'draw', 'o', 'o', 'x', null];
+reopening.small = ['x', 'o', 'x', 'x', 'o', 'o', 'o', 'x', null];
+await onTap(ctx, 'b', 3, 8);
+const reopened = state as unknown as Ttt;
+if (reopened.phase !== 'choosing' || reopened.meta[4] !== null || reopened.meta[8] !== null || reopened.reopened.join(',') !== '4,8') throw new Error('a full meta draw must reopen every blocked cell');
+console.log('tic-tac-tic-tac-toe blocked cells reopen after a meta draw');
