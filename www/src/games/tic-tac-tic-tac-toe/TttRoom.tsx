@@ -68,7 +68,7 @@ function Board({ state, onSelect, onTap }: { state: TttState; onSelect: (cell: n
   const mini = (cells: readonly (string | null)[], click?: (cell: number) => void) => <div class="tttt-mini">{cells.map((value, cell) => click ? <button type="button" class="tttt-cell" disabled={value !== null} onClick={() => click(cell)}>{value?.toUpperCase() ?? ''}</button> : <span class="tttt-cell" aria-hidden="true">{value?.toUpperCase() ?? ''}</span>)}</div>;
   return <section class={`tttt-board ${state.phase === 'playing' ? 'is-playing' : ''}`}>
     {state.phase === 'playing' ? mini(state.small, onTap) : state.meta.map((value, cell) => value === 'x' || value === 'o'
-      ? <div class="tttt-meta tttt-meta--claimed" aria-label={`Cell ${value.toUpperCase()}`}>{value.toUpperCase()}</div>
+      ? <div class="tttt-meta tttt-meta--claimed">{value.toUpperCase()}</div>
       : <button type="button" class="tttt-meta" disabled={value !== null} onClick={() => onSelect(cell)}>{value === 'draw' ? <span class="tttt-draw">·</span> : mini(Array(9).fill(null), undefined)}</button>)}
   </section>;
 }
