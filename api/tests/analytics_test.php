@@ -281,6 +281,13 @@ group('the caller address is read from the proxy headers, and validated');
     ) === '2001:db8::1');
 }
 
+group('ipinfo authentication stays out of the Authorization header');
+{
+    $source = file_get_contents(dirname(__DIR__) . '/lib/Analytics.php');
+    check('the token uses the documented query parameter', str_contains((string) $source, "'/json?token='"));
+    check('the custom lookup sends no bearer header', !str_contains((string) $source, "'Authorization: Bearer ' . \$this->token"));
+}
+
 group('the endpoint and the client agree on the vocabulary');
 
 {
@@ -359,7 +366,7 @@ group('summary(): the dashboard, in counts — never a list of what one visitor 
     check('spill outranks grid-attack by plays', $summary['topGames'][0]['slug'] === 'spill');
 
     check('one country, from the geolocator', $summary['countries'] === [['country' => 'FR', 'count' => 9]]);
-    check('one city, same reason', $summary['cities'] === [['city' => 'Paris', 'count' => 9]]);
+    check('one city, nested under its country', $summary['cities'] === [['country' => 'FR', 'city' => 'Paris', 'count' => 9]]);
 
     check('the referrer is grouped by host, not the full URL', $summary['referrers'] === [
         ['host' => 'example.com', 'count' => 1],

@@ -219,3 +219,49 @@ body {
   /* A timestamp column that jumps around is unreadable at a glance. */
   font-variant-numeric: tabular-nums;
 }
+
+.ops__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.ops__table th,
+.ops__table td {
+  padding: 0.55rem 0.45rem;
+  border-bottom: 1px solid var(--color-border);
+  text-align: right;
+}
+
+.ops__table th:first-child,
+.ops__table td:first-child {
+  text-align: left;
+}
+
+.ops__sort,
+.ops__master {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ops__master.is-on {
+  color: var(--color-accent);
+}
+
+.ops__master-detail {
+  display: grid;
+  grid-template-columns: minmax(8rem, 0.8fr) minmax(12rem, 1.2fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (max-width: 560px) {
+  .ops__log { overflow-x: auto; }
+  .ops__master-detail { grid-template-columns: 1fr; }
+}
