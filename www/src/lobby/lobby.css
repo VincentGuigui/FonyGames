@@ -463,6 +463,7 @@ a.btn {
    */
   transition-property: filter, opacity;
   will-change: transform;
+  scale: var(--target-scale, 1);
 }
 
 /* Waiting: unmistakably not yet, and not in the way of a tap. */
