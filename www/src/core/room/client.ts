@@ -239,6 +239,10 @@ export class RoomClient {
         }
         return;
 
+      case 'room-redirect':
+        if (typeof window !== 'undefined') window.location.assign(`/${msg.d.game}/#${msg.d.code}`);
+        return;
+
       default:
         // Sequenced game frames get the same out-of-order guard as presence:
         // after a reconnect the server may replay state we have already seen.

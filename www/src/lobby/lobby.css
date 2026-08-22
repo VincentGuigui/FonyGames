@@ -866,3 +866,9 @@ a.btn {
   color: var(--game-accent);
   font-weight: 700;
 }
+
+.game-switcher__list,
+.game-switcher__confirm {
+  display: grid;
+  gap: var(--space-3);
+}

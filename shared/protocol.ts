@@ -220,7 +220,8 @@ export type ClientMessage =
   | { t: 'tttt-select'; d: { roundId: number; metaCell: number } }
   /** Tic-Tac-Tic-Tac-Toe: play a move in the selected small board. */
   | { t: 'tttt-tap'; d: { roundId: number; smallCell: number } }
-  | { t: 'fighter-lock'; d: { roundId: number; actions: FighterAction[]; seat?: FighterSeat } };
+  | { t: 'fighter-lock'; d: { roundId: number; actions: FighterAction[]; seat?: FighterSeat } }
+  | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
 /* server -> client                                                     */
@@ -649,6 +650,7 @@ export type ServerMessage =
   | { t: 'taptap'; s: number; d: TapTapState }
   | { t: 'tttt'; s: number; d: TttState }
   | { t: 'fighter'; s: number; d: TapFighterState }
+  | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
    * Tap Tap Revolution: sent to **one player only** — their own cleared
    * cells, in the order they actually tapped them (spec §2, §6).
@@ -1371,6 +1373,7 @@ const CLIENT_TYPES = new Set([
   'tttt-select',
   'tttt-tap',
   'fighter-lock',
+  'switch-game',
 ]);
 
 export function isClientMessage(value: unknown): value is ClientMessage {

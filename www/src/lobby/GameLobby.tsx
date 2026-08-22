@@ -14,6 +14,7 @@ import { hasAdminSession, setSoloTesting } from '../core/solo';
 import { useSoloTesting } from '../core/useSolo';
 import { guestsReady } from '../../../shared/readiness';
 import { ReadyButton } from '../core/ui/ReadyButton';
+import { GameSwitcher } from './GameSwitcher';
 
 /**
  * The lobby, identical for every game.
@@ -113,6 +114,7 @@ export function GameLobby({
         <a class="lobby__back" href={`/${card.slug}/`}>
           {t.common.leaveTheRoom}
         </a>
+        {room.isHost && <GameSwitcher room={room} code={code} game={card.slug} />}
         <h1 class="lobby__title">{card.title}</h1>
         <p class="lobby__pitch">{card.pitch}</p>
       </header>

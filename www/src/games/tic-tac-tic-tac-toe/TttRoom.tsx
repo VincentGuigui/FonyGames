@@ -11,6 +11,7 @@ import type { PlayerId, ServerMessage, TttState } from '../../../../shared/proto
 import { useSoloTesting } from '../../core/useSolo';
 import { enoughToStart } from '../../../../shared/players';
 import { TttGame } from './game';
+import { GameSwitcher } from '../../lobby/GameSwitcher';
 import './ttt.css';
 
 export function TttRoom({ game }: { game: GameCard }): JSX.Element {
@@ -56,6 +57,7 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
   }
   if (state) {
     return <main class="tttt-game">
+      <GameSwitcher />
       <h1>{game.title}</h1>
       <p>{state.phase === 'choosing' ? `${playerName(state.chooser)} (${symbol(state.chooser)}) ${text({ en: 'chooses a board', fr: 'choisit le plateau' })}` : `${playerName(state.turn)} (${symbol(state.turn)}) ${text({ en: 'plays', fr: 'joue' })}`}</p>
       <Board state={state} now={transitionNow} onSelect={(cell) => client?.send({ t: 'tttt-select', d: { roundId: state.roundId, metaCell: cell } })} onTap={(cell) => client?.send({ t: 'tttt-tap', d: { roundId: state.roundId, smallCell: cell } })} />
