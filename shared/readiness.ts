@@ -14,8 +14,3 @@ export type ReadyPlayer = {
 export function guestsReady(players: readonly ReadyPlayer[], hostId: string | null): boolean {
   return players.every((player) => !player.connected || player.id === hostId || player.ready);
 }
-
-/** A new round always needs a fresh signal from every guest. */
-export function resetReadiness(players: Iterable<ReadyPlayer>): void {
-  for (const player of players) player.ready = false;
-}

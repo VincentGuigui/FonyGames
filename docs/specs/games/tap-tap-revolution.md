@@ -132,7 +132,9 @@ rule, for a host who wants more risk than the checkpoint gives:
 
 - **Lobby**: shared template. No host setting beyond `mode` — unlike Cat and
   Mouse or Neon Fall, nothing here is a per-round host choice.
-- **Round**: a timeline above a 10×10 grid, portrait, one circle per cell —
+- **Round**: a timeline above a 10×10 grid, portrait, one circle per cell. The
+  grid spans the screen width minus its safe-area margins, while its square
+  aspect keeps every circle round —
   visually a translation of Grid Attack's cell grid (spec
   [grid-attack.md](grid-attack.md) §4) from squares to circles, but this
   board is never split into halves: there is nothing here to attack, only

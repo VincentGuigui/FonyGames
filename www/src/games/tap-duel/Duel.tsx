@@ -104,6 +104,11 @@ export function Duel(props: {
    */
   const dot = useRef<HTMLSpanElement>(null);
   const start = target ?? { x: 0.5, y: 0.5 };
+  // Put the first lit render at the frozen signal position itself. The effect below keeps
+  // the armed walk smooth, but waiting for it would paint one frame at the old origin.
+  const visible = armed && phase !== 'armed'
+    ? driftAt(start, armed.roundId, armed.fireAt - armed.startsAt, armed.speed)
+    : start;
   // Through a ref, and *not* in the effect's dependencies: `now` is a fresh closure
   // on every render of the lobby, so as a dependency it tore the animation loop down
   // and rebuilt it on each render instead of leaving it to run.
@@ -123,13 +128,18 @@ export function Duel(props: {
       const p = driftAt(start, armed.roundId, at - armed.startsAt, armed.speed);
       const dx = (p.x - start.x) * window.innerWidth;
       const dy = (p.y - start.y) * window.innerHeight;
+      el.style.left = `${start.x * 100}%`;
+      el.style.top = `${start.y * 100}%`;
       el.style.transform = `translate(calc(-50% + ${dx.toFixed(1)}px), calc(-50% + ${dy.toFixed(1)}px))`;
     };
 
     if (phase !== 'armed') {
       // Frozen where the signal caught it. Not `now()`: every phone must agree, and
       // they only agree on `fireAt`.
-      place(armed.fireAt);
+      const p = driftAt(start, armed.roundId, armed.fireAt - armed.startsAt, armed.speed);
+      el.style.left = `${p.x * 100}%`;
+      el.style.top = `${p.y * 100}%`;
+      el.style.transform = 'translate(-50%, -50%)';
       return;
     }
 
@@ -310,8 +320,9 @@ export function Duel(props: {
       ref={dot}
       class={`duel__bullseye ${fire ? 'duel__bullseye--live' : 'duel__bullseye--waiting'}`}
       style={{
-        left: `${start.x * 100}%`,
-        top: `${start.y * 100}%`,
+        left: `${visible.x * 100}%`,
+        top: `${visible.y * 100}%`,
+        ...(fire ? { transform: 'translate(-50%, -50%)' } : {}),
       }}
     >
       {fire ? (

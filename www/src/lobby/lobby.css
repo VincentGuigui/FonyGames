@@ -316,7 +316,7 @@ a.btn {
 /* --- footer -------------------------------------------------------------- */
 
 /*
- * The start button, pinned to the bottom of the screen.
+ * The start/ready controls, at the bottom of the document flow.
  *
  * It was at the natural end of the page, which is the honest place for it and put it
  * BELOW THE FOLD in every game — measured at 390x844: Pass the Bomb's sat at 964px, Ghost
@@ -325,20 +325,13 @@ a.btn {
  *
  * The cause is not one fat panel, it is that a lobby legitimately has a lot in it — the
  * code to read out, everyone who has joined, and whatever the game has to say before
- * anybody points a camera at anything. Sticky keeps all of that and stops it burying the
- * one control the host is there to press.
- *
- * The gradient rather than a flat fill: the page scrolls under this, and a hard edge across
- * the middle of a panel reads as the page having ended. Faded to the page colour, text
- * passing behind it disappears instead.
+ * anybody points a camera at anything. The footer stays in normal flow so scrolling is
+ * honest and no fixed layer can cover the last instruction or a thumb.
  */
 .lobby__footer {
-  position: sticky;
-  bottom: 0;
   margin-top: var(--space-5);
   padding-top: var(--space-3);
   padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
-  background: linear-gradient(to bottom, transparent, var(--color-bg) 22%);
 }
 
 .ready-button {
@@ -456,7 +449,7 @@ a.btn {
   /* left/top are set inline from the server's position; this centres the target
      on that point rather than putting its corner there. */
   transform: translate(-50%, -50%);
-  width: min(42vw, 42vh, 15rem);
+  width: min(28vw, 28vh, 10rem);
   aspect-ratio: 1;
   border-radius: 50%;
   z-index: 2;

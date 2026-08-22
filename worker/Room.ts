@@ -24,7 +24,7 @@ import {
   type ServerMessage,
 } from '../shared/protocol';
 import { PLAYERS } from '../shared/players';
-import { guestsReady, resetReadiness } from '../shared/readiness';
+import { guestsReady } from '../shared/readiness';
 import { playsUrl, reportPlay, roundKey } from './plays';
 /*
  * Type-only, so it is erased at build time and the cycle with index.ts (which imports this
@@ -671,7 +671,6 @@ export class Room extends DurableObject<Env> {
       // and it follows your finger. `capped` is the deliberate choice.
       else started = await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct', solo);
       if (!started) return;
-      await this.#consumeReadiness(players);
       await this.#rearm(players);
       return;
     }
@@ -725,15 +724,7 @@ export class Room extends DurableObject<Env> {
 
     // The server owns the timer, not the host — so a host dropping mid-duel
     // cannot stall it. This alarm resolves the duel if nobody taps.
-    await this.#consumeReadiness(players);
     await this.#rearm(players);
-  }
-
-  /** Persist and publish the fresh-ready requirement for the round after this one. */
-  async #consumeReadiness(players: Map<PlayerId, StoredPlayer>): Promise<void> {
-    resetReadiness(players.values());
-    await this.#savePlayers(players);
-    await this.#broadcastPresence();
   }
 
   async #onTap(ws: WebSocket, d: { at: number; roundId: number }): Promise<void> {

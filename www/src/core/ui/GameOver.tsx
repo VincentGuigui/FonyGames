@@ -154,7 +154,7 @@ export function GameOver({
   /** Host-only start eligibility. Guests get the shared Ready control when `room` is present. */
   canAct: boolean;
   waiting?: string | undefined;
-  /** The same ready gate as the lobby, so a replay cannot bypass a fresh signal. */
+  /** The same ready gate as the lobby, so a late guest cannot bypass readiness. */
   room?: Room | undefined;
   /** Sensor setup local to this phone. */
   readyBlocked?: boolean | undefined;
@@ -301,7 +301,7 @@ export function GameOver({
                   {t.lobby.setUpControls}
                 </button>
               )}
-              <ReadyButton room={room} blocked={readyBlocked} />
+              {!room.me?.ready && <ReadyButton room={room} blocked={readyBlocked} />}
               <a class="btn btn--big gameover__leave" href="/">
                 {t.common.leaveGame}
               </a>

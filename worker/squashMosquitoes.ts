@@ -192,8 +192,8 @@ export async function onSquashTap(
    * The spawn rule (spec §2.1): every squash pays for the next two, in strict
    * pattern order, for as long as any remain. Which half of the swarm a spawn
    * belongs to (spec §2.2) is decided purely by `nextSpawn`'s position against
-   * `SQUASH_STATIC_COUNT` — nothing here needs to know or care, and nothing about
-   * that decision crosses the wire.
+   * `SQUASH_STATIC_COUNT` — movement progression is still derived from the pattern;
+   * visual size is a client-only random choice and never affects the referee.
    */
   for (let i = 0; i < 2 && board.nextSpawn < SQUASH_TOTAL; i++) {
     board.active.push(board.nextSpawn);

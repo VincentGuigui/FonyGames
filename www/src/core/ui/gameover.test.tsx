@@ -130,8 +130,9 @@ console.log('\nwhat happens next');
   check('the host is told what is missing', unreadyHost.includes('Waiting for every player to be ready.'));
 
   const readyGuest = html({ room: readyRoom(false, true), canAct: false });
-  check('a guest can mark readiness on the result screen too', readyGuest.includes('Ready ✓'));
-  check('the ready control exposes its pressed state', readyGuest.includes('aria-pressed="true"'));
+  check('a guest does not need to ready again between rounds', !readyGuest.includes('Ready ✓'));
+  const lateGuest = html({ room: readyRoom(false, false), canAct: false });
+  check('a late guest can still mark readiness on the result screen', lateGuest.includes('Ready'));
 }
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);

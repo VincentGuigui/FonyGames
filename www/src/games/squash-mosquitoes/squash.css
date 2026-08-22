@@ -103,11 +103,7 @@
   height: 100%;
 }
 
-/* Half a cell (spec §2.2), moved by SquashBoard.tsx's per-frame transform. */
-.squash__mosquito--flying {
-  width: calc(100% / 2);
-  height: calc(100% / 2);
-}
+/* Flying is movement, not size. Size is rolled independently for every mosquito. */
 
 /* A flying mosquito's per-frame transform can carry it over a neighbouring cell — its
    entry animation starts off-screen, and its wander drifts toward the cell's edge. Without
@@ -122,13 +118,29 @@
   z-index: 1;
 }
 
+.squash__mosquito--large {
+  width: 120%;
+  height: 120%;
+}
+
+.squash__mosquito--normal {
+  width: 100%;
+  height: 100%;
+}
+
+.squash__mosquito--small {
+  width: 50%;
+  height: 50%;
+}
+
 /* art/mosquito.svg's own aspect ratio, roughly square (401x369). */
 .squash__bug {
   width: 80%;
   height: 74%;
 }
 
-.squash__mosquito--flying .squash__bug {
+/* Small keeps the existing flying visual size; large is exactly 120% of the normal button. */
+.squash__mosquito--small .squash__bug {
   width: 94%;
   height: 86%;
 }

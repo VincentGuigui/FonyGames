@@ -14,7 +14,7 @@ fixed:
 4. **Players** — the list. Your own row carries **Change**, which opens a sheet with
    your name and the avatars in it; every connected guest also shows ready/not ready.
 5. **Start / Ready** — Start for the host, Ready for every guest, plus one line of
-   context, **stuck to the bottom of the screen**.
+   context, at the bottom of the lobby's normal document flow.
 
 Every room screen opens the connection and its five share controls through
 `core/room/useGameRoom()`. It composes `useRoom()` with `useShareRoom()` once; games still
@@ -28,10 +28,10 @@ The Worker checks the same rule, so a crafted Start frame cannot bypass the lobb
 seats inside the reconnect grace period are ignored: losing one connection must not
 strand everyone who is still at the table.
 
-Readiness is consumed only after a round really starts and is reset for the next one.
-The shared result screen therefore carries the same Ready control for guests and holds
-Play again / Next round for the host; otherwise resetting the flags would make replay
-impossible without returning to the lobby.
+Readiness is required before the first round and then persists for replay. A guest who
+joins later still starts unready; existing players do not need to press Ready between
+rounds. The shared result screen only shows Ready to an unready guest and holds Play again
+/ Next round for the host until that late guest is resolved.
 
 Sensor games pass one local `readyBlocked` fact into the shared chrome. Ready (or Start
 for the host) stays disabled until that game's primer has resolved: permission granted,
@@ -40,7 +40,7 @@ fallback route. A late spectator can run the same setup action from the result s
 The browser owns this part because sensor permissions never leave the phone; the Worker
 owns the room-wide guest flags.
 
-### Why the start button is sticky
+### Why the start button stays in flow
 
 Because it was below the fold in every game. Measured at 390×844 with one player: Pass the
 Bomb's start button sat at 964px, Shake Rush's at 1064, Steady Hand's at 1005, Ghost Hunt's
@@ -49,9 +49,9 @@ safety copy to start a round — every round.
 
 The cause is not one fat panel. A lobby legitimately has a lot in it: a code to read out,
 everyone who has joined, and whatever a game must say before anybody points a camera at
-anything. Sticky keeps all of that and stops it burying the one control the host is there
-to press. The gradient behind it fades to the page colour rather than being a flat fill,
-because a hard edge across the middle of a panel reads as the page having ended.
+anything. The control remains at the natural end of that content in normal document flow.
+It can be below the fold, but it never covers content or traps the last instruction under
+an overlay.
 
 ### Why the room code collapses
 

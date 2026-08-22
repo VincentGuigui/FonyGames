@@ -20,10 +20,9 @@ export type Player = {
   /** False while they are dropped but still inside the reconnect grace period. */
   connected: boolean;
   /**
-   * Marked by the player themselves, in the lobby. Reset to `false` for
-   * everyone the moment a round actually starts, so the next one needs a
-   * fresh signal rather than inheriting the last. The host's own flag is
-   * never checked — see `#onStart`'s gate in worker/Room.ts.
+   * Marked by the player themselves in the lobby. It stays true across rounds, so a
+   * replay does not ask everyone to press Ready again; a newly joined seat starts false.
+   * The host's own flag is never checked — see `#onStart`'s gate in worker/Room.ts.
    */
   ready: boolean;
 };
@@ -1279,16 +1278,10 @@ export const SQUASH_GRID_CELLS = SQUASH_GRID_COLS * SQUASH_GRID_ROWS;
 /** The pattern is this many of the grid's cells, no duplicates (spec §2). */
 export const SQUASH_TOTAL = 66;
 
-/**
- * Mosquito **N** (1-indexed) in the pattern flies once N reaches this. A property
- * of the pattern position, not a clock or a running count — so whether a given
- * mosquito flies is fixed the moment the pattern is dealt, and both ends of the
- * wire can derive it from the same array without a flag travelling per mosquito
- * (spec §2.2).
- */
+/** Mosquito **N** (1-indexed) in the pattern flies once N reaches this. */
 export const SQUASH_STATIC_COUNT = 33;
 
-/** A flying mosquito, and its hitbox, at this fraction of a static one's size. */
+/** The flying motion's hitbox fraction; visual size is rolled independently on each phone. */
 export const SQUASH_FLY_SCALE = 1 / 2;
 
 /** A round is capped like every other, so a swarm nobody can finish still ends. */

@@ -5,7 +5,7 @@ import {
   type ServerMessage,
   type SquashState,
 } from '../../../../shared/protocol';
-import { SquashGame, entryOffset, entryProgress, wander } from './game';
+import { SquashGame, entryOffset, entryProgress, randomMosquitoSize, wander } from './game';
 
 /**
  * Squash Mosquitoes, client side. Spec: docs/specs/games/squash-mosquitoes.md
@@ -31,6 +31,11 @@ const OTHER = 'p-other';
 
 /** A pattern where index i lives at cell i — makes row/col arithmetic easy to check. */
 const IDENTITY_PATTERN = Array.from({ length: 66 }, (_, i) => i);
+
+console.log('\nmosquito sizes are random, not progression');
+check('the large size is available', randomMosquitoSize(() => 0) === 'large');
+check('the normal size is available', randomMosquitoSize(() => 0.5) === 'normal');
+check('the small size is available', randomMosquitoSize(() => 0.99) === 'small');
 
 function state(over: Partial<SquashState> = {}): SquashState {
   return {

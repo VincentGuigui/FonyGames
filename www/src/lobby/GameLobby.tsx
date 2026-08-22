@@ -205,7 +205,7 @@ export function GameLobby({
 
       <footer class="lobby__footer">
         {/*
-          Start belongs to the host; the same sticky slot carries Ready for every guest.
+          Start belongs to the host; the same footer slot carries Ready for every guest.
           The referee checks those guest flags too, so this is feedback for a server rule
           rather than a client-only convention.
         */}
