@@ -50,8 +50,8 @@ return [
     'cloudflare_analytics_token' => '',
 
     // ipinfo.io, for the city/country on an activity event (docs/specs/analytics.md §3).
-    // Nothing to do with the Cloudflare token above. Blank is fine: events are still
-    // recorded, without geography. The caller's IP is never stored either way.
+    // Sent as a Bearer token; `site_origin` above is the request Referer. Blank is fine:
+    // events are still recorded without geography. The caller's IP is never stored.
     'ipinfo_token' => '',
 
     // The off switch for activity events. Absent or true means on; false stops

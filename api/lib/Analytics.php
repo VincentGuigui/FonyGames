@@ -53,7 +53,7 @@ final class IpInfoGeolocator implements Geolocator
      */
     private const TIMEOUT_S = 2;
 
-    public function __construct(private string $token)
+    public function __construct(private string $token, private string $referer)
     {
     }
 
@@ -65,12 +65,16 @@ final class IpInfoGeolocator implements Geolocator
             return $none;
         }
 
-        $handle = curl_init('https://ipinfo.io/' . urlencode($ip) . '/json?token=' . rawurlencode($this->token));
+        $handle = curl_init('https://ipinfo.io/' . urlencode($ip) . '/json');
         curl_setopt_array($handle, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT => self::TIMEOUT_S,
             CURLOPT_CONNECTTIMEOUT => 2,
-            CURLOPT_HTTPHEADER => ['Accept: application/json'],
+            CURLOPT_HTTPHEADER => [
+                'Authorization: Bearer ' . $this->token,
+                'Referer: ' . $this->referer,
+                'Accept: application/json',
+            ],
         ]);
         $body = curl_exec($handle);
         $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);

@@ -217,7 +217,10 @@ final class App
         return new Analytics(
             $this->db(),
             new SystemClock(),
-            $token === '' ? new NoGeolocator() : new IpInfoGeolocator($token),
+            $token === '' ? new NoGeolocator() : new IpInfoGeolocator(
+                $token,
+                rtrim((string) $this->config['site_origin'], '/'),
+            ),
         );
     }
 
