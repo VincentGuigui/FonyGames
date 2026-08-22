@@ -28,6 +28,7 @@ const privateFrame = sent.at(-1);
 check('one locked plan stays private', privateFrame?.t === 'fighter' && privateFrame.d.actions === null);
 await onFighterLock(ctx, 'b', 1, [...plan]);
 check('both plans start the automatic fight', state !== null && (state as TapFighter).phase === 'fighting');
+check('six choreographed beats last fifteen seconds', (state as unknown as TapFighter).endsAt - (state as unknown as TapFighter).startsAt === 15_000);
 now = (state as unknown as TapFighter).endsAt;
 await tick(ctx);
 check('equal plans produce a round draw', state !== null && (state as TapFighter).phase === 'round-over' && (state as TapFighter).draw);

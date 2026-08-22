@@ -30,14 +30,15 @@ export async function startTttt(ctx: Ctx, roundId: number, players: PlayerId[], 
     players: [a, solo ? a : (b ?? a)], solo, roundId, phase: 'choosing', symbols: { [x]: 'x', [o]: 'o' },
     meta: Array(9).fill(null), small: Array(9).fill(null), selectedMeta: null,
     chooser, turn: null, miniWinner: null, winner: null, draw: false,
-    startsAt: now + preroundFor(roundId), zoomAt: now + preroundFor(roundId), endsAt: now + preroundFor(roundId) + CAP_MS,
+    startsAt: now + preroundFor(roundId), zoomAt: now + preroundFor(roundId), reopened: [], reopenedAt: 0, endsAt: now + preroundFor(roundId) + CAP_MS,
   };
   await ctx.save(s); emit(ctx, s); await ctx.setAlarm(nextDeadline(s)); return true;
 }
 
 export async function onSelect(ctx: Ctx, playerId: PlayerId, roundId: number, metaCell: number): Promise<void> {
   const s = await ctx.load();
-  if (!s || s.phase !== 'choosing' || s.roundId !== roundId || s.chooser !== playerId || !Number.isInteger(metaCell) || metaCell < 0 || metaCell > 8 || s.meta[metaCell] !== null) return;
+  if (!s || s.phase !== 'choosing' || s.roundId !== roundId || s.chooser !== playerId || ctx.now() < s.reopenedAt + 1_000 || !Number.isInteger(metaCell) || metaCell < 0 || metaCell > 8 || s.meta[metaCell] !== null) return;
+  s.reopened = []; s.reopenedAt = 0;
   s.selectedMeta = metaCell; s.small = Array(9).fill(null); s.phase = 'playing'; s.turn = playerId; s.miniWinner = null; s.zoomAt = ctx.now();
   await ctx.save(s); emit(ctx, s);
 }
@@ -54,7 +55,14 @@ export async function onTap(ctx: Ctx, playerId: PlayerId, roundId: number, small
     else s.meta[s.selectedMeta] = 'draw';
     const metaWinner = tttWinner(s.meta);
     if (metaWinner) { s.phase = 'over'; s.winner = s.solo ? s.players[0] : Object.entries(s.symbols).find(([, m]) => m === metaWinner)?.[0] ?? null; s.turn = null; s.draw = false; }
-    else if (tttFull(s.meta)) { s.phase = 'over'; s.winner = null; s.turn = null; s.draw = true; }
+    else if (tttFull(s.meta)) {
+      const blocked = s.meta.flatMap((cell, index) => cell === 'draw' ? [index] : []);
+      if (blocked.length > 0) {
+        for (const index of blocked) s.meta[index] = null;
+        s.phase = 'choosing'; s.chooser = other(s, playerId); s.turn = null; s.selectedMeta = null;
+        s.reopened = blocked; s.reopenedAt = ctx.now(); s.zoomAt = ctx.now();
+      } else { s.phase = 'over'; s.winner = null; s.turn = null; s.draw = true; }
+    }
     else { s.phase = 'choosing'; s.chooser = other(s, playerId); s.turn = null; s.selectedMeta = null; }
   } else {
     s.turn = other(s, playerId);

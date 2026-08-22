@@ -3,7 +3,8 @@ import { resolveFight, validFighterPlan, type FighterAction, type FighterSeat } 
 
 const PLAN_CAP_MS = 75_000;
 const REVEAL_LEAD_MS = 800;
-const FIGHT_MS = 6_500;
+/** Six 2.5 s beats; the room client adds the shared 0.5 s board-only result hold. */
+const FIGHT_MS = 15_000;
 const MATCH_TARGET = 3;
 
 export type TapFighter = TapFighterState & {

@@ -48,6 +48,8 @@ export type TttState = {
   draw: boolean;
   startsAt: number;
   zoomAt: number;
+  reopened: number[];
+  reopenedAt: number;
   endsAt: number;
 };
 

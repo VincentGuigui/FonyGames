@@ -7,10 +7,11 @@ import { GameOverScreen } from '../../core/ui/GameOver';
 import { useGameRoom } from '../../core/room/useRoom';
 import { useT } from '../../core/i18n/strings';
 import { useGameText } from '../../core/i18n/gameText';
-import { soloTesting } from '../../core/solo';
+import { useSoloTesting } from '../../core/useSolo';
 import { enoughToStart } from '../../../../shared/players';
 import { FIGHTER_ACTIONS, type FighterAction, type FighterSeat } from '../../../../shared/tapFighter';
 import type { Player, ServerMessage, TapFighterState } from '../../../../shared/protocol';
+import { playOutcomeSound } from '../../core/audio/outcome';
 
 const ACTION_POSE: Record<FighterAction, number> = { punch: 1, kick: 2, jump: 3, crouch: 4 };
 const BLUE: FighterSeat = 'blue';
@@ -23,7 +24,7 @@ export function TapFighterRoom({ game }: { game: GameCard }): JSX.Element {
 function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
   const t = useT();
   const text = useGameText();
-  const solo = soloTesting();
+  const solo = useSoloTesting();
   const [state, setState] = useState<TapFighterState | null>(null);
   const onGame = useCallback((message: ServerMessage) => { if (message.t === 'fighter') setState(message.d); }, []);
   const connection = useGameRoom(code, game, onGame);
@@ -51,7 +52,7 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
     return <PlanScreen state={state} players={players} me={me} onLock={(seat, actions) => client?.send({ t: 'fighter-lock', d: { roundId: state.roundId, seat, actions } })} />;
   }
 
-  return <FightScreen state={state} players={players} isHost={room.isHost} onNext={start} clock={clock} />;
+  return <FightScreen state={state} players={players} me={me} isHost={room.isHost} onNext={start} clock={clock} />;
 }
 
 function PlanScreen({ state, players, me, onLock }: { state: TapFighterState; players: Player[]; me: string | null; onLock: (seat: FighterSeat, actions: FighterAction[]) => void }): JSX.Element {
@@ -73,23 +74,29 @@ function PlanScreen({ state, players, me, onLock }: { state: TapFighterState; pl
   </main>;
 }
 
-function FightScreen({ state, players, isHost, onNext, clock }: { state: TapFighterState; players: Player[]; isHost: boolean; onNext: () => void; clock: () => number }): JSX.Element {
+function FightScreen({ state, players, me, isHost, onNext, clock }: { state: TapFighterState; players: Player[]; me: string | null; isHost: boolean; onNext: () => void; clock: () => number }): JSX.Element {
   const text = useGameText();
   const now = useFightClock(state.phase === 'fighting', clock);
-  const elapsed = now - state.startsAt;
-  const beatIndex = state.beats.length === 0 ? -1 : Math.min(state.beats.length - 1, Math.max(0, Math.floor(elapsed / 1_000)));
+  const elapsed = Math.min(now - state.startsAt, Math.max(0, state.endsAt - state.startsAt - 1));
+  const beatMs = 2_500;
+  const beatIndex = state.beats.length === 0 ? -1 : Math.min(state.beats.length - 1, Math.max(0, Math.floor(elapsed / beatMs)));
   const beat = beatIndex >= 0 ? state.beats[beatIndex] : undefined;
-  const contact = elapsed >= 0 && elapsed % 1_000 >= 450;
+  const withinBeat = elapsed >= 0 ? elapsed % beatMs : 0;
+  const contact = elapsed >= 0 && withinBeat >= 1_500;
   const previous = beatIndex > 0 ? state.beats[beatIndex - 1] : undefined;
   const health = state.phase === 'fighting' && !contact ? { blue: previous?.blueHealth ?? 100, green: previous?.greenHealth ?? 100 } : { blue: beat?.blueHealth ?? 100, green: beat?.greenHealth ?? 100 };
   const pose = (seat: FighterSeat) => {
     if (state.phase !== 'fighting' && health[seat] <= 0) return 6;
-    if (contact && beat?.[seat === 'blue' ? 'blueHit' : 'greenHit'] && elapsed % 1_000 < 760) return 5;
+    if (contact && beat?.[seat === 'blue' ? 'blueHit' : 'greenHit'] && withinBeat < 2_000) return 5;
     const action = beat?.[seat === 'blue' ? 'blueAction' : 'greenAction'];
-    return action ? ACTION_POSE[action] : 0;
+    return action && withinBeat < 1_000 ? ACTION_POSE[action] : 0;
   };
   const nameOf = (seat: FighterSeat) => players.find((player) => player.id === state.seats[seat])?.name ?? text({ en: seat === 'blue' ? 'Blue' : 'Green', fr: seat === 'blue' ? 'Bleu' : 'Vert' });
   const roundHeadline = state.draw ? text({ en: 'DRAW', fr: 'MATCH NUL' }) : text({ en: `${nameOf(state.roundWinner ?? 'blue')} wins`, fr: `${nameOf(state.roundWinner ?? 'blue')} gagne` });
+  useEffect(() => {
+    if (state.phase !== 'round-over' || !state.roundWinner || !me) return;
+    playOutcomeSound(state.seats[state.roundWinner] === me ? 'win' : 'lose');
+  }, [state.phase, state.roundWinner, me]);
   return <main class="fighter-game">
     <div class="fighter-score"><span>{nameOf(BLUE)} {pips(state.roundWins.blue)}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(state.roundWins.green)} {nameOf(GREEN)}</span></div>
     <section class="fighter-stage">
@@ -106,7 +113,7 @@ function HealthBar({ value, seat, name }: { value: number; seat: FighterSeat; na
 }
 
 function FighterSprite({ seat, pose, small = false }: { seat: FighterSeat; pose: number; small?: boolean }): JSX.Element {
-  return <div class={`fighter-sprite is-${seat} ${small ? 'is-small' : ''}`} style={{ '--pose': pose } as JSX.CSSProperties} aria-hidden="true" />;
+  return <div class={`fighter-sprite is-${seat} ${small ? 'is-small' : ''} ${pose === 0 && !small ? 'is-rhythm' : ''}`} style={{ '--pose': pose } as JSX.CSSProperties} aria-hidden="true" />;
 }
 
 function useFightClock(running: boolean, clock: () => number): number {
