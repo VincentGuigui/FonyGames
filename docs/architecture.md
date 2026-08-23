@@ -198,6 +198,11 @@ type GameCard = {
 
 Exceeding a budget is a `perf:` bug, not a fact of life.
 
+The build also runs `npm run test:payload`, which checks the Vite manifest import
+graph. It keeps the hub free of room runtime code and ensures optional sensor,
+audio, and photosphere assets remain on only the routes that need them and are
+loaded dynamically where appropriate.
+
 ## 5. Non-goals
 
 - No native app, no store distribution, no push notifications.

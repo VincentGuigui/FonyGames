@@ -23,7 +23,7 @@ import {
   type RoomSnapshot,
   type ServerMessage,
 } from '../shared/protocol';
-import { BUILT_GAMES, enoughToStart, PLAYERS } from '../shared/players';
+import { enoughToStart, canSwitchToGame, PLAYERS } from '../shared/players';
 import { guestsReady } from '../shared/readiness';
 import { playsUrl, reportPlay, roundKey } from './plays';
 /*
@@ -781,12 +781,9 @@ export class Room extends DurableObject<Env> {
     const id = this.#idOf(ws);
     const hostId = await this.ctx.storage.get<PlayerId>('hostId');
     if (!id || !hostId || id !== hostId) return;
-    if (!(BUILT_GAMES as readonly string[]).includes(game)) return;
-    const limits = (PLAYERS as Record<string, readonly [number, number]>)[game];
-    if (!limits) return;
     const players = await this.#players();
     const connected = [...players.values()].filter((player) => player.connected);
-    if (!enoughToStart(connected.length, limits, false)) {
+    if (!canSwitchToGame(game, connected.length)) {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
       return;
     }

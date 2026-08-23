@@ -301,7 +301,16 @@ which looks exactly like a CSS overflow bug. Drive it over CDP and set
 before a screenshot or a backgrounded tab never composites and the capture
 hangs.
 
-### 1.3 The payload proof
+### 1.3 The payload guard
+
+`npm run build` runs `npm run test:payload` immediately after Vite writes its
+manifest. The guard checks the import graph: the hub must not pull room/game
+runtime code, sensor chunks may only belong to games that use those sensors, and
+Tone plus Ghost Hunt's photosphere must remain dynamic entries. This keeps a
+small shared-UI import from quietly making every route download an optional
+feature.
+
+### 1.3a The payload proof
 
 Two budgets in [architecture.md](architecture.md) §4 are invisible to `npm test`
 because they are properties of the *build*, not of the logic. Check them by hand

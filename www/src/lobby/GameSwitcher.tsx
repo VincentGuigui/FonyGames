@@ -1,13 +1,10 @@
 import { useState } from 'preact/hooks';
 import type { JSX } from 'preact';
-import { BUILT_GAMES, PLAYERS } from '../../../shared/players';
+import { switchableGames } from '../../../shared/players';
 import type { Room } from '../core/room/useRoom';
 import { useActiveRoom } from '../core/room/active';
 import { Sheet } from '../core/ui/Sheet';
 import { useGameText } from '../core/i18n/gameText';
-
-// Only routes that exist may be offered. The soon cards remain advertisements on the hub.
-const games = [...BUILT_GAMES];
 
 export function GameSwitcher(props: { room?: Room; code?: string; game?: string }): JSX.Element | null {
   const active = useActiveRoom();
@@ -22,11 +19,10 @@ export function GameSwitcher(props: { room?: Room; code?: string; game?: string 
   const [chosen, setChosen] = useState<string | null>(null);
   if (!client || !code || !current || !host) return null;
   const connected = snapshot?.players.filter((player) => player.connected).length ?? 0;
-  const choices = games.filter((slug) => {
-    if (slug === current) return false;
-    const limits = PLAYERS[slug as keyof typeof PLAYERS];
-    return connected >= limits[0] && connected <= limits[1];
-  }).map((slug) => ({ slug, title: slug.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ') }));
+  const choices = switchableGames(current, connected).map((slug) => ({
+    slug,
+    title: slug.split('-').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' '),
+  }));
   const chosenCard = chosen ? choices.find((card) => card.slug === chosen) : undefined;
   const choose = (game: string) => setChosen(game);
   const leave = () => { if (chosen) window.location.assign(`/${chosen}/`); };

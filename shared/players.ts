@@ -66,6 +66,22 @@ export const BUILT_GAMES = [
   'squash-mosquitoes', 'neon-fall', 'tap-tap-revolution', 'tic-tac-tic-tac-toe',
 ] as const;
 
+export type BuiltGame = typeof BUILT_GAMES[number];
+
+/**
+ * Whether a connected roster can be brought into a built game's new lobby.
+ * The picker uses this for presentation; the Worker uses it for enforcement.
+ */
+export function canSwitchToGame(game: string, connected: number): game is BuiltGame {
+  if (!(BUILT_GAMES as readonly string[]).includes(game)) return false;
+  return enoughToStart(connected, PLAYERS[game as BuiltGame]);
+}
+
+/** Compatible destinations, excluding the room's current game. */
+export function switchableGames(current: string, connected: number): readonly BuiltGame[] {
+  return BUILT_GAMES.filter((game) => game !== current && canSwitchToGame(game, connected));
+}
+
 /**
  * Solo test mode: one operator, one phone, no game rules bent except the two that
  * make a solo round impossible to look at.
