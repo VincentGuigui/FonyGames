@@ -873,9 +873,8 @@ a.btn {
   gap: var(--space-3);
 }
 
-.game-switcher__close {
-  margin-left: auto;
-}
+.game-switcher__head { padding-right: 3.25rem; }
+.game-switcher__head h2 { margin: 0; }
 
 .game-switcher__card {
   display: grid;

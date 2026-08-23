@@ -163,6 +163,28 @@
      a pause rather than as having left the game. */
 }
 
+.sheet__close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: 1px solid var(--game-accent, var(--color-border));
+  border-radius: 50%;
+  background: var(--color-surface);
+  color: var(--game-accent, var(--color-text));
+  cursor: pointer;
+}
+
+.sheet__close:hover,
+.sheet__close:focus-visible {
+  background: var(--color-surface-2);
+}
+
 .gamemenu__head {
   display: flex;
   align-items: center;

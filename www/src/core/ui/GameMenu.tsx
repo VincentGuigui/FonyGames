@@ -4,6 +4,7 @@ import { HowToPlay } from './HowToPlay';
 import { Sheet } from './Sheet';
 import { useT } from '../i18n/strings';
 import { GameSwitcher } from '../../lobby/GameSwitcher';
+import { CloseButton } from './CloseButton';
 
 /**
  * The in-game menu: a gear in the corner of every game, opening a sheet.
@@ -47,9 +48,7 @@ export function GameMenu({
         <Sheet label={`${title} menu`} onClose={() => setOpen(false)}>
           <div class="gamemenu__head">
             <h2 class="gamemenu__title">{title}</h2>
-            <button class="btn gamemenu__close" type="button" onClick={() => setOpen(false)}>
-              {t.common.close}
-            </button>
+            <CloseButton label={t.common.close} onClose={() => setOpen(false)} />
           </div>
 
           <h3 class="gamemenu__label">{t.common.howToPlay}</h3>
