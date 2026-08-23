@@ -15,7 +15,7 @@ export const CARD: GameCard = {
   art: { src: art, alt: 'Two original pixel-art fighters in blue and green trading a punch and kick' },
   fr: {
     pitch: 'Choisissez six coups, puis regardez le combat',
-    concept: 'Programmez six actions secrètes. Dès que les deux combattants valident, le combat se déroule tout seul.',
+    concept: 'Programmez six coups secrets. Dès que les deux combattants valident, le combat se déroule tout seul.',
     rules: [
       'Choisissez six coups de poing, coups de pied, sauts ou esquives basses, puis appuyez sur Combat.',
       'Sautez pour éviter un coup bas ; baissez-vous pour éviter un coup haut.',
