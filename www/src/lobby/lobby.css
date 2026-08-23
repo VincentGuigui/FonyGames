@@ -873,6 +873,39 @@ a.btn {
   gap: var(--space-3);
 }
 
+.game-switcher__close {
+  margin-left: auto;
+}
+
+.game-switcher__card {
+  display: grid;
+  grid-template-columns: 5rem 1fr;
+  gap: .25rem .75rem;
+  align-items: center;
+  padding: .6rem;
+  border: 1px solid var(--color-border);
+  border-radius: .5rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.game-switcher__card:hover,
+.game-switcher__card:focus-visible {
+  border-color: var(--game-accent, var(--color-text));
+}
+
+.game-switcher__card .game-illustration {
+  grid-row: span 2;
+  width: 5rem;
+  height: 3.75rem;
+}
+
+.game-switcher__card-title { font-weight: 800; }
+.game-switcher__card-pitch { color: var(--color-text-dim); font-size: .8rem; }
+
 .lobby__switch-game {
   display: flex;
   justify-content: center;
