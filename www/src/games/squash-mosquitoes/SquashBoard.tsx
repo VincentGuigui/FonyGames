@@ -82,6 +82,7 @@ export function SquashBoard({
   const pattern = state?.pattern ?? [];
 
   const refs = useRef(new Map<number, HTMLButtonElement>());
+  const motion = useRef(new Map<number, { x: number; y: number; spawnedAt: number; facing: 1 | -1 }>());
 
   /*
    * Every live mosquito's position, written straight to its button's `style` from a
@@ -112,7 +113,17 @@ export function SquashBoard({
         ({ x, y } = entryOffset(start, target, t, visual.phase));
       }
 
+      const previous = motion.current.get(v.index);
+      let facing: 1 | -1 = previous?.facing ?? (visual.side === 'left' ? 1 : visual.side === 'right' ? -1 : 1);
+      if (!previous || previous.spawnedAt !== visual.spawnedAt) {
+        facing = 1;
+      } else if (Math.abs(x - previous.x) > 0.05) {
+        facing = x < previous.x ? -1 : 1;
+      }
+      motion.current.set(v.index, { x, y, spawnedAt: visual.spawnedAt, facing });
+
       el.style.transform = `translate(-50%, -50%) translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+      el.querySelector<HTMLElement>('.squash__bug')?.style.setProperty('--mosquito-flip', String(facing));
     }
 
     let raf = 0;
