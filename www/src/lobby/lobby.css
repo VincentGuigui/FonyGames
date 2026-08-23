@@ -872,3 +872,15 @@ a.btn {
   display: grid;
   gap: var(--space-3);
 }
+
+.lobby__switch-game {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+.game-switcher__button {
+  padding: .55rem 1rem;
+  font-size: .9rem;
+}

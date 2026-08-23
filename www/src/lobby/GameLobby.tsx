@@ -114,7 +114,6 @@ export function GameLobby({
         <a class="lobby__back" href={`/${card.slug}/`}>
           {t.common.leaveTheRoom}
         </a>
-        {room.isHost && <GameSwitcher room={room} code={code} game={card.slug} />}
         <h1 class="lobby__title">{card.title}</h1>
         <p class="lobby__pitch">{card.pitch}</p>
       </header>
@@ -244,6 +243,7 @@ export function GameLobby({
           </p>
         )}
         <p class="lobby__note">{note}</p>
+        {room.isHost && <div class="lobby__switch-game"><GameSwitcher room={room} code={code} game={card.slug} /></div>}
       </footer>
     </div>
   );
