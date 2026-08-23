@@ -57,13 +57,12 @@ export function GameMenu({
 
           {children}
 
-          <GameSwitcher />
-
           {/* A real link, not a router call: leaving the page is what drops
               the socket and frees the seat. */}
           <a class="btn btn--big gamemenu__exit" href="/">
             {t.common.leaveGame}
           </a>
+          <GameSwitcher />
         </Sheet>
       )}
     </>
