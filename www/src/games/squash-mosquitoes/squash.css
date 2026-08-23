@@ -119,8 +119,8 @@
 }
 
 .squash__mosquito--large {
-  width: 120%;
-  height: 120%;
+  width: 200%;
+  height: 200%;
 }
 
 .squash__mosquito--normal {
@@ -139,7 +139,7 @@
   height: 74%;
 }
 
-/* Small keeps the existing flying visual size; large is exactly 120% of the normal button. */
+/* Small keeps the existing flying visual size; large is exactly 2x normal. */
 .squash__mosquito--small .squash__bug {
   width: 94%;
   height: 86%;
@@ -151,6 +151,11 @@
 .squash__mosquito--squashed .squash__bug {
   width: 90%;
   height: 51%;
+}
+
+.squash__bug {
+  transform: scaleX(var(--mosquito-flip, 1));
+  transform-origin: center;
 }
 
 .squash__mosquito:disabled {
