@@ -27,7 +27,7 @@ export function GameSwitcher(props: { room?: Room; code?: string; game?: string 
   const leave = () => { if (chosen) window.location.assign(`/${chosen}/`); };
   const bring = () => { if (chosen) client.send({ t: 'switch-game', d: { game: chosen, bring: true } }); };
   return <>
-    <button class="btn btn--big" type="button" onClick={() => setOpen(true)}>{text({ en: 'Play a different game', fr: 'Jouer à un autre jeu' })}</button>
+    <button class="btn game-switcher__button" type="button" onClick={() => setOpen(true)}>{text({ en: 'Play a different game', fr: 'Jouer à un autre jeu' })}</button>
     {open && <Sheet label={text({ en: 'Choose a game', fr: 'Choisir un jeu' })} onClose={() => { setOpen(false); setChosen(null); }}>
       <h2>{text({ en: 'Choose a game', fr: 'Choisir un jeu' })}</h2>
       {!chosen ? <div class="game-switcher__list">{games.filter((game) => game !== current).map((game) => {
