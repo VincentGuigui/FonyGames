@@ -897,10 +897,17 @@ a.btn {
   border-color: var(--game-accent, var(--color-text));
 }
 
-.game-switcher__card .game-illustration {
+.game-switcher__card-art {
   grid-row: span 2;
+  display: grid;
+  place-items: center;
   width: 5rem;
   height: 3.75rem;
+  border-radius: .35rem;
+  background: var(--color-surface-2);
+  color: var(--color-accent);
+  font-size: 2rem;
+  font-weight: 900;
 }
 
 .game-switcher__card-title { font-weight: 800; }
