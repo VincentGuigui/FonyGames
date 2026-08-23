@@ -33,7 +33,10 @@ import { TARGET_MAX_X, TARGET_MAX_Y, TARGET_MIN_X, TARGET_MIN_Y } from '../../..
  */
 
 /** One straight leg before a new direction is chosen. */
-export const DRIFT_LEG_MS = 700;
+/** Direction changes every 1.2 s ± 0.2 s, deterministically per round/leg. */
+export const DRIFT_LEG_MS = 1_200;
+export const DRIFT_LEG_MIN_MS = 1_000;
+export const DRIFT_LEG_MAX_MS = 1_400;
 
 /**
  * Leg length as a fraction of viewport width: ~150 px on a 390 px phone, which is
@@ -76,6 +79,11 @@ function angle(seed: number, i: number): number {
   return (h / 0x100000000) * Math.PI * 2;
 }
 
+function legDuration(seed: number, i: number): number {
+  const h = Math.imul((seed | 0) ^ Math.imul(i + 17, 0x27d4eb2d), 0x165667b1) >>> 0;
+  return DRIFT_LEG_MIN_MS + Math.floor((h / 0x100000000) * (DRIFT_LEG_MAX_MS - DRIFT_LEG_MIN_MS + 1));
+}
+
 /**
  * The target's position `elapsed` ms into the armed window.
  *
@@ -96,18 +104,16 @@ export function driftAt(
 ): { x: number; y: number } {
   let x = origin.x;
   let y = origin.y;
-  const walked = elapsedMs * (Number.isFinite(speed) && speed > 0 ? speed : 1);
+  let walked = elapsedMs * (Number.isFinite(speed) && speed > 0 ? speed : 1);
   if (!(walked > 0)) return { x, y };
 
-  const legs = Math.min(MAX_LEGS, Math.floor(walked / DRIFT_LEG_MS));
-  for (let i = 0; i <= legs; i++) {
-    // The last leg is only partly walked — that is what makes this continuous
-    // rather than a jump every 700 ms.
-    const part =
-      i < legs ? 1 : Math.min(1, (walked - legs * DRIFT_LEG_MS) / DRIFT_LEG_MS);
+  for (let i = 0; i < MAX_LEGS && walked > 0; i++) {
+    const duration = legDuration(seed, i);
+    const part = Math.min(1, walked / duration);
     const a = angle(seed, i);
     x = fold(x + Math.cos(a) * DRIFT_LEG * part, TARGET_MIN_X, TARGET_MAX_X);
     y = fold(y + (Math.sin(a) * DRIFT_LEG * part) / REF_ASPECT, TARGET_MIN_Y, TARGET_MAX_Y);
+    walked -= duration;
   }
   return { x, y };
 }

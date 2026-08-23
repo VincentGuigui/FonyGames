@@ -958,7 +958,7 @@ export const HOST_GRACE_MS = 8_000;
 /* ------------------------------------------------------------------ */
 
 /** The signal fires somewhere in this window after the duel starts. */
-export const FIRE_MIN_MS = 2_000;
+export const FIRE_MIN_MS = 3_000;
 export const FIRE_MAX_MS = 6_000;
 
 /** No valid tap within this long after the signal → no contest. */

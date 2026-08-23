@@ -73,11 +73,16 @@ its cap forever.
 
 ### Timing
 
-- Fire delay is drawn uniformly in **2.0–6.0 s** from the moment the round
-  starts. Below 2 s people are still settling; above 6 s they get bored.
+- Fire delay is drawn uniformly in **3.0–6.0 s** from the moment the round
+  starts. Below 3 s people are still settling; above 6 s they get bored.
 - The delay is redrawn every duel, so it cannot be learned.
 - A duel with no valid tap within **5 s** of the signal is a **no contest** —
   nobody scores, nobody is blamed.
+- The opening target is 120% of the baseline size and each later duel scales it
+  to 85% of its previous size; a new ten-point match resets to 120%.
+- While armed, the trajectory changes direction every **1.2 s ± 0.2 s**.
+  The schedule is deterministic from the round id so every phone draws the same
+  path while retaining the intended random-looking timing.
 
 ## 3. Modes / variations
 

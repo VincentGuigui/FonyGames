@@ -70,7 +70,7 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
   } | null>(null);
   /** Where the target will appear. From the server, so it is the same for all. */
   const [target, setTarget] = useState<{ x: number; y: number } | null>(null);
-  const [targetScale, setTargetScale] = useState(1);
+  const [targetScale, setTargetScale] = useState(1.2);
 
   const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, game);
   const client = room.client;
@@ -86,10 +86,10 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
       // cleared its tally, so this duel is the first of a new one and starts from nil.
       if (matchOver.current) {
         setTally({});
-        setTargetScale(1);
+        setTargetScale(1.2);
         matchOver.current = false;
       } else if (!firstDuel) {
-        setTargetScale((scale) => scale * 0.7);
+        setTargetScale((scale) => scale * 0.85);
       }
       setPhase('armed');
       setTarget(where);
