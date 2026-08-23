@@ -4,6 +4,7 @@ import { switchableGames } from '../../../shared/players';
 import type { Room } from '../core/room/useRoom';
 import { useActiveRoom } from '../core/room/active';
 import { Sheet } from '../core/ui/Sheet';
+import { CloseButton } from '../core/ui/CloseButton';
 import { useGameText } from '../core/i18n/gameText';
 
 export function GameSwitcher(props: { room?: Room; code?: string; game?: string }): JSX.Element | null {
@@ -29,12 +30,16 @@ export function GameSwitcher(props: { room?: Room; code?: string; game?: string 
   const bring = () => { if (chosen) client.send({ t: 'switch-game', d: { game: chosen, bring: true } }); };
   const close = () => { setOpen(false); setChosen(null); };
   return <>
-    <button class="btn game-switcher__button" type="button" onClick={() => setOpen(true)}>{text({ en: 'Play a different game', fr: 'Jouer à un autre jeu' })}</button>
+    <button class="btn game-switcher__button" type="button" onClick={() => setOpen(true)}>
+      {text({ en: 'Bring everyone to another game', fr: 'Emmener tout le monde vers un autre jeu' })}
+    </button>
     {open && <Sheet label={text({ en: 'Choose a game', fr: 'Choisir un jeu' })} onClose={close}>
-      <h2>{text({ en: 'Choose a game', fr: 'Choisir un jeu' })}</h2>
-      <button class="btn game-switcher__close" type="button" onClick={close}>{text({ en: 'Close', fr: 'Fermer' })}</button>
+      <div class="game-switcher__head">
+        <h2>{text({ en: 'Choose a game', fr: 'Choisir un jeu' })}</h2>
+        <CloseButton label={text({ en: 'Close', fr: 'Fermer' })} onClose={close} />
+      </div>
       {!chosen ? <div class="game-switcher__list">{choices.map((card) => <button class="game-switcher__card" type="button" onClick={() => choose(card.slug)}>
-        <span class="game-switcher__card-art" aria-hidden="true">{card.title.slice(0, 1)}</span><span class="game-switcher__card-title">{card.title}</span><span class="game-switcher__card-pitch">{text({ en: 'Bring this game to the room', fr: 'Apporter ce jeu dans la salle' })}</span>
+        <span class="game-switcher__card-art" aria-hidden="true">{card.title.slice(0, 1)}</span><span class="game-switcher__card-title">{card.title}</span><span class="game-switcher__card-pitch">{text({ en: 'Bring everyone to this game', fr: 'Emmener tout le monde vers ce jeu' })}</span>
       </button>)}</div> : <div class="game-switcher__confirm">
         <p>{text({ en: `Bring the ${connected - 1} other player(s) along to ${chosenCard?.title ?? chosen}?`, fr: `Faire venir les ${connected - 1} autre(s) joueur(s) vers ${chosenCard?.title ?? chosen} ?` })}</p>
         <button class="btn btn--big" type="button" onClick={bring}>{text({ en: 'Bring everyone', fr: 'Faire venir tout le monde' })}</button>

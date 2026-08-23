@@ -12,7 +12,7 @@ import { enoughToStart } from '../../../../shared/players';
 import { FIGHTER_ACTIONS, type FighterAction, type FighterSeat } from '../../../../shared/tapFighter';
 import type { Player, ServerMessage, TapFighterState } from '../../../../shared/protocol';
 import { playOutcomeSound } from '../../core/audio/outcome';
-import { GameSwitcher } from '../../lobby/GameSwitcher';
+import { GameMenu } from '../../core/ui/GameMenu';
 
 const ACTION_POSE: Record<FighterAction, number> = { punch: 1, kick: 2, jump: 3, crouch: 4 };
 const BLUE: FighterSeat = 'blue';
@@ -50,13 +50,13 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
   }
 
   if (state.phase === 'planning') {
-    return <PlanScreen state={state} players={players} me={me} onLock={(seat, actions) => client?.send({ t: 'fighter-lock', d: { roundId: state.roundId, seat, actions } })} />;
+    return <PlanScreen game={game} state={state} players={players} me={me} onLock={(seat, actions) => client?.send({ t: 'fighter-lock', d: { roundId: state.roundId, seat, actions } })} />;
   }
 
-  return <FightScreen state={state} players={players} me={me} isHost={room.isHost} onNext={start} clock={clock} />;
+  return <FightScreen game={game} state={state} players={players} me={me} isHost={room.isHost} onNext={start} clock={clock} />;
 }
 
-function PlanScreen({ state, players, me, onLock }: { state: TapFighterState; players: Player[]; me: string | null; onLock: (seat: FighterSeat, actions: FighterAction[]) => void }): JSX.Element {
+function PlanScreen({ game, state, players, me, onLock }: { game: GameCard; state: TapFighterState; players: Player[]; me: string | null; onLock: (seat: FighterSeat, actions: FighterAction[]) => void }): JSX.Element {
   const text = useGameText();
   const seat: FighterSeat = state.solo ? (!state.ready.blue ? 'blue' : 'green') : state.seats.blue === me ? 'blue' : 'green';
   const [actions, setActions] = useState<FighterAction[]>([]);
@@ -66,7 +66,7 @@ function PlanScreen({ state, players, me, onLock }: { state: TapFighterState; pl
   const name = players.find((player) => player.id === state.seats[seat])?.name ?? text({ en: 'Fighter', fr: 'Combattant' });
   const actionName = (action: FighterAction) => ({ punch: text({ en: 'Punch', fr: 'Poing' }), kick: text({ en: 'Kick', fr: 'Pied' }), jump: text({ en: 'Jump', fr: 'Saut' }), crouch: text({ en: 'Crouch', fr: 'Baisser' }) })[action];
   return <main class="fighter-plan" style={{ '--fighter-accent': seat === 'blue' ? '#2563eb' : '#22c55e' } as JSX.CSSProperties}>
-    <GameSwitcher />
+    <GameMenu title={game.title} concept={game.concept} rules={game.rules} />
     <header><h1>{text({ en: `${name}, choose your moves`, fr: `${name}, choisissez vos actions` })}</h1><p>{locked ? text({ en: 'Locked in. Waiting for the other fighter…', fr: 'Séquence validée. En attente de l’autre combattant…' }) : text({ en: 'Build a secret sequence of six actions.', fr: 'Composez une séquence secrète de six actions.' })}</p></header>
     <FighterSprite seat={seat} pose={0} />
     <ol class="fighter-sequence" aria-label={text({ en: 'Your six actions', fr: 'Vos six actions' })}>{Array.from({ length: 6 }, (_, index) => <li><button type="button" disabled={locked || actions[index] === undefined} onClick={() => setActions(actions.filter((_, i) => i !== index))}>{actions[index] ? actionName(actions[index]) : String(index + 1)}</button></li>)}</ol>
@@ -76,7 +76,7 @@ function PlanScreen({ state, players, me, onLock }: { state: TapFighterState; pl
   </main>;
 }
 
-function FightScreen({ state, players, me, isHost, onNext, clock }: { state: TapFighterState; players: Player[]; me: string | null; isHost: boolean; onNext: () => void; clock: () => number }): JSX.Element {
+function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game: GameCard; state: TapFighterState; players: Player[]; me: string | null; isHost: boolean; onNext: () => void; clock: () => number }): JSX.Element {
   const text = useGameText();
   const now = useFightClock(state.phase === 'fighting', clock);
   const elapsed = Math.min(now - state.startsAt, Math.max(0, state.endsAt - state.startsAt - 1));
@@ -100,7 +100,7 @@ function FightScreen({ state, players, me, isHost, onNext, clock }: { state: Tap
     playOutcomeSound(state.seats[state.roundWinner] === me ? 'win' : 'lose');
   }, [state.phase, state.roundWinner, me]);
   return <main class="fighter-game">
-    <GameSwitcher />
+    <GameMenu title={game.title} concept={game.concept} rules={game.rules} />
     <div class="fighter-score"><span>{nameOf(BLUE)} {pips(state.roundWins.blue)}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(state.roundWins.green)} {nameOf(GREEN)}</span></div>
     <section class="fighter-stage">
       <div class="fighter-side"><FighterSprite key={`b-${beatIndex}`} seat={BLUE} pose={pose(BLUE)} /><HealthBar value={health.blue} seat={BLUE} name={nameOf(BLUE)} /></div>
