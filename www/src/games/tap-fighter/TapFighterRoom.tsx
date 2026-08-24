@@ -121,7 +121,7 @@ function HealthBar({ value, seat, name }: { value: number; seat: FighterSeat; na
 }
 
 function FighterSprite({ seat, pose, small = false }: { seat: FighterSeat; pose: number; small?: boolean }): JSX.Element {
-  return <div class={`fighter-sprite is-${seat} ${small ? 'is-small' : ''} ${pose === FIGHTER_POSES.idle1 && !small ? 'is-rhythm' : ''}`} style={{ '--pose': pose } as JSX.CSSProperties} aria-hidden="true" />;
+  return <div class={`fighter-sprite is-${seat} ${small ? 'is-small' : ''} ${pose === FIGHTER_POSES.idle1 && !small ? 'is-rhythm' : ''}`} style={{ '--pose': pose, '--pose-x': pose % 4, '--pose-y': Math.floor(pose / 4) } as JSX.CSSProperties} aria-hidden="true" />;
 }
 
 function useRhythmPose(): number {

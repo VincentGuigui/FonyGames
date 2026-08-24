@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
-import blueSprite from './art/fighter-1.svg?url&no-inline';
-import greenSprite from './art/fighter-2.svg?url&no-inline';
+import blueSprite from './art/fighter1.png?url&no-inline';
+import greenSprite from './art/fighter2.png?url&no-inline';
 
 type Props = {
   bluePose: number;
@@ -11,7 +11,8 @@ type Props = {
   beatTime: number;
 };
 
-const FRAME = 80;
+const FRAME = 256;
+const COLUMNS = 4;
 
 export function FightCanvas(props: Props): JSX.Element {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -74,16 +75,17 @@ export function FightCanvas(props: Props): JSX.Element {
         greenX = middle + minimumSeparation / 2;
       }
 
-      const drawFighter = (image: HTMLImageElement, x: number, pose: number, mirror: boolean): void => {
+      const drawFighter = (image: HTMLImageElement, x: number, pose: number): void => {
         context.save();
         context.translate(x, height * 0.74 - spriteSize);
-        if (mirror) context.scale(-1, 1);
         context.imageSmoothingEnabled = false;
-        context.drawImage(image, pose * FRAME, 0, FRAME, FRAME, -spriteSize / 2, 0, spriteSize, spriteSize);
+        const sourceX = (pose % COLUMNS) * FRAME;
+        const sourceY = Math.floor(pose / COLUMNS) * FRAME;
+        context.drawImage(image, sourceX, sourceY, FRAME, FRAME, -spriteSize / 2, 0, spriteSize, spriteSize);
         context.restore();
       };
-      drawFighter(blue, blueX, state.bluePose, false);
-      drawFighter(green, greenX, state.greenPose, true);
+      drawFighter(blue, blueX, state.bluePose);
+      drawFighter(green, greenX, state.greenPose);
       frame = requestAnimationFrame(draw);
     };
 
