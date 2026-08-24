@@ -184,6 +184,11 @@ The derived files **are committed**: a fresh clone must run `vite dev` without k
 the script exists. Source and generated SVG text is normalised to LF before comparison;
 Git's CRLF checkout on Windows is not a redraw and must not make the variant stale.
 
+Tap Fighter follows the same rule for its color variants: `art/fighter.svg` is the
+fuchsia eight-frame source, while `fighter-1.svg` and `fighter-2.svg` are generated
+with the blue and green values declared in `games/tap-fighter/game.ts`. Run
+`npm run art:fighter`; `npm test` checks both generated files.
+
 Where a sprite hardcodes a colour that also lives in a `render.ts` — Cat and Mouse's
 cat has eyes painted in the floor's own colour — **say so in both**. Neither file can
 see the other, and nothing will fail if they drift apart; the cat just stops looking
