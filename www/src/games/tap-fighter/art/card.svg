@@ -1,9 +1,64 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" shape-rendering="crispEdges">
+  <!-- The two authored fighters (fighter1.png punch, fighter2.png crouch), redrawn as flat pixel shapes at card scale. -->
   <rect width="120" height="90" rx="10" fill="#24152f"/>
   <rect y="69" width="120" height="21" fill="#111827"/>
-  <g fill="#f6c99d"><rect x="22" y="21" width="13" height="13"/><rect x="84" y="21" width="13" height="13"/></g>
-  <g fill="#2563eb"><rect x="19" y="34" width="19" height="23"/><rect x="14" y="39" width="8" height="7"/><rect x="35" y="36" width="22" height="7"/><rect x="21" y="57" width="6" height="15"/><rect x="31" y="57" width="6" height="15"/></g>
-  <g fill="#22c55e"><rect x="81" y="34" width="19" height="23"/><rect x="97" y="39" width="8" height="7"/><rect x="62" y="36" width="22" height="7"/><rect x="82" y="57" width="6" height="15"/><rect x="94" y="57" width="6" height="15"/></g>
-  <g fill="#fff"><rect x="49" y="33" width="7" height="7"/><rect x="64" y="43" width="7" height="7"/></g>
-  <text x="60" y="18" text-anchor="middle" fill="#f97316" font-family="monospace" font-size="12" font-weight="700">FIGHT!</text>
+
+  <!-- Fuchsia fighter, mid punch -->
+  <g fill="#151022">
+    <rect x="24" y="14" width="16" height="8"/>
+    <rect x="19" y="16" width="7" height="10"/>
+  </g>
+  <g fill="#dc2626">
+    <rect x="24" y="20" width="16" height="3"/>
+    <rect x="14" y="18" width="8" height="3"/>
+    <rect x="8" y="22" width="8" height="3"/>
+  </g>
+  <rect x="26" y="20" width="12" height="12" fill="#f6c99d"/>
+  <g fill="#fb34e3">
+    <rect x="20" y="34" width="20" height="22"/>
+    <rect x="14" y="38" width="8" height="10"/>
+    <rect x="40" y="38" width="18" height="7"/>
+    <rect x="18" y="56" width="7" height="16"/>
+    <rect x="32" y="56" width="7" height="18"/>
+  </g>
+  <rect x="20" y="52" width="20" height="4" fill="#eab308"/>
+  <g fill="#fff">
+    <rect x="12" y="44" width="6" height="6"/>
+    <rect x="58" y="36" width="9" height="9"/>
+    <rect x="16" y="70" width="9" height="5"/>
+    <rect x="30" y="72" width="10" height="5"/>
+  </g>
+
+  <!-- Impact spark, between the two fists -->
+  <g fill="#F97316">
+    <rect x="58" y="48" width="6" height="3"/>
+    <rect x="59.5" y="45" width="3" height="9"/>
+    <rect x="54" y="49.5" width="3" height="3"/>
+    <rect x="65" y="49.5" width="3" height="3"/>
+  </g>
+
+  <!-- Blue fighter, crouched low: head and torso pulled down and together against the
+       punching fighter's upright stance, weight low over a wide bent-knee base. -->
+  <g fill="#151022">
+    <rect x="76" y="32" width="16" height="8"/>
+    <rect x="92" y="34" width="6" height="8"/>
+  </g>
+  <g fill="#e879f9">
+    <rect x="94" y="32" width="8" height="3"/>
+    <rect x="100" y="28" width="8" height="3"/>
+  </g>
+  <rect x="78" y="38" width="12" height="12" fill="#f6c99d"/>
+  <g fill="#6d51dc">
+    <rect x="75" y="50" width="21" height="16"/>
+    <rect x="63" y="54" width="14" height="7"/>
+    <rect x="93" y="52" width="8" height="7"/>
+    <rect x="72" y="65" width="9" height="10"/>
+    <rect x="91" y="65" width="9" height="10"/>
+  </g>
+  <rect x="75" y="62" width="21" height="4" fill="#dc2626"/>
+  <g fill="#fff">
+    <rect x="57" y="56" width="8" height="8"/>
+    <rect x="69" y="74" width="12" height="5"/>
+    <rect x="89" y="74" width="12" height="5"/>
+  </g>
 </svg>

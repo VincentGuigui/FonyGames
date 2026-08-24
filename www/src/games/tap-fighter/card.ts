@@ -12,7 +12,7 @@ export const CARD: GameCard = {
     'Jump dodges a low kick; crouch dodges a high punch.',
     'Take fewer hits to win the round. First to three rounds wins.',
   ],
-  art: { src: art, alt: 'Two original pixel-art fighters in blue and green trading a punch and kick' },
+  art: { src: art, alt: 'Two original pixel-art fighters, one fuchsia and one blue, one throwing a punch and the other crouched low to answer it' },
   fr: {
     pitch: 'Choisissez six coups, puis regardez le combat',
     concept: 'Programmez six coups secrets. Dès que les deux combattants valident, le combat se déroule tout seul.',
@@ -21,7 +21,7 @@ export const CARD: GameCard = {
       'Sautez pour éviter un coup bas ; baissez-vous pour éviter un coup haut.',
       'Subissez moins d’impacts pour gagner la manche. Trois manches gagnées remportent le match.',
     ],
-    art: { alt: 'Deux combattants originaux en pixel art, bleu et vert, échangent un coup de poing et un coup de pied' },
+    art: { alt: 'Deux combattants originaux en pixel art, l’un fuchsia et l’autre bleu, l’un lançant un coup de poing et l’autre accroupi pour y répondre' },
   },
   accent: '#F97316',
   players: PLAYERS['tap-fighter'],
