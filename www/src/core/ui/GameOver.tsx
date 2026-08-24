@@ -73,6 +73,8 @@ export type OverRow = {
   detail?: string;
   /** Out, caught, flooded. Dimmed *and* struck through, never colour alone. */
   out?: boolean;
+  /** Optional round outcome tint for games whose ranking is a win/loss split. */
+  tone?: 'win' | 'lose';
 };
 
 /** Is this value a number, and therefore something a unit can follow? */
@@ -213,7 +215,8 @@ export function GameOver({
               'gameover__row' +
               (r.id === winner ? ' gameover__row--won' : '') +
               (r.id === me ? ' gameover__row--me' : '') +
-              (r.out ? ' gameover__row--out' : '')
+              (r.out ? ' gameover__row--out' : '') +
+              (r.tone ? ` gameover__row--${r.tone}` : '')
             }
           >
             <span class="gameover__avatar" aria-hidden="true">

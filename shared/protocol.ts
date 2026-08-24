@@ -1006,7 +1006,7 @@ export const DUEL_MATCH_TARGET = 10;
  * changes direction faster than a hand can react, which stops being harder and starts
  * being arbitrary.
  */
-export const DRIFT_SPEED_START = 0.55;
+export const DRIFT_SPEED_START = 0.8;
 export const DRIFT_SPEED_STEP = 0.15;
 export const DRIFT_SPEED_MAX = 2.2;
 
