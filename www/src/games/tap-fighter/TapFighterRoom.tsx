@@ -12,7 +12,7 @@ import { enoughToStart } from '../../../../shared/players';
 import { FIGHTER_ACTIONS, type FighterAction, type FighterSeat } from '../../../../shared/tapFighter';
 import type { Player, ServerMessage, TapFighterState } from '../../../../shared/protocol';
 import { playOutcomeSound } from '../../core/audio/outcome';
-import { GameMenu } from '../../core/ui/GameMenu';
+import { StatusBar } from '../../core/ui/StatusBar';
 import { ACTION_POSE, FIGHTER_COLORS, FIGHTER_POSES, RHYTHM_POSES } from './game';
 
 const BLUE: FighterSeat = 'blue';
@@ -67,7 +67,7 @@ function PlanScreen({ game, state, players, me, onLock }: { game: GameCard; stat
   const name = players.find((player) => player.id === state.seats[seat])?.name ?? text({ en: 'Fighter', fr: 'Combattant' });
   const actionName = (action: FighterAction) => ({ punch: text({ en: 'Punch', fr: 'Poing' }), kick: text({ en: 'Kick', fr: 'Pied' }), jump: text({ en: 'Jump', fr: 'Saut' }), crouch: text({ en: 'Crouch', fr: 'Baisser' }) })[action];
   return <main class="fighter-plan" style={{ '--fighter-accent': seat === 'blue' ? FIGHTER_COLORS.blue : FIGHTER_COLORS.green } as JSX.CSSProperties}>
-    <GameMenu title={game.title} concept={game.concept} rules={game.rules} />
+    <StatusBar status={text({ en: 'Planning', fr: 'Préparation' })} title={game.title} concept={game.concept} rules={game.rules} />
     <header><h1>{text({ en: `${name}, choose your moves`, fr: `${name}, choisissez vos actions` })}</h1><p>{locked ? text({ en: 'Locked in. Waiting for the other fighter…', fr: 'Séquence validée. En attente de l’autre combattant…' }) : text({ en: 'Build a secret sequence of six actions.', fr: 'Composez une séquence secrète de six actions.' })}</p></header>
     <FighterSprite seat={seat} pose={rhythmPose} />
     <ol class="fighter-sequence" aria-label={text({ en: 'Your six actions', fr: 'Vos six actions' })}>{Array.from({ length: 6 }, (_, index) => <li><button type="button" disabled={locked || actions[index] === undefined} onClick={() => setActions(actions.filter((_, i) => i !== index))}>{actions[index] ? actionName(actions[index]) : String(index + 1)}</button></li>)}</ol>
@@ -103,7 +103,7 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     playOutcomeSound(state.seats[state.roundWinner] === me ? 'win' : 'lose');
   }, [state.phase, state.roundWinner, me]);
   return <main class="fighter-game" style={{ '--fighter-blue': FIGHTER_COLORS.blue, '--fighter-green': FIGHTER_COLORS.green } as JSX.CSSProperties}>
-    <GameMenu title={game.title} concept={game.concept} rules={game.rules} />
+    <StatusBar status={text({ en: `Round ${state.matchRound}`, fr: `Manche ${state.matchRound}` })} title={game.title} concept={game.concept} rules={game.rules} />
     <div class="fighter-score"><span>{nameOf(BLUE)} {pips(state.roundWins.blue)}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(state.roundWins.green)} {nameOf(GREEN)}</span></div>
     <section class="fighter-stage">
       <div class="fighter-side"><FighterSprite key={`b-${beatIndex}`} seat={BLUE} pose={displayPose(BLUE)} /><HealthBar value={health.blue} seat={BLUE} name={nameOf(BLUE)} /></div>
