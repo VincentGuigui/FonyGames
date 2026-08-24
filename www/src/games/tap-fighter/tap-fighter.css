@@ -3,3 +3,14 @@
 .fighter-sprite { transition: none; transition-duration: 0s; transition-timing-function: linear; }
 .fighter-sprite { --sprite: url('./art/fighter1.png'); background-size: 400% 200%; background-position: calc(var(--pose-x) * 33.333333%) calc(var(--pose-y) * 100%); }
 .fighter-sprite.is-green { --sprite: url('./art/fighter2.png'); transform: none; }
+
+/* Health bars: pinned to the top of the stage, a fixed 200px wide, and green's
+   pulled off the right border rather than left to overflow its narrow grid column. */
+.fighter-side { align-self: start; justify-self: start; margin-top: .5rem; }
+.fighter-side--green { justify-self: end; margin-right: .5rem; }
+.fighter-health > div { width: 200px; }
+
+/* The VS callout: full opacity for 2s, then a 500ms fade, then stays gone. */
+.fighter-versus { animation: fighter-versus-fade 2.5s ease forwards; }
+@keyframes fighter-versus-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .fighter-versus { animation: none; } }

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
 import blueSprite from './art/fighter1.png?url&no-inline';
 import greenSprite from './art/fighter2.png?url&no-inline';
+import { FIGHTER_SPRITE_MIRRORED } from './game';
 
 type Props = {
   bluePose: number;
@@ -75,17 +76,18 @@ export function FightCanvas(props: Props): JSX.Element {
         greenX = middle + minimumSeparation / 2;
       }
 
-      const drawFighter = (image: HTMLImageElement, x: number, pose: number): void => {
+      const drawFighter = (image: HTMLImageElement, x: number, pose: number, mirrored: boolean): void => {
         context.save();
         context.translate(x, height * 0.74 - spriteSize);
         context.imageSmoothingEnabled = false;
-        const sourceX = (pose % COLUMNS) * FRAME;
+        const column = pose % COLUMNS;
+        const sourceX = (mirrored ? COLUMNS - 1 - column : column) * FRAME;
         const sourceY = Math.floor(pose / COLUMNS) * FRAME;
         context.drawImage(image, sourceX, sourceY, FRAME, FRAME, -spriteSize / 2, 0, spriteSize, spriteSize);
         context.restore();
       };
-      drawFighter(blue, blueX, state.bluePose);
-      drawFighter(green, greenX, state.greenPose);
+      drawFighter(blue, blueX, state.bluePose, FIGHTER_SPRITE_MIRRORED.blue);
+      drawFighter(green, greenX, state.greenPose, FIGHTER_SPRITE_MIRRORED.green);
       frame = requestAnimationFrame(draw);
     };
 

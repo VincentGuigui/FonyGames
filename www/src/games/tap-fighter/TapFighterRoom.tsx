@@ -13,7 +13,7 @@ import { FIGHTER_ACTIONS, type FighterAction, type FighterSeat } from '../../../
 import type { Player, ServerMessage, TapFighterState } from '../../../../shared/protocol';
 import { playOutcomeSound } from '../../core/audio/outcome';
 import { StatusBar } from '../../core/ui/StatusBar';
-import { ACTION_POSE, FIGHTER_COLORS, FIGHTER_POSES, RHYTHM_POSES } from './game';
+import { ACTION_POSE, FIGHTER_COLORS, FIGHTER_POSES, FIGHTER_SPRITE_COLUMNS, FIGHTER_SPRITE_MIRRORED, RHYTHM_POSES } from './game';
 import { FightCanvas } from './FightCanvas';
 
 const BLUE: FighterSeat = 'blue';
@@ -71,7 +71,7 @@ function PlanScreen({ game, state, players, me, onLock }: { game: GameCard; stat
     <StatusBar status={text({ en: 'Planning', fr: 'Préparation' })} title={game.title} concept={game.concept} rules={game.rules} />
     <header><h1>{text({ en: `${name}, choose your moves`, fr: `${name}, choisissez vos actions` })}</h1><p>{locked ? text({ en: 'Locked in. Waiting for the other fighter…', fr: 'Séquence validée. En attente de l’autre combattant…' }) : text({ en: 'Build a secret sequence of six actions.', fr: 'Composez une séquence secrète de six actions.' })}</p></header>
     <FighterSprite seat={seat} pose={rhythmPose} />
-    <ol class="fighter-sequence" aria-label={text({ en: 'Your six actions', fr: 'Vos six actions' })}>{Array.from({ length: 6 }, (_, index) => <li><button type="button" disabled={locked || actions[index] === undefined} onClick={() => setActions(actions.filter((_, i) => i !== index))}>{actions[index] ? actionName(actions[index]) : String(index + 1)}</button></li>)}</ol>
+    <ol class="fighter-sequence" aria-label={text({ en: 'Your six actions', fr: 'Vos six actions' })}>{Array.from({ length: 6 }, (_, index) => <li><button type="button" disabled={locked || actions[index] === undefined} aria-label={actions[index] ? actionName(actions[index]) : String(index + 1)} onClick={() => setActions(actions.filter((_, i) => i !== index))}>{actions[index] ? <FighterSprite seat={seat} pose={ACTION_POSE[actions[index]]} small /> : String(index + 1)}</button></li>)}</ol>
     <div class="fighter-actions">{FIGHTER_ACTIONS.map((action) => <button type="button" disabled={locked || actions.length >= 6} onClick={() => setActions([...actions, action])}><FighterSprite seat={seat} pose={ACTION_POSE[action]} small /><span>{actionName(action)}</span></button>)}</div>
     <button class="fighter-fight-button" type="button" disabled={locked || actions.length !== 6} onClick={() => onLock(seat, actions)}>{text({ en: 'FIGHT', fr: 'COMBAT' })}</button>
     <p class="fighter-opponent-state">{state.ready[opponent] ? text({ en: 'Opponent ready', fr: 'Adversaire prêt' }) : text({ en: 'Opponent choosing…', fr: 'Adversaire en réflexion…' })}</p>
@@ -117,11 +117,13 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
 }
 
 function HealthBar({ value, seat, name }: { value: number; seat: FighterSeat; name: string }): JSX.Element {
-  return <div class="fighter-health"><span>{name}</span><div role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value)}><i class={`is-${seat}`} style={{ width: `${value}%` }} /></div><b>{Math.round(value)}%</b></div>;
+  return <div class="fighter-health"><div role="meter" aria-label={name} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value)}><i class={`is-${seat}`} style={{ width: `${value}%` }} /></div><b>{Math.round(value)}%</b></div>;
 }
 
 function FighterSprite({ seat, pose, small = false }: { seat: FighterSeat; pose: number; small?: boolean }): JSX.Element {
-  return <div class={`fighter-sprite is-${seat} ${small ? 'is-small' : ''} ${pose === FIGHTER_POSES.idle1 && !small ? 'is-rhythm' : ''}`} style={{ '--pose': pose, '--pose-x': pose % 4, '--pose-y': Math.floor(pose / 4) } as JSX.CSSProperties} aria-hidden="true" />;
+  const column = pose % FIGHTER_SPRITE_COLUMNS;
+  const poseX = FIGHTER_SPRITE_MIRRORED[seat] ? FIGHTER_SPRITE_COLUMNS - 1 - column : column;
+  return <div class={`fighter-sprite is-${seat} ${small ? 'is-small' : ''} ${pose === FIGHTER_POSES.idle1 && !small ? 'is-rhythm' : ''}`} style={{ '--pose': pose, '--pose-x': poseX, '--pose-y': Math.floor(pose / FIGHTER_SPRITE_COLUMNS) } as JSX.CSSProperties} aria-hidden="true" />;
 }
 
 function useRhythmPose(): number {
