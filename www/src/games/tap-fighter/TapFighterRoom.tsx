@@ -93,9 +93,9 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     if (state.phase !== 'fighting' && health[seat] <= 0) return FIGHTER_POSES.defeated;
     if (contact && beat?.[seat === 'blue' ? 'blueHit' : 'greenHit'] && withinBeat < 2_000) return 5;
     const action = beat?.[seat === 'blue' ? 'blueAction' : 'greenAction'];
-    return action && withinBeat < 1_000 ? ACTION_POSE[action] : FIGHTER_POSES.shoulderLeft;
+    return action && withinBeat < 1_000 ? ACTION_POSE[action] : FIGHTER_POSES.idle1;
   };
-  const displayPose = (seat: FighterSeat) => pose(seat) === FIGHTER_POSES.shoulderLeft ? rhythmPose : pose(seat);
+  const displayPose = (seat: FighterSeat) => pose(seat) === FIGHTER_POSES.idle1 ? rhythmPose : pose(seat);
   const nameOf = (seat: FighterSeat) => players.find((player) => player.id === state.seats[seat])?.name ?? text({ en: seat === 'blue' ? 'Blue' : 'Green', fr: seat === 'blue' ? 'Bleu' : 'Vert' });
   const roundHeadline = state.draw ? text({ en: 'DRAW', fr: 'MATCH NUL' }) : text({ en: `${nameOf(state.roundWinner ?? 'blue')} wins`, fr: `${nameOf(state.roundWinner ?? 'blue')} gagne` });
   useEffect(() => {
@@ -119,7 +119,7 @@ function HealthBar({ value, seat, name }: { value: number; seat: FighterSeat; na
 }
 
 function FighterSprite({ seat, pose, small = false }: { seat: FighterSeat; pose: number; small?: boolean }): JSX.Element {
-  return <div class={`fighter-sprite is-${seat} ${small ? 'is-small' : ''} ${pose === FIGHTER_POSES.shoulderLeft && !small ? 'is-rhythm' : ''}`} style={{ '--pose': pose } as JSX.CSSProperties} aria-hidden="true" />;
+  return <div class={`fighter-sprite is-${seat} ${small ? 'is-small' : ''} ${pose === FIGHTER_POSES.idle1 && !small ? 'is-rhythm' : ''}`} style={{ '--pose': pose } as JSX.CSSProperties} aria-hidden="true" />;
 }
 
 function useRhythmPose(): number {
