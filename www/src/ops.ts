@@ -89,6 +89,46 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
+type AdminSection = 'games' | 'analytics' | 'diagnostics';
+type DiagnosticTab = 'cloudflare' | 'ipinfo';
+
+/** Build links from the current admin root; the deployed path is intentionally secret. */
+function adminRoot(): string {
+  const marker = location.pathname.indexOf('/stats/');
+  if (marker >= 0) return location.pathname.slice(0, marker + 1);
+  return location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`;
+}
+
+function adminNav(active: AdminSection, diagnosticTab: DiagnosticTab = 'ipinfo'): HTMLElement {
+  const rootPath = adminRoot();
+  const nav = el('nav', 'ops__nav');
+  nav.setAttribute('aria-label', 'Admin navigation');
+  const main = el('div', 'ops__nav-main');
+  const games = el('a', `ops__nav-link${active === 'games' ? ' is-on' : ''}`, 'Games');
+  games.href = rootPath;
+  const analytics = el('a', `ops__nav-link${active === 'analytics' ? ' is-on' : ''}`, 'Analytics');
+  analytics.href = `${rootPath}stats/?tab=analytics`;
+  const diagnostics = el('a', `ops__nav-link${active === 'diagnostics' ? ' is-on' : ''}`, 'Diagnostics');
+  diagnostics.href = `${rootPath}stats/diagnostic/`;
+  main.append(games, analytics, diagnostics);
+  nav.append(main);
+  if (active === 'diagnostics') {
+    const tabs = el('div', 'ops__nav-sub');
+    tabs.setAttribute('role', 'tablist');
+    const cloudflare = el('a', `ops__nav-link ops__nav-link--sub${diagnosticTab === 'cloudflare' ? ' is-on' : ''}`, 'Cloudflare');
+    cloudflare.href = `${rootPath}stats/diagnostic/?tab=cloudflare`;
+    cloudflare.setAttribute('role', 'tab');
+    cloudflare.setAttribute('aria-selected', String(diagnosticTab === 'cloudflare'));
+    const ipinfo = el('a', `ops__nav-link ops__nav-link--sub${diagnosticTab === 'ipinfo' ? ' is-on' : ''}`, 'IPinfo');
+    ipinfo.href = `${rootPath}stats/diagnostic/?tab=ipinfo`;
+    ipinfo.setAttribute('role', 'tab');
+    ipinfo.setAttribute('aria-selected', String(diagnosticTab === 'ipinfo'));
+    tabs.append(cloudflare, ipinfo);
+    nav.append(tabs);
+  }
+  return nav;
+}
+
 /* ── Signing in ──────────────────────────────────────────────────────────── */
 
 function signIn(message?: string): void {
@@ -149,16 +189,13 @@ function render(state: State): void {
     ),
   );
 
-  const statsLink = el('a', 'ops__link', 'stats');
-  statsLink.href = 'stats/';
-  head.append(statsLink);
-
   const out = el('button', 'ops__link', 'sign out');
   out.addEventListener('click', () => {
     void api('logout', {}).then(() => signIn('Signed out.'));
   });
   head.append(out);
   root!.append(head);
+  root!.append(adminNav('games'));
   root!.append(soloPanel());
 
   const list = el('ul', 'ops__games');
@@ -286,8 +323,6 @@ function render(state: State): void {
   // however slow those calls are.
 }
 
-type StatsTab = 'cloudflare' | 'analytics';
-
 /**
  * Two views of "is anyone playing", on their own page.
  * Spec: docs/specs/analytics.md §7
@@ -299,7 +334,7 @@ type StatsTab = 'cloudflare' | 'analytics';
  * already do: this page has one user, and the cost of re-rendering a handful of DOM
  * nodes is not worth tracking which half changed.
  */
-function stats(tab: StatsTab = 'analytics'): void {
+function stats(): void {
   root!.replaceChildren();
 
   const head = el('header', 'ops__head');
@@ -311,45 +346,29 @@ function stats(tab: StatsTab = 'analytics'): void {
   diagnosticLink.href = 'diagnostic/';
   head.append(diagnosticLink);
   root!.append(head);
-
-  const tabs = el('div', 'ops__controls');
-  const cloudflareTab = el('button', 'ops__choice', 'Cloudflare monitoring');
-  const analyticsTab = el('button', 'ops__choice', 'Analytics');
-  cloudflareTab.setAttribute('role', 'tab');
-  analyticsTab.setAttribute('role', 'tab');
-  cloudflareTab.classList.toggle('is-on', tab === 'cloudflare');
-  analyticsTab.classList.toggle('is-on', tab === 'analytics');
-  cloudflareTab.setAttribute('aria-selected', String(tab === 'cloudflare'));
-  analyticsTab.setAttribute('aria-selected', String(tab === 'analytics'));
-  cloudflareTab.addEventListener('click', () => { history.replaceState(null, '', '?tab=cloudflare'); stats('cloudflare'); });
-  analyticsTab.addEventListener('click', () => { history.replaceState(null, '', '?tab=analytics'); stats('analytics'); });
-  tabs.append(cloudflareTab, analyticsTab);
-  tabs.setAttribute('role', 'tablist');
-  root!.append(tabs);
+  root!.append(adminNav('analytics'));
 
   const panel = el('section', 'ops__log');
   panel.append(el('p', 'ops__note', 'checking…'));
   root!.append(panel);
 
-  if (tab === 'cloudflare') {
-    void loadUsage(panel);
-  } else {
-    void loadAnalytics(panel, 7);
-  }
+  void loadAnalytics(panel, 7);
 }
 
-function diagnosticPage(): void {
+function diagnosticPage(tab: DiagnosticTab = 'ipinfo'): void {
   root!.replaceChildren();
   const head = el('header', 'ops__head');
-  head.append(el('h1', 'ops__title', 'IPinfo diagnostic'));
+  head.append(el('h1', 'ops__title', tab === 'cloudflare' ? 'Cloudflare diagnostic' : 'IPinfo diagnostic'));
   const back = el('a', 'ops__link', '← back to stats');
   back.href = '../';
   head.append(back);
   root!.append(head);
+  root!.append(adminNav('diagnostics', tab));
   const panel = el('section', 'ops__log ops__diagnostic');
   panel.append(el('p', 'ops__note', 'Checking IPinfo diagnostic…'));
   root!.append(panel);
-  void loadIpInfoDiagnostic(panel);
+  if (tab === 'cloudflare') void loadUsage(panel);
+  else void loadIpInfoDiagnostic(panel);
 }
 
 /**
@@ -951,15 +970,16 @@ async function boot(): Promise<void> {
     const { status } = await api('usage');
     if (status === 401) { signIn(); return; }
     if (status !== 200) { signIn(`The admin API answered ${status}.`); return; }
-    diagnosticPage();
+    const diagnosticTab = new URLSearchParams(location.search).get('tab') === 'cloudflare' ? 'cloudflare' : 'ipinfo';
+    diagnosticPage(diagnosticTab);
     return;
   }
   if (/\/stats\/?$/.test(location.pathname)) {
     const { status } = await api('usage');
     if (status === 401) { signIn(); return; }
     if (status !== 200) { signIn(`The admin API answered ${status}.`); return; }
-    const tab = new URLSearchParams(location.search).get('tab') === 'cloudflare' ? 'cloudflare' : 'analytics';
-    stats(tab);
+    if (new URLSearchParams(location.search).get('tab') === 'cloudflare') diagnosticPage('cloudflare');
+    else stats();
     return;
   }
 
