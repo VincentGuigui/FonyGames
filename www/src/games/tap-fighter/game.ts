@@ -5,8 +5,8 @@ export const FIGHTER_COLORS = {
 } as const;
 
 export const FIGHTER_POSES = {
-  shoulderLeft: 0,
-  shoulderRight: 1,
+  idle1: 0,
+  idle2: 1,
   punch: 2,
   kick: 3,
   jump: 4,
@@ -15,7 +15,7 @@ export const FIGHTER_POSES = {
   defeated: 7,
 } as const;
 
-export const RHYTHM_POSES = [FIGHTER_POSES.shoulderLeft, FIGHTER_POSES.shoulderRight] as const;
+export const RHYTHM_POSES = [FIGHTER_POSES.idle1, FIGHTER_POSES.idle2] as const;
 
 export const ACTION_POSE = {
   punch: FIGHTER_POSES.punch,

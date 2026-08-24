@@ -6,6 +6,9 @@
    sprite-sheet pose look like the fighter was scrolling across the stage. */
 .fighter-sprite {
   animation-name: fighter-pose-stable;
+  transition: none;
+  transition-duration: 0s;
+  transition-timing-function: linear;
 }
 
 @keyframes fighter-rhythm {
