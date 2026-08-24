@@ -434,8 +434,8 @@ a.btn {
 /* Small, because the target is the thing to look at now — not the caption. */
 .duel--armed .duel__word,
 .duel__word--fire {
-  font-size: clamp(1.25rem, 6vw, 2rem);
-  opacity: 0.8;
+  font-size: clamp(1rem, 5vw, 1.5rem);
+  opacity: 1;
 }
 
 /*
@@ -469,8 +469,8 @@ a.btn {
 /* Waiting: unmistakably not yet, and not in the way of a tap. */
 .duel__bullseye--waiting {
   pointer-events: none;
-  filter: grayscale(1);
-  opacity: 0.42;
+  filter: none;
+  opacity: 1;
 }
 
 .duel__bullseye-hit {
@@ -531,10 +531,12 @@ a.btn {
 .duel__word {
   /* Sized off the shorter axis so two words ("GET READY") still fit a narrow
      phone without wrapping mid-word. */
-  font-size: clamp(2.75rem, 17vw, 6rem);
+  max-width: 100%;
+  font-size: clamp(2rem, 12vw, 4.5rem);
   font-weight: 800;
   letter-spacing: 0.02em;
   line-height: 0.95;
+  overflow-wrap: anywhere;
   text-wrap: balance;
 }
 

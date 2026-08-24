@@ -153,6 +153,14 @@
   border-radius: var(--radius-sm);
 }
 
+.gameover__row--win {
+  background: color-mix(in srgb, #16a34a 28%, transparent);
+}
+
+.gameover__row--lose {
+  background: color-mix(in srgb, #dc2626 28%, transparent);
+}
+
 .gameover__row--out .gameover__name,
 .gameover__row--out .gameover__value {
   opacity: 0.55;

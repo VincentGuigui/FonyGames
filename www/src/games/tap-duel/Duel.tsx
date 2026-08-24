@@ -279,6 +279,7 @@ export function Duel(props: {
           name: nameOf(r.playerId),
           value: result.scores[r.playerId] ?? 0,
           unit: text({ en: 'points', fr: 'points' }),
+          tone: !r.falseStart && r.playerId === result.winnerId ? 'win' : 'lose',
           ...(r.falseStart ? { out: true } : {}),
         }))}
         me={me}
