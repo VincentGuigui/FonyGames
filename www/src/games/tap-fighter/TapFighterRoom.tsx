@@ -14,6 +14,7 @@ import type { Player, ServerMessage, TapFighterState } from '../../../../shared/
 import { playOutcomeSound } from '../../core/audio/outcome';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { ACTION_POSE, FIGHTER_COLORS, FIGHTER_POSES, RHYTHM_POSES } from './game';
+import { FightCanvas } from './FightCanvas';
 
 const BLUE: FighterSeat = 'blue';
 const GREEN: FighterSeat = 'green';
@@ -106,9 +107,10 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     <StatusBar status={text({ en: `Round ${state.matchRound}`, fr: `Manche ${state.matchRound}` })} title={game.title} concept={game.concept} rules={game.rules} />
     <div class="fighter-score"><span>{nameOf(BLUE)} {pips(state.roundWins.blue)}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(state.roundWins.green)} {nameOf(GREEN)}</span></div>
     <section class="fighter-stage">
-      <div class="fighter-side"><FighterSprite key={`b-${beatIndex}`} seat={BLUE} pose={displayPose(BLUE)} /><HealthBar value={health.blue} seat={BLUE} name={nameOf(BLUE)} /></div>
+      <FightCanvas bluePose={displayPose(BLUE)} greenPose={displayPose(GREEN)} blueAttacking={Boolean(beat?.blueAction && withinBeat < 1_750)} greenAttacking={Boolean(beat?.greenAction && withinBeat < 1_750)} beatTime={withinBeat} />
+      <div class="fighter-side"><HealthBar value={health.blue} seat={BLUE} name={nameOf(BLUE)} /></div>
       <div class="fighter-versus">{nameOf(BLUE)} {text({ en: 'VS', fr: 'VS' })} {nameOf(GREEN)}</div>
-      <div class="fighter-side fighter-side--green"><FighterSprite key={`g-${beatIndex}`} seat={GREEN} pose={displayPose(GREEN)} /><HealthBar value={health.green} seat={GREEN} name={nameOf(GREEN)} /></div>
+      <div class="fighter-side fighter-side--green"><HealthBar value={health.green} seat={GREEN} name={nameOf(GREEN)} /></div>
       {state.phase !== 'fighting' && <div class="fighter-round-overlay"><strong>{roundHeadline}</strong>{isHost ? <button type="button" onClick={onNext}>{text({ en: 'Next round', fr: 'Manche suivante' })}</button> : <p>{text({ en: 'Waiting for the host…', fr: 'En attente de l’hôte…' })}</p>}</div>}
     </section>
   </main>;
