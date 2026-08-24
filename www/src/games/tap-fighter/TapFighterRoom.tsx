@@ -95,18 +95,26 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   const now = useFightClock(state.phase === 'fighting', clock);
   const elapsed = Math.min(now - state.startsAt, Math.max(0, state.endsAt - state.startsAt - 1));
   const beatMs = 2_500;
+  /**
+   * Every beat plays in two equal halves: the action, then the reaction. Whoever's
+   * action landed this beat shows their hit pose for the second half; whoever wasn't
+   * hit just keeps the pose their own action left them in — there is no separate
+   * "settle back to idle" step mid-beat, only at the very start of the next one.
+   */
+  const halfBeat = beatMs / 2;
   // Negative while the reveal (VS, countdown, FIGHT) plays: no beat has landed yet.
   const beatIndex = elapsed < 0 || state.beats.length === 0 ? -1 : Math.min(state.beats.length - 1, Math.floor(elapsed / beatMs));
   const beat = beatIndex >= 0 ? state.beats[beatIndex] : undefined;
   const withinBeat = elapsed >= 0 ? elapsed % beatMs : 0;
-  const contact = elapsed >= 0 && withinBeat >= 1_500;
+  const contact = elapsed >= 0 && withinBeat >= halfBeat;
   const previous = beatIndex > 0 ? state.beats[beatIndex - 1] : undefined;
   const health = state.phase === 'fighting' && !contact ? { blue: previous?.blueHealth ?? 100, green: previous?.greenHealth ?? 100 } : { blue: beat?.blueHealth ?? 100, green: beat?.greenHealth ?? 100 };
   const pose = (seat: FighterSeat) => {
     if (state.phase !== 'fighting' && health[seat] <= 0) return FIGHTER_POSES.defeated;
-    if (contact && beat?.[seat === 'blue' ? 'blueHit' : 'greenHit'] && withinBeat < 2_000) return 5;
     const action = beat?.[seat === 'blue' ? 'blueAction' : 'greenAction'];
-    return action && withinBeat < 1_000 ? ACTION_POSE[action] : FIGHTER_POSES.idle1;
+    if (!action) return FIGHTER_POSES.idle1;
+    const reacting = contact && beat?.[seat === 'blue' ? 'blueHit' : 'greenHit'];
+    return reacting ? FIGHTER_POSES.hit : ACTION_POSE[action];
   };
   // The reveal: a VS callout, then 3-2-1, then FIGHT — computed straight from `elapsed`
   // so it can never drift from `REVEAL_LEAD_MS`, the same number the worker used to
