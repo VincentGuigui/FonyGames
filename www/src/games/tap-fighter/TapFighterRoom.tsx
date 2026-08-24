@@ -76,13 +76,14 @@ function PlanScreen({ game, state, players, me, onLock }: { game: GameCard; stat
   useEffect(() => setActions([]), [state.roundId, seat]);
   const locked = state.ready[seat];
   const flashPose = usePoseFlash();
+  const idlePose = useIdleRhythm();
   const opponent: FighterSeat = seat === 'blue' ? 'green' : 'blue';
   const name = players.find((player) => player.id === state.seats[seat])?.name ?? text({ en: 'Fighter', fr: 'Combattant' });
   const actionName = (action: FighterAction) => ({ punch: text({ en: 'Punch', fr: 'Poing' }), kick: text({ en: 'Kick', fr: 'Pied' }), jump: text({ en: 'Jump', fr: 'Saut' }), crouch: text({ en: 'Crouch', fr: 'Baisser' }) })[action];
   return <main class="fighter-plan" style={{ '--fighter-accent': seat === 'blue' ? FIGHTER_COLORS.blue : FIGHTER_COLORS.green } as JSX.CSSProperties}>
     <StatusBar status={text({ en: 'Planning', fr: 'Préparation' })} title={game.title} concept={game.concept} rules={game.rules} />
     <header><h1>{text({ en: `${name}, choose your moves`, fr: `${name}, choisissez vos actions` })}</h1><p>{locked ? text({ en: 'Locked in. Waiting for the other fighter…', fr: 'Séquence validée. En attente de l’autre combattant…' }) : text({ en: 'Build a secret sequence of six actions.', fr: 'Composez une séquence secrète de six actions.' })}</p></header>
-    <FighterSprite seat={seat} pose={flashPose.pose ?? FIGHTER_POSES.idle1} />
+    <FighterSprite seat={seat} pose={flashPose.pose ?? idlePose} />
     <ol class="fighter-sequence" aria-label={text({ en: 'Your six actions', fr: 'Vos six actions' })}>{Array.from({ length: 6 }, (_, index) => <li><button type="button" disabled={locked || actions[index] === undefined} aria-label={actions[index] ? actionName(actions[index]) : String(index + 1)} onClick={() => setActions(actions.filter((_, i) => i !== index))}>{actions[index] ? <FighterSprite seat={seat} pose={ACTION_POSE[actions[index]]} tiny /> : String(index + 1)}</button></li>)}</ol>
     <div class="fighter-actions">{FIGHTER_ACTIONS.map((action) => <button type="button" disabled={locked || actions.length >= 6} onClick={() => { setActions([...actions, action]); flashPose.show(ACTION_POSE[action]); }}><FighterSprite seat={seat} pose={ACTION_POSE[action]} small /><span>{actionName(action)}</span></button>)}</div>
     <button class="fighter-fight-button" type="button" disabled={locked || actions.length !== 6} onClick={() => onLock(seat, actions)}>{text({ en: 'FIGHT', fr: 'COMBAT' })}</button>
@@ -152,9 +153,9 @@ function FighterSprite({ seat, pose, small = false, tiny = false }: { seat: Figh
 }
 
 /**
- * The big preview holds a plain idle stance until a move is tapped, then shows that
- * move's pose for `POSE_FLASH_MS` before settling back — a beat of feedback for the
- * tap, not a permanent stance change.
+ * The big preview alternates idle poses until a move is tapped, then holds that
+ * move's pose for `POSE_FLASH_MS` before settling back to the idle rhythm — a beat
+ * of feedback for the tap, not a permanent stance change.
  */
 function usePoseFlash(): { pose: number | null; show: (pose: number) => void } {
   const [pose, setPose] = useState<number | null>(null);
@@ -166,6 +167,19 @@ function usePoseFlash(): { pose: number | null; show: (pose: number) => void } {
     timer.current = window.setTimeout(() => { setPose(null); timer.current = null; }, POSE_FLASH_MS);
   };
   return { pose, show };
+}
+
+/** The idle breathing loop for the big preview — alternates the two idle frames. */
+function useIdleRhythm(): number {
+  const [pose, setPose] = useState<number>(FIGHTER_POSES.idle1);
+  useEffect(() => {
+    const timer = window.setInterval(
+      () => setPose((current) => (current === FIGHTER_POSES.idle1 ? FIGHTER_POSES.idle2 : FIGHTER_POSES.idle1)),
+      250,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
+  return pose;
 }
 
 type IntroStep = { kind: 'vs' } | { kind: 'count'; n: number } | { kind: 'fight' };
