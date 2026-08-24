@@ -3,7 +3,7 @@ import { TAPTAP_CHECKPOINT, TAPTAP_TOTAL } from '../../../../shared/protocol';
 import { useGameText } from '../../core/i18n/gameText';
 
 /**
- * The progress line above the grid. Spec: docs/specs/games/tap-tap-revolution.md §4
+ * The progress line above the grid. Spec: docs/specs/games/tap-tap-music.md §4
  *
  * A hundred marks, one per cell in the shared order — not per grid cell, so it
  * reads the same "how far along am I" whichever of the (up to five) physical
@@ -18,7 +18,7 @@ import { useGameText } from '../../core/i18n/gameText';
  * gap rather than pretending progress is a single number. Preact only ever
  * adds or removes the `--passed` class on a given mark, never toggles it back
  * and forth on an unrelated re-render, so the CSS pulse defined on that class
- * (`tap-tap-revolution.css`) plays exactly once per crossing — including a
+ * (`tap-tap-music.css`) plays exactly once per crossing — including a
  * second time if a mark is un-passed by a rewind and then correctly
  * re-reached, which is the point: it says "reached", not "reached once, ever".
  */

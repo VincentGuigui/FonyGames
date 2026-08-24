@@ -209,7 +209,7 @@ export type ClientMessage =
   /** Neon Fall: the protector fired lane `lane`'s trigger. */
   | { t: 'neon-shoot'; d: { roundId: number; lane: number } }
   /**
-   * Tap Tap Revolution: a finger landed on grid cell `cell`.
+   * Tap Tap Music: a finger landed on grid cell `cell`.
    *
    * A cell, not "the lit one" — the referee is the only thing that knows
    * whether this was this player's own lit cell (spec §8), the same
@@ -397,7 +397,7 @@ export type NeonFallState = {
 };
 
 /**
- * Tap Tap Revolution: the shared, public half of the round.
+ * Tap Tap Music: the shared, public half of the round.
  *
  * Same split as `SquashState`/`SquashBoard`: `order` and `remaining` are
  * public — a shuffle everyone raced through, and a count, never which
@@ -646,13 +646,13 @@ export type ServerMessage =
   | { t: 'squash-board'; s: number; d: { roundId: number; board: SquashBoard } }
   /** Neon Fall: the whole round, every tick. Late frames with a lower `s` are dropped. */
   | { t: 'neon'; s: number; d: NeonFallState }
-  /** Tap Tap Revolution: the shared state — order, everyone's remaining count, phase, winner. */
+  /** Tap Tap Music: the shared state — order, everyone's remaining count, phase, winner. */
   | { t: 'taptap'; s: number; d: TapTapState }
   | { t: 'tttt'; s: number; d: TttState }
   | { t: 'fighter'; s: number; d: TapFighterState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
-   * Tap Tap Revolution: sent to **one player only** — their own cleared
+   * Tap Tap Music: sent to **one player only** — their own cleared
    * cells, in the order they actually tapped them (spec §2, §6).
    *
    * A shrink from the last one sent IS the "you missed" signal — there is
@@ -1679,7 +1679,7 @@ export const NEON_MIN_PLAYERS = PLAYERS['neon-fall'][0];
 export const NEON_MAX_PLAYERS = PLAYERS['neon-fall'][1];
 
 /* ------------------------------------------------------------------ */
-/* Tap Tap Revolution (docs/specs/games/tap-tap-revolution.md)         */
+/* Tap Tap Music (docs/specs/games/tap-tap-music.md)                    */
 /* ------------------------------------------------------------------ */
 
 /** The board: a 10×10 grid, a hundred cells, every one of them lit exactly once a round. */
@@ -1706,5 +1706,5 @@ export const TAPTAP_CHECKPOINT = 10;
 export const TAPTAP_ROUND_CAP_MS = 3 * 60_000;
 
 /** Derived from players.ts, so a card and its referee cannot disagree. */
-export const TAPTAP_MIN_PLAYERS = PLAYERS['tap-tap-revolution'][0];
-export const TAPTAP_MAX_PLAYERS = PLAYERS['tap-tap-revolution'][1];
+export const TAPTAP_MIN_PLAYERS = PLAYERS['tap-tap-music'][0];
+export const TAPTAP_MAX_PLAYERS = PLAYERS['tap-tap-music'][1];

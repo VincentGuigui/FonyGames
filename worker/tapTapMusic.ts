@@ -13,7 +13,7 @@ import {
 import { enoughToStart } from '../shared/players';
 
 /**
- * Tap Tap Revolution — the referee. Spec: docs/specs/games/tap-tap-revolution.md
+ * Tap Tap Music — the referee. Spec: docs/specs/games/tap-tap-music.md
  *
  * Same shape as squashMosquitoes.ts, and for the same reason: state persisted so the
  * Durable Object can hibernate between taps, and a board only ever changes here.

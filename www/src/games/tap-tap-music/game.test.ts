@@ -3,7 +3,7 @@ import { TapTapGame, elapsedMs, formatClock } from './game';
 import { MELODY, NOTES_AFTER_THE_LAST_CELL, noteFor } from './melody';
 
 /**
- * Tap Tap Revolution, client side. Spec: docs/specs/games/tap-tap-revolution.md
+ * Tap Tap Music, client side. Spec: docs/specs/games/tap-tap-music.md
  *
  * `TapTapGame` has no referee to catch a mistake either — it only projects the
  * public state and this phone's own private cleared history into what the

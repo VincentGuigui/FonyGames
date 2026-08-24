@@ -10,7 +10,7 @@ import { useGameText } from '../../core/i18n/gameText';
 import { SoundToggle as SharedSoundToggle } from '../../core/ui/SoundToggle';
 
 /**
- * The board: a hundred circles on a 10×10 grid. Spec: docs/specs/games/tap-tap-revolution.md §4
+ * The board: a hundred circles on a 10×10 grid. Spec: docs/specs/games/tap-tap-music.md §4
  *
  * Unlike Squash Mosquitoes' board, every cell is always tappable, gone ones
  * included — tapping a gone cell is exactly as wrong as tapping any other cell

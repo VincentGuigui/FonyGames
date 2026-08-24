@@ -20,7 +20,7 @@ import { TapTapGame, formatClock } from './game';
 import { createTune, setSoundOn, soundOn, type Tune } from './tune';
 
 /**
- * Tap Tap Revolution's room. Spec: docs/specs/games/tap-tap-revolution.md
+ * Tap Tap Music's room. Spec: docs/specs/games/tap-tap-music.md
  *
  * Same shape as Squash Mosquitoes' room — no sensor, no permission, no fullscreen
  * gate — plus the one thing that game has no need for: a tune, armed from the
@@ -180,7 +180,7 @@ function TapTapRoomInner({ game: card, code }: { game: GameCard; code: string })
 function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
   if (!solo && connected < TAPTAP_MIN_PLAYERS) return text({ en: 'Waiting for one more player…', fr: 'En attente d’un joueur supplémentaire…' });
   if (connected > TAPTAP_MAX_PLAYERS) {
-    return text({ en: `Tap Tap Revolution is ${TAPTAP_MIN_PLAYERS}–${TAPTAP_MAX_PLAYERS} players.`, fr: `Tap Tap Revolution se joue de ${TAPTAP_MIN_PLAYERS} à ${TAPTAP_MAX_PLAYERS} joueurs.` });
+    return text({ en: `Tap Tap Music is ${TAPTAP_MIN_PLAYERS}–${TAPTAP_MAX_PLAYERS} players.`, fr: `Tap Tap Music se joue de ${TAPTAP_MIN_PLAYERS} à ${TAPTAP_MAX_PLAYERS} joueurs.` });
   }
   if (!isHost) return text({ en: 'The host starts the board.', fr: "L’hôte démarre le plateau." });
   return text({ en: `Everyone gets the same ${TAPTAP_TOTAL} cells, in the same order. First to clear them wins.`, fr: `Tout le monde reçoit les mêmes ${TAPTAP_TOTAL} cases, dans le même ordre. Le premier à tout effacer gagne.` });

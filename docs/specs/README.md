@@ -38,7 +38,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Grid Attack](games/grid-attack.md) | *Break their grid before they break yours* | touch | 2 | 🎮 beta — the **only landscape board**; two-second fuse untested by two people in a room |
 | [Squash Mosquitoes](games/squash-mosquitoes.md) | *Squash all 66 before anyone else does* | touch | 2–8 | 🚧 building |
 | [Neon Fall](games/neon-fall.md) | *Dodge five lanes of neon fire, or shoot down what falls* | orientation + touch | 2 | 🎮 beta — plain `<canvas>`; numbers untested on real phones tilting |
-| [Tap Tap Revolution](games/tap-tap-revolution.md) | *Five circles light up at once. A miss only costs the last ten* | touch | 2–8 | 🎮 beta — checkpoint and window size untested on real thumbs |
+| [Tap Tap Music](games/tap-tap-music.md) | *Five circles light up at once. A miss only costs the last ten* | touch | 2–8 | 🎮 beta — checkpoint and window size untested on real thumbs |
 | [Tic-Tac-Tic-Tac-Toe](games/tic-tac-tic-tac-toe.md) | *Win the little boards to conquer the big one* | touch | 2 | 📝 draft — awaiting approval |
 
 ### Idea notes (not yet specs)
@@ -76,7 +76,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
   for the minimal import, over the whole per-game budget on its own, so it
   builds on a plain `<canvas>` instead, same as Goat Siege and Spill. Built
   and verified end to end in the browser.
-- **Tap Tap Revolution** — 100 circles, **five live at once, tappable in
+- **Tap Tap Music** — 100 circles, **five live at once, tappable in
   any order**, from a shared, server-dealt order; a correct tap clears it
   and plays the next note of Shake Rush's own melody (which is already
   exactly 100 notes long, keyed to tap count rather than grid position), a

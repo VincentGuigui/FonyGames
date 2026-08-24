@@ -70,7 +70,7 @@ import {
   toState as taptapToState,
   type Ctx as TapTapCtx,
   type TapTap,
-} from './tapTapRevolution';
+} from './tapTapMusic';
 import {
   nextDeadline as ttttDeadline,
   onSelect as onTtttSelect,
@@ -985,7 +985,7 @@ export class Room extends DurableObject<Env> {
   }
 
   /**
-   * Everything tapTapRevolution.ts needs. Same shape as `#squashCtx` — a shared dealt
+   * Everything tapTapMusic.ts needs. Same shape as `#squashCtx` — a shared dealt
    * order plus a private `sendTo` for each player's own progress.
    */
   #taptapCtx(): TapTapCtx {
@@ -1317,7 +1317,7 @@ export class Room extends DurableObject<Env> {
     const fighter = await this.#fighter();
     if (fighter) this.#send(ws, { t: 'fighter', s: this.#nextSeq(), d: fighterToState(fighter) });
     /*
-     * Tap Tap Revolution resyncs the shared order AND, if this player has a seat in
+     * Tap Tap Music resyncs the shared order AND, if this player has a seat in
      * it, their own private cleared history — same split as Squash Mosquitoes' board,
      * for the same reason: how far *this* player has gone is theirs alone to see.
      */

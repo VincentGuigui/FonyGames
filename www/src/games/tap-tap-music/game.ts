@@ -7,7 +7,7 @@ import {
 } from '../../../../shared/protocol';
 
 /**
- * Tap Tap Revolution, client side. Spec: docs/specs/games/tap-tap-revolution.md
+ * Tap Tap Music, client side. Spec: docs/specs/games/tap-tap-music.md
  *
  * Same split Squash Mosquitoes' `game.ts` holds (spec §6): a shared `TapTapState` —
  * the order, everyone's remaining count, phase, winner — and this phone's own

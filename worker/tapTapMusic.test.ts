@@ -8,11 +8,11 @@ import {
   taptapWindow,
   type ServerMessage,
 } from '../shared/protocol';
-import { nextDeadline, onTapTap, startTapTap, tick, type Ctx, type TapTap } from './tapTapRevolution';
+import { nextDeadline, onTapTap, startTapTap, tick, type Ctx, type TapTap } from './tapTapMusic';
 
 /**
- * Tap Tap Revolution's referee.
- * Spec: docs/specs/games/tap-tap-revolution.md
+ * Tap Tap Music's referee.
+ * Spec: docs/specs/games/tap-tap-music.md
  *
  * Four rules carry the whole game:
  *

@@ -111,9 +111,9 @@ export function endsRound(msg: ServerMessage): boolean {
       return msg.d.phase === 'done' && msg.d.winner !== null;
 
     /*
-     * Tap Tap Revolution ends the same way — a phase and a winner in the same
+     * Tap Tap Music ends the same way — a phase and a winner in the same
      * frame. The safety cap can still end in a tie (`leader()` in
-     * worker/tapTapRevolution.ts), and a tie has no winner: that round is not
+     * worker/tapTapMusic.ts), and a tie has no winner: that round is not
      * counted.
      */
     case 'taptap':

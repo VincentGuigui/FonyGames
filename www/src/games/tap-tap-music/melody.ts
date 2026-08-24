@@ -2,7 +2,7 @@ import { TAPTAP_TOTAL } from '../../../../shared/protocol';
 
 /**
  * The tune, one note per correct tap.
- * Spec: docs/specs/games/tap-tap-revolution.md §5b · played by `tune.ts`
+ * Spec: docs/specs/games/tap-tap-music.md §5b · played by `tune.ts`
  *
  * The exact song Shake Rush plays (`shake-rush/melody.ts`), copied rather than
  * imported — every game's sound is its own leaf file, the same reasoning

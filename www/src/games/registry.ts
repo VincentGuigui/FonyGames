@@ -15,7 +15,7 @@ import { CARD as SCREAM_METER_CARD } from './scream-meter/card';
 import { CARD as GRID_ATTACK_CARD } from './grid-attack/card';
 import { CARD as SQUASH_MOSQUITOES_CARD } from './squash-mosquitoes/card';
 import { CARD as NEON_FALL_CARD } from './neon-fall/card';
-import { CARD as TAP_TAP_REVOLUTION_CARD } from './tap-tap-revolution/card';
+import { CARD as TAP_TAP_MUSIC_CARD } from './tap-tap-music/card';
 import { CARD as TTTT_CARD } from './tic-tac-tic-tac-toe/card';
 import type { GameCard } from '../core/types';
 
@@ -49,7 +49,7 @@ export const GAMES: GameCard[] = [
   GRID_ATTACK_CARD,
   SQUASH_MOSQUITOES_CARD,
   NEON_FALL_CARD,
-  TAP_TAP_REVOLUTION_CARD,
+  TAP_TAP_MUSIC_CARD,
   TTTT_CARD,
   SCREAM_METER_CARD,
 ];

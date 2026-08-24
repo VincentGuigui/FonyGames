@@ -1,12 +1,12 @@
-# Tap Tap Revolution
+# Tap Tap Music
 
 > Status: **live**.
 
 | | |
 | --- | --- |
-| **Slug** | `tap-tap-revolution` |
+| **Slug** | `tap-tap-music` |
 | **Catchy sentence** | *Five circles light up at once. A miss only costs the last ten* |
-| **Illustration** | `www/src/games/tap-tap-revolution/art/card.svg` — a 10×10 grid of small circles, most hollow, five glowing orange across the grid |
+| **Illustration** | `www/src/games/tap-tap-music/art/card.svg` — a 10×10 grid of small circles, most hollow, five glowing orange across the grid |
 | **Players** | 2–8 |
 | **Round length** | 30 s – 2 min for a clean run; a rough one runs longer, capped at 3 min (§7) |
 | **Inputs** | touch |
@@ -59,7 +59,7 @@ Squash Mosquitoes already answered the first half of this (its own spec
 §2): a pattern dealt once by the referee's own random source is fair in a
 way a client-picked one cannot be, and dealing it once means every
 player's board is the same shape, which is what makes "how far along is
-everyone" a legible number instead of a coincidence. Tap Tap Revolution
+everyone" a legible number instead of a coincidence. Tap Tap Music
 reuses the exact mechanism — same `random()`, same "shared order, private
 progress" split — for the same reason.
 

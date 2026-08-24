@@ -1,7 +1,7 @@
 import { MELODY, noteFor } from './melody';
 
 /**
- * One note per correct tap. Spec: docs/specs/games/tap-tap-revolution.md §5b
+ * One note per correct tap. Spec: docs/specs/games/tap-tap-music.md §5b
  *
  * Leaner than Shake Rush's own `tune.ts`, and can be: a shake is guessed locally and
  * corrected from the server a tenth of a second later, so that file has to reconcile
