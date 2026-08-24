@@ -323,8 +323,6 @@ function render(state: State): void {
   // however slow those calls are.
 }
 
-type StatsTab = 'cloudflare' | 'analytics';
-
 /**
  * Two views of "is anyone playing", on their own page.
  * Spec: docs/specs/analytics.md §7
@@ -336,7 +334,7 @@ type StatsTab = 'cloudflare' | 'analytics';
  * already do: this page has one user, and the cost of re-rendering a handful of DOM
  * nodes is not worth tracking which half changed.
  */
-function stats(tab: StatsTab = 'analytics'): void {
+function stats(): void {
   root!.replaceChildren();
 
   const head = el('header', 'ops__head');
@@ -350,30 +348,11 @@ function stats(tab: StatsTab = 'analytics'): void {
   root!.append(head);
   root!.append(adminNav('analytics'));
 
-  const tabs = el('div', 'ops__controls');
-  const cloudflareTab = el('button', 'ops__choice', 'Cloudflare monitoring');
-  const analyticsTab = el('button', 'ops__choice', 'Analytics');
-  cloudflareTab.setAttribute('role', 'tab');
-  analyticsTab.setAttribute('role', 'tab');
-  cloudflareTab.classList.toggle('is-on', tab === 'cloudflare');
-  analyticsTab.classList.toggle('is-on', tab === 'analytics');
-  cloudflareTab.setAttribute('aria-selected', String(tab === 'cloudflare'));
-  analyticsTab.setAttribute('aria-selected', String(tab === 'analytics'));
-  cloudflareTab.addEventListener('click', () => { history.replaceState(null, '', '?tab=cloudflare'); stats('cloudflare'); });
-  analyticsTab.addEventListener('click', () => { history.replaceState(null, '', '?tab=analytics'); stats('analytics'); });
-  tabs.append(cloudflareTab, analyticsTab);
-  tabs.setAttribute('role', 'tablist');
-  root!.append(tabs);
-
   const panel = el('section', 'ops__log');
   panel.append(el('p', 'ops__note', 'checking…'));
   root!.append(panel);
 
-  if (tab === 'cloudflare') {
-    void loadUsage(panel);
-  } else {
-    void loadAnalytics(panel, 7);
-  }
+  void loadAnalytics(panel, 7);
 }
 
 function diagnosticPage(tab: DiagnosticTab = 'ipinfo'): void {
@@ -999,8 +978,8 @@ async function boot(): Promise<void> {
     const { status } = await api('usage');
     if (status === 401) { signIn(); return; }
     if (status !== 200) { signIn(`The admin API answered ${status}.`); return; }
-    const tab = new URLSearchParams(location.search).get('tab') === 'cloudflare' ? 'cloudflare' : 'analytics';
-    stats(tab);
+    if (new URLSearchParams(location.search).get('tab') === 'cloudflare') diagnosticPage('cloudflare');
+    else stats();
     return;
   }
 
