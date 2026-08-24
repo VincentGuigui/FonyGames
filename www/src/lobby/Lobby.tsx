@@ -29,6 +29,10 @@ import { Duel, type DuelPhase } from '../games/tap-duel/Duel';
  * there is a room to be in (lobby/RoomGate.tsx). Five copies of that logic used to live in
  * five files, identical down to the comment.
  */
+
+/** How long the win/lose colour flash holds before the scoreboard replaces it. */
+const RESULT_FLASH_MS = 500;
+
 export function Lobby(props: { game: GameCard }): JSX.Element {
   return <RoomGate game={props.game}>{(code, card) => <LobbyInner game={card} code={code} />}</RoomGate>;
 }
@@ -58,6 +62,7 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
   const matchOver = useRef(false);
   const roundRef = useRef<number | null>(null);
   const fireTimer = useRef<number | null>(null);
+  const flashTimer = useRef<number | null>(null);
   /** Server time the current duel's rules panel clears. */
   // `fireAt` rides along because the drifting target needs it: the wander runs from
   // startsAt and freezes at fireAt (games/tap-duel/drift.ts).
@@ -109,14 +114,19 @@ function LobbyInner({ game, code }: { game: GameCard; code: string }): JSX.Eleme
 
     client.on('result', (r) => {
       if (fireTimer.current !== null) clearTimeout(fireTimer.current);
+      if (flashTimer.current !== null) clearTimeout(flashTimer.current);
       setResult(r);
       setTally(r.scores);
       matchOver.current = r.matchWinnerId !== null;
-      setPhase('result');
+      // A colour flash first — green for the round's winner, red for everyone
+      // else — so the scoreboard does not simply appear the instant a tap lands.
+      setPhase('flash');
+      flashTimer.current = setTimeout(() => setPhase('result'), RESULT_FLASH_MS) as unknown as number;
     });
 
     return () => {
       if (fireTimer.current !== null) clearTimeout(fireTimer.current);
+      if (flashTimer.current !== null) clearTimeout(flashTimer.current);
     };
   }, [client]);
 

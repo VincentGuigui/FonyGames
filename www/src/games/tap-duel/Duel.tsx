@@ -28,7 +28,7 @@ import { useGameText } from '../../core/i18n/gameText';
  * punishment enough and is self-limiting.
  */
 
-export type DuelPhase = 'idle' | 'armed' | 'fire' | 'submitted' | 'burned' | 'result';
+export type DuelPhase = 'idle' | 'armed' | 'fire' | 'submitted' | 'burned' | 'flash' | 'result';
 
 /**
  * Rank colour: green for the fastest through to red for the slowest.
@@ -222,6 +222,22 @@ export function Duel(props: {
    * through to the *armed* screen — telling a player who has just tapped to get
    * ready.
    */
+  /*
+   * The result flash: half a second of colour, no text, between the result
+   * landing and the scoreboard replacing it — so a tap does not vanish straight
+   * into a scoreboard with no acknowledgement of what it was worth. `Lobby.tsx`
+   * holds `phase` here on a timer before moving on to `result`.
+   */
+  if (phase === 'flash' && result) {
+    const won = result.winnerId === me;
+    return (
+      <div class={`duel ${won ? 'duel--flash-win' : 'duel--flash-late'}`}>
+        {menu}
+        {scores}
+      </div>
+    );
+  }
+
   if (phase === 'result' && !result) {
     return (
       <div class="duel duel--waiting">

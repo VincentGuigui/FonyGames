@@ -473,6 +473,11 @@ a.btn {
   opacity: 1;
 }
 
+/* Grey while armed — the colour is the reward for the signal, not a preview of it. */
+.duel__bullseye--waiting .duel__bullseye-rings {
+  filter: grayscale(1);
+}
+
 .duel__bullseye-hit {
   width: 100%;
   height: 100%;
@@ -519,6 +524,22 @@ a.btn {
 }
 
 .duel--burned {
+  background: #7f1d1d;
+}
+
+/*
+ * The result flash: half a second, colour only, between the result arriving and
+ * the GameOverScreen replacing it — so a tap does not vanish straight into a
+ * scoreboard with no acknowledgement of what it was worth. Whoever took the
+ * round gets the win colour; everyone else, late tap or false start alike,
+ * gets the same red a false start already shows (`.duel--burned`) — losing a
+ * duel is losing a duel, however it happened.
+ */
+.duel--flash-win {
+  background: #14532d;
+}
+
+.duel--flash-late {
   background: #7f1d1d;
 }
 
