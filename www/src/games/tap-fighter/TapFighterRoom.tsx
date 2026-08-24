@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
 import { RoomGate } from '../../lobby/RoomGate';
@@ -9,12 +9,24 @@ import { useT } from '../../core/i18n/strings';
 import { useGameText } from '../../core/i18n/gameText';
 import { useSoloTesting } from '../../core/useSolo';
 import { enoughToStart } from '../../../../shared/players';
-import { FIGHTER_ACTIONS, type FighterAction, type FighterSeat } from '../../../../shared/tapFighter';
+import {
+  FIGHT_COUNTDOWN_STEP_MS,
+  FIGHT_COUNTDOWN_STEPS,
+  FIGHT_VS_FADE_MS,
+  FIGHT_VS_MS,
+  FIGHTER_ACTIONS,
+  REVEAL_LEAD_MS,
+  type FighterAction,
+  type FighterSeat,
+} from '../../../../shared/tapFighter';
 import type { Player, ServerMessage, TapFighterState } from '../../../../shared/protocol';
 import { playOutcomeSound } from '../../core/audio/outcome';
 import { StatusBar } from '../../core/ui/StatusBar';
-import { ACTION_POSE, FIGHTER_COLORS, FIGHTER_POSES, FIGHTER_SPRITE_COLUMNS, FIGHTER_SPRITE_MIRRORED, RHYTHM_POSES } from './game';
+import { ACTION_POSE, FIGHTER_COLORS, FIGHTER_POSES, FIGHTER_SPRITE_COLUMNS, FIGHTER_SPRITE_MIRRORED } from './game';
 import { FightCanvas } from './FightCanvas';
+
+/** How long a tapped move flashes in the big preview before settling back to idle. */
+const POSE_FLASH_MS = 500;
 
 const BLUE: FighterSeat = 'blue';
 const GREEN: FighterSeat = 'green';
@@ -63,16 +75,16 @@ function PlanScreen({ game, state, players, me, onLock }: { game: GameCard; stat
   const [actions, setActions] = useState<FighterAction[]>([]);
   useEffect(() => setActions([]), [state.roundId, seat]);
   const locked = state.ready[seat];
-  const rhythmPose = useRhythmPose();
+  const flashPose = usePoseFlash();
   const opponent: FighterSeat = seat === 'blue' ? 'green' : 'blue';
   const name = players.find((player) => player.id === state.seats[seat])?.name ?? text({ en: 'Fighter', fr: 'Combattant' });
   const actionName = (action: FighterAction) => ({ punch: text({ en: 'Punch', fr: 'Poing' }), kick: text({ en: 'Kick', fr: 'Pied' }), jump: text({ en: 'Jump', fr: 'Saut' }), crouch: text({ en: 'Crouch', fr: 'Baisser' }) })[action];
   return <main class="fighter-plan" style={{ '--fighter-accent': seat === 'blue' ? FIGHTER_COLORS.blue : FIGHTER_COLORS.green } as JSX.CSSProperties}>
     <StatusBar status={text({ en: 'Planning', fr: 'Préparation' })} title={game.title} concept={game.concept} rules={game.rules} />
     <header><h1>{text({ en: `${name}, choose your moves`, fr: `${name}, choisissez vos actions` })}</h1><p>{locked ? text({ en: 'Locked in. Waiting for the other fighter…', fr: 'Séquence validée. En attente de l’autre combattant…' }) : text({ en: 'Build a secret sequence of six actions.', fr: 'Composez une séquence secrète de six actions.' })}</p></header>
-    <FighterSprite seat={seat} pose={rhythmPose} />
-    <ol class="fighter-sequence" aria-label={text({ en: 'Your six actions', fr: 'Vos six actions' })}>{Array.from({ length: 6 }, (_, index) => <li><button type="button" disabled={locked || actions[index] === undefined} aria-label={actions[index] ? actionName(actions[index]) : String(index + 1)} onClick={() => setActions(actions.filter((_, i) => i !== index))}>{actions[index] ? <FighterSprite seat={seat} pose={ACTION_POSE[actions[index]]} small /> : String(index + 1)}</button></li>)}</ol>
-    <div class="fighter-actions">{FIGHTER_ACTIONS.map((action) => <button type="button" disabled={locked || actions.length >= 6} onClick={() => setActions([...actions, action])}><FighterSprite seat={seat} pose={ACTION_POSE[action]} small /><span>{actionName(action)}</span></button>)}</div>
+    <FighterSprite seat={seat} pose={flashPose.pose ?? FIGHTER_POSES.idle1} />
+    <ol class="fighter-sequence" aria-label={text({ en: 'Your six actions', fr: 'Vos six actions' })}>{Array.from({ length: 6 }, (_, index) => <li><button type="button" disabled={locked || actions[index] === undefined} aria-label={actions[index] ? actionName(actions[index]) : String(index + 1)} onClick={() => setActions(actions.filter((_, i) => i !== index))}>{actions[index] ? <FighterSprite seat={seat} pose={ACTION_POSE[actions[index]]} tiny /> : String(index + 1)}</button></li>)}</ol>
+    <div class="fighter-actions">{FIGHTER_ACTIONS.map((action) => <button type="button" disabled={locked || actions.length >= 6} onClick={() => { setActions([...actions, action]); flashPose.show(ACTION_POSE[action]); }}><FighterSprite seat={seat} pose={ACTION_POSE[action]} small /><span>{actionName(action)}</span></button>)}</div>
     <button class="fighter-fight-button" type="button" disabled={locked || actions.length !== 6} onClick={() => onLock(seat, actions)}>{text({ en: 'FIGHT', fr: 'COMBAT' })}</button>
     <p class="fighter-opponent-state">{state.ready[opponent] ? text({ en: 'Opponent ready', fr: 'Adversaire prêt' }) : text({ en: 'Opponent choosing…', fr: 'Adversaire en réflexion…' })}</p>
   </main>;
@@ -80,11 +92,11 @@ function PlanScreen({ game, state, players, me, onLock }: { game: GameCard; stat
 
 function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game: GameCard; state: TapFighterState; players: Player[]; me: string | null; isHost: boolean; onNext: () => void; clock: () => number }): JSX.Element {
   const text = useGameText();
-  const rhythmPose = useRhythmPose();
   const now = useFightClock(state.phase === 'fighting', clock);
   const elapsed = Math.min(now - state.startsAt, Math.max(0, state.endsAt - state.startsAt - 1));
   const beatMs = 2_500;
-  const beatIndex = state.beats.length === 0 ? -1 : Math.min(state.beats.length - 1, Math.max(0, Math.floor(elapsed / beatMs)));
+  // Negative while the reveal (VS, countdown, FIGHT) plays: no beat has landed yet.
+  const beatIndex = elapsed < 0 || state.beats.length === 0 ? -1 : Math.min(state.beats.length - 1, Math.floor(elapsed / beatMs));
   const beat = beatIndex >= 0 ? state.beats[beatIndex] : undefined;
   const withinBeat = elapsed >= 0 ? elapsed % beatMs : 0;
   const contact = elapsed >= 0 && withinBeat >= 1_500;
@@ -96,7 +108,10 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     const action = beat?.[seat === 'blue' ? 'blueAction' : 'greenAction'];
     return action && withinBeat < 1_000 ? ACTION_POSE[action] : FIGHTER_POSES.idle1;
   };
-  const displayPose = (seat: FighterSeat) => pose(seat) === FIGHTER_POSES.idle1 ? rhythmPose : pose(seat);
+  // The reveal: a VS callout, then 3-2-1, then FIGHT — computed straight from `elapsed`
+  // so it can never drift from `REVEAL_LEAD_MS`, the same number the worker used to
+  // decide when the first beat actually lands.
+  const introStep = elapsed < 0 ? introStepAt(elapsed + REVEAL_LEAD_MS) : null;
   const nameOf = (seat: FighterSeat) => players.find((player) => player.id === state.seats[seat])?.name ?? text({ en: seat === 'blue' ? 'Blue' : 'Green', fr: seat === 'blue' ? 'Bleu' : 'Vert' });
   const roundHeadline = state.draw ? text({ en: 'DRAW', fr: 'MATCH NUL' }) : text({ en: `${nameOf(state.roundWinner ?? 'blue')} wins`, fr: `${nameOf(state.roundWinner ?? 'blue')} gagne` });
   useEffect(() => {
@@ -107,9 +122,11 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     <StatusBar status={text({ en: `Round ${state.matchRound}`, fr: `Manche ${state.matchRound}` })} title={game.title} concept={game.concept} rules={game.rules} />
     <div class="fighter-score"><span>{nameOf(BLUE)} {pips(state.roundWins.blue)}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(state.roundWins.green)} {nameOf(GREEN)}</span></div>
     <section class="fighter-stage">
-      <FightCanvas bluePose={displayPose(BLUE)} greenPose={displayPose(GREEN)} blueAttacking={Boolean(beat?.blueAction && withinBeat < 1_750)} greenAttacking={Boolean(beat?.greenAction && withinBeat < 1_750)} beatTime={withinBeat} />
+      <FightCanvas bluePose={pose(BLUE)} greenPose={pose(GREEN)} blueAttacking={Boolean(beat?.blueAction && withinBeat < 1_750)} greenAttacking={Boolean(beat?.greenAction && withinBeat < 1_750)} beatTime={withinBeat} />
       <div class="fighter-side"><HealthBar value={health.blue} seat={BLUE} name={nameOf(BLUE)} /></div>
-      <div class="fighter-versus">{nameOf(BLUE)} {text({ en: 'VS', fr: 'VS' })} {nameOf(GREEN)}</div>
+      {introStep?.kind === 'vs' && <div class="fighter-versus">{nameOf(BLUE)} {text({ en: 'VS', fr: 'VS' })} {nameOf(GREEN)}</div>}
+      {introStep?.kind === 'count' && <div class="fighter-countdown" key={introStep.n}>{introStep.n}</div>}
+      {introStep?.kind === 'fight' && <div class="fighter-go">{text({ en: 'FIGHT!', fr: 'COMBAT !' })}</div>}
       <div class="fighter-side fighter-side--green"><HealthBar value={health.green} seat={GREEN} name={nameOf(GREEN)} /></div>
       {state.phase !== 'fighting' && <div class="fighter-round-overlay"><strong>{roundHeadline}</strong>{isHost ? <button type="button" onClick={onNext}>{text({ en: 'Next round', fr: 'Manche suivante' })}</button> : <p>{text({ en: 'Waiting for the host…', fr: 'En attente de l’hôte…' })}</p>}</div>}
     </section>
@@ -120,19 +137,40 @@ function HealthBar({ value, seat, name }: { value: number; seat: FighterSeat; na
   return <div class="fighter-health"><div role="meter" aria-label={name} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value)}><i class={`is-${seat}`} style={{ width: `${value}%` }} /></div><b>{Math.round(value)}%</b></div>;
 }
 
-function FighterSprite({ seat, pose, small = false }: { seat: FighterSeat; pose: number; small?: boolean }): JSX.Element {
+function FighterSprite({ seat, pose, small = false, tiny = false }: { seat: FighterSeat; pose: number; small?: boolean; tiny?: boolean }): JSX.Element {
   const column = pose % FIGHTER_SPRITE_COLUMNS;
   const poseX = FIGHTER_SPRITE_MIRRORED[seat] ? FIGHTER_SPRITE_COLUMNS - 1 - column : column;
-  return <div class={`fighter-sprite is-${seat} ${small ? 'is-small' : ''} ${pose === FIGHTER_POSES.idle1 && !small ? 'is-rhythm' : ''}`} style={{ '--pose': pose, '--pose-x': poseX, '--pose-y': Math.floor(pose / FIGHTER_SPRITE_COLUMNS) } as JSX.CSSProperties} aria-hidden="true" />;
+  return <div class={`fighter-sprite is-${seat} ${small ? 'is-small' : ''} ${tiny ? 'is-tiny' : ''}`} style={{ '--pose': pose, '--pose-x': poseX, '--pose-y': Math.floor(pose / FIGHTER_SPRITE_COLUMNS) } as JSX.CSSProperties} aria-hidden="true" />;
 }
 
-function useRhythmPose(): number {
-  const [pose, setPose] = useState<number>(RHYTHM_POSES[0]);
-  useEffect(() => {
-    const timer = window.setInterval(() => setPose((current) => current === RHYTHM_POSES[0] ? RHYTHM_POSES[1] : RHYTHM_POSES[0]), 250);
-    return () => window.clearInterval(timer);
-  }, []);
-  return pose;
+/**
+ * The big preview holds a plain idle stance until a move is tapped, then shows that
+ * move's pose for `POSE_FLASH_MS` before settling back — a beat of feedback for the
+ * tap, not a permanent stance change.
+ */
+function usePoseFlash(): { pose: number | null; show: (pose: number) => void } {
+  const [pose, setPose] = useState<number | null>(null);
+  const timer = useRef<number | null>(null);
+  useEffect(() => () => { if (timer.current !== null) window.clearTimeout(timer.current); }, []);
+  const show = (next: number): void => {
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    setPose(next);
+    timer.current = window.setTimeout(() => { setPose(null); timer.current = null; }, POSE_FLASH_MS);
+  };
+  return { pose, show };
+}
+
+type IntroStep = { kind: 'vs' } | { kind: 'count'; n: number } | { kind: 'fight' };
+
+/** Which step of the reveal is showing, `sincePhaseStart` ms after both plans locked in. */
+function introStepAt(sincePhaseStart: number): IntroStep {
+  if (sincePhaseStart < FIGHT_VS_MS + FIGHT_VS_FADE_MS) return { kind: 'vs' };
+  const countdownEnds = FIGHT_VS_MS + FIGHT_VS_FADE_MS + FIGHT_COUNTDOWN_STEP_MS * FIGHT_COUNTDOWN_STEPS;
+  if (sincePhaseStart < countdownEnds) {
+    const stepsElapsed = Math.floor((sincePhaseStart - FIGHT_VS_MS - FIGHT_VS_FADE_MS) / FIGHT_COUNTDOWN_STEP_MS);
+    return { kind: 'count', n: FIGHT_COUNTDOWN_STEPS - stepsElapsed };
+  }
+  return { kind: 'fight' };
 }
 
 function useFightClock(running: boolean, clock: () => number): number {

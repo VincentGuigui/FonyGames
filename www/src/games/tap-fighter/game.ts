@@ -39,8 +39,6 @@ export const FIGHTER_POSES = {
   defeated: 7,
 } as const;
 
-export const RHYTHM_POSES = [FIGHTER_POSES.idle1, FIGHTER_POSES.idle2] as const;
-
 export const ACTION_POSE = {
   punch: FIGHTER_POSES.punch,
   kick: FIGHTER_POSES.kick,

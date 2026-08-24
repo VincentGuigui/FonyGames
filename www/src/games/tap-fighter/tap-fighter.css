@@ -14,3 +14,23 @@
 .fighter-versus { animation: fighter-versus-fade 2.5s ease forwards; }
 @keyframes fighter-versus-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .fighter-versus { animation: none; } }
+
+/* 3, 2, 1, FIGHT! — one element per step, each a fresh pop-in (the step's own React
+   key remounts it), same arcade-callout look as the VS text it follows. */
+.fighter-countdown, .fighter-go {
+  align-self: center;
+  z-index: 3;
+  color: #facc15;
+  font: 900 3rem monospace;
+  text-shadow: 3px 3px #dc2626;
+  animation: fighter-countdown-pop .3s ease;
+}
+@keyframes fighter-countdown-pop { 0% { transform: scale(1.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .fighter-countdown, .fighter-go { animation: none; } }
+
+/* The move recap: six sprites have to fit six-across on a phone, so they get their
+   own, smaller size rather than reusing the picker's `is-small` (also `min-width: 0`
+   on the button — without it a sprite wider than its 1fr column blows the grid out
+   past the screen, the same way a health bar without a fixed width once did). */
+.fighter-sequence button { min-width: 0; }
+.fighter-sprite.is-tiny { width: 2rem; height: 2rem; flex: 0 0 auto; animation: none; }

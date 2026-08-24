@@ -1,8 +1,7 @@
 import type { PlayerId, ServerMessage, TapFighterState } from '../shared/protocol';
-import { resolveFight, validFighterPlan, type FighterAction, type FighterSeat } from '../shared/tapFighter';
+import { REVEAL_LEAD_MS, resolveFight, validFighterPlan, type FighterAction, type FighterSeat } from '../shared/tapFighter';
 
 const PLAN_CAP_MS = 75_000;
-const REVEAL_LEAD_MS = 800;
 /** Six 2.5 s beats; the room client adds the shared 0.5 s board-only result hold. */
 const FIGHT_MS = 15_000;
 const MATCH_TARGET = 3;

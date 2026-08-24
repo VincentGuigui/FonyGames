@@ -2,6 +2,24 @@ export const FIGHTER_ACTIONS = ['punch', 'kick', 'jump', 'crouch'] as const;
 export type FighterAction = (typeof FIGHTER_ACTIONS)[number];
 export type FighterSeat = 'blue' | 'green';
 
+/**
+ * The reveal between both plans locking in and the first beat actually landing: a VS
+ * callout, a 3-2-1 count, then FIGHT. The client renders every step of it from
+ * `startsAt` alone (`elapsed < 0` during the reveal), so the numbers below are the one
+ * place the sequence is timed — the worker's `REVEAL_LEAD_MS` is their sum, which is
+ * what makes the round's first real beat land exactly when the sequence finishes
+ * rather than under it.
+ */
+export const FIGHT_VS_MS = 2_000;
+export const FIGHT_VS_FADE_MS = 500;
+export const FIGHT_COUNTDOWN_STEP_MS = 700;
+export const FIGHT_COUNTDOWN_STEPS = 3;
+export const FIGHT_FLASH_MS = 500;
+
+/** Both plans are in to the first beat landing — long enough for the whole reveal above. */
+export const REVEAL_LEAD_MS =
+  FIGHT_VS_MS + FIGHT_VS_FADE_MS + FIGHT_COUNTDOWN_STEP_MS * FIGHT_COUNTDOWN_STEPS + FIGHT_FLASH_MS;
+
 export type FighterResolution = { blue: boolean; green: boolean };
 
 export function confront(blue: FighterAction, green: FighterAction): FighterResolution {
