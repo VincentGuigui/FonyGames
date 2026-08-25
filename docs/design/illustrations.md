@@ -188,6 +188,19 @@ Tap Fighter's two runtime sprite sheets are authored PNGs: `fighter1.png` and
 `fighter2.png`. Each is a transparent 4×2 grid of 256 px frames; the second sheet
 is already mirrored, so the canvas and CSS use it directly without runtime transforms.
 
+**Tap Fighter's hub card is the one exception to "cards are pure vector."** Every
+other card redraws its sprite's shape as fresh paths (this section's Goat Siege/
+Sling Puck/Spill examples); Tap Fighter's `card.svg` instead embeds base64 crops of
+the actual `fighter1.png`/`fighter2.png` frames, because a hand-drawn approximation
+of a detailed authored pixel-art character reads worse than the real thing at this
+size. Two things make it safe rather than a shortcut: a bare `<image href="./fighter1.png">`
+would 404 once Vite hashes the SVG and the PNG into `dist/assets/` under different
+names and does not rewrite hrefs inside `.svg` files, so the frame has to be a data
+URI; and the ≤ 40 KB budget still applies, met only by cropping each frame to its
+actual content (dropping the sheet's transparent padding) before downscaling — the
+raw 256 px frames are 50–60 KB each, base64 alone would blow the budget several
+times over.
+
 Where a sprite hardcodes a colour that also lives in a `render.ts` — Cat and Mouse's
 cat has eyes painted in the floor's own colour — **say so in both**. Neither file can
 see the other, and nothing will fail if they drift apart; the cat just stops looking
