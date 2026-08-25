@@ -110,6 +110,12 @@ Only `classic` at launch.
   Hunt's radar solves with a bearing triangle. **This game reuses that
   triangle too** — the crosshair is where you're aiming, the triangle at the
   screen edge is which way the saucer currently is.
+- **Muzzle flash**: on every shot this phone actually fires, four neon beams
+  — the game's own accent colour — sweep in from the four corners of the
+  screen toward the crosshair, each stopping 10px short of dead centre
+  rather than covering it. Purely local and purely decorative: the shot was
+  already sent by the time it plays, and it says nothing about whether the
+  shot landed — that is what the health bar is for.
 - **Health bar**: the shared saucer's current/max health, always visible,
   updates the instant anyone's shot lands — this is co-op, so watching it
   drop from someone else's shot is the point.
@@ -218,7 +224,10 @@ known, accepted limitation of this specific game, not a gap to paper over —
 recorded here so it is visible rather than discovered.
 
 What is still true: the health bar and scores are numbers, never a bar
-alone; the saucer's lights blink rather than strobe.
+alone; the saucer's lights blink rather than strobe; the muzzle flash is a
+single 260ms fade, once per own shot, not a repeated flicker, and it does
+not render at all under `prefers-reduced-motion` rather than showing a
+static line with nothing to make it read as a flash.
 
 ## 12. Open questions
 

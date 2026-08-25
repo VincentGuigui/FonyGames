@@ -66,6 +66,9 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
   const [spot, setSpot] = useState<{ x: number; y: number } | null>(null);
   const [bearing, setBearing] = useState<number | null>(null);
   const [hot, setHot] = useState(0);
+  /** Bumped on every shot actually fired — `UfoScreen` keys its laser-flash
+   *  overlay on this so each shot replays the animation from scratch. */
+  const [shotId, setShotId] = useState(0);
 
   const onGame = useCallback((msg: ServerMessage) => {
     setState((prev) => applyUfoHunt(prev, msg));
@@ -236,6 +239,7 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
     if (!aim) return;
     c.send({ t: 'ufo-shoot', d: { roundId: s.roundId, aimAz: aim.azimuth, aimEl: aim.elevation } });
     playLaser();
+    setShotId((id) => id + 1);
   };
 
   if (state && state.phase === 'done') {
@@ -285,6 +289,7 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
         rules={card.rules}
         videoRef={videoElRef}
         onShoot={onShoot}
+        shotId={shotId}
       />
     );
   }

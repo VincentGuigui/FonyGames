@@ -5,6 +5,7 @@ import { UFOHUNT_KIND_COUNT } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { scoreOf, type UfoHuntView } from './game';
+import { cornerBeams, LASER_GAP_PX } from './beam';
 import { useGameText } from '../../core/i18n/gameText';
 import saucerArt from './art/ufo.svg?url&no-inline';
 
@@ -38,6 +39,7 @@ export function UfoScreen({
   rules,
   videoRef,
   onShoot,
+  shotId,
 }: {
   state: UfoHuntView;
   players: Player[];
@@ -58,6 +60,9 @@ export function UfoScreen({
   videoRef: RefObject<HTMLVideoElement>;
   /** One tap, anywhere on the play area. */
   onShoot: () => void;
+  /** Bumped by the caller on every shot actually fired. Keying the laser burst on
+   *  this replays its animation from scratch each time, with no timer to manage. */
+  shotId: number;
 }): JSX.Element {
   const text = useGameText();
   const mine = myId ? scoreOf(state, myId) : 0;
@@ -134,6 +139,10 @@ export function UfoScreen({
         )}
       </div>
 
+      {/* One burst per shot fired (spec §2.3): four neon beams, one from each
+          screen corner, stopping short of the crosshair rather than covering it. */}
+      {shotId > 0 && <LaserBurst key={shotId} />}
+
       <Scoreboard
         rows={players.map((p) => ({
           id: p.id,
@@ -146,6 +155,27 @@ export function UfoScreen({
         best="high"
       />
     </div>
+  );
+}
+
+/**
+ * The muzzle flash: four neon beams converging on the crosshair from the four
+ * corners of the screen, in the game's own accent colour. Purely decorative —
+ * the shot itself was already sent by the time this mounts (`UfoRoom.tsx`'s
+ * `onShoot`) — so a `window`-less render (SSR, or a test harness) simply skips it.
+ */
+function LaserBurst(): JSX.Element | null {
+  if (typeof window === 'undefined') return null;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const beams = cornerBeams(w, h, LASER_GAP_PX);
+
+  return (
+    <svg class="ufohunt__lasers" viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
+      {beams.map((b, i) => (
+        <line key={i} class="ufohunt__laserbeam" x1={b.x1} y1={b.y1} x2={b.x2} y2={b.y2} />
+      ))}
+    </svg>
   );
 }
 

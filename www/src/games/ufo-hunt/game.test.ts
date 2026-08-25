@@ -1,5 +1,6 @@
 import { applyUfoHunt, leaderOf, ranking, scoreOf, type UfoHuntState, type UfoHuntView } from './game';
 import { bearingDeg, offsetDeg, saucerAt, scopeHeat, screenSpot, VIEW_FOV_DEG } from './scope';
+import { cornerBeams, LASER_GAP_PX } from './beam';
 import {
   UFOHUNT_SCOPE_DEG,
   ufoPositionAt,
@@ -129,9 +130,36 @@ function geometry(): void {
     scopeHeat(aim, { azimuth: UFOHUNT_SCOPE_DEG * 5, elevation: 0 }, UFOHUNT_SCOPE_DEG) === 0);
 }
 
+function laserBeams(): void {
+  console.log('\ncornerBeams: four beams, each stopping short of the crosshair');
+
+  const w = 400;
+  const h = 800;
+  const beams = cornerBeams(w, h, LASER_GAP_PX);
+  check('one beam per corner', beams.length === 4);
+
+  const corners = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: 0, y: h }, { x: w, y: h }];
+  for (const [i, corner] of corners.entries()) {
+    const b = beams[i]!;
+    check(`beam ${i} starts at its own corner`, b.x1 === corner.x && b.y1 === corner.y, b);
+    const distToCentre = Math.hypot(w / 2 - b.x2, h / 2 - b.y2);
+    check(`beam ${i} stops LASER_GAP_PX short of centre`,
+      Math.abs(distToCentre - LASER_GAP_PX) < 1e-6, { distToCentre, expected: LASER_GAP_PX });
+    const fullLen = Math.hypot(w / 2 - corner.x, h / 2 - corner.y);
+    const beamLen = Math.hypot(b.x2 - b.x1, b.y2 - b.y1);
+    check(`beam ${i} never reaches the centre`, beamLen < fullLen);
+  }
+
+  // A degenerate viewport (zero area) must not divide by zero into NaN endpoints.
+  const zero = cornerBeams(0, 0, LASER_GAP_PX);
+  check('a zero-sized viewport produces finite beams, not NaN',
+    zero.every((b) => [b.x1, b.y1, b.x2, b.y2].every(Number.isFinite)), zero);
+}
+
 projecting();
 scoring();
 geometry();
+laserBeams();
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);
 console.log(`\nall passed (${checks} checks)`);

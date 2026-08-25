@@ -216,6 +216,45 @@
   100% { transform: scaleY(1); }
 }
 
+/*
+ * The muzzle flash: four neon beams, one from each screen corner, converging on
+ * the crosshair — geometry computed by `UfoScreen.tsx`'s own `cornerBeams`, this
+ * file only draws and animates the line it is handed. `position: fixed` rather
+ * than living inside `.ufohunt__scope`: the corners are the actual screen's, not
+ * that box's own (which does not span the full viewport — the bar and health bar
+ * sit above it).
+ */
+.ufohunt__lasers {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Decoration only — it must never itself catch the tap that fires (spec §2.3). */
+  pointer-events: none;
+}
+
+.ufohunt__laserbeam {
+  stroke: var(--game-accent, var(--color-accent));
+  stroke-width: 3;
+  stroke-linecap: round;
+  filter:
+    drop-shadow(0 0 5px var(--game-accent, var(--color-accent)))
+    drop-shadow(0 0 12px var(--game-accent, var(--color-accent)));
+  animation: ufohunt-laser-fire 260ms ease-out forwards;
+}
+
+@keyframes ufohunt-laser-fire {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ufohunt__saucer {
     animation: none;
@@ -225,6 +264,13 @@
   }
   .ufohunt__health-fill {
     transition: none;
+  }
+  /* A single 260ms flash is not the strobing this rule exists to stop, but the
+     effect depends entirely on the animation to read as a flash rather than a
+     line stuck on screen — simplest is to skip it outright. */
+  .ufohunt__laserbeam {
+    animation: none;
+    opacity: 0;
   }
 }
 
