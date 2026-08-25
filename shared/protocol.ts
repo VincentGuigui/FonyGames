@@ -216,6 +216,14 @@ export type ClientMessage =
    * reasoning Squash Mosquitoes' `squash-tap` already established.
    */
   | { t: 'taptap-tap'; d: { roundId: number; cell: number } }
+  /**
+   * 100 Taps: a finger landed on grid cell `cell`.
+   *
+   * Same shape as `taptap-tap` — the referee is the only thing that knows
+   * whether `cell` is the exact next number in this player's own count
+   * (spec §8), even though the number printed on it is visible to everyone.
+   */
+  | { t: 'taps100-tap'; d: { roundId: number; cell: number } }
   /** Tic-Tac-Tic-Tac-Toe: choose the next unresolved meta board. */
   | { t: 'tttt-select'; d: { roundId: number; metaCell: number } }
   /** Tic-Tac-Tic-Tac-Toe: play a move in the selected small board. */
@@ -440,6 +448,31 @@ export function taptapWindow(order: readonly number[], cleared: readonly number[
   return win;
 }
 
+/**
+ * 100 Taps: the shared, public half of the round.
+ *
+ * Same shape as `TapTapState`, and reused on purpose (docs/specs/games/100-taps.md
+ * §2.1): one shared `order`, dealt once, everyone's own progress a private cleared
+ * count. What differs is what `order` MEANS here — cell `order[k]` carries the
+ * printed number `k + 1` — and that nothing about it needs to stay implicit: every
+ * number is already visible on screen, so there is no "lit window" to compute or
+ * share, only which cells are gone.
+ */
+export type Taps100State = {
+  roundId: number;
+  startsAt: number;
+  /** The safety cap — a defensive backstop for a round nobody finishes. */
+  endsAt: number;
+  /** Cell `order[k]` shows the printed number `k + 1`. Identical for every player. */
+  order: number[];
+  /** Cells not yet cleared, per player — 100 minus their own cleared count. */
+  remaining: Record<PlayerId, number>;
+  /** Server time each player finished, or null while still racing. */
+  finishedAt: Record<PlayerId, number | null>;
+  winner: PlayerId | null;
+  phase: 'running' | 'done';
+};
+
 /** Spill: one projectile, described once and animated locally from then on. */
 export type SpillDrop = {
   dropId: string;
@@ -648,6 +681,8 @@ export type ServerMessage =
   | { t: 'neon'; s: number; d: NeonFallState }
   /** Tap Tap Music: the shared state — order, everyone's remaining count, phase, winner. */
   | { t: 'taptap'; s: number; d: TapTapState }
+  /** 100 Taps: the shared state — the number-to-cell layout, remaining counts, phase, winner. */
+  | { t: 'taps100'; s: number; d: Taps100State }
   | { t: 'tttt'; s: number; d: TttState }
   | { t: 'fighter'; s: number; d: TapFighterState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
@@ -663,6 +698,12 @@ export type ServerMessage =
    * already gone.
    */
   | { t: 'taptap-progress'; s: number; d: { roundId: number; cleared: number[] } }
+  /**
+   * 100 Taps: sent to **one player only** — their own cleared cells, in the
+   * order they actually tapped them (spec §2, §6). Same shape as
+   * `taptap-progress`; a shrink is the "you missed" signal here too.
+   */
+  | { t: 'taps100-progress'; s: number; d: { roundId: number; cleared: number[] } }
   /** Tic-Tac-Tic-Tac-Toe: the authoritative nested-board state. */
   | { t: 'tttt'; s: number; d: TttState }
   /** Pass the Bomb: too many bumps too fast — this player's bumps are muted briefly. */
@@ -1370,6 +1411,7 @@ const CLIENT_TYPES = new Set([
   'neon-steer',
   'neon-shoot',
   'taptap-tap',
+  'taps100-tap',
   'tttt-select',
   'tttt-tap',
   'fighter-lock',
@@ -1708,3 +1750,25 @@ export const TAPTAP_ROUND_CAP_MS = 3 * 60_000;
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const TAPTAP_MIN_PLAYERS = PLAYERS['tap-tap-music'][0];
 export const TAPTAP_MAX_PLAYERS = PLAYERS['tap-tap-music'][1];
+
+/* ------------------------------------------------------------------ */
+/* 100 Taps (docs/specs/games/100-taps.md)                              */
+/* ------------------------------------------------------------------ */
+
+/** The board: a 10×10 grid, a hundred cells, every one of them numbered exactly once a round. */
+export const TAPS100_GRID_SIZE = 10;
+export const TAPS100_TOTAL = TAPS100_GRID_SIZE * TAPS100_GRID_SIZE;
+
+/**
+ * A wrong tap rewinds to the last completed multiple of this, not to zero.
+ * Same value, same reasoning as `TAPTAP_CHECKPOINT` (spec §2.2): it divides
+ * `TAPS100_TOTAL` evenly, so the last checkpoint lands exactly on the 100th cell.
+ */
+export const TAPS100_CHECKPOINT = 10;
+
+/** Defensive backstop — ranked by cells remaining if nobody finishes in time. */
+export const TAPS100_ROUND_CAP_MS = 3 * 60_000;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const TAPS100_MIN_PLAYERS = PLAYERS['hundred-taps'][0];
+export const TAPS100_MAX_PLAYERS = PLAYERS['hundred-taps'][1];

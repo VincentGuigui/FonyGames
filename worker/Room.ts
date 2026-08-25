@@ -72,6 +72,15 @@ import {
   type TapTap,
 } from './tapTapMusic';
 import {
+  nextDeadline as taps100Deadline,
+  onTaps100,
+  startTaps100,
+  tick as taps100Tick,
+  toState as taps100ToState,
+  type Ctx as Taps100Ctx,
+  type Taps100,
+} from './taps100';
+import {
   nextDeadline as ttttDeadline,
   onSelect as onTtttSelect,
   onTap as onTtttTap,
@@ -390,6 +399,11 @@ export class Room extends DurableObject<Env> {
         if (id) await onTapTap(this.#taptapCtx(), id, msg.d.roundId, msg.d.cell);
         return;
       }
+      case 'taps100-tap': {
+        const id = this.#idOf(ws);
+        if (id) await onTaps100(this.#taps100Ctx(), id, msg.d.roundId, msg.d.cell);
+        return;
+      }
       case 'tttt-select': {
         const id = this.#idOf(ws); if (id) await onTtttSelect(this.#ttttCtx(), id, msg.d.roundId, msg.d.metaCell); return;
       }
@@ -564,6 +578,12 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const taps100 = await this.#taps100();
+    if (taps100 && taps100.phase === 'running' && Date.now() >= taps100Deadline(taps100)) {
+      await taps100Tick(this.#taps100Ctx());
+      await this.#rearm();
+      return;
+    }
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over' && Date.now() >= ttttDeadline(tttt)) {
       await ttttTick(this.#ttttCtx()); await this.#rearm(); return;
@@ -674,6 +694,8 @@ export class Room extends DurableObject<Env> {
     if (falling && falling.phase !== 'done') return;
     const tapping = await this.#taptap();
     if (tapping && tapping.phase !== 'done') return;
+    const tapping100 = await this.#taps100();
+    if (tapping100 && tapping100.phase !== 'done') return;
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over') return;
     const fighter = await this.#fighter();
@@ -696,6 +718,7 @@ export class Room extends DurableObject<Env> {
       mode === 'squash' ||
       mode === 'neon' ||
       mode === 'taptap' ||
+      mode === 'taps100' ||
       mode === 'tttt'
       || mode === 'fighter'
     ) {
@@ -714,6 +737,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'sling') started = await startSling(this.#slingCtx(), roundId, ids);
       else if (mode === 'neon') started = await startNeon(this.#neonCtx(), roundId, ids, roles, solo);
       else if (mode === 'taptap') started = await startTapTap(this.#taptapCtx(), roundId, ids, solo);
+      else if (mode === 'taps100') started = await startTaps100(this.#taps100Ctx(), roundId, ids, solo);
       else if (mode === 'tttt') started = await startTttt(this.#ttttCtx(), roundId, ids, symbols, solo);
       else if (mode === 'fighter') started = await startTapFighter(this.#fighterCtx(), roundId, ids, solo);
       // `direct` is the default because it needs no explanation: grab your icon
@@ -787,7 +811,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'tttt', 'fighter', 'roundId', 'scores']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'tttt', 'fighter', 'roundId', 'scores']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -1001,6 +1025,28 @@ export class Room extends DurableObject<Env> {
       },
       load: () => this.#taptap(),
       save: (s) => this.ctx.storage.put('taptap', s),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #taps100(): Promise<Taps100 | null> {
+    return (await this.ctx.storage.get<Taps100>('taps100')) ?? null;
+  }
+
+  /** Everything taps100.ts needs. Same shape as `#taptapCtx` — no window to compute. */
+  #taps100Ctx(): Taps100Ctx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      random: () => Math.random(),
+      broadcast: (msg) => this.#broadcast(msg),
+      sendTo: (playerId, msg) => {
+        for (const ws of this.ctx.getWebSockets()) {
+          if (this.#idOf(ws) === playerId) this.#send(ws, msg);
+        }
+      },
+      load: () => this.#taps100(),
+      save: (s) => this.ctx.storage.put('taps100', s),
       setAlarm: () => this.#rearm(),
     };
   }
@@ -1333,6 +1379,19 @@ export class Room extends DurableObject<Env> {
         });
       }
     }
+    /* 100 Taps resyncs the same way — layout, plus this player's own cleared history. */
+    const taps100 = await this.#taps100();
+    if (taps100 && taps100.phase !== 'done') {
+      this.#send(ws, { t: 'taps100', s: this.#nextSeq(), d: taps100ToState(taps100) });
+      const cleared100 = taps100.cleared[id];
+      if (cleared100 !== undefined) {
+        this.#send(ws, {
+          t: 'taps100-progress',
+          s: this.#nextSeq(),
+          d: { roundId: taps100.roundId, cleared: [...cleared100] },
+        });
+      }
+    }
 
     await this.#broadcastPresence(ws);
   }
@@ -1500,6 +1559,9 @@ export class Room extends DurableObject<Env> {
 
     const taptap = await this.#taptap();
     if (taptap?.phase === 'running') return taptapDeadline(taptap);
+
+    const taps100 = await this.#taps100();
+    if (taps100?.phase === 'running') return taps100Deadline(taps100);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);

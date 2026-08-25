@@ -1,0 +1,159 @@
+/*
+ * 100 Taps. Spec: docs/specs/games/hundred-taps.md §4
+ *
+ * A tapping game, so nothing here may be selected, dragged, or long-pressed into a
+ * context menu, and a double tap must not zoom — same baseline every mashing game
+ * in the catalogue shares. Structure mirrors Tap Tap Music's own stylesheet
+ * closely; the cell states are the one real difference (a computed gradient fill
+ * plus a printed number instead of idle/lit/gone accent states).
+ */
+
+.taps100 {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  color: var(--color-text);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.taps100__bar {
+  flex: 0 0 auto;
+  padding: max(var(--space-2), env(safe-area-inset-top)) max(var(--space-3), env(safe-area-inset-right))
+    var(--space-1) max(var(--space-3), env(safe-area-inset-left));
+}
+
+/* Not a score — nothing is ranked on it while the round runs — so it sits under
+   the status bar rather than in its own score slot. */
+.taps100__clock {
+  margin: 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text-dim);
+}
+
+.taps100__clock strong {
+  font-size: 1.4rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--game-accent, #7c3aed);
+}
+
+/* The timeline (spec §4): a hundred marks, one per position in the shared order. */
+.taps100__timeline {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 20px;
+  padding: 0 max(var(--space-3), env(safe-area-inset-right)) var(--space-1)
+    max(var(--space-3), env(safe-area-inset-left));
+}
+
+.taps100__mark {
+  flex: 1 1 0;
+  min-width: 1px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--game-accent, #7c3aed);
+  opacity: 0.4;
+  transform: scale(1);
+}
+
+/* Every tenth mark is a checkpoint — a little larger, so the line doubles as a
+   map of where a rewind can land. */
+.taps100__mark--major {
+  height: 8px;
+  opacity: 0.55;
+}
+
+.taps100__mark--passed {
+  background: #22c55e;
+  opacity: 1;
+  animation: taps100-mark-pulse 380ms ease-out;
+}
+
+@keyframes taps100-mark-pulse {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.8);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .taps100__mark--passed {
+    animation: none;
+  }
+}
+
+/*
+ * Safe-area padding lives on this wrapper, and ONLY here — not on `.taps100__grid`
+ * itself. Same reasoning as Tap Tap Music's own grid-wrap: `aspect-ratio: 1` locks
+ * the grid to a square, and asymmetric padding directly on a square element
+ * stretches every circle into an ellipse.
+ */
+.taps100__grid-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 max(var(--space-2), env(safe-area-inset-right)) max(var(--space-2), env(safe-area-inset-bottom))
+    max(var(--space-2), env(safe-area-inset-left));
+}
+
+.taps100__grid {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(var(--taps100-grid, 10), 1fr);
+  grid-template-rows: repeat(var(--taps100-grid, 10), 1fr);
+  gap: 3px;
+  width: 100%;
+  max-width: none;
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
+
+/*
+ * One circle. A real button, always mounted, tappable in every state (spec §2,
+ * §7) — tapping a gone cell is exactly as wrong as tapping any other cell that is
+ * not the exact next number, so nothing here is ever `disabled`. Its own printed
+ * number is always visible, live or gone, since nothing about the state is
+ * supposed to hide it (spec §11 — the gradient is decoration, never the signal).
+ */
+.taps100__cell {
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: none;
+  background: var(--cell-color, var(--game-accent, #7c3aed));
+  color: #ffffff;
+  font-weight: 700;
+  font-size: clamp(0.5rem, 2.6vw, 0.85rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 15%);
+  text-shadow: 0 1px 2px rgb(0 0 0 / 35%);
+}
+
+.taps100__cell--gone {
+  opacity: 0.3;
+  filter: saturate(0.25);
+  border: 2px dashed rgb(255 255 255 / 45%);
+}
+
+.taps100__sound {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}

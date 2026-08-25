@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" width="120" height="90">
+  <!--
+    100 Taps — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    A small grid of circles, each coloured along the same pink (top-right) to
+    violet (bottom-left) diagonal the runtime board computes per cell
+    (game.ts's cellColor). Three circles carry a digit, ascending toward the
+    violet corner, to hint at "find them in order, wherever they landed"
+    without needing all hundred drawn. Transparent background: this loads
+    through an img element with no access to the page's CSS, so every colour
+    here is a literal hex.
+  -->
+  <g>
+    <circle cx="12" cy="12" r="6" fill="#BE55DE"/>
+    <circle cx="31.2" cy="12" r="6" fill="#BE55DE"/>
+    <circle cx="50.4" cy="12" r="6" fill="#D35DD9"/>
+    <circle cx="69.6" cy="12" r="6" fill="#E966D4"/>
+    <circle cx="88.8" cy="12" r="6" fill="#E966D4"/>
+    <circle cx="108" cy="12" r="6" fill="#FF6FCF"/>
+
+    <circle cx="12" cy="28.5" r="6" fill="#A84CE3"/>
+    <circle cx="31.2" cy="28.5" r="6" fill="#BE55DE"/>
+    <circle cx="50.4" cy="28.5" r="6" fill="#BE55DE"/>
+    <circle cx="69.6" cy="28.5" r="6" fill="#D35DD9"/>
+    <circle cx="88.8" cy="28.5" r="6" fill="#E966D4"/>
+    <circle cx="108" cy="28.5" r="6" fill="#E966D4"/>
+
+    <circle cx="12" cy="45" r="6" fill="#9243E8"/>
+    <circle cx="31.2" cy="45" r="6" fill="#A84CE3"/>
+    <circle cx="50.4" cy="45" r="6" fill="#BE55DE"/>
+    <circle cx="69.6" cy="45" r="6" fill="#BE55DE"/>
+    <circle cx="88.8" cy="45" r="6" fill="#D35DD9"/>
+    <circle cx="108" cy="45" r="6" fill="#E966D4"/>
+
+    <circle cx="12" cy="61.5" r="6" fill="#9243E8"/>
+    <circle cx="31.2" cy="61.5" r="6" fill="#9243E8"/>
+    <circle cx="50.4" cy="61.5" r="6" fill="#A84CE3"/>
+    <circle cx="69.6" cy="61.5" r="6" fill="#BE55DE"/>
+    <circle cx="88.8" cy="61.5" r="6" fill="#BE55DE"/>
+    <circle cx="108" cy="61.5" r="6" fill="#D35DD9"/>
+
+    <circle cx="12" cy="78" r="6" fill="#7C3AED"/>
+    <circle cx="31.2" cy="78" r="6" fill="#9243E8"/>
+    <circle cx="50.4" cy="78" r="6" fill="#9243E8"/>
+    <circle cx="69.6" cy="78" r="6" fill="#A84CE3"/>
+    <circle cx="88.8" cy="78" r="6" fill="#BE55DE"/>
+    <circle cx="108" cy="78" r="6" fill="#BE55DE"/>
+  </g>
+  <g fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="7.5" font-weight="700" text-anchor="middle">
+    <text x="108" y="14.7">1</text>
+    <text x="69.6" y="47.7">2</text>
+    <text x="12" y="80.7">5</text>
+  </g>
+</svg>

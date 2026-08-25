@@ -40,6 +40,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Neon Fall](games/neon-fall.md) | *Dodge five lanes of neon fire, or shoot down what falls* | orientation + touch | 2 | 🎮 beta — plain `<canvas>`; numbers untested on real phones tilting |
 | [Tap Tap Music](games/tap-tap-music.md) | *Five circles light up at once. A miss only costs the last ten* | touch | 2–8 | 🎮 beta — checkpoint and window size untested on real thumbs |
 | [Tic-Tac-Tic-Tac-Toe](games/tic-tac-tic-tac-toe.md) | *Win the little boards to conquer the big one* | touch | 2 | 📝 draft — awaiting approval |
+| [100 Taps](games/hundred-taps.md) | *Find them in order. Fastest fingers win* | touch | 2–8 | 🎮 beta — checkpoint size and pitch curve untested on real thumbs |
 
 ### Idea notes (not yet specs)
 
@@ -88,6 +89,19 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
   position and any rewind legible at a glance, even with clearing now
   happening out of order. First to clear all 100 wins, no score, just the
   clock. Built and verified end to end in the browser.
+- **100 Taps** — Tap Tap Music's sibling, with the reveal mechanic removed:
+  all 100 numbers are shuffled onto the grid and visible from the start, so
+  a player already knows what's next (their own cleared count plus one) and
+  the task is finding where it landed, rather than watching a moving window
+  of live cells. No music track — each tap plays a note a little higher
+  than the last, from a formula rather than a fixed melody, so a checkpoint
+  rewind naturally drops the pitch back down with it. The same checkpoint-
+  of-ten rewind rule is reused unchanged. Cells are coloured by a computed
+  gradient, pink (top-right) to violet (bottom-left), pure decoration —
+  every cell always shows its own number regardless of state. Built and
+  verified end to end in the browser: shared shuffle, gradient rendering,
+  correct-tap advance, checkpoint rewind, and first-to-100 win all confirmed
+  against a real Worker with two players.
 
 Promote an idea by copying [game-spec-template.md](game-spec-template.md) to
 `games/<slug>.md`, filling it, and updating the row above in a `spec:` commit.
