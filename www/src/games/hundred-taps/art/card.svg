@@ -3,53 +3,55 @@
     100 Taps — hub card illustration.
     Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
 
-    A small grid of circles, each coloured along the same pink (top-right) to
-    violet (bottom-left) diagonal the runtime board computes per cell
-    (game.ts's cellColor). Three circles carry a digit, ascending toward the
-    violet corner, to hint at "find them in order, wherever they landed"
-    without needing all hundred drawn. Transparent background: this loads
-    through an img element with no access to the page's CSS, so every colour
-    here is a literal hex.
+    A small grid of circles, each a hex sample of the same hue-wheel sweep the
+    runtime board computes per cell (game.ts's cellColor), reading order here
+    standing in for "a cell's own printed number" — that is what the real
+    board keys the hue to. Literal hex, not hsl(): illustrations.md §3 — an
+    <img> has no access to the page's CSS, and hardcoded hex is what every
+    other card's art already does. The card's own accent, #7C3AED, is one
+    literal stop in the wheel rather than a colour added on top of it. Three
+    circles carry a digit, ascending with the hue, to hint at "find them in
+    order, wherever they landed" without needing all hundred drawn.
   -->
   <g>
-    <circle cx="12" cy="12" r="6" fill="#BE55DE"/>
-    <circle cx="31.2" cy="12" r="6" fill="#BE55DE"/>
-    <circle cx="50.4" cy="12" r="6" fill="#D35DD9"/>
-    <circle cx="69.6" cy="12" r="6" fill="#E966D4"/>
-    <circle cx="88.8" cy="12" r="6" fill="#E966D4"/>
-    <circle cx="108" cy="12" r="6" fill="#FF6FCF"/>
+    <circle cx="12" cy="12" r="6" fill="#E23636"/>
+    <circle cx="31.2" cy="12" r="6" fill="#E25436"/>
+    <circle cx="50.4" cy="12" r="6" fill="#E27236"/>
+    <circle cx="69.6" cy="12" r="6" fill="#E28F36"/>
+    <circle cx="88.8" cy="12" r="6" fill="#E2AD36"/>
+    <circle cx="108" cy="12" r="6" fill="#E2CB36"/>
 
-    <circle cx="12" cy="28.5" r="6" fill="#A84CE3"/>
-    <circle cx="31.2" cy="28.5" r="6" fill="#BE55DE"/>
-    <circle cx="50.4" cy="28.5" r="6" fill="#BE55DE"/>
-    <circle cx="69.6" cy="28.5" r="6" fill="#D35DD9"/>
-    <circle cx="88.8" cy="28.5" r="6" fill="#E966D4"/>
-    <circle cx="108" cy="28.5" r="6" fill="#E966D4"/>
+    <circle cx="12" cy="28.5" r="6" fill="#DCE236"/>
+    <circle cx="31.2" cy="28.5" r="6" fill="#BFE236"/>
+    <circle cx="50.4" cy="28.5" r="6" fill="#A1E236"/>
+    <circle cx="69.6" cy="28.5" r="6" fill="#83E236"/>
+    <circle cx="88.8" cy="28.5" r="6" fill="#66E236"/>
+    <circle cx="108" cy="28.5" r="6" fill="#48E236"/>
 
-    <circle cx="12" cy="45" r="6" fill="#9243E8"/>
-    <circle cx="31.2" cy="45" r="6" fill="#A84CE3"/>
-    <circle cx="50.4" cy="45" r="6" fill="#BE55DE"/>
-    <circle cx="69.6" cy="45" r="6" fill="#BE55DE"/>
-    <circle cx="88.8" cy="45" r="6" fill="#D35DD9"/>
-    <circle cx="108" cy="45" r="6" fill="#E966D4"/>
+    <circle cx="12" cy="45" r="6" fill="#36E242"/>
+    <circle cx="31.2" cy="45" r="6" fill="#36E260"/>
+    <circle cx="50.4" cy="45" r="6" fill="#36E27D"/>
+    <circle cx="69.6" cy="45" r="6" fill="#36E29B"/>
+    <circle cx="88.8" cy="45" r="6" fill="#36E2B9"/>
+    <circle cx="108" cy="45" r="6" fill="#36E2D6"/>
 
-    <circle cx="12" cy="61.5" r="6" fill="#9243E8"/>
-    <circle cx="31.2" cy="61.5" r="6" fill="#9243E8"/>
-    <circle cx="50.4" cy="61.5" r="6" fill="#A84CE3"/>
-    <circle cx="69.6" cy="61.5" r="6" fill="#BE55DE"/>
-    <circle cx="88.8" cy="61.5" r="6" fill="#BE55DE"/>
-    <circle cx="108" cy="61.5" r="6" fill="#D35DD9"/>
+    <circle cx="12" cy="61.5" r="6" fill="#36D1E2"/>
+    <circle cx="31.2" cy="61.5" r="6" fill="#36B3E2"/>
+    <circle cx="50.4" cy="61.5" r="6" fill="#3695E2"/>
+    <circle cx="69.6" cy="61.5" r="6" fill="#3677E2"/>
+    <circle cx="88.8" cy="61.5" r="6" fill="#365AE2"/>
+    <circle cx="108" cy="61.5" r="6" fill="#363CE2"/>
 
-    <circle cx="12" cy="78" r="6" fill="#7C3AED"/>
-    <circle cx="31.2" cy="78" r="6" fill="#9243E8"/>
-    <circle cx="50.4" cy="78" r="6" fill="#9243E8"/>
-    <circle cx="69.6" cy="78" r="6" fill="#A84CE3"/>
-    <circle cx="88.8" cy="78" r="6" fill="#BE55DE"/>
-    <circle cx="108" cy="78" r="6" fill="#BE55DE"/>
+    <circle cx="12" cy="78" r="6" fill="#4E36E2"/>
+    <circle cx="31.2" cy="78" r="6" fill="#7C3AED"/>
+    <circle cx="50.4" cy="78" r="6" fill="#8936E2"/>
+    <circle cx="69.6" cy="78" r="6" fill="#A736E2"/>
+    <circle cx="88.8" cy="78" r="6" fill="#C536E2"/>
+    <circle cx="108" cy="78" r="6" fill="#E236E2"/>
   </g>
   <g fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="7.5" font-weight="700" text-anchor="middle">
-    <text x="108" y="14.7">1</text>
+    <text x="12" y="14.7">1</text>
     <text x="69.6" y="47.7">2</text>
-    <text x="12" y="80.7">5</text>
+    <text x="108" y="80.7">5</text>
   </g>
 </svg>

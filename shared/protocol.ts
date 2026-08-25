@@ -1804,9 +1804,16 @@ export const TAPTAP_MAX_PLAYERS = PLAYERS['tap-tap-music'][1];
 /* 100 Taps (docs/specs/games/100-taps.md)                              */
 /* ------------------------------------------------------------------ */
 
-/** The board: a 10×10 grid, a hundred cells, every one of them numbered exactly once a round. */
-export const TAPS100_GRID_SIZE = 10;
-export const TAPS100_TOTAL = TAPS100_GRID_SIZE * TAPS100_GRID_SIZE;
+/**
+ * The board: a hundred cells, every one of them numbered exactly once a round.
+ *
+ * Not a square grid — the physical layout (six cells, centred, top and bottom,
+ * eight across for the eleven rows between) is a client-only presentation
+ * concern, `TAPS100_ROW_COUNTS` in `www/src/games/hundred-taps/game.ts`. The
+ * referee only ever deals with a flat `order` of `TAPS100_TOTAL` positions —
+ * it does not know or care what shape they are drawn in.
+ */
+export const TAPS100_TOTAL = 100;
 
 /**
  * A wrong tap rewinds to the last completed multiple of this, not to zero.

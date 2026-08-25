@@ -133,74 +133,50 @@ export function elapsedMs(state: Taps100State, now: number): number {
 }
 
 /* ------------------------------------------------------------------ */
-/* The gradient: pink (top-right) → violet (bottom-left)               */
+/* The board's shape: not a square (spec §4)                           */
 /* ------------------------------------------------------------------ */
 
-/** The two endpoints. Distinct from every other game's accent colour (checked
- *  against every `card.ts` in the catalogue). */
-export const GRADIENT_PINK = '#FF6FCF';
-export const GRADIENT_VIOLET = '#7C3AED';
-
-function hexToRgb(hex: string): [number, number, number] {
-  const n = parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
-function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
-  const rn = r / 255;
-  const gn = g / 255;
-  const bn = b / 255;
-  const max = Math.max(rn, gn, bn);
-  const min = Math.min(rn, gn, bn);
-  const l = (max + min) / 2;
-  const d = max - min;
-  if (d === 0) return [0, 0, l];
-  const s = d / (1 - Math.abs(2 * l - 1));
-  let h: number;
-  if (max === rn) h = ((gn - bn) / d) % 6;
-  else if (max === gn) h = (bn - rn) / d + 2;
-  else h = (rn - gn) / d + 4;
-  h *= 60;
-  if (h < 0) h += 360;
-  return [h, s, l];
-}
-
-function hslToHex(h: number, s: number, l: number): string {
-  const c = (1 - Math.abs(2 * l - 1)) * s;
-  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-  const m = l - c / 2;
-  let rgb: [number, number, number];
-  if (h < 60) rgb = [c, x, 0];
-  else if (h < 120) rgb = [x, c, 0];
-  else if (h < 180) rgb = [0, c, x];
-  else if (h < 240) rgb = [0, x, c];
-  else if (h < 300) rgb = [x, 0, c];
-  else rgb = [c, 0, x];
-  const toHex = (v: number) => Math.round((v + m) * 255).toString(16).padStart(2, '0');
-  return `#${toHex(rgb[0])}${toHex(rgb[1])}${toHex(rgb[2])}`;
-}
-
-/** Shortest-path hue interpolation, so a lerp never swings through unrelated hues. */
-function lerpHue(a: number, b: number, t: number): number {
-  let diff = b - a;
-  if (diff > 180) diff -= 360;
-  else if (diff < -180) diff += 360;
-  return (a + diff * t + 360) % 360;
-}
-
-const PINK_HSL = rgbToHsl(...hexToRgb(GRADIENT_PINK));
-const VIOLET_HSL = rgbToHsl(...hexToRgb(GRADIENT_VIOLET));
+/**
+ * Cells per row, top to bottom — six, centred, top and bottom; eight across
+ * for the eleven rows between. Sums to `TAPS100_TOTAL`; `Taps100Board.tsx`
+ * checks that once, on import, rather than trusting the arithmetic silently.
+ */
+export const TAPS100_ROW_COUNTS: readonly number[] = [6, ...Array<number>(11).fill(8), 6];
 
 /**
- * A cell's fill colour, lerped in HSL along the diagonal from pink (top-right,
- * `t=0`) to violet (bottom-left, `t=1`). Pure and decorative only (spec §11) — a
- * cell's number and gone/live state never depend on it.
+ * Cell index (0-based, into `order`/`numbers()`) each row starts at — the
+ * running sum of every row before it. One entry per `TAPS100_ROW_COUNTS`.
  */
-export function cellColor(row: number, col: number, gridSize: number): string {
-  const span = 2 * (gridSize - 1);
-  const t = span === 0 ? 0 : (row + (gridSize - 1 - col)) / span;
-  const h = lerpHue(PINK_HSL[0], VIOLET_HSL[0], t);
-  const s = PINK_HSL[1] + (VIOLET_HSL[1] - PINK_HSL[1]) * t;
-  const l = PINK_HSL[2] + (VIOLET_HSL[2] - PINK_HSL[2]) * t;
-  return hslToHex(h, s, l);
+export const TAPS100_ROW_STARTS: readonly number[] = (() => {
+  const starts: number[] = [];
+  let sum = 0;
+  for (const count of TAPS100_ROW_COUNTS) {
+    starts.push(sum);
+    sum += count;
+  }
+  return starts;
+})();
+
+/* ------------------------------------------------------------------ */
+/* The gradient: a hue wheel, keyed by a cell's own printed NUMBER      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How far round the hue wheel the gradient travels. Short of a full 360° on
+ * purpose — 1 and `TAPS100_TOTAL` would otherwise both land on red and read
+ * as the same colour, the one pair a player most needs to tell apart (the
+ * very first and very last cell they are looking for).
+ */
+const HUE_SPAN_DEG = 300;
+
+/**
+ * A cell's fill colour, by its own printed number (1..`total`) rather than by
+ * where it happens to sit on the board — a full-saturation sweep around the
+ * hue wheel keyed to the SEQUENCE, not the shuffle. Pure and decorative only
+ * (spec §11): a cell's live/locked/gone state never depends on it, and the
+ * hue says nothing about where on the board a number landed.
+ */
+export function cellColor(number: number, total: number): string {
+  const hue = total > 1 ? ((number - 1) / (total - 1)) * HUE_SPAN_DEG : 0;
+  return `hsl(${hue.toFixed(1)}deg 75% 55%)`;
 }

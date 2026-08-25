@@ -8,12 +8,19 @@
 > The original design deliberately shipped with no window at all (§2.1's
 > reasoning still explains why the board hides nothing); this narrows what a
 > tap can *reach*, not what a player can *see*.
+>
+> **The board's shape and colouring changed, also 2026-08-25.** The board is
+> no longer a 10×10 square: it is six cells (centred), then eight cells
+> repeated over eleven rows, then six cells (centred) — 6 + 88 + 6 = 100,
+> still (§4). And a cell's fill is no longer a function of where it sits on
+> the board; it is a full-saturation hue-wheel sweep keyed to the cell's own
+> printed **number**, 1 through 100 (§4, §11).
 
 | | |
 | --- | --- |
 | **Slug** | `hundred-taps` |
 | **Catchy sentence** | *Find them in order. Fastest fingers win* |
-| **Illustration** | `www/src/games/hundred-taps/art/card.svg` — a small grid of circles coloured in a gradient from pink to violet, three bearing digits |
+| **Illustration** | `www/src/games/hundred-taps/art/card.svg` — a small grid of circles ascending through a colourful hue gradient, three bearing digits |
 | **Players** | 2–8 |
 | **Round length** | 30 s – 2 min for a clean run; a rough one runs longer, capped at 3 min (§7) |
 | **Inputs** | touch |
@@ -22,7 +29,7 @@
 
 ## 1. Pitch
 
-A hundred numbered circles, 1 to 100, shuffled onto a 10×10 grid — **every
+A hundred numbered circles, 1 to 100, shuffled onto the board — **every
 one of them visible from the start.** No lighting, no reveal: the board is
 the puzzle. Tap 1, then 2, then 3, scanning the grid each time to find the
 next one, wherever it landed. Only the next ten due are ever tappable at once (§2.3) — cleared cells and
@@ -118,13 +125,16 @@ Only `classic` at launch.
 ## 4. Screens
 
 - **Lobby**: shared template. No host setting beyond `mode`.
-- **Round**: a timeline strip above a 10×10 grid of numbered circles,
-  portrait, same layout shape as Tap Tap Music's board
-  (`tap-tap-music.md` §4). Each cell's fill is computed from its grid
-  position along the diagonal from pink (top-right corner) to violet
-  (bottom-left corner) — decoration, not a state signal (§11) — and every
-  cell always shows its own printed number. Three visual states, never
-  colour alone: **live** (full opacity, number visible, gradient fill,
+- **Round**: a timeline strip above a board of numbered circles, portrait.
+  Not a square grid: six cells (centred), then eight cells repeated over
+  eleven rows, then six cells (centred) — `TAPS100_ROW_COUNTS` in
+  `www/src/games/hundred-taps/game.ts`, summing to the same 100 cells Tap Tap
+  Music's own board holds (`tap-tap-music.md` §4), just not arranged as its
+  square. Each cell's fill is a full-saturation sweep round the hue wheel,
+  keyed to the cell's own printed **number** rather than to where it landed
+  on the board — decoration, not a state signal (§11) — and every cell
+  always shows its own printed number. Three visual states, never colour
+  alone: **live** (full opacity, number visible, hue fill,
   tappable — one of the next ten due, §2.3), **locked** (dimmer, number
   still legible, a real disabled control — everything outside that window),
   and **gone** (hollow, faded, number still legible, also disabled — spec
@@ -229,9 +239,8 @@ only, for the life of the round.
 
 - Cells never rely on colour alone for their state: live, locked and gone
   differ by opacity and outline style, and — unlike Tap Tap Music — every
-  cell always shows its own printed number regardless of state, so the
-  pink-to-violet gradient is pure decoration a player never has to read to
-  play correctly.
+  cell always shows its own printed number regardless of state, so the hue
+  gradient is pure decoration a player never has to read to play correctly.
 - A locked cell (§2.3) is a real `disabled` button, not a styled-only look —
   it is unreachable by keyboard focus and announced as disabled, the same
   as a gone one; screen-reader and switch-access users get the narrowed
@@ -249,16 +258,18 @@ only, for the life of the round.
 - **Exact pitch curve and instrument voicing** — base frequency, semitone
   step per tap, and the FM/oscillator settings for "hollow crystal" are a
   by-ear tuning pass during implementation, not fixed by this spec.
-- **Exact gradient hex endpoints** — `#FF6FCF` (pink) → `#7C3AED` (violet)
-  are a starting proposal, chosen to be distinct from every other game's
-  accent colour; adjustable by eye once the grid renders.
+- **Exact hue span** — `HUE_SPAN_DEG = 300` (`game.ts`) stops short of a full
+  360° turn on purpose, so number 1 and number 100 don't both land on red;
+  the exact span and the fixed 75%/55% saturation/lightness are a starting
+  proposal, adjustable by eye once the board renders.
 - **Is `TAPS100_WINDOW_SIZE = 10` the right width?** A first version shipped
   with every cell tappable and no window at all (§2.1's original reasoning);
   ten is a starting number for how large a "scan and find" search should be
   bounded to, chosen because it lines up with the checkpoint size (§2.2), not
   measured against real thumbs. Untested whether ten reads as generous or
   stingy at speed.
-- **Should the grid position itself be independent of the gradient's visual
-  reading?** A player scanning for "pink" vs "violet" numbers might develop
-  a spatial shortcut the shuffle doesn't intend to teach — worth watching
-  in a real playtest.
+- **Colour keyed to number, not to board position** — a player scanning for
+  "warm" vs "cool" numbers might develop a shortcut this shuffle doesn't
+  intend to teach, since the same number always gets the same hue round to
+  round while its board position never repeats. Worth watching in a real
+  playtest; nothing in the rules depends on it either way (§11).

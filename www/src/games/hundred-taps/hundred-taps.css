@@ -96,9 +96,8 @@
 
 /*
  * Safe-area padding lives on this wrapper, and ONLY here — not on `.taps100__grid`
- * itself. Same reasoning as Tap Tap Music's own grid-wrap: `aspect-ratio: 1` locks
- * the grid to a square, and asymmetric padding directly on a square element
- * stretches every circle into an ellipse.
+ * itself, same reasoning as before this shape changed: asymmetric padding
+ * directly on the rows would throw off the per-row centring below.
  */
 .taps100__grid-wrap {
   flex: 1 1 auto;
@@ -110,16 +109,26 @@
     max(var(--space-2), env(safe-area-inset-left));
 }
 
+/*
+ * Not a square grid (spec §4): six cells, centred, top and bottom; eight across
+ * for the eleven rows between (`TAPS100_ROW_COUNTS`). A flex column of flex rows
+ * rather than CSS Grid, so a six-cell row can centre itself independently of the
+ * eight-cell rows around it instead of sharing one fixed column count.
+ */
 .taps100__grid {
   flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: repeat(var(--taps100-grid, 10), 1fr);
-  grid-template-rows: repeat(var(--taps100-grid, 10), 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 3px;
   width: 100%;
-  max-width: none;
-  aspect-ratio: 1;
+  max-width: 32rem;
   margin: 0 auto;
+}
+
+.taps100__row {
+  display: flex;
+  justify-content: center;
+  gap: 3px;
 }
 
 /*
@@ -129,8 +138,14 @@
  * signal). Only the next `TAPS100_WINDOW_SIZE` cells due are ever enabled at
  * once (spec §2) — everything else is a real `disabled` button, so a stray tap
  * outside the window does nothing rather than costing a checkpoint.
+ *
+ * Sized off the widest row (eight cells, seven 3px gaps) so every cell is the
+ * same physical size regardless of its own row's count — a six-cell row simply
+ * has more `justify-content: center` space either side, not larger circles.
  */
 .taps100__cell {
+  flex: 0 0 calc((100% - 21px) / 8);
+  aspect-ratio: 1;
   min-width: 0;
   min-height: 0;
   padding: 0;

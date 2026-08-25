@@ -1,5 +1,13 @@
-import { TAPS100_GRID_SIZE, TAPS100_TOTAL, type ServerMessage, type Taps100State } from '../../../../shared/protocol';
-import { Taps100Game, TAPS100_WINDOW_SIZE, cellColor, elapsedMs, formatClock, GRADIENT_PINK, GRADIENT_VIOLET } from './game';
+import { TAPS100_TOTAL, type ServerMessage, type Taps100State } from '../../../../shared/protocol';
+import {
+  Taps100Game,
+  TAPS100_ROW_COUNTS,
+  TAPS100_ROW_STARTS,
+  TAPS100_WINDOW_SIZE,
+  cellColor,
+  elapsedMs,
+  formatClock,
+} from './game';
 
 /**
  * 100 Taps, client side. Spec: docs/specs/games/hundred-taps.md
@@ -163,20 +171,38 @@ function clock(): void {
 }
 
 function gradient(): void {
-  console.log('\ncellColor: pink at top-right, violet at bottom-left, decorative only');
-  const n = TAPS100_GRID_SIZE;
-  check('top-right corner is pure pink', cellColor(0, n - 1, n).toUpperCase() === GRADIENT_PINK);
-  check('bottom-left corner is pure violet', cellColor(n - 1, 0, n).toUpperCase() === GRADIENT_VIOLET);
+  console.log('\ncellColor: a hue wheel keyed by a cell\'s own printed number, decorative only');
+  const n = TAPS100_TOTAL;
+  check('every colour is a well-formed hsl() string', /^hsl\(-?\d+(\.\d+)?deg 75% 55%\)$/.test(cellColor(1, n)));
 
-  const center = cellColor(Math.floor(n / 2), Math.floor(n / 2), n);
-  check('the centre is neither pure endpoint', center.toUpperCase() !== GRADIENT_PINK && center.toUpperCase() !== GRADIENT_VIOLET);
-  check('every colour is a well-formed hex', /^#[0-9a-f]{6}$/i.test(center));
+  check('number 1 sits at the red end of the wheel (hue 0)', cellColor(1, n) === 'hsl(0.0deg 75% 55%)');
+  const last = cellColor(n, n);
+  check('the last number is short of a full turn back to red', last !== cellColor(1, n) && last === 'hsl(300.0deg 75% 55%)');
 
-  check('a cell closer to the pink corner leans lighter/pinker than one closer to violet',
-    cellColor(0, n - 1, n) !== cellColor(n - 1, 0, n));
+  const mid = cellColor(Math.floor(n / 2), n);
+  check('the middle number is a distinct hue from either end', mid !== cellColor(1, n) && mid !== last);
+
+  check('hue climbs with the number, not with board position',
+    cellColor(10, n) !== cellColor(90, n) && cellColor(1, n) !== cellColor(2, n));
+
+  check('a single-cell board does not divide by zero', cellColor(1, 1) === 'hsl(0.0deg 75% 55%)');
 }
 
-for (const t of [numbering, progressing, rewinding, freshRound, stalenessAndPrivacy, windowing, clock, gradient]) t();
+function rowShape(): void {
+  console.log('\nTAPS100_ROW_COUNTS / TAPS100_ROW_STARTS: six, centred, top and bottom; eight across between');
+  check('thirteen rows', TAPS100_ROW_COUNTS.length === 13);
+  check('first row has six cells', TAPS100_ROW_COUNTS[0] === 6);
+  check('last row has six cells', TAPS100_ROW_COUNTS[TAPS100_ROW_COUNTS.length - 1] === 6);
+  check('the eleven rows between have eight cells each', TAPS100_ROW_COUNTS.slice(1, -1).every((c) => c === 8));
+  check('the rows sum to the whole board', TAPS100_ROW_COUNTS.reduce((a, b) => a + b, 0) === TAPS100_TOTAL);
+
+  check('one start per row', TAPS100_ROW_STARTS.length === TAPS100_ROW_COUNTS.length);
+  check('the first row starts at cell 0', TAPS100_ROW_STARTS[0] === 0);
+  check('the second row starts right after the first', TAPS100_ROW_STARTS[1] === 6);
+  check('the last row starts at 94 (6 + 11*8)', TAPS100_ROW_STARTS[TAPS100_ROW_STARTS.length - 1] === 94);
+}
+
+for (const t of [numbering, progressing, rewinding, freshRound, stalenessAndPrivacy, windowing, clock, gradient, rowShape]) t();
 
 if (failures > 0) throw new Error(`${failures} check(s) failed`);
 console.log(`\nall ${checks} passed`);
