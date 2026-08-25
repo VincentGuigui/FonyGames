@@ -90,7 +90,7 @@ function el<K extends keyof HTMLElementTagNameMap>(
 }
 
 type AdminSection = 'games' | 'analytics' | 'diagnostics';
-type DiagnosticTab = 'cloudflare' | 'ipinfo';
+type DiagnosticTab = 'cloudflare' | 'ipinfo' | 'stale';
 
 /** Build links from the current admin root; the deployed path is intentionally secret. */
 function adminRoot(): string {
@@ -123,7 +123,11 @@ function adminNav(active: AdminSection, diagnosticTab: DiagnosticTab = 'ipinfo')
     ipinfo.href = `${rootPath}stats/diagnostic/?tab=ipinfo`;
     ipinfo.setAttribute('role', 'tab');
     ipinfo.setAttribute('aria-selected', String(diagnosticTab === 'ipinfo'));
-    tabs.append(cloudflare, ipinfo);
+    const stale = el('a', `ops__nav-link ops__nav-link--sub${diagnosticTab === 'stale' ? ' is-on' : ''}`, 'Stale files');
+    stale.href = `${rootPath}stats/diagnostic/?tab=stale`;
+    stale.setAttribute('role', 'tab');
+    stale.setAttribute('aria-selected', String(diagnosticTab === 'stale'));
+    tabs.append(cloudflare, ipinfo, stale);
     nav.append(tabs);
   }
   return nav;
@@ -358,16 +362,18 @@ function stats(): void {
 function diagnosticPage(tab: DiagnosticTab = 'ipinfo'): void {
   root!.replaceChildren();
   const head = el('header', 'ops__head');
-  head.append(el('h1', 'ops__title', tab === 'cloudflare' ? 'Cloudflare diagnostic' : 'IPinfo diagnostic'));
+  const title = tab === 'cloudflare' ? 'Cloudflare diagnostic' : tab === 'stale' ? 'Stale build files' : 'IPinfo diagnostic';
+  head.append(el('h1', 'ops__title', title));
   const back = el('a', 'ops__link', '← back to stats');
   back.href = '../';
   head.append(back);
   root!.append(head);
   root!.append(adminNav('diagnostics', tab));
   const panel = el('section', 'ops__log ops__diagnostic');
-  panel.append(el('p', 'ops__note', 'Checking IPinfo diagnostic…'));
+  panel.append(el('p', 'ops__note', 'Checking…'));
   root!.append(panel);
   if (tab === 'cloudflare') void loadUsage(panel);
+  else if (tab === 'stale') void loadStaleAssets(panel);
   else void loadIpInfoDiagnostic(panel);
 }
 
@@ -476,6 +482,51 @@ async function loadIpInfoDiagnostic(panel: HTMLElement): Promise<void> {
   const result = el('pre', 'ops__diagnostic-result');
   result.textContent = JSON.stringify(diagnostic.result, null, 2);
   panel.append(result);
+}
+
+/**
+ * Files sitting in the deployed `assets/` that no current page references — orphaned
+ * by the deploy's `full` sync, which never deletes on the remote (docs/deployment.md
+ * §5). Compared against the current build's own manifest, never by upload date: a
+ * file whose content hasn't changed across builds never gets re-uploaded, so its
+ * remote date can be old while it is still exactly what the live pages use
+ * (api/lib/StaleAssets.php, docs/specs/backoffice.md §8).
+ */
+async function loadStaleAssets(panel: HTMLElement): Promise<void> {
+  const { status, data } = await api('stale-assets');
+  panel.replaceChildren(el('h2', 'ops__subtitle', 'stale build files'));
+
+  if (status !== 200) {
+    panel.append(el('p', 'ops__note ops__warn', `Could not read it (${status}).`));
+    return;
+  }
+
+  const files = (data['files'] as string[] | undefined) ?? [];
+
+  if (files.length === 0) {
+    panel.append(el('p', 'ops__note', 'No stale files — assets/ matches the current build.'));
+    return;
+  }
+
+  panel.append(el('p', 'ops__note', `${files.length} file(s) in assets/ that no current page references.`));
+
+  const del = el('button', 'ops__button', `Delete ${files.length} stale file(s)`);
+  const said = el('p', 'ops__note');
+  del.addEventListener('click', () => {
+    del.disabled = true;
+    said.textContent = 'deleting…';
+    void api('delete-stale-assets', {}).then(({ status: st, data: d }) => {
+      del.disabled = false;
+      if (st === 200) {
+        said.textContent = `Deleted ${d['deletedCount'] as number}.`;
+        void loadStaleAssets(panel);
+        return;
+      }
+      said.className = 'ops__note ops__warn';
+      said.textContent = `Could not delete (${st}).`;
+    });
+  });
+  panel.append(del, said);
 }
 
 /** Sorts entirely in this browser; changing a column never repeats the API query. */
@@ -970,7 +1021,8 @@ async function boot(): Promise<void> {
     const { status } = await api('usage');
     if (status === 401) { signIn(); return; }
     if (status !== 200) { signIn(`The admin API answered ${status}.`); return; }
-    const diagnosticTab = new URLSearchParams(location.search).get('tab') === 'cloudflare' ? 'cloudflare' : 'ipinfo';
+    const tabParam = new URLSearchParams(location.search).get('tab');
+    const diagnosticTab: DiagnosticTab = tabParam === 'cloudflare' ? 'cloudflare' : tabParam === 'stale' ? 'stale' : 'ipinfo';
     diagnosticPage(diagnosticTab);
     return;
   }

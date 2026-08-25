@@ -9,7 +9,7 @@
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
     "dev": "vite",
-    "build": "npm run typecheck && vite build && npm run test:payload && npm run build:ssr && npm run build:beacon && npm run build:api",
+    "build": "npm run typecheck && vite build && npm run test:payload && npm run build:api && npm run build:ssr && npm run build:beacon",
     "build:ssr": "node scripts/ssr.mjs",
     "build:beacon": "node scripts/beacon.mjs",
     "build:api": "node scripts/stage-api.mjs",

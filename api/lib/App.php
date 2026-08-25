@@ -12,6 +12,7 @@ require_once __DIR__ . '/Mailer.php';
 require_once __DIR__ . '/Migrator.php';
 require_once __DIR__ . '/PdoAuthStore.php';
 require_once __DIR__ . '/PdoFlagStore.php';
+require_once __DIR__ . '/StaleAssets.php';
 require_once __DIR__ . '/Usage.php';
 
 /**
@@ -195,6 +196,24 @@ final class App
         }
 
         return new Migrator($this->db(), dirname(__DIR__, 3) . '/db/migrations');
+    }
+
+    /**
+     * Which deployed `assets/` files no current page references, and deleting them.
+     * Spec: docs/specs/backoffice.md §8
+     *
+     * Same path convention as `migrator()`: computed from `api/lib/`'s own location,
+     * not stored in `$this->config`. `assets/` sits beside `api/` in the web root
+     * (two levels up from `api/lib/`); the manifest `scripts/ssr.mjs` writes at build
+     * time sits one level above that, beside `hosts.json` and `db/` (docs/deployment.md
+     * §3.1) — three levels up from `api/lib/`.
+     */
+    public function staleAssets(): StaleAssets
+    {
+        return new StaleAssets(
+            dirname(__DIR__, 2) . '/assets',
+            dirname(__DIR__, 3) . '/assets-manifest.json',
+        );
     }
 
     /** Is activity recording switched on for this host? */

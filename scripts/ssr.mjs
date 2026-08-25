@@ -408,6 +408,33 @@ echo "</urlset>\\n";
 // The static one is superseded; leaving both would serve whichever the host preferred.
 rmSync(join(DIST, 'sitemap.xml'), { force: true });
 
+/*
+ * A trimmed copy of the manifest — just this build's output filenames, none of the
+ * source paths the full manifest carries — so the admin centre's stale-files page can
+ * tell a live asset from an orphaned one without guessing from upload dates (a file
+ * whose content hasn't changed keeps its old remote mtime forever, since the deploy's
+ * `full` sync skips re-uploading anything already present under the same name and
+ * size). Written to dist-private/, which `stage-api.mjs` uploads one level above
+ * `/www` (docs/deployment.md §3.1) — reachable by PHP, never over HTTP.
+ *
+ * `build:api`/stage-api.mjs runs BEFORE `build:ssr` in `npm run build`'s sequence
+ * specifically so its wipe-and-recreate of dist-private/ (there so a file dropped
+ * from `api/` doesn't live on forever — the same staleness problem this manifest
+ * exists to solve for `assets/`) happens first; writing here any earlier would get
+ * silently deleted by that wipe. `mkdirSync` below is defensive, not load-bearing.
+ */
+const currentAssets = new Set();
+for (const entry of Object.values(manifest)) {
+  for (const file of [entry.file, ...(entry.css ?? []), ...(entry.assets ?? [])]) {
+    if (file) currentAssets.add(file.split('/').pop());
+  }
+}
+mkdirSync(join(ROOT, 'dist-private'), { recursive: true });
+writeFileSync(
+  join(ROOT, 'dist-private/assets-manifest.json'),
+  JSON.stringify([...currentAssets].sort()),
+);
+
 // The manifest is a build artefact and must not ship: it lists every source path.
 rmSync(join(DIST, '.vite'), { recursive: true, force: true });
 

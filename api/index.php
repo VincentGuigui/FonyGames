@@ -166,7 +166,7 @@ $action = is_string($_GET['a'] ?? null) ? $_GET['a'] : '';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 // Reads are GET, writes are POST. Stated once, here, so no action has to remember.
-$writes = ['link', 'session', 'flags', 'logout', 'migrate', 'republish'];
+$writes = ['link', 'session', 'flags', 'logout', 'migrate', 'republish', 'delete-stale-assets'];
 if (in_array($action, $writes, true) && $method !== 'POST') {
     reply(405, ['error' => 'POST only']);
 }
@@ -486,6 +486,25 @@ switch ($action) {
 
     case 'ipinfo-diagnostic':
         reply(200, $app->ipInfoDiagnostic());
+
+        // no break
+
+    /*
+     * How many deployed `assets/` files no current page references, and their names.
+     * Read-only, no schema needed — it never touches the database.
+     */
+    case 'stale-assets':
+        reply(200, ['files' => $app->staleAssets()->orphaned()]);
+
+        // no break
+
+    /*
+     * Delete exactly the files `orphaned()` recomputes right now. The request body is
+     * never read for this — see StaleAssets::delete() — so there is no way to name a
+     * file to delete other than by it already being orphaned.
+     */
+    case 'delete-stale-assets':
+        reply(200, $app->staleAssets()->delete());
 
         // no break
 }

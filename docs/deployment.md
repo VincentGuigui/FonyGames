@@ -401,9 +401,17 @@ It also writes two small marker files at the deploy root: `.deploy-revision`
 > so git reports no changes and delta would upload **nothing**, silently. It
 > would only work if we committed build output, which we won't.
 
-Consequence: stale files are never removed from the server automatically. If a
-file is dropped from the build, delete it on the host by hand, or clear `/www`
-and let the next run repopulate it.
+Consequence: stale files are never removed from the server automatically.
+
+For the one place this actually accumulates — `assets/`, where every
+content-hashed file a build has ever emitted still sits — the admin centre's
+Diagnostics → **Stale files** page now shows how many are safe to delete and
+does it on request, compared against the current build's own manifest rather
+than by file age (`specs/backoffice.md` §8 has the full design and why age
+doesn't work). That page is scoped to `assets/` only: a whole leftover route
+directory from a renamed or removed game (an old `dist/tap-tap-revolution/`
+after a rename, say) is still not auto-detected — delete it on the host by
+hand, or clear `/www` and let the next run repopulate it, same as before.
 
 The upside is that `full` is self-healing — if the remote drifts, the next push
 re-uploads everything.

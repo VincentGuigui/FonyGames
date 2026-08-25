@@ -558,3 +558,54 @@ round it is played is that row's reason to exist. The row carries default flags 
 about the game's behaviour changes. It does mean a played game now appears in
 `flags.json` with its defaults, where before the file listed only what the operator
 had touched.
+
+## 8. Stale build files
+
+The deploy's SFTP sync is `full`, which uploads everything and **never deletes** on
+the remote ([../deployment.md](../deployment.md) §5) — the only mode that deletes
+diffs git commits, and `dist/` is generated and gitignored, so it would see nothing
+and delete nothing either. Consequence: every content-hashed file a build has ever
+emitted into `assets/` (JS chunks, CSS, `?url`-imported SVGs) stays on the host
+forever, with no functional harm but unbounded disk growth. Diagnostics → **Stale
+files** shows how many of those are safe to delete, and deletes them on request.
+
+| Action | Auth | Purpose |
+| --- | --- | --- |
+| `GET ?a=stale-assets` | session or `ADMIN_TOKEN` | Filenames in `assets/` the current build does not reference |
+| `POST ?a=delete-stale-assets` | session or `ADMIN_TOKEN` | Delete exactly those files |
+
+### Compared against the manifest, never by age
+
+The first version of this idea was "delete anything older than the last deploy".
+Wrong: `lftp mirror`'s `full` sync skips re-uploading a file already present under
+the same name and size, so a content-hashed file whose content hasn't changed across
+several builds never gets its remote modification date refreshed — while still being
+exactly what the current pages reference. Comparing by age would eventually delete
+live files.
+
+Instead, `api/lib/StaleAssets.php` compares against **what the current build actually
+emitted.** Vite already computes this in `dist/.vite/manifest.json`; `scripts/ssr.mjs`
+reads it for the hashed image URLs it renders and then deletes it before deploy — it
+"lists every source path" and must not ship. This feature adds one thing before that
+deletion: a trimmed copy, just the flat list of output filenames with no source
+paths, written to `dist-private/assets-manifest.json` — the same private root
+`stage-api.mjs` already uploads one level above `/www` for `hosts.json` and `db/`
+([../deployment.md](../deployment.md) §3.1), reachable by PHP and never over HTTP.
+No manifest on a host (not yet redeployed with this feature, or a plain repo
+checkout) means nothing to safely compare against, so `orphaned()` reports zero
+rather than guess — guessing here means deleting files.
+
+### The file list is always recomputed server-side
+
+`delete()` calls `orphaned()` itself, every time; the request body is never read for
+this action. There is no field anywhere that names a file to delete, so there is no
+path-traversal or arbitrary-delete surface to close — the only files `unlink()` ever
+sees are ones `scandir()` just returned from the one directory this class is told
+about.
+
+### Scope: `assets/` only
+
+This never touches a whole leftover route directory from a renamed or removed game
+(an old `dist/tap-tap-revolution/` after a rename, say) — that's a different shape of
+problem, still a manual cleanup the way an old `index.html` is
+([seo.md](seo.md) §4), and out of scope here.
