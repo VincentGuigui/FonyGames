@@ -41,6 +41,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Tap Tap Music](games/tap-tap-music.md) | *Five circles light up at once. A miss only costs the last ten* | touch | 2–8 | 🎮 beta — checkpoint and window size untested on real thumbs |
 | [Tic-Tac-Tic-Tac-Toe](games/tic-tac-tic-tac-toe.md) | *Win the little boards to conquer the big one* | touch | 2 | 📝 draft — awaiting approval |
 | [100 Taps](games/hundred-taps.md) | *Find them in order. Fastest fingers win* | touch | 2–8 | 🎮 beta — checkpoint size and pitch curve untested on real thumbs |
+| [UFO Hunt](games/ufo-hunt.md) | *One saucer, everyone's lasers. Highest score wins* | orientation + camera | 2–10 | 🎮 beta — scope, cooldown and round-length numbers untested on real thumbs |
 
 ### Idea notes (not yet specs)
 
@@ -102,6 +103,25 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
   verified end to end in the browser: shared shuffle, gradient rendering,
   correct-tap advance, checkpoint rewind, and first-to-100 win all confirmed
   against a real Worker with two players.
+- **UFO Hunt** — Ghost Hunt's own aiming and permission model (phone-aim,
+  camera as scenery, per-player calibration, no compass) reused directly,
+  with a new core loop: the invisible ghost becomes a visible, animated
+  saucer, and instead of racing each other to separate targets, everyone
+  fires at the **same shared health bar** — co-op damage, competitive
+  scoring. A fixed center crosshair replaces the dial; tap anywhere to fire,
+  and the closer the saucer was to center at that instant, the more damage
+  (10 dead-center, linear down to 0 at the edge of the scope). A saucer's
+  health starts at 50 and the next one is always 50 tougher. Camera and
+  orientation are both hard-required with no fallback this time — a
+  deliberate departure from Ghost Hunt's own "every denial has a landing
+  place" design, argued in the spec. Built and verified end to end against a
+  real Worker: solo mode, the permission primer granting both sensors from one
+  tap, repeated dead-centre shots dropping the shared health bar and crediting
+  score at the rate the impact formula predicts, and a kill spawning the next,
+  tougher wave. Caught and fixed one real bug this way — the camera's video
+  element was never receiving its stream on the round screen, because the
+  effect attaching it depended only on the permission being granted, which
+  happens in the lobby before that element even exists.
 
 Promote an idea by copying [game-spec-template.md](game-spec-template.md) to
 `games/<slug>.md`, filling it, and updating the row above in a `spec:` commit.

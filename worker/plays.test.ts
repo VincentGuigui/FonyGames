@@ -158,6 +158,25 @@ console.log('\na round somebody won counts');
   not(taptap('done', null), 'tap tap music: not a tie at the cap');
   not(taptap('running', null), 'tap tap music: not mid-round');
 
+  // UFO Hunt ends the same way: phase and winner in the same frame, and a
+  // safety cap that ends in a tied score has no winner.
+  const ufoHunt = (phase: 'running' | 'done', winner: PlayerId | null): ServerMessage => ({
+    t: 'ufo-hunt',
+    s: 1,
+    d: {
+      roundId: 1,
+      startsAt: 0,
+      endsAt: 1,
+      wave: { index: 0, kind: 0, maxHealth: 50, health: 50, homeAz: 0, homeEl: 0, spawnedAt: 0 },
+      scores: {},
+      winner,
+      phase,
+    },
+  });
+  won(ufoHunt('done', A), 'ufo hunt: somebody led on score at the cap');
+  not(ufoHunt('done', null), 'ufo hunt: not a tie at the cap');
+  not(ufoHunt('running', null), 'ufo hunt: not mid-round');
+
   const fighter = (phase: 'planning' | 'fighting' | 'round-over' | 'match-over', matchWinner: 'blue' | 'green' | null): ServerMessage => ({
     t: 'fighter', s: 1, d: { roundId: 1, matchRound: 5, phase, seats: { blue: A, green: B }, ready: { blue: true, green: true }, actions: null, beats: [], roundWins: { blue: 3, green: 1 }, startsAt: 0, endsAt: 1, roundWinner: 'blue', matchWinner, draw: false, solo: false },
   });
@@ -179,6 +198,14 @@ console.log('\nnothing mid-round counts');
     { t: 'hunt', s: 1, d: { roundId: 1, targets: [], index: {}, endsAt: 9, scores: {}, totals: {}, points: {} } },
     { t: 'cm-frame', s: 1, d: { roundId: 1, at: 1, pos: {} } },
     { t: 'squash', s: 1, d: { roundId: 1, startsAt: 0, endsAt: 1, pattern: [], scores: {}, winner: null, phase: 'running' } },
+    {
+      t: 'ufo-hunt', s: 1,
+      d: {
+        roundId: 1, startsAt: 0, endsAt: 1,
+        wave: { index: 0, kind: 0, maxHealth: 50, health: 50, homeAz: 0, homeEl: 0, spawnedAt: 0 },
+        scores: {}, winner: null, phase: 'running',
+      },
+    },
     { t: 'error', d: { code: 'rate-limited', message: 'Slow down.' } },
   ];
 

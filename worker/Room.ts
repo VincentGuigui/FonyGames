@@ -81,6 +81,15 @@ import {
   type Taps100,
 } from './taps100';
 import {
+  nextDeadline as ufoHuntDeadline,
+  onUfoShoot,
+  startUfoHunt,
+  tick as ufoHuntTick,
+  toState as ufoHuntToState,
+  type Ctx as UfoHuntCtx,
+  type UfoHunt,
+} from './ufoHunt';
+import {
   nextDeadline as ttttDeadline,
   onSelect as onTtttSelect,
   onTap as onTtttTap,
@@ -404,6 +413,11 @@ export class Room extends DurableObject<Env> {
         if (id) await onTaps100(this.#taps100Ctx(), id, msg.d.roundId, msg.d.cell);
         return;
       }
+      case 'ufo-shoot': {
+        const id = this.#idOf(ws);
+        if (id) await onUfoShoot(this.#ufoHuntCtx(), id, msg.d.roundId, msg.d.aimAz, msg.d.aimEl);
+        return;
+      }
       case 'tttt-select': {
         const id = this.#idOf(ws); if (id) await onTtttSelect(this.#ttttCtx(), id, msg.d.roundId, msg.d.metaCell); return;
       }
@@ -584,6 +598,12 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const ufoHunt = await this.#ufoHunt();
+    if (ufoHunt && ufoHunt.phase === 'running' && Date.now() >= ufoHuntDeadline(ufoHunt)) {
+      await ufoHuntTick(this.#ufoHuntCtx());
+      await this.#rearm();
+      return;
+    }
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over' && Date.now() >= ttttDeadline(tttt)) {
       await ttttTick(this.#ttttCtx()); await this.#rearm(); return;
@@ -696,6 +716,8 @@ export class Room extends DurableObject<Env> {
     if (tapping && tapping.phase !== 'done') return;
     const tapping100 = await this.#taps100();
     if (tapping100 && tapping100.phase !== 'done') return;
+    const huntingUfo = await this.#ufoHunt();
+    if (huntingUfo && huntingUfo.phase !== 'done') return;
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over') return;
     const fighter = await this.#fighter();
@@ -719,6 +741,7 @@ export class Room extends DurableObject<Env> {
       mode === 'neon' ||
       mode === 'taptap' ||
       mode === 'taps100' ||
+      mode === 'ufo' ||
       mode === 'tttt'
       || mode === 'fighter'
     ) {
@@ -738,6 +761,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'neon') started = await startNeon(this.#neonCtx(), roundId, ids, roles, solo);
       else if (mode === 'taptap') started = await startTapTap(this.#taptapCtx(), roundId, ids, solo);
       else if (mode === 'taps100') started = await startTaps100(this.#taps100Ctx(), roundId, ids, solo);
+      else if (mode === 'ufo') started = await startUfoHunt(this.#ufoHuntCtx(), roundId, ids, solo);
       else if (mode === 'tttt') started = await startTttt(this.#ttttCtx(), roundId, ids, symbols, solo);
       else if (mode === 'fighter') started = await startTapFighter(this.#fighterCtx(), roundId, ids, solo);
       // `direct` is the default because it needs no explanation: grab your icon
@@ -811,7 +835,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'tttt', 'fighter', 'roundId', 'scores']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'tttt', 'fighter', 'roundId', 'scores']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -1047,6 +1071,23 @@ export class Room extends DurableObject<Env> {
       },
       load: () => this.#taps100(),
       save: (s) => this.ctx.storage.put('taps100', s),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #ufoHunt(): Promise<UfoHunt | null> {
+    return (await this.ctx.storage.get<UfoHunt>('ufo-hunt')) ?? null;
+  }
+
+  /** Everything ufoHunt.ts needs. It picks the saucer's home direction and kind, so it needs randomness. */
+  #ufoHuntCtx(): UfoHuntCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      random: () => Math.random(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#ufoHunt(),
+      save: (s) => this.ctx.storage.put('ufo-hunt', s),
       setAlarm: () => this.#rearm(),
     };
   }
@@ -1393,6 +1434,13 @@ export class Room extends DurableObject<Env> {
       }
     }
 
+    /* UFO Hunt: the whole round is public, so a resend is just the shared state — no
+       private half to re-attach, unlike 100 Taps' cleared history just above. */
+    const ufoHunt = await this.#ufoHunt();
+    if (ufoHunt && ufoHunt.phase !== 'done') {
+      this.#send(ws, { t: 'ufo-hunt', s: this.#nextSeq(), d: ufoHuntToState(ufoHunt) });
+    }
+
     await this.#broadcastPresence(ws);
   }
 
@@ -1562,6 +1610,9 @@ export class Room extends DurableObject<Env> {
 
     const taps100 = await this.#taps100();
     if (taps100?.phase === 'running') return taps100Deadline(taps100);
+
+    const ufoHunt = await this.#ufoHunt();
+    if (ufoHunt?.phase === 'running') return ufoHuntDeadline(ufoHunt);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);

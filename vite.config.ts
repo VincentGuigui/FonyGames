@@ -40,6 +40,7 @@ export default defineConfig({
         'tap-tap-music': 'www/tap-tap-music/index.html',
         'tic-tac-tic-tac-toe': 'www/tic-tac-tic-tac-toe/index.html',
         'hundred-taps': 'www/hundred-taps/index.html',
+        'ufo-hunt': 'www/ufo-hunt/index.html',
         // The admin centre. Built to a PLACEHOLDER directory name and renamed to the
         // ADMIN_PATH secret by the deploy — this repository is public, so the real
         // path cannot be committed (docs/deployment.md §3.4).

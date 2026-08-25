@@ -18,6 +18,7 @@ import { CARD as NEON_FALL_CARD } from './neon-fall/card';
 import { CARD as TAP_TAP_MUSIC_CARD } from './tap-tap-music/card';
 import { CARD as TTTT_CARD } from './tic-tac-tic-tac-toe/card';
 import { CARD as HUNDRED_TAPS_CARD } from './hundred-taps/card';
+import { CARD as UFO_HUNT_CARD } from './ufo-hunt/card';
 import type { GameCard } from '../core/types';
 
 /**
@@ -53,6 +54,7 @@ export const GAMES: GameCard[] = [
   TAP_TAP_MUSIC_CARD,
   TTTT_CARD,
   HUNDRED_TAPS_CARD,
+  UFO_HUNT_CARD,
   SCREAM_METER_CARD,
 ];
 

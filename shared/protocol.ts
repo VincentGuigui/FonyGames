@@ -224,6 +224,13 @@ export type ClientMessage =
    * (spec §8), even though the number printed on it is visible to everyone.
    */
   | { t: 'taps100-tap'; d: { roundId: number; cell: number } }
+  /**
+   * UFO Hunt: I fired at my own current aim, in degrees, against wave `roundId`
+   * is currently on. The referee, not this message, decides what the shot was
+   * worth: it recomputes the saucer's true position from the same deterministic
+   * roam the client rendered with and scores the angle between (spec §8).
+   */
+  | { t: 'ufo-shoot'; d: { roundId: number; aimAz: number; aimEl: number } }
   /** Tic-Tac-Tic-Tac-Toe: choose the next unresolved meta board. */
   | { t: 'tttt-select'; d: { roundId: number; metaCell: number } }
   /** Tic-Tac-Tic-Tac-Toe: play a move in the selected small board. */
@@ -473,6 +480,45 @@ export type Taps100State = {
   phase: 'running' | 'done';
 };
 
+/**
+ * UFO Hunt: one saucer, everyone's shared target (docs/specs/games/ufo-hunt.md §2).
+ *
+ * `homeAz`/`homeEl` plus `spawnedAt` are everything a client needs to compute the
+ * saucer's own current position for itself — the same pure roam function the
+ * referee uses to score a shot (spec §2.2, §8), so nothing about "where the
+ * saucer actually is right now" is ever sent frame by frame.
+ */
+export type UfoWave = {
+  /** 0 for the first saucer, incrementing on every kill — also what sets `maxHealth`. */
+  index: number;
+  /** Which of `UFOHUNT_KIND_COUNT` visual variants this saucer is. Decorative only. */
+  kind: number;
+  maxHealth: number;
+  health: number;
+  /** Degrees, relative to each player's OWN calibrated forward — Ghost Hunt's own convention. */
+  homeAz: number;
+  homeEl: number;
+  /** Server time this wave spawned — the clock the roam is measured from. */
+  spawnedAt: number;
+};
+
+/**
+ * UFO Hunt: the shared, public round. Everyone shoots at the SAME saucer, so
+ * unlike `Taps100State`/`TapTapState` above there is no private half to split off —
+ * `scores` is the whole game (spec §6).
+ */
+export type UfoHuntState = {
+  roundId: number;
+  startsAt: number;
+  /** The safety cap — a defensive backstop for a round nobody finishes. */
+  endsAt: number;
+  wave: UfoWave;
+  /** Running sum of each player's own shot damage. The score. */
+  scores: Record<PlayerId, number>;
+  winner: PlayerId | null;
+  phase: 'running' | 'done';
+};
+
 /** Spill: one projectile, described once and animated locally from then on. */
 export type SpillDrop = {
   dropId: string;
@@ -683,6 +729,8 @@ export type ServerMessage =
   | { t: 'taptap'; s: number; d: TapTapState }
   /** 100 Taps: the shared state — the number-to-cell layout, remaining counts, phase, winner. */
   | { t: 'taps100'; s: number; d: Taps100State }
+  /** UFO Hunt: the shared saucer and everyone's score. */
+  | { t: 'ufo-hunt'; s: number; d: UfoHuntState }
   | { t: 'tttt'; s: number; d: TttState }
   | { t: 'fighter'; s: number; d: TapFighterState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
@@ -1412,6 +1460,7 @@ const CLIENT_TYPES = new Set([
   'neon-shoot',
   'taptap-tap',
   'taps100-tap',
+  'ufo-shoot',
   'tttt-select',
   'tttt-tap',
   'fighter-lock',
@@ -1772,3 +1821,132 @@ export const TAPS100_ROUND_CAP_MS = 3 * 60_000;
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const TAPS100_MIN_PLAYERS = PLAYERS['hundred-taps'][0];
 export const TAPS100_MAX_PLAYERS = PLAYERS['hundred-taps'][1];
+
+/* ------------------------------------------------------------------ */
+/* UFO Hunt (docs/specs/games/ufo-hunt.md)                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How wide the scope sees, and how far the saucer roams.
+ *
+ * Unlike Ghost Hunt's radar, `UFOHUNT_SCOPE_DEG` is not just a visibility window —
+ * it is also the denominator of the damage formula (`ufoImpact` below): a shot at
+ * or beyond it scores zero, and everything inside interpolates linearly to a
+ * dead-centre 10 (spec §2.2). `UFOHUNT_ROAM_DEG`/`_MS` are this game's own
+ * constants, independently tunable from Ghost Hunt's `GHOST_ROAM_DEG`/`_MS` even
+ * though the roam shape (`ufoPositionAt` below) is the same idea.
+ */
+export const UFOHUNT_SCOPE_DEG = 20;
+export const UFOHUNT_ROAM_DEG = 18;
+export const UFOHUNT_ROAM_MS = 9_000;
+
+/** A first saucer's health, and how much tougher each one after it is. */
+export const UFOHUNT_BASE_HEALTH = 50;
+export const UFOHUNT_HEALTH_STEP = 50;
+
+/**
+ * How many visual variants a saucer's `kind` is drawn from. Decorative only —
+ * `art/ufo.svg` recolours the same shape by a CSS variable keyed on it.
+ */
+export const UFOHUNT_KIND_COUNT = 4;
+
+/** Nothing at your feet, nothing behind your head — same reasoning as Ghost Hunt's own (spec §9). */
+export const UFOHUNT_ELEVATION_MIN_DEG = -30;
+export const UFOHUNT_ELEVATION_MAX_DEG = 60;
+
+/**
+ * The floor between two shots from the same player — "the blaster recharges"
+ * (spec §2, §8). The one rate-limit standing in for verifying a phone's real
+ * orientation reading, which the referee has no way to do (spec §8).
+ */
+export const UFOHUNT_SHOT_COOLDOWN_MS = 200;
+
+/** Defensive backstop — ranked by score if nobody's cleared enough waves by then. */
+export const UFOHUNT_ROUND_CAP_MS = 120_000;
+
+/** How often the room state goes out while a round runs. */
+export const UFOHUNT_TICK_MS = 500;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const UFOHUNT_MIN_PLAYERS = PLAYERS['ufo-hunt'][0];
+export const UFOHUNT_MAX_PLAYERS = PLAYERS['ufo-hunt'][1];
+
+const UFO_DEG = Math.PI / 180;
+
+/**
+ * Fold an angle in degrees into −180…180.
+ *
+ * A byte-for-byte duplicate of `core/sensors/orientation.ts`'s own `wrapDeg`,
+ * kept here instead of imported: that module reaches for `DeviceOrientationEvent`
+ * and `window` at module scope, so importing even one pure function from it would
+ * pull DOM types into a file that has to typecheck under `tsconfig.worker.json`
+ * (no `dom` lib) as well as the browser's. Same reasoning as `worker/ghostHunt.ts`'s
+ * own `separation()` — six lines of trigonometry is the cheaper duplication.
+ */
+function ufoWrapDeg(deg: number): number {
+  const w = (((deg + 180) % 360) + 360) % 360;
+  return w - 180;
+}
+
+/**
+ * The angle between two directions on the sphere, in degrees. Spherical law of
+ * cosines, same formula and same reasoning as `angleBetween` above.
+ */
+export function ufoAngleBetween(
+  a: { azimuth: number; elevation: number },
+  b: { azimuth: number; elevation: number },
+): number {
+  const e1 = a.elevation * UFO_DEG;
+  const e2 = b.elevation * UFO_DEG;
+  const dAz = ufoWrapDeg(a.azimuth - b.azimuth) * UFO_DEG;
+  const cos = Math.sin(e1) * Math.sin(e2) + Math.cos(e1) * Math.cos(e2) * Math.cos(dAz);
+  return Math.acos(Math.min(1, Math.max(-1, cos))) / UFO_DEG;
+}
+
+/**
+ * Where the saucer is, `ageMs` after this wave spawned.
+ *
+ * The same bounded-wander shape as Ghost Hunt's own `ghostAt` (`radar.ts`) — two
+ * sine terms at incommensurable periods, phased by the wave's own `index` so
+ * consecutive saucers never drift identically, azimuth corrected by
+ * `cos(elevation)` so a degree of azimuth is not a smaller excursion up near the
+ * top of the band. No `speed` term: unlike Ghost Hunt's ghost, nothing here
+ * escalates the roam itself — only the health does (spec §2.1).
+ *
+ * A pure function of its inputs, exported from `shared/` rather than duplicated
+ * into the worker and the client separately, because — unlike Ghost Hunt, which
+ * never scores on aim at all — both sides here MUST agree on exactly where the
+ * saucer is: the client renders it here, and the referee scores a shot against
+ * this same position (spec §8). One shared copy is the only way they can't drift
+ * apart from each other, the same job `taptapWindow` above already does for Tap
+ * Tap Music's shared window.
+ */
+export function ufoPositionAt(
+  homeAz: number,
+  homeEl: number,
+  index: number,
+  ageMs: number,
+): { azimuth: number; elevation: number } {
+  const t = (ageMs / UFOHUNT_ROAM_MS) * 2 * Math.PI;
+  const phase = index * 1.7;
+
+  const u = Math.sin(t + phase);
+  const v = Math.sin(t * 0.61 + phase * 2.3);
+
+  const elevation = homeEl + v * UFOHUNT_ROAM_DEG * 0.6;
+  const shrink = Math.max(0.25, Math.cos(elevation * UFO_DEG));
+
+  return {
+    azimuth: ufoWrapDeg(homeAz + (u * UFOHUNT_ROAM_DEG * 0.8) / shrink),
+    elevation,
+  };
+}
+
+/**
+ * A shot's damage: `10` dead-centre, linear down to `0` at or beyond
+ * `UFOHUNT_SCOPE_DEG` (spec §2.2). The one formula both the brief's "10 to 0",
+ * "every perfect shot removes 10" and "out of scope shot is 0" all describe.
+ */
+export function ufoImpact(offsetDeg: number): number {
+  return Math.min(10, Math.max(0, 10 * (1 - offsetDeg / UFOHUNT_SCOPE_DEG)));
+}

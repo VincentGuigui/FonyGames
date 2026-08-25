@@ -122,6 +122,15 @@ export function endsRound(msg: ServerMessage): boolean {
     case 'fighter':
       return msg.d.phase === 'match-over' && msg.d.matchWinner !== null;
 
+    /*
+     * UFO Hunt ends the same way Grid Attack, Squash Mosquitoes, Neon Fall and Tap
+     * Tap Music do — a phase and a winner in the same frame. The safety cap can
+     * still end in a tie on score (`leader()` in worker/ufoHunt.ts); a tie has no
+     * winner, and that round is not counted.
+     */
+    case 'ufo-hunt':
+      return msg.d.phase === 'done' && msg.d.winner !== null;
+
     default:
       return false;
   }
