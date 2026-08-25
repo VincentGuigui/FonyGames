@@ -123,11 +123,12 @@
 }
 
 /*
- * One circle. A real button, always mounted, tappable in every state (spec §2,
- * §7) — tapping a gone cell is exactly as wrong as tapping any other cell that is
- * not the exact next number, so nothing here is ever `disabled`. Its own printed
- * number is always visible, live or gone, since nothing about the state is
- * supposed to hide it (spec §11 — the gradient is decoration, never the signal).
+ * One circle. A real button, always mounted (spec §2, §7). Its own printed
+ * number is always visible, live, locked or gone, since nothing about the state
+ * is supposed to hide it (spec §11 — the gradient is decoration, never the
+ * signal). Only the next `TAPS100_WINDOW_SIZE` cells due are ever enabled at
+ * once (spec §2) — everything else is a real `disabled` button, so a stray tap
+ * outside the window does nothing rather than costing a checkpoint.
  */
 .taps100__cell {
   min-width: 0;
@@ -138,7 +139,7 @@
   background: var(--cell-color, var(--game-accent, #7c3aed));
   color: #ffffff;
   font-weight: 700;
-  font-size: clamp(0.5rem, 2.6vw, 0.85rem);
+  font-size: clamp(0.62rem, 3.1vw, 1.05rem);
   font-variant-numeric: tabular-nums;
   line-height: 1;
   cursor: pointer;
@@ -150,6 +151,14 @@
   opacity: 0.3;
   filter: saturate(0.25);
   border: 2px dashed rgb(255 255 255 / 45%);
+}
+
+/* Not yet due — outside the enabled window. Dimmer than live, but plainly
+   distinct from --gone: this one is still ahead, not already cleared. */
+.taps100__cell--locked {
+  opacity: 0.5;
+  filter: saturate(0.55);
+  cursor: default;
 }
 
 .taps100__sound {

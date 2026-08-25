@@ -12,11 +12,13 @@ import { SoundToggle as SharedSoundToggle } from '../../core/ui/SoundToggle';
 /**
  * The board: a hundred numbered circles on a 10×10 grid. Spec: docs/specs/games/hundred-taps.md §4
  *
- * Unlike Tap Tap Music's board, nothing here is ever "lit" — every cell shows its
- * own printed number all the time, gone ones included. Tapping a gone cell, or any
- * number other than the exact next one, is exactly as wrong as tapping any other
- * wrong cell (spec §2, §7); the referee is the only thing that knows which one is
- * currently correct, and this board never tries to guess or hint it.
+ * Unlike Tap Tap Music's board, a cell's own printed number is always shown, gone
+ * ones included — nothing here is ever "lit". What IS limited is which cells a
+ * tap can land on: only the next `TAPS100_WINDOW_SIZE` due are enabled at once
+ * (`game.enabledCells()`), everything else is a real disabled button. Inside that
+ * window, the referee is still the only thing that knows which single cell is
+ * currently correct (spec §2, §7) — the other nine are tappable and wrong, same
+ * checkpoint-rewind cost as before.
  */
 export function Taps100Board({
   game,
@@ -49,6 +51,7 @@ export function Taps100Board({
   const state = game.state;
   const numbers = game.numbers();
   const gone = game.goneCells();
+  const enabled = game.enabledCells();
 
   /*
    * The running clock is written straight to the DOM every frame, the same reason
@@ -91,6 +94,7 @@ export function Taps100Board({
         <div class="taps100__grid" role="group" aria-label={text({ en: 'The board', fr: 'Le plateau' })}>
           {Array.from({ length: TAPS100_TOTAL }, (_, cell) => {
             const isGone = gone.has(cell);
+            const isEnabled = enabled.has(cell);
             const number = numbers[cell];
             const row = Math.floor(cell / TAPS100_GRID_SIZE);
             const col = cell % TAPS100_GRID_SIZE;
@@ -98,7 +102,8 @@ export function Taps100Board({
               <button
                 key={cell}
                 type="button"
-                class={`taps100__cell${isGone ? ' taps100__cell--gone' : ''}`}
+                disabled={!isEnabled}
+                class={`taps100__cell${isGone ? ' taps100__cell--gone' : ''}${!isGone && !isEnabled ? ' taps100__cell--locked' : ''}`}
                 style={{
                   gridRow: row + 1,
                   gridColumn: col + 1,
@@ -107,10 +112,13 @@ export function Taps100Board({
                 aria-label={
                   isGone
                     ? text({ en: `${number}: cleared`, fr: `${number} : effacé` })
-                    : text({ en: `${number}`, fr: `${number}` })
+                    : isEnabled
+                      ? text({ en: `${number}`, fr: `${number}` })
+                      : text({ en: `${number}: not due yet`, fr: `${number} : pas encore` })
                 }
                 onPointerDown={(e) => {
                   e.preventDefault();
+                  if (!isEnabled) return;
                   onTap(cell);
                 }}
               >

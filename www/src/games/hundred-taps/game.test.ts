@@ -1,5 +1,5 @@
 import { TAPS100_GRID_SIZE, TAPS100_TOTAL, type ServerMessage, type Taps100State } from '../../../../shared/protocol';
-import { Taps100Game, cellColor, elapsedMs, formatClock, GRADIENT_PINK, GRADIENT_VIOLET } from './game';
+import { Taps100Game, TAPS100_WINDOW_SIZE, cellColor, elapsedMs, formatClock, GRADIENT_PINK, GRADIENT_VIOLET } from './game';
 
 /**
  * 100 Taps, client side. Spec: docs/specs/games/hundred-taps.md
@@ -110,6 +110,44 @@ function stalenessAndPrivacy(): void {
   check('the shared panel sees counts for everyone', remaining[ME] === TAPS100_TOTAL && remaining[OTHER] === TAPS100_TOTAL);
 }
 
+function windowing(): void {
+  console.log('\nenabledCells() is the next TAPS100_WINDOW_SIZE due, in board position');
+  const g = new Taps100Game();
+  g.apply(taps100Msg(state()));
+
+  // IDENTITY_ORDER: order[k] === k, so cell k shows number k+1 and the window
+  // at zero progress is simply cells 0..WINDOW_SIZE-1.
+  const atStart = g.enabledCells();
+  check('the window has exactly WINDOW_SIZE cells', atStart.size === TAPS100_WINDOW_SIZE, atStart.size);
+  check('it starts at cell 0', atStart.has(0) && !atStart.has(TAPS100_WINDOW_SIZE));
+  check('cell WINDOW_SIZE - 1 is the last one in it', atStart.has(TAPS100_WINDOW_SIZE - 1));
+
+  g.apply(progressMsg(1, [0, 1, 2]));
+  const afterThree = g.enabledCells();
+  check('the window slides with progress', !afterThree.has(0) && !afterThree.has(1) && !afterThree.has(2));
+  check('and still holds WINDOW_SIZE cells', afterThree.size === TAPS100_WINDOW_SIZE, afterThree.size);
+  check('cell 3 (the next due) is in it', afterThree.has(3));
+  check('cell 2 (just cleared) is not', !afterThree.has(2));
+
+  console.log('\nnear the end, the window is whatever is left, never past the board');
+  g.apply(progressMsg(1, Array.from({ length: TAPS100_TOTAL - 3 }, (_, i) => i)));
+  const nearEnd = g.enabledCells();
+  check('only the last three cells remain enabled', nearEnd.size === 3, nearEnd.size);
+  check('they are the last three in order', [97, 98, 99].every((c) => nearEnd.has(c)));
+
+  console.log('\na checkpoint rewind carries the window back with it');
+  g.apply(taps100Msg(state()));
+  g.apply(progressMsg(1, Array.from({ length: 13 }, (_, i) => i)));
+  g.apply(progressMsg(1, Array.from({ length: 10 }, (_, i) => i)));
+  const afterRewind = g.enabledCells();
+  check('the window is back to starting at cell 10', afterRewind.has(10) && !afterRewind.has(9));
+  check('cells the rewind un-cleared are enabled again', afterRewind.has(10) && afterRewind.has(11) && afterRewind.has(12));
+
+  console.log('\nno state at all means no window, not a crash');
+  const fresh = new Taps100Game();
+  check('an empty game has no enabled cells', fresh.enabledCells().size === 0);
+}
+
 function clock(): void {
   console.log('\nformatClock: SS.CC');
   check('zero', formatClock(0) === '00.00');
@@ -138,7 +176,7 @@ function gradient(): void {
     cellColor(0, n - 1, n) !== cellColor(n - 1, 0, n));
 }
 
-for (const t of [numbering, progressing, rewinding, freshRound, stalenessAndPrivacy, clock, gradient]) t();
+for (const t of [numbering, progressing, rewinding, freshRound, stalenessAndPrivacy, windowing, clock, gradient]) t();
 
 if (failures > 0) throw new Error(`${failures} check(s) failed`);
 console.log(`\nall ${checks} passed`);

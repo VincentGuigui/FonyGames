@@ -14,10 +14,17 @@ import {
  * landed; it only projects what the referee already decided into what the board
  * needs to draw.
  *
- * Unlike `TapTapGame`, there is no window to compute: every number is printed and
- * visible, so the board only ever needs two things per cell — its number, and
- * whether it's gone.
+ * Every number stays printed and visible regardless of state — unlike Tap Tap
+ * Music, nothing here is ever hidden. What IS windowed is which cells a tap can
+ * land on at all (spec §2): `enabledCells()` is the next `TAPS100_WINDOW_SIZE`
+ * due, in board position. This is a **client-side interaction limit, not a
+ * correctness rule** — the referee still only ever accepts `order[cleared.length]`
+ * (worker/taps100.ts), so disabling the rest just keeps a stray tap from costing
+ * a checkpoint it was never going to land anyway.
  */
+
+/** How many upcoming cells are tappable at once, ahead of a player's own progress. */
+export const TAPS100_WINDOW_SIZE = 10;
 
 export class Taps100Game {
   #state: Taps100State | null = null;
@@ -81,6 +88,19 @@ export class Taps100Game {
   /** Every cell I have already cleared — hollow, on my own board. */
   goneCells(): Set<number> {
     return new Set(this.#cleared);
+  }
+
+  /**
+   * The cells a tap may currently land on — the next `TAPS100_WINDOW_SIZE` due,
+   * in board position. `#cleared` is always exactly `order[0..progress)` (a
+   * correct tap is the only thing that ever grows it, and a miss only ever
+   * truncates it back to a checkpoint — worker/taps100.ts), so the window is a
+   * plain slice starting at my own progress, not a search.
+   */
+  enabledCells(): Set<number> {
+    const order = this.#state?.order;
+    if (!order) return new Set();
+    return new Set(order.slice(this.progress, this.progress + TAPS100_WINDOW_SIZE));
   }
 
   /** My own cleared cells, in the exact order I tapped them — what the timeline

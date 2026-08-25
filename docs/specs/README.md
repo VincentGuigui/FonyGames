@@ -40,7 +40,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Neon Fall](games/neon-fall.md) | *Dodge five lanes of neon fire, or shoot down what falls* | orientation + touch | 2 | 🎮 beta — plain `<canvas>`; numbers untested on real phones tilting |
 | [Tap Tap Music](games/tap-tap-music.md) | *Five circles light up at once. A miss only costs the last ten* | touch | 2–8 | 🎮 beta — checkpoint and window size untested on real thumbs |
 | [Tic-Tac-Tic-Tac-Toe](games/tic-tac-tic-tac-toe.md) | *Win the little boards to conquer the big one* | touch | 2 | 📝 draft — awaiting approval |
-| [100 Taps](games/hundred-taps.md) | *Find them in order. Fastest fingers win* | touch | 2–8 | 🎮 beta — checkpoint size and pitch curve untested on real thumbs |
+| [100 Taps](games/hundred-taps.md) | *Find them in order. Fastest fingers win* | touch | 2–8 | 🎮 beta — checkpoint size, window size and pitch curve untested on real thumbs |
 | [UFO Hunt](games/ufo-hunt.md) | *One saucer, everyone's lasers. Highest score wins* | orientation + camera | 2–10 | 🎮 beta — scope, cooldown and round-length numbers untested on real thumbs |
 
 ### Idea notes (not yet specs)
@@ -94,15 +94,20 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
   all 100 numbers are shuffled onto the grid and visible from the start, so
   a player already knows what's next (their own cleared count plus one) and
   the task is finding where it landed, rather than watching a moving window
-  of live cells. No music track — each tap plays a note a little higher
+  of live cells. A later pass added a window back in a different form
+  (games/hundred-taps.md's own 2026-08-25 note): every number is still
+  always visible, but only the next ten due are ever tappable at once,
+  everything else a real disabled button — bounding the search without
+  hiding anything. No music track — each tap plays a note a little higher
   than the last, from a formula rather than a fixed melody, so a checkpoint
   rewind naturally drops the pitch back down with it. The same checkpoint-
   of-ten rewind rule is reused unchanged. Cells are coloured by a computed
   gradient, pink (top-right) to violet (bottom-left), pure decoration —
   every cell always shows its own number regardless of state. Built and
   verified end to end in the browser: shared shuffle, gradient rendering,
-  correct-tap advance, checkpoint rewind, and first-to-100 win all confirmed
-  against a real Worker with two players.
+  correct-tap advance, the tappable window sliding with progress and with a
+  rewind, checkpoint rewind, and first-to-100 win all confirmed against a
+  real Worker with two players.
 - **UFO Hunt** — Ghost Hunt's own aiming and permission model (phone-aim,
   camera as scenery, per-player calibration, no compass) reused directly,
   with a new core loop: the invisible ghost becomes a visible, animated
