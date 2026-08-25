@@ -154,7 +154,7 @@
   background: var(--cell-color, var(--game-accent, #7c3aed));
   color: #ffffff;
   font-weight: 700;
-  font-size: clamp(0.62rem, 3.1vw, 1.05rem);
+  font-size: clamp(1.24rem, 6.2vw, 2.1rem);
   font-variant-numeric: tabular-nums;
   line-height: 1;
   cursor: pointer;
@@ -168,11 +168,13 @@
   border: 2px dashed rgb(255 255 255 / 45%);
 }
 
-/* Not yet due — outside the enabled window. Dimmer than live, but plainly
-   distinct from --gone: this one is still ahead, not already cleared. */
+/* Not yet due — outside the enabled window. Noticeably dimmer than live, so
+   the eye finds the live ten at a glance, but plainly distinct from --gone
+   (a dashed hollow) rather than sharing its look: this one is still ahead,
+   not already cleared. */
 .taps100__cell--locked {
-  opacity: 0.5;
-  filter: saturate(0.55);
+  opacity: 0.32;
+  filter: saturate(0.4) brightness(0.7);
   cursor: default;
 }
 
