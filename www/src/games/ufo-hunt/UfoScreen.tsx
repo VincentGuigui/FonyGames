@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { JSX, RefObject } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
 import { UFOHUNT_KIND_COUNT } from '../../../../shared/protocol';
@@ -70,6 +70,10 @@ export function UfoScreen({
   const wave = state.wave;
   const healthPct = wave.maxHealth > 0 ? Math.max(0, Math.min(1, wave.health / wave.maxHealth)) : 0;
   const kind = ((wave.kind % UFOHUNT_KIND_COUNT) + UFOHUNT_KIND_COUNT) % UFOHUNT_KIND_COUNT;
+  /** Where the reticle actually sits — not the window's own centre (spec §2.3):
+   *  the bar and health bar above push `.ufohunt__scope` down from true centre,
+   *  so `LaserBurst` measures this rather than assuming `innerWidth/2, innerHeight/2`. */
+  const scopeRef = useRef<HTMLDivElement>(null);
 
   return (
     <div
@@ -113,7 +117,7 @@ export function UfoScreen({
         <div class="ufohunt__health-fill" style={{ width: `${(healthPct * 100).toFixed(1)}%` }} />
       </div>
 
-      <div class="ufohunt__scope" aria-hidden="true">
+      <div class="ufohunt__scope" ref={scopeRef} aria-hidden="true">
         <svg class="ufohunt__reticle" viewBox="-50 -50 100 100">
           <circle class="ufohunt__reticle-ring" cx="0" cy="0" r="28" />
           <path class="ufohunt__reticle-cross" d="M0,-44 L0,-30 M0,30 L0,44 M-44,0 L-30,0 M30,0 L44,0" />
@@ -141,7 +145,7 @@ export function UfoScreen({
 
       {/* One burst per shot fired (spec §2.3): four neon beams, one from each
           screen corner, stopping short of the crosshair rather than covering it. */}
-      {shotId > 0 && <LaserBurst key={shotId} />}
+      {shotId > 0 && <LaserBurst key={shotId} scopeRef={scopeRef} />}
 
       <Scoreboard
         rows={players.map((p) => ({
@@ -163,15 +167,34 @@ export function UfoScreen({
  * corners of the screen, in the game's own accent colour. Purely decorative —
  * the shot itself was already sent by the time this mounts (`UfoRoom.tsx`'s
  * `onShoot`) — so a `window`-less render (SSR, or a test harness) simply skips it.
+ *
+ * The target is `scopeRef`'s own centre, measured with `getBoundingClientRect`
+ * in a layout effect — not `innerWidth/2, innerHeight/2`. The reticle sits
+ * centred inside `.ufohunt__scope`, but that box is not the window's own
+ * centre: the status bar and health bar above it push it down. Measuring
+ * after commit (rather than guessing in the render body) is also why this is
+ * a layout effect: `scopeRef.current` needs the sibling's DOM node, which
+ * only exists once React/Preact has actually committed it.
  */
-function LaserBurst(): JSX.Element | null {
-  if (typeof window === 'undefined') return null;
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  const beams = cornerBeams(w, h, LASER_GAP_PX);
+function LaserBurst({ scopeRef }: { scopeRef: RefObject<HTMLDivElement> }): JSX.Element | null {
+  const [box, setBox] = useState<{ w: number; h: number; x: number; y: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return;
+    const rect = scopeRef.current?.getBoundingClientRect();
+    setBox({
+      w: window.innerWidth,
+      h: window.innerHeight,
+      x: rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
+      y: rect ? rect.top + rect.height / 2 : window.innerHeight / 2,
+    });
+  }, [scopeRef]);
+
+  if (!box) return null;
+  const beams = cornerBeams(box.w, box.h, box.x, box.y, LASER_GAP_PX);
 
   return (
-    <svg class="ufohunt__lasers" viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
+    <svg class="ufohunt__lasers" viewBox={`0 0 ${box.w} ${box.h}`} aria-hidden="true">
       {beams.map((b, i) => (
         <line key={i} class="ufohunt__laserbeam" x1={b.x1} y1={b.y1} x2={b.x2} y2={b.y2} />
       ))}

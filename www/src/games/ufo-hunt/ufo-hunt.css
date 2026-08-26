@@ -233,14 +233,26 @@
   pointer-events: none;
 }
 
+/*
+ * A short dash travelling along the beam's own length toward the target, not a
+ * static line — `stroke-dasharray`'s 20-on/80-off pattern (100 total) sliding via
+ * `stroke-dashoffset` reads as a bolt of light in motion rather than a line that
+ * merely appears. `ufohunt-laser-fire` (opacity) still governs the whole beam's
+ * own entrance/exit; `ufohunt-laser-travel` runs underneath it for as long as the
+ * beam is visible.
+ */
 .ufohunt__laserbeam {
+  fill: none;
   stroke: var(--game-accent, var(--color-accent));
   stroke-width: 3;
   stroke-linecap: round;
+  stroke-dasharray: 20 80;
   filter:
     drop-shadow(0 0 5px var(--game-accent, var(--color-accent)))
     drop-shadow(0 0 12px var(--game-accent, var(--color-accent)));
-  animation: ufohunt-laser-fire 260ms ease-out forwards;
+  animation:
+    ufohunt-laser-fire 260ms ease-out forwards,
+    ufohunt-laser-travel 260ms linear infinite;
 }
 
 @keyframes ufohunt-laser-fire {
@@ -252,6 +264,15 @@
   }
   100% {
     opacity: 0;
+  }
+}
+
+/* `x1,y1` is the corner (the beam's start) and `x2,y2` is near the crosshair (its
+   end) — a negative dashoffset moves the dash pattern from start toward end, so
+   this travels corner-to-target, never the other way. */
+@keyframes ufohunt-laser-travel {
+  to {
+    stroke-dashoffset: -100;
   }
 }
 

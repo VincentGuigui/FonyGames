@@ -131,11 +131,11 @@ function geometry(): void {
 }
 
 function laserBeams(): void {
-  console.log('\ncornerBeams: four beams, each stopping short of the crosshair');
+  console.log('\ncornerBeams: four beams, each stopping short of the given target');
 
   const w = 400;
   const h = 800;
-  const beams = cornerBeams(w, h, LASER_GAP_PX);
+  const beams = cornerBeams(w, h, w / 2, h / 2, LASER_GAP_PX);
   check('one beam per corner', beams.length === 4);
 
   const corners = [{ x: 0, y: 0 }, { x: w, y: 0 }, { x: 0, y: h }, { x: w, y: h }];
@@ -150,8 +150,21 @@ function laserBeams(): void {
     check(`beam ${i} never reaches the centre`, beamLen < fullLen);
   }
 
+  // The whole point of taking a target rather than computing width/2, height/2
+  // in here: an off-centre reticle (the real case — the bar above it pushes it
+  // down) must be aimed at exactly, not at the window's own geometric centre.
+  const tx = 120;
+  const ty = 550;
+  const offCentre = cornerBeams(w, h, tx, ty, LASER_GAP_PX);
+  for (const [i] of corners.entries()) {
+    const b = offCentre[i]!;
+    const distToTarget = Math.hypot(tx - b.x2, ty - b.y2);
+    check(`off-centre beam ${i} stops LASER_GAP_PX short of the given target, not the window centre`,
+      Math.abs(distToTarget - LASER_GAP_PX) < 1e-6, { distToTarget, expected: LASER_GAP_PX });
+  }
+
   // A degenerate viewport (zero area) must not divide by zero into NaN endpoints.
-  const zero = cornerBeams(0, 0, LASER_GAP_PX);
+  const zero = cornerBeams(0, 0, 0, 0, LASER_GAP_PX);
   check('a zero-sized viewport produces finite beams, not NaN',
     zero.every((b) => [b.x1, b.y1, b.x2, b.y2].every(Number.isFinite)), zero);
 }

@@ -113,9 +113,17 @@ Only `classic` at launch.
 - **Muzzle flash**: on every shot this phone actually fires, four neon beams
   — the game's own accent colour — sweep in from the four corners of the
   screen toward the crosshair, each stopping 10px short of dead centre
-  rather than covering it. Purely local and purely decorative: the shot was
-  already sent by the time it plays, and it says nothing about whether the
-  shot landed — that is what the health bar is for.
+  rather than covering it. The target is the reticle's own measured
+  on-screen position (`UfoScreen.tsx`'s `LaserBurst`, via
+  `getBoundingClientRect` on `.ufohunt__scope`), not the window's own
+  centre — the status bar and health bar above push the reticle down from
+  true centre, so aiming at `innerHeight / 2` would visibly miss it. Each
+  beam is a short dash travelling along its own length from the corner
+  toward the target (a `stroke-dasharray`/`stroke-dashoffset` animation),
+  reading as a bolt of light in motion rather than a line that merely
+  appears. Purely local and purely decorative: the shot was already sent by
+  the time it plays, and it says nothing about whether the shot landed —
+  that is what the health bar is for.
 - **Health bar**: the shared saucer's current/max health, always visible,
   updates the instant anyone's shot lands — this is co-op, so watching it
   drop from someone else's shot is the point.
