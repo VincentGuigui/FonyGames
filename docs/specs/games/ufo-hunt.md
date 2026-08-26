@@ -101,7 +101,10 @@ Only `classic` at launch.
 
 - **Lobby**: shared template. No host setting beyond `mode`.
 - **Round**: the live camera feed, full bleed — your own sky. A crosshair
-  sits fixed at the exact center of the screen, always. The saucer is drawn
+  (`art/crosshair.svg`, raw-imported and inlined rather than loaded through
+  an `img` — it needs live CSS, the room's own accent and the ring's own
+  `--hot` glow, which an `img`-loaded SVG cannot see) sits fixed at the
+  exact center of the screen, always. The saucer is drawn
   at its own on-screen offset from your current aim (an SVG element,
   `art/ufo.svg`, tinted per its `kind`, animated with a bob and a
   blinking-lights cycle) whenever it is within the wider viewing angle the

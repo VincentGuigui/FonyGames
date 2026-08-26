@@ -8,6 +8,7 @@ import { scoreOf, type UfoHuntView } from './game';
 import { cornerBeams, LASER_GAP_PX } from './beam';
 import { useGameText } from '../../core/i18n/gameText';
 import saucerArt from './art/ufo.svg?url&no-inline';
+import crosshairArt from './art/crosshair.svg?raw';
 
 /**
  * The hunt, on one phone. Spec: docs/specs/games/ufo-hunt.md §4
@@ -118,10 +119,10 @@ export function UfoScreen({
       </div>
 
       <div class="ufohunt__scope" ref={scopeRef} aria-hidden="true">
-        <svg class="ufohunt__reticle" viewBox="-50 -50 100 100">
-          <circle class="ufohunt__reticle-ring" cx="0" cy="0" r="28" />
-          <path class="ufohunt__reticle-cross" d="M0,-44 L0,-30 M0,30 L0,44 M-44,0 L-30,0 M30,0 L44,0" />
-        </svg>
+        {/* art/crosshair.svg, raw-imported and inlined rather than loaded through an
+            img element — this shape needs live CSS (--hot, --game-accent), which an
+            img-loaded SVG cannot see (illustrations.md §3). */}
+        <div class="ufohunt__reticle" dangerouslySetInnerHTML={{ __html: crosshairArt }} />
 
         {/* Which way to turn — only shown while the saucer is not on screen at all,
             the same "off the dial" case Ghost Hunt's own rim arrow answers. */}

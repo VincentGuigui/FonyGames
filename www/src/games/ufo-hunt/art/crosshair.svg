@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-50 -50 100 100">
+  <!--
+    UFO Hunt — the fixed crosshair. Spec: docs/specs/games/ufo-hunt.md §4
+
+    Imported with Vite's `?raw` (a core feature, no plugin) and injected as
+    markup, not loaded through an img element like art/ufo.svg: unlike that
+    sprite, this one needs live CSS — `ufohunt__reticle-ring` glows and
+    thickens with `--hot` as the saucer nears centre, and both shapes take
+    the room's own `--game-accent`. An img-loaded SVG cannot see any of that
+    (illustrations.md §3); raw-importing and inlining it keeps this file a
+    real, standalone, git-diffable art asset while the classes below still
+    reach ufo-hunt.css exactly as if they were written inline.
+  -->
+  <circle class="ufohunt__reticle-ring" cx="0" cy="0" r="28" />
+  <path class="ufohunt__reticle-cross" d="M0,-44 L0,-30 M0,30 L0,44 M-44,0 L-30,0 M30,0 L44,0" />
+</svg>

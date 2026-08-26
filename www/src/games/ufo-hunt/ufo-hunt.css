@@ -125,6 +125,17 @@
   overflow: visible;
 }
 
+/* `art/crosshair.svg`, raw-imported and injected as markup (`UfoScreen.tsx`) —
+   its own root svg carries no size, so it fills this wrapper here instead.
+   `overflow: visible`, not the SVG default of hidden, or the ring's own glow
+   (a drop-shadow filter, §below) would clip at its viewBox edge. */
+.ufohunt__reticle svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
 .ufohunt__reticle-ring {
   fill: none;
   stroke: var(--game-accent, var(--color-accent));
