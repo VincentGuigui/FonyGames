@@ -38,7 +38,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Grid Attack](games/grid-attack.md) | *Break their grid before they break yours* | touch | 2 | 🎮 beta — the **only landscape board**; two-second fuse untested by two people in a room |
 | [Squash Mosquitoes](games/squash-mosquitoes.md) | *Squash all 66 before anyone else does* | touch | 2–8 | 🚧 building |
 | [Neon Fall](games/neon-fall.md) | *Dodge five lanes of neon fire, or shoot down what falls* | orientation + touch | 2 | 🎮 beta — plain `<canvas>`; numbers untested on real phones tilting |
-| [Tap Tap Music](games/tap-tap-music.md) | *Five circles light up at once. A miss only costs the last ten* | touch | 2–8 | 🎮 beta — checkpoint and window size untested on real thumbs |
+| [Tap Tap Music](games/tap-tap-music.md) | *Switch off every lamp as fast as you can* | touch | 2–8 | 🎮 beta — checkpoint and window size untested on real thumbs |
 | [Tic-Tac-Tic-Tac-Toe](games/tic-tac-tic-tac-toe.md) | *Win the little boards to conquer the big one* | touch | 2 | 📝 draft — awaiting approval |
 | [100 Taps](games/hundred-taps.md) | *Find them in order. Fastest fingers win* | touch | 2–8 | 🎮 beta — checkpoint size, window size and pitch curve untested on real thumbs |
 | [UFO Hunt](games/ufo-hunt.md) | *One saucer, everyone's lasers. Highest score wins* | orientation + camera | 2–10 | 🎮 beta — scope, cooldown and round-length numbers untested on real thumbs |

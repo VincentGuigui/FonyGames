@@ -183,5 +183,7 @@ function note(isHost: boolean, connected: number, solo: boolean, text: GameText)
     return text({ en: `Tap Tap Music is ${TAPTAP_MIN_PLAYERS}–${TAPTAP_MAX_PLAYERS} players.`, fr: `Tap Tap Music se joue de ${TAPTAP_MIN_PLAYERS} à ${TAPTAP_MAX_PLAYERS} joueurs.` });
   }
   if (!isHost) return text({ en: 'The host starts the board.', fr: "L’hôte démarre le plateau." });
-  return text({ en: `Everyone gets the same ${TAPTAP_TOTAL} cells, in the same order. First to clear them wins.`, fr: `Tout le monde reçoit les mêmes ${TAPTAP_TOTAL} cases, dans le même ordre. Le premier à tout effacer gagne.` });
+  // The host is ready to start and the "How to play" panel already covers the
+  // mechanic (card.ts's concept + rules) — nothing left worth a second note.
+  return '';
 }

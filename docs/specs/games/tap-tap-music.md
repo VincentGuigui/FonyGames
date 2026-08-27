@@ -5,7 +5,7 @@
 | | |
 | --- | --- |
 | **Slug** | `tap-tap-music` |
-| **Catchy sentence** | *Five circles light up at once. A miss only costs the last ten* |
+| **Catchy sentence** | *Switch off every lamp as fast as you can* |
 | **Illustration** | `www/src/games/tap-tap-music/art/card.svg` — a 10×10 grid of small circles, most hollow, five glowing orange across the grid |
 | **Players** | 2–8 |
 | **Round length** | 30 s – 2 min for a clean run; a rough one runs longer, capped at 3 min (§7) |

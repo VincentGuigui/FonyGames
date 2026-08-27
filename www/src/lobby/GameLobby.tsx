@@ -75,6 +75,7 @@ export function GameLobby({
   onStart: () => void;
   /** Sensor games hold readiness until this phone has answered their primer. */
   readyBlocked?: boolean;
+  /** An empty string renders nothing — not an empty paragraph. */
   note: string;
   playerTag?: (id: PlayerId) => string | null;
   aside?: ComponentChildren;
@@ -242,7 +243,7 @@ export function GameLobby({
             {t.lobby.waitingReady}
           </p>
         )}
-        <p class="lobby__note">{note}</p>
+        {note && <p class="lobby__note">{note}</p>}
         {room.isHost && <div class="lobby__switch-game"><GameSwitcher room={room} code={code} game={card.slug} /></div>}
       </footer>
     </div>

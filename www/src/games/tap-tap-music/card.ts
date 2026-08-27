@@ -16,24 +16,24 @@ import art from './art/card.svg?url&no-inline';
 export const CARD: GameCard = {
   slug: 'tap-tap-music',
   title: 'Tap Tap Music',
-  pitch: 'Five circles light up at once. A miss only costs the last ten',
-  concept: 'A hundred circles, one shared order. Tap any of the five lit ones, in any order.',
+  pitch: 'Switch off every lamp as fast as you can',
+  concept: 'A hundred lamps to switch off — no time to lose.',
   rules: [
-    'Five circles are lit — tap any of them, in any order.',
+    'Tap a lamp to switch it off.',
     'Tap anything else and you fall back to your last checkpoint of ten.',
-    'No score — just a clock. First to clear all 100 wins.',
+    'First to switch off all 100 lamps wins.',
   ],
   art: {
     src: art,
     alt: 'A 10×10 grid of small circles, most hollow, five glowing orange across the grid',
   },
   fr: {
-    pitch: 'Cinq cercles s’allument à la fois. Une erreur ne coûte que les dix derniers',
-    concept: 'Cent cercles, un seul ordre partagé. Touchez l’un des cinq allumés, dans l’ordre de votre choix.',
+    pitch: 'Éteignez toutes les lampes le plus vite possible',
+    concept: 'Cent lampes à éteindre sans perdre de temps.',
     rules: [
-      'Cinq cercles sont allumés — touchez-en un, dans l’ordre de votre choix.',
+      'Toucher une lampe pour l’éteindre.',
       'Touchez autre chose et vous retombez à votre dernier palier de dix.',
-      'Pas de score — juste un chrono. Premier à effacer les 100 gagne.',
+      'Le premier à éteindre les 100 lampes gagne.',
     ],
     art: { alt: 'Une grille de 10×10 petits cercles, la plupart creux, cinq allumés en orange dans la grille' },
   },
