@@ -92,7 +92,7 @@ function AbductRoomInner({ game: card, code }: { game: GameCard; code: string })
         me={myId}
         winner={leaderOf(state, order)}
         onAgain={again}
-        againLabel={text({ en: 'Round up again', fr: 'Rassembler à nouveau' })}
+        againLabel={text({ en: 'Play again', fr: 'Rejouer' })}
         canAct={room.isHost && enough}
       />
     );
@@ -109,7 +109,7 @@ function AbductRoomInner({ game: card, code }: { game: GameCard; code: string })
       onShare={share}
       onToggleQr={toggleQr}
       canStart={room.isHost && enough}
-      startLabel={state ? text({ en: 'Round up again', fr: 'Rassembler à nouveau' }) : text({ en: 'Start the match', fr: 'Démarrer la partie' })}
+      startLabel={state ? text({ en: 'Play again', fr: 'Rejouer' }) : text({ en: 'Start the match', fr: 'Démarrer la partie' })}
       onStart={again}
       note={note(room.isHost, room.connected, solo, text)}
     />
