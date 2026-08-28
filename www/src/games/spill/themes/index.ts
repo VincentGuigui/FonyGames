@@ -40,8 +40,13 @@ export type Theme = {
   drawProjectile(d: ThemeDraw, x: number, y: number, size: number): void;
   /** Impact at a point. `age` is 0..1 through the splash animation. */
   drawSplash(d: ThemeDraw, x: number, y: number, age: number): void;
-  /** So no UI string hardcodes "drops". */
-  words: Record<'en' | 'fr', { unit: string; unitPlural: string; verb: string }>;
+  /**
+   * So no UI string hardcodes "drops" — and `left` (not the shared `common.left`)
+   * because French agreement depends on the noun's gender, which only the theme
+   * knows: "gouttes restantes" is feminine, and a masculine theme's own "left"
+   * would need its own "restants".
+   */
+  words: Record<'en' | 'fr', { unit: string; unitPlural: string; verb: string; left: string }>;
 };
 
 import { waterTheme } from './water';

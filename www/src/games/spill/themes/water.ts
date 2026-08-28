@@ -146,7 +146,7 @@ export const waterTheme: Theme = {
   },
 
   words: {
-    en: { unit: 'drop', unitPlural: 'drops', verb: 'Fling' },
-    fr: { unit: 'goutte', unitPlural: 'gouttes', verb: 'Lancer' },
+    en: { unit: 'drop', unitPlural: 'drops', verb: 'Fling', left: 'left' },
+    fr: { unit: 'goutte', unitPlural: 'gouttes', verb: 'Lancer', left: 'restantes' },
   },
 };

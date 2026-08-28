@@ -101,7 +101,7 @@ function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }):
           id,
           avatar: byId.get(id)?.avatar ?? '🙂',
           name: byId.get(id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' }),
-          value: id === game.winner ? text({ en: 'Win', fr: 'Gagné' }) : text({ en: 'Lose', fr: 'Perdu' }),
+          value: id === game.winner ? t.common.win : t.common.lose,
         }))}
         me={myId}
         winner={game.winner}

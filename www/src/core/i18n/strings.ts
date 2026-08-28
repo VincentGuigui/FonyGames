@@ -44,6 +44,13 @@ export interface UiStrings {
     /** Score units repeated identically across several games' StatusBar/Scoreboard. */
     lives: string;
     left: string;
+    /**
+     * A row's whole score, for a game with no number worth showing — just who won
+     * and who didn't (Sling Puck's 1v1, Spill's winner). `GameOver.tsx` drops the
+     * unit for a word value, so a row using these shows nothing else beside it.
+     */
+    win: string;
+    lose: string;
   };
   roomChoice: {
     tablistLabel: string;
@@ -141,6 +148,8 @@ const en: UiStrings = {
     roundOver: 'Round over',
     lives: 'lives',
     left: 'left',
+    win: 'Win',
+    lose: 'Lose',
   },
   roomChoice: {
     tablistLabel: 'Start or join a room',
@@ -242,6 +251,8 @@ const fr: UiStrings = {
     roundOver: 'Manche terminée',
     lives: 'vies',
     left: 'restants',
+    win: 'Gagné',
+    lose: 'Perdu',
   },
   roomChoice: {
     tablistLabel: 'Créer ou rejoindre une salle',

@@ -123,8 +123,11 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
           id,
           avatar: byId.get(id)?.avatar ?? '🙂',
           name: byId.get(id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' }),
-          value: state.levels[id] ?? 0,
-          unit: `${themeWords.unitPlural} ${t.common.left}`,
+          // The winner emptied their phone — a number next to "Win" would only
+          // repeat what the crown at the top of the panel already says.
+          ...(id === game.winner
+            ? { value: t.common.win }
+            : { value: state.levels[id] ?? 0, unit: `${themeWords.unitPlural} ${themeWords.left}` }),
           ...(state.out.includes(id) ? { out: true } : {}),
         }))}
         me={myId}
