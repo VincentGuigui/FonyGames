@@ -1,4 +1,4 @@
-export const FIGHTER_ACTIONS = ['punch', 'kick', 'jump', 'crouch'] as const;
+export const FIGHTER_ACTIONS = ['punch', 'kick', 'crouch', 'jump'] as const;
 export type FighterAction = (typeof FIGHTER_ACTIONS)[number];
 export type FighterSeat = 'blue' | 'green';
 
