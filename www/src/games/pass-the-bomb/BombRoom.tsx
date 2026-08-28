@@ -219,7 +219,7 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
             avatar: p.avatar,
             name: p.name,
             value: n,
-            unit: n === 1 ? text({ en: 'round', fr: 'manche' }) : text({ en: 'rounds', fr: 'manches' }),
+            unit: n > 1 ? text({ en: 'round', fr: 'manche' }) : text({ en: 'rounds', fr: 'manches' }),
             ...(eliminates && !state.alive.includes(p.id) ? { out: true } : {}),
           };
         })}
