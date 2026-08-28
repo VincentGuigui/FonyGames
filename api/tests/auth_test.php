@@ -278,8 +278,8 @@ check(
 
 group('the admin session survives browser restarts within its TTL');
 $index = (string) file_get_contents(__DIR__ . '/../index.php');
-check('the cookie has a persistent TTL', str_contains($index, "'lifetime' => (int) (SESSION_TTL_MS / 1000)"));
-check('PHP session garbage collection matches the TTL', str_contains($index, "ini_set('session.gc_maxlifetime', (string) (SESSION_TTL_MS / 1000))"));
+check('the cookie has a persistent TTL', str_contains($index, "'lifetime' => (int) (SESSION_TTL_S)"));
+check('PHP session garbage collection matches the TTL', str_contains($index, "ini_set('session.gc_maxlifetime', (string) (SESSION_TTL_S))"));
 check(
     'and the instance method delegates to it rather than comparing again',
     (bool) preg_match(
