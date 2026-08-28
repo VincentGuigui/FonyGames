@@ -3,13 +3,14 @@ import type { JSX } from 'preact';
 import {
   ABDUCT_BARN_COUNT,
   ABDUCT_CHOOSE_MS,
+  ABDUCT_REVEAL_MS,
   type Player,
   type PlayerId,
 } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard, type ScoreRow } from '../../core/ui/Scoreboard';
 import { useGameText } from '../../core/i18n/gameText';
-import { ufoDriftAt, type AbductView } from './game';
+import { cowGridSlot, ufoDriftAt, ufoHoverAt, type AbductView } from './game';
 import cowArt from './art/cow.svg?url&no-inline';
 import barnArt from './art/barn.svg?url&no-inline';
 import ufoArt from './art/ufo.svg?url&no-inline';
@@ -19,11 +20,36 @@ import ufoArt from './art/ufo.svg?url&no-inline';
  * Spec: docs/specs/games/abduct-moo.md §4
  *
  * Positions are plain percentages of the stage, written to inline `style` from a
- * `requestAnimationFrame` loop for the UFO's drift (Squash Mosquitoes' own reasoning:
- * a value that changes every frame does not belong in Preact state) and from render
- * for everything driven by the server frame itself, which only ever changes on a
- * broadcast.
+ * `requestAnimationFrame` loop for anything that moves every frame (Squash
+ * Mosquitoes' own reasoning: that does not belong in Preact state) and from
+ * render for everything driven by the server frame itself, which only ever
+ * changes on a broadcast.
+ *
+ * The reveal is its own three-beat choreography, all of it presentational —
+ * the referee has already decided everything by the time this plays (spec §8):
+ *
+ * 1. `ABDUCT_HOVER_MS` — the UFO keeps sweeping the whole row, faster than it
+ *    did while choosing was open.
+ * 2. `ABDUCT_TRANSIT_MS` — it flies in to the target barn and drops to a low
+ *    altitude just above it.
+ * 3. Whatever is left of `ABDUCT_REVEAL_MS` — parked there, cone open, pulling
+ *    up every cow caught underneath it one at a time.
  */
+const ABDUCT_HOVER_MS = 2_000;
+const ABDUCT_TRANSIT_MS = 700;
+const ABDUCT_LOCK_AT_MS = ABDUCT_HOVER_MS + ABDUCT_TRANSIT_MS;
+
+/** How far apart, in stage-height percent, each abducted cow's rise starts. */
+const ABDUCT_STAGGER_MS = 350;
+
+/** Sky altitude while drifting/hovering, versus parked low over the target. */
+const UFO_TOP_HOVER = 8;
+const UFO_TOP_LOCKED = 34;
+
+function easeOutCubic(t: number): number {
+  return 1 - (1 - t) ** 3;
+}
+
 export function AbductScreen({
   state,
   players,
@@ -42,18 +68,24 @@ export function AbductScreen({
   concept: string;
   rules: string[];
   accent: string;
-  /** The shared clock — the UFO's drift is drawn from it, never from `Date.now()`. */
+  /** The shared clock — every animation here is drawn from it, never from `Date.now()`. */
   now: () => number;
   onPick: (barn: number) => void;
 }): JSX.Element {
   const text = useGameText();
   const [secondsLeft, setSecondsLeft] = useState(0);
-  const [ufoX, setUfoX] = useState(50);
-  const ufoRef = useRef<HTMLImageElement>(null);
+  /* Only the locked/not-locked edge is Preact state — it is the one thing that
+   * needs a re-render (mounting the cone). `x`/`top` change every frame, which
+   * is exactly the case Squash Mosquitoes' own wander avoids state for: they
+   * are written straight to the element's style from the raf loop instead. */
+  const [locked, setLocked] = useState(false);
+  const ufoRef = useRef<HTMLDivElement>(null);
+  const coneRef = useRef<HTMLDivElement>(null);
 
   const choosing = state.phase === 'choosing';
   const revealing = state.phase === 'revealing';
   const choosingStartedAt = state.deadlineAt - ABDUCT_CHOOSE_MS;
+  const revealStartedAt = state.deadlineAt - ABDUCT_REVEAL_MS;
 
   /* The countdown redraws on a plain interval — it only needs whole seconds. */
   useEffect(() => {
@@ -64,24 +96,56 @@ export function AbductScreen({
   }, [state.deadlineAt, now]);
 
   /*
-   * The UFO's own decorative drift, choosing only — during revealing it is locked over
-   * the target barn instead (spec §4). A raf loop, not Preact state, for the same
-   * reason Squash Mosquitoes' own wander is: it changes every frame.
+   * The UFO's own path, choosing and revealing both — a raf loop, not Preact
+   * state for every frame, same reason Squash Mosquitoes' own wander is one:
+   * hovering/drifting changes every frame, and only the three beats above
+   * (spec §4) care about anything coarser.
    */
   useEffect(() => {
-    if (!choosing) return;
+    if (!choosing && !revealing) return;
     let raf = 0;
+    let wasLocked = false;
+
+    const place = (x: number, top: number): void => {
+      const el = ufoRef.current;
+      if (!el) return;
+      el.style.left = `${x}%`;
+      el.style.top = `${top}%`;
+      const cone = coneRef.current;
+      if (cone) cone.style.left = `${x}%`;
+    };
+
     const frame = (): void => {
       raf = requestAnimationFrame(frame);
-      const x = barnX(ufoDriftAt(now() - choosingStartedAt) * (ABDUCT_BARN_COUNT - 1));
-      setUfoX(x);
-      if (ufoRef.current) ufoRef.current.style.left = `${x}%`;
+
+      if (choosing) {
+        place(barnX(ufoDriftAt(now() - choosingStartedAt) * (ABDUCT_BARN_COUNT - 1)), UFO_TOP_HOVER);
+        return;
+      }
+
+      const target = state.target ?? 0;
+      const elapsed = now() - revealStartedAt;
+      if (elapsed < ABDUCT_HOVER_MS) {
+        place(barnX(ufoHoverAt(elapsed) * (ABDUCT_BARN_COUNT - 1)), UFO_TOP_HOVER);
+        return;
+      }
+      if (elapsed < ABDUCT_LOCK_AT_MS) {
+        const t = easeOutCubic((elapsed - ABDUCT_HOVER_MS) / ABDUCT_TRANSIT_MS);
+        const from = ufoHoverAt(ABDUCT_HOVER_MS) * (ABDUCT_BARN_COUNT - 1);
+        place(barnX(from + (target - from) * t), UFO_TOP_HOVER + (UFO_TOP_LOCKED - UFO_TOP_HOVER) * t);
+        return;
+      }
+      place(barnX(target), UFO_TOP_LOCKED);
+      if (!wasLocked) {
+        wasLocked = true;
+        setLocked(true);
+      }
     };
+
+    setLocked(false);
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [choosing, choosingStartedAt, now]);
-
-  const targetX = state.target !== null ? barnX(state.target) : ufoX;
+  }, [choosing, revealing, choosingStartedAt, revealStartedAt, state.target, now]);
 
   /* Who is standing where: unplaced cows share a stable waiting slot along the
    * bottom, keyed on room order so a cow never jumps sideways for no reason. */
@@ -99,7 +163,6 @@ export function AbductScreen({
       <div class="abduct__bar">
         <StatusBar
           status={text({ en: `Round ${state.round} / 3`, fr: `Manche ${state.round} / 3` })}
-          score={{ value: secondsLeft, label: text({ en: 's left', fr: 's' }) }}
           title={title}
           concept={concept}
           rules={rules}
@@ -113,22 +176,20 @@ export function AbductScreen({
           ))}
         </div>
 
-        {revealing && (
-          <div
-            class="abduct__cone"
-            style={{ left: `${targetX}%` }}
-            aria-hidden="true"
-          />
+        {choosing && (
+          <p class="abduct__countdown" role="status">
+            {text({
+              en: `${secondsLeft} second${secondsLeft === 1 ? '' : 's'} before abduction, hide your cow!`,
+              fr: `${secondsLeft} seconde${secondsLeft === 1 ? '' : 's'} avant l’enlèvement, cachez votre vache !`,
+            })}
+          </p>
         )}
 
-        <img
-          ref={ufoRef}
-          class="abduct__ufo"
-          src={ufoArt}
-          alt=""
-          aria-hidden="true"
-          style={{ left: `${revealing ? targetX : ufoX}%` }}
-        />
+        {revealing && locked && <div ref={coneRef} class="abduct__cone" style={{ left: '50%' }} aria-hidden="true" />}
+
+        <div ref={ufoRef} class="abduct__ufo" style={{ left: '50%', top: `${UFO_TOP_HOVER}%` }} aria-hidden="true">
+          <img src={ufoArt} alt="" />
+        </div>
 
         <div class="abduct__barns">
           {Array.from({ length: ABDUCT_BARN_COUNT }, (_, i) => i).map((barn) => {
@@ -138,11 +199,11 @@ export function AbductScreen({
                 key={barn}
                 type="button"
                 class={`abduct__barn${destroyed ? ' abduct__barn--destroyed' : ''}`}
-                disabled={!choosing}
+                disabled={!choosing || destroyed}
                 onClick={() => onPick(barn)}
                 aria-label={
                   destroyed
-                    ? text({ en: `Barn ${barn + 1}: wrecked`, fr: `Grange ${barn + 1} : détruite` })
+                    ? text({ en: `Barn ${barn + 1}: wrecked, cannot be used again this match`, fr: `Grange ${barn + 1} : détruite, inutilisable pour le reste de la partie` })
                     : text({ en: `Send your cow to barn ${barn + 1}`, fr: `Envoyer votre vache vers la grange ${barn + 1}` })
                 }
               >
@@ -159,10 +220,19 @@ export function AbductScreen({
             const abducted = revealing && state.abducted.includes(p.id);
             const mine = p.id === myId;
 
-            const slot = placed ? (occupants.get(barn)?.indexOf(p.id) ?? 0) : i;
-            const spread = placed ? (occupants.get(barn)?.length ?? 1) : players.length;
-            const x = placed ? barnX(barn) + jitter(slot, spread) : startX(i, players.length);
-            const y = abducted ? 8 : placed ? 46 : 88;
+            let x: number;
+            let y: number;
+            let delayMs = 0;
+            if (placed) {
+              const list = occupants.get(barn) ?? [p.id];
+              const slot = cowGridSlot(list.indexOf(p.id), list.length);
+              x = barnX(barn) + slot.col * COW_COL_GAP_PCT;
+              y = COW_GRID_TOP_PCT + slot.row * COW_ROW_GAP_PCT;
+              if (abducted) delayMs = ABDUCT_LOCK_AT_MS + state.abducted.indexOf(p.id) * ABDUCT_STAGGER_MS;
+            } else {
+              x = startX(i, players.length);
+              y = COW_START_TOP_PCT;
+            }
 
             return (
               <img
@@ -170,12 +240,13 @@ export function AbductScreen({
                 class={
                   'abduct__cow' +
                   (mine ? ' abduct__cow--mine' : '') +
+                  (placed ? ' abduct__cow--placed' : '') +
                   (abducted ? ' abduct__cow--abducted' : '')
                 }
                 src={cowArt}
                 alt=""
                 aria-hidden="true"
-                style={{ left: `${x}%`, top: `${y}%` }}
+                style={{ left: `${x}%`, top: `${y}%`, transitionDelay: abducted ? `${delayMs}ms` : undefined }}
               />
             );
           })}
@@ -199,7 +270,8 @@ const STARS: Array<[number, number, number]> = [
   [80, 7, 1.5], [92, 15, 2], [14, 22, 1.5], [46, 20, 1.5], [74, 24, 1.5],
 ];
 
-/** Barn `i`'s own x, as a percentage across the stage — evenly spaced (spec §4). */
+/** Barn `i`'s own x, as a percentage across the stage — evenly spaced (spec §4).
+ *  Accepts a fractional `i` too: the UFO's own path is continuous, not discrete. */
 function barnX(i: number): number {
   return ((i + 0.5) / ABDUCT_BARN_COUNT) * 100;
 }
@@ -209,12 +281,11 @@ function startX(i: number, total: number): number {
   return ((i + 0.5) / Math.max(total, 1)) * 100;
 }
 
-/** Spreads cows sharing one barn a few points apart so they do not fully overlap. */
-function jitter(slot: number, of: number): number {
-  if (of <= 1) return 0;
-  const span = 10;
-  return (slot / (of - 1) - 0.5) * span;
-}
+/** Where an unplaced cow waits, and where a placed one's own grid starts. */
+const COW_START_TOP_PCT = 88;
+const COW_GRID_TOP_PCT = 79;
+const COW_ROW_GAP_PCT = 6;
+const COW_COL_GAP_PCT = 7;
 
 function rows(players: Player[], scores: Record<PlayerId, number>): ScoreRow[] {
   return players.map((p) => ({ id: p.id, avatar: p.avatar, name: p.name, value: scores[p.id] ?? 0 }));

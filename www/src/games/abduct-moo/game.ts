@@ -71,25 +71,67 @@ export function leaderOf(state: AbductView, players: PlayerId[]): PlayerId | nul
 }
 
 /**
+ * A triangle wave in `0..1`, sweeping back and forth just inside `margin` of
+ * either end rather than touching it — shared shape behind `ufoDriftAt` and
+ * `ufoHoverAt` below, the only difference between them being how fast it runs.
+ *
+ * A triangle, not a sine: constant speed reads as "patrolling," easing in and
+ * out at the ends reads as "aiming," which neither of this UFO's own pre-reveal
+ * decorations must ever do (spec §8).
+ */
+function triangleWave(elapsedMs: number, periodMs: number, margin: number): number {
+  const phase = (elapsedMs % periodMs) / periodMs;
+  const t = phase < 0.5 ? phase * 2 : 2 - phase * 2;
+  return margin + t * (1 - 2 * margin);
+}
+
+/**
  * The UFO's decorative drift above the five barns during choosing (spec §4, §8).
  *
  * Pure and deterministic in `elapsedMs` alone — it is never the referee's real
- * pick (drawn only at the choosing deadline, spec §2) and never scored, so two
- * phones do not even need to agree on it pixel-for-pixel (spec §8). Determinism
- * here is only so this file's own test can assert something about the shape of
- * the path, not a networking requirement.
+ * pick (drawn the instant choosing opens, but withheld from the wire until that
+ * round's own reveal, spec §2, §8) and never scored, so two phones do not even
+ * need to agree on it pixel-for-pixel. Determinism here is only so this file's
+ * own test can assert something about the shape of the path, not a networking
+ * requirement.
  *
- * Returns `x` in `0..1` across the row of barns, sweeping back and forth just
- * inside the two end barns so the saucer never sits squarely over barn 0 or
- * barn 4 at rest — a UFO parked dead-center over an edge barn while it drifts
- * reads as a hint, which it must never be (spec §8).
+ * Returns `x` in `0..1` across the row of barns, staying just inside the two
+ * end barns so the saucer never sits squarely over barn 0 or barn 4 at rest —
+ * a UFO parked dead-center over an edge barn while it drifts reads as a hint.
  */
 export function ufoDriftAt(elapsedMs: number): number {
-  const PERIOD_MS = 4_000;
-  const MARGIN = 0.12;
-  const phase = (elapsedMs % PERIOD_MS) / PERIOD_MS;
-  // A triangle wave, not a sine: constant speed reads as "patrolling," easing
-  // in and out at the ends reads as "aiming," which this decoration must not.
-  const t = phase < 0.5 ? phase * 2 : 2 - phase * 2;
-  return MARGIN + t * (1 - 2 * MARGIN);
+  return triangleWave(elapsedMs, 4_000, 0.12);
+}
+
+/**
+ * The UFO's own faster sweep during the first `ABDUCT_HOVER_MS` of a reveal
+ * (spec §4) — "hovers faster above all barns" before it commits to flying in
+ * on the real target. Same shape as `ufoDriftAt`, just a shorter period; still
+ * pure decoration, still nothing a client needs to agree on with another.
+ */
+export function ufoHoverAt(elapsedMs: number): number {
+  return triangleWave(elapsedMs, 1_100, 0.12);
+}
+
+/**
+ * Where cow number `index` (0-based) sits among `count` cows sharing one barn,
+ * as a grid below it (spec — "clarify the timing" message, the grid table).
+ * `col` is centred at 0 (negative = left, positive = right); a caller turns it
+ * into pixels by multiplying by its own column gap. `row` counts down from 0.
+ *
+ * The grid is 1 column wide for up to 3 cows (stacked, so there is never a
+ * side-by-side pair to misread as two different picks) and 2 columns beyond
+ * that. When the count is odd and 2 columns wide, the last cow is alone in its
+ * own row — centred (`col: 0`) rather than pinned to the left column, which is
+ * what `(col - (cols - 1) / 2)` gives for free once that last cow is treated as
+ * sitting between both columns (`col: 0.5` before centring).
+ */
+export function cowGridSlot(index: number, count: number): { col: number; row: number } {
+  const cols = count <= 3 ? 1 : 2;
+  const rows = Math.ceil(count / cols);
+  const isLoneLastRow = cols === 2 && count % 2 === 1 && index === count - 1;
+
+  const col = isLoneLastRow ? 0.5 : index % cols;
+  const row = isLoneLastRow ? rows - 1 : Math.floor(index / cols);
+  return { col: cols > 1 ? col - (cols - 1) / 2 : 0, row };
 }

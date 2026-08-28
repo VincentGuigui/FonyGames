@@ -47,18 +47,50 @@
   opacity: 0.6;
 }
 
+/*
+ * Positioned every frame from a raf loop straight onto this element's own
+ * `style.left`/`style.top` (AbductScreen.tsx) — no CSS transition here, since
+ * the JS side already computes the eased hover→transit→locked path itself
+ * (spec §4); a transition on top of that would fight it and lag behind.
+ */
 .abduct__ufo {
   position: absolute;
-  top: 8%;
   width: 22%;
   max-width: 120px;
   transform: translateX(-50%);
+}
+
+.abduct__ufo img {
+  width: 100%;
+  display: block;
   filter: drop-shadow(0 4px 10px rgb(0 0 0 / 0.4));
-  transition: top 300ms ease;
+}
+
+/*
+ * The countdown, dead centre between the UFO's cruising height and the barns
+ * (spec — "clarify the timing"). `max-width` + `overflow-wrap` keep it inside
+ * the stage on a narrow phone rather than spilling past the edges.
+ */
+.abduct__countdown {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 78%;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-2, 12px);
+  background: rgb(5 7 20 / 0.45);
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 
 /* The reveal's light cone — white-yellow, 50% opacity, spec §2. A trapezoid via
-   clip-path rather than a second art file: it is a beam of light, not a sprite. */
+   clip-path rather than a second art file: it is a beam of light, not a sprite.
+   Positioned the same way as the UFO above: every frame, straight to `style.left`. */
 .abduct__cone {
   position: absolute;
   top: 14%;
@@ -139,6 +171,14 @@
   border-radius: 50%;
 }
 
+/* A picked cow sits in a grid below its barn, up to four to a column (spec's
+   own grid table) — smaller than the wide-open start line so a full pileup
+   still fits without its own column bleeding into the next barn's. */
+.abduct__cow--placed {
+  width: 10%;
+  max-width: 46px;
+}
+
 .abduct__cow--abducted {
   top: 6% !important;
   opacity: 0;
@@ -146,7 +186,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .abduct__ufo,
+  /* The UFO's own path is JS-driven, not CSS (see .abduct__ufo above), so
+     there is no transition here to shorten — only the cow moves and the
+     cone's fade-in are. */
   .abduct__cow,
   .abduct__cone {
     transition-duration: 1ms;

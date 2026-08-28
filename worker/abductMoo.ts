@@ -52,10 +52,29 @@ function freshBarns(): AbductBarn[] {
   return Array.from({ length: ABDUCT_BARN_COUNT }, () => ({ destroyed: false }));
 }
 
-/** The public frame is the whole state minus `solo`, which never leaves the room. */
+/**
+ * One of the barns still standing, or null if every one of them has been
+ * destroyed already (never actually reachable at `ABDUCT_BARN_COUNT: 5` and
+ * `ABDUCT_ROUNDS: 3` — at most one barn is destroyed per round — but a random
+ * draw is not the place to assume an invariant holds forever).
+ */
+function randomValidBarn(barns: AbductBarn[]): number | null {
+  const valid = barns.reduce<number[]>((acc, b, i) => (b.destroyed ? acc : [...acc, i]), []);
+  if (valid.length === 0) return null;
+  return valid[Math.floor(Math.random() * valid.length)]!;
+}
+
+/**
+ * The public frame is the whole state minus `solo`, which never leaves the
+ * room — plus one more thing withheld while `phase === 'choosing'`: `target`
+ * is drawn the instant a round's choosing phase opens (spec §2, §8), not at
+ * its deadline, but a client is never told it before its own reveal. Nulling
+ * it out here, rather than not drawing it yet, is what keeps that promise —
+ * the internal state and the wire state simply disagree about it until then.
+ */
 export function toState(game: Abduct): AbductState {
   const { solo: _solo, ...state } = game;
-  return state;
+  return state.phase === 'choosing' ? { ...state, target: null } : state;
 }
 
 function publish(ctx: Ctx, game: Abduct): void {
@@ -100,14 +119,17 @@ export async function startAbduct(
   if (!enoughToStart(connected.length, [ABDUCT_MIN_PLAYERS, ABDUCT_MAX_PLAYERS], solo)) return false;
 
   const now = ctx.now();
+  const barns = freshBarns();
   const game: Abduct = {
     roundId,
     round: 1,
     phase: 'choosing',
     deadlineAt: now + ABDUCT_CHOOSE_MS,
-    barns: freshBarns(),
+    barns,
     picks: {},
-    target: null,
+    // Drawn now, not at the deadline — see `toState`'s own doc for why that
+    // is safe: nothing on the wire leaks it before this round's own reveal.
+    target: randomValidBarn(barns),
     abducted: [],
     scores: Object.fromEntries(connected.map((id) => [id, 0])),
     winner: null,
@@ -137,6 +159,10 @@ export async function onPick(
   // from a previous round — or a forged one — moves a barn nobody is at now.
   if (game.roundId !== roundId || game.round !== round) return;
   if (!Number.isInteger(barn) || barn < 0 || barn >= ABDUCT_BARN_COUNT) return;
+  // A destroyed barn cannot be used for the rest of the match (spec §2.1) — the
+  // client already disables tapping one, this is the referee's own copy of that
+  // rule for a client that skips the button.
+  if (game.barns[barn]?.destroyed) return;
 
   game.picks[playerId] = barn;
   // A late joiner's first pick is also their first appearance in the score
@@ -147,22 +173,30 @@ export async function onPick(
 }
 
 /**
- * The referee's own draw for this round — independent of anything any player
- * picked (spec §8) — and everything that falls out of it: who is abducted,
- * which barn is destroyed, and this round's scoring.
+ * The choosing deadline has passed. `game.target` was already drawn the
+ * moment this round opened (`toState` is what kept it off the wire since) —
+ * everything here is what falls out of it: a random valid barn for anyone
+ * who never tapped one, who gets abducted, whether the target is destroyed,
+ * and this round's scoring.
  *
  * Scores only ever move for currently CONNECTED players: a disconnected
  * player's last score simply stands (spec §7) rather than continuing to tick
  * up, or down, while nobody is there to see it.
  */
 function resolveChoosing(game: Abduct, connected: PlayerId[]): void {
-  const target = Math.floor(Math.random() * ABDUCT_BARN_COUNT);
-  const abducted = connected.filter((id) => game.picks[id] === target);
+  for (const id of connected) {
+    if (game.picks[id] === null || game.picks[id] === undefined) {
+      // Hiding nowhere is not the same as being safe (spec §12) — an
+      // undecided cow ends up somewhere, same as everyone else's.
+      game.picks[id] = randomValidBarn(game.barns);
+    }
+  }
 
-  game.target = target;
+  const { target } = game;
+  const abducted = target === null ? [] : connected.filter((id) => game.picks[id] === target);
   game.abducted = abducted;
   // Nobody was there to take — the barn itself is what the UFO has to show for it.
-  if (abducted.length === 0) game.barns[target]!.destroyed = true;
+  if (target !== null && abducted.length === 0) game.barns[target]!.destroyed = true;
 
   for (const id of connected) {
     if (game.scores[id] === undefined) game.scores[id] = 0;
@@ -200,9 +234,10 @@ export async function abductTick(ctx: Ctx): Promise<void> {
   }
 
   game.round += 1;
-  game.barns = freshBarns();
+  // Barns are NOT reset here — a destroyed barn stays destroyed for the rest
+  // of the match (spec §2.1), so `game.barns` carries straight over.
   game.picks = {};
-  game.target = null;
+  game.target = randomValidBarn(game.barns);
   game.abducted = [];
   game.phase = 'choosing';
   game.deadlineAt = now + ABDUCT_CHOOSE_MS;

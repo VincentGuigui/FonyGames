@@ -1,4 +1,14 @@
-import { applyAbduct, leaderOf, ranking, scoreOf, ufoDriftAt, type AbductState, type AbductView } from './game';
+import {
+  applyAbduct,
+  cowGridSlot,
+  leaderOf,
+  ranking,
+  scoreOf,
+  ufoDriftAt,
+  ufoHoverAt,
+  type AbductState,
+  type AbductView,
+} from './game';
 import type { ServerMessage } from '../../../../shared/protocol';
 
 /**
@@ -6,9 +16,11 @@ import type { ServerMessage } from '../../../../shared/protocol';
  *
  * `applyAbduct` has no referee to catch a mistake either — it only projects the
  * one public frame the server sends, same shape as UFO Hunt's own `applyUfoHunt`.
- * `ufoDriftAt` is the other half worth checking directly: it must stay a decoration
- * (bounded, never dwelling on either end barn) since it is drawn before the referee
- * has even made its real pick (spec §8).
+ * `ufoDriftAt`/`ufoHoverAt` are the other half worth checking directly: both must
+ * stay a decoration (bounded, never dwelling on either end barn) since the client
+ * is never told the referee's real pick before that round's own reveal (spec §8).
+ * `cowGridSlot` is pure geometry — worth pinning down against the grid table the
+ * "clarify the timing" request spelled out counts 1 through 8 for.
  */
 
 let failures = 0;
@@ -108,9 +120,59 @@ function drift(): void {
   check('it does move over time', ufoDriftAt(0) !== ufoDriftAt(1_000));
 }
 
+function hover(): void {
+  console.log('\nufoHoverAt: the reveal\'s own faster sweep, same bounds, different pace');
+
+  let min = Infinity;
+  let max = -Infinity;
+  for (let t = 0; t < 20_000; t += 25) {
+    const x = ufoHoverAt(t);
+    min = Math.min(min, x);
+    max = Math.max(max, x);
+  }
+  check('never reaches the leftmost barn', min > 0, min);
+  check('never reaches the rightmost barn', max < 1, max);
+  check('the same instant always gives the same spot', ufoHoverAt(1_234) === ufoHoverAt(1_234));
+  check('it sweeps faster than the choosing-phase drift',
+    Math.abs(ufoHoverAt(500) - ufoHoverAt(0)) > Math.abs(ufoDriftAt(500) - ufoDriftAt(0)));
+}
+
+function cowGrid(): void {
+  console.log('\ncowGridSlot: the grid table from the brief, counts 1 through 8');
+
+  const shapes: Record<number, Array<{ col: number; row: number }>> = {
+    1: [{ col: 0, row: 0 }],
+    2: [{ col: 0, row: 0 }, { col: 0, row: 1 }],
+    3: [{ col: 0, row: 0 }, { col: 0, row: 1 }, { col: 0, row: 2 }],
+    4: [{ col: -0.5, row: 0 }, { col: 0.5, row: 0 }, { col: -0.5, row: 1 }, { col: 0.5, row: 1 }],
+    5: [{ col: -0.5, row: 0 }, { col: 0.5, row: 0 }, { col: -0.5, row: 1 }, { col: 0.5, row: 1 }, { col: 0, row: 2 }],
+    6: [{ col: -0.5, row: 0 }, { col: 0.5, row: 0 }, { col: -0.5, row: 1 }, { col: 0.5, row: 1 }, { col: -0.5, row: 2 }, { col: 0.5, row: 2 }],
+    7: [
+      { col: -0.5, row: 0 }, { col: 0.5, row: 0 }, { col: -0.5, row: 1 }, { col: 0.5, row: 1 },
+      { col: -0.5, row: 2 }, { col: 0.5, row: 2 }, { col: 0, row: 3 },
+    ],
+    8: [
+      { col: -0.5, row: 0 }, { col: 0.5, row: 0 }, { col: -0.5, row: 1 }, { col: 0.5, row: 1 },
+      { col: -0.5, row: 2 }, { col: 0.5, row: 2 }, { col: -0.5, row: 3 }, { col: 0.5, row: 3 },
+    ],
+  };
+
+  for (const [count, expected] of Object.entries(shapes)) {
+    const n = Number(count);
+    for (let i = 0; i < n; i++) {
+      const slot = cowGridSlot(i, n);
+      const want = expected[i]!;
+      check(`count ${n}, cow ${i}: col ${want.col}, row ${want.row}`,
+        slot.col === want.col && slot.row === want.row, slot);
+    }
+  }
+}
+
 projecting();
 scoring();
 drift();
+hover();
+cowGrid();
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);
 console.log(`\nall passed (${checks} checks)`);

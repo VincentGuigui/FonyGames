@@ -548,7 +548,10 @@ export type AbductState = {
   phase: 'choosing' | 'revealing' | 'done';
   /** Server time the current phase ends. */
   deadlineAt: number;
-  /** Always ABDUCT_BARN_COUNT entries, reset fresh at the start of every round. */
+  /**
+   * Always ABDUCT_BARN_COUNT entries. A destroyed barn stays destroyed for the
+   * rest of the match (spec §2.1) — this does NOT reset between rounds.
+   */
   barns: AbductBarn[];
   /** Every connected player's current barn, or null before their first tap this round. */
   picks: Record<PlayerId, number | null>;
@@ -2021,8 +2024,12 @@ export const ABDUCT_CHOOSE_MS = 3_000;
  * How long the UFO's fly-in, light cone and abduction get to play out before the
  * next round's choosing phase opens. The referee has already decided everything
  * by the time this starts (spec §2, §8) — this window is pure presentation.
+ *
+ * Budgeted for the client's own choreography (spec §4): ~2 s hovering fast over
+ * the whole row, ~0.7 s flying in to the target at low altitude, then however
+ * long a staggered, one-by-one abduction of everyone caught there takes.
  */
-export const ABDUCT_REVEAL_MS = 3_000;
+export const ABDUCT_REVEAL_MS = 5_000;
 
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const ABDUCT_MIN_PLAYERS = PLAYERS['abduct-moo'][0];
