@@ -236,6 +236,12 @@ export type ClientMessage =
   /** Tic-Tac-Tic-Tac-Toe: play a move in the selected small board. */
   | { t: 'tttt-tap'; d: { roundId: number; smallCell: number } }
   | { t: 'fighter-lock'; d: { roundId: number; actions: FighterAction[]; seat?: FighterSeat } }
+  /**
+   * Abduct-Moo: my cow now wants barn `barn` (0..ABDUCT_BARN_COUNT-1). Sendable
+   * any number of times while `phase === 'choosing'`; the referee only ever
+   * keeps the latest one it received before the deadline (spec §8).
+   */
+  | { t: 'abduct-pick'; d: { roundId: number; round: number; barn: number } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
@@ -519,6 +525,43 @@ export type UfoHuntState = {
   phase: 'running' | 'done';
 };
 
+/**
+ * Abduct-Moo: one barn's own state this round. `destroyed` only ever turns
+ * true at a round's reveal (an empty barn the UFO happened to pick) and is
+ * reset the moment the next round's choosing phase opens — see
+ * docs/specs/games/abduct-moo.md §2.1.
+ */
+export type AbductBarn = {
+  destroyed: boolean;
+};
+
+/**
+ * Abduct-Moo: the whole match, fully public. Unlike every other game with a
+ * "who picked what" mechanic, there is no private half at all here — a
+ * player's own barn pick is something everyone else is explicitly meant to
+ * see live (spec §6), so this is the entire wire protocol for the game.
+ */
+export type AbductState = {
+  roundId: number;
+  /** 1..ABDUCT_ROUNDS — the match's own round counter, not the room's `roundId`. */
+  round: number;
+  phase: 'choosing' | 'revealing' | 'done';
+  /** Server time the current phase ends. */
+  deadlineAt: number;
+  /** Always ABDUCT_BARN_COUNT entries, reset fresh at the start of every round. */
+  barns: AbductBarn[];
+  /** Every connected player's current barn, or null before their first tap this round. */
+  picks: Record<PlayerId, number | null>;
+  /** The UFO's drawn target this round — null until that round's reveal. */
+  target: number | null;
+  /** This round's victims — [] until reveal, holds until the next round resets it. */
+  abducted: PlayerId[];
+  /** +1 per round a player was not abducted, summed across the whole match. */
+  scores: Record<PlayerId, number>;
+  /** Set only once `phase` is `'done'`, after round ABDUCT_ROUNDS's reveal. */
+  winner: PlayerId | null;
+};
+
 /** Spill: one projectile, described once and animated locally from then on. */
 export type SpillDrop = {
   dropId: string;
@@ -733,6 +776,8 @@ export type ServerMessage =
   | { t: 'ufo-hunt'; s: number; d: UfoHuntState }
   | { t: 'tttt'; s: number; d: TttState }
   | { t: 'fighter'; s: number; d: TapFighterState }
+  /** Abduct-Moo: the whole match — fully public, spec §6. */
+  | { t: 'abduct'; s: number; d: AbductState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
    * Tap Tap Music: sent to **one player only** — their own cleared
@@ -1464,6 +1509,7 @@ const CLIENT_TYPES = new Set([
   'tttt-select',
   'tttt-tap',
   'fighter-lock',
+  'abduct-pick',
   'switch-game',
 ]);
 
@@ -1957,3 +2003,27 @@ export function ufoPositionAt(
 export function ufoImpact(offsetDeg: number): number {
   return Math.min(10, Math.max(0, 10 * (1 - offsetDeg / UFOHUNT_SCOPE_DEG)));
 }
+
+/* ------------------------------------------------------------------ */
+/* Abduct-Moo (docs/specs/games/abduct-moo.md)                         */
+/* ------------------------------------------------------------------ */
+
+/** Barns across the middle of the screen, evenly spaced. */
+export const ABDUCT_BARN_COUNT = 5;
+
+/** The match is exactly this many rounds — not a safety-cap loop like most games here. */
+export const ABDUCT_ROUNDS = 3;
+
+/** The brief's own number: how long every barn stays open to change your mind. */
+export const ABDUCT_CHOOSE_MS = 3_000;
+
+/**
+ * How long the UFO's fly-in, light cone and abduction get to play out before the
+ * next round's choosing phase opens. The referee has already decided everything
+ * by the time this starts (spec §2, §8) — this window is pure presentation.
+ */
+export const ABDUCT_REVEAL_MS = 3_000;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const ABDUCT_MIN_PLAYERS = PLAYERS['abduct-moo'][0];
+export const ABDUCT_MAX_PLAYERS = PLAYERS['abduct-moo'][1];

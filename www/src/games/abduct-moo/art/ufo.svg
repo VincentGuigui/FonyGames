@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 56" width="100" height="56">
+  <!--
+    Abduct-Moo — the UFO, drifting above the barns and swooping down to abduct.
+    Spec: docs/specs/games/abduct-moo.md §12
+
+    A copy of ufo-hunt/art/ufo.svg, not shared by reference (spec §12), so the two
+    games can drift apart visually later without one edit breaking the other.
+
+    Loaded through an img element (Squash Mosquitoes' own art/mosquito.svg
+    precedent — a gameplay sprite, not the hub card) — CSS on the img itself
+    handles the drift (transform), the light-cone glow underneath is a separate
+    element in AbductScreen.tsx, not part of this file.
+
+    Colours are literal hexes for the same reason art/card.svg states in full:
+    an img-loaded SVG has no access to the page's CSS, so currentColor renders
+    black and a CSS variable renders nothing at all.
+  -->
+
+  <!-- The disc. -->
+  <ellipse cx="50" cy="34" rx="42" ry="11" fill="#94A3B8" stroke="#E2E8F0" stroke-width="1.5"/>
+  <ellipse cx="50" cy="31" rx="34" ry="6" fill="#CBD5E1" opacity="0.6"/>
+
+  <!-- The dome. -->
+  <path d="M22 30 Q22 4 50 4 Q78 4 78 30 Q64 21 50 21 Q36 21 22 30 Z"
+        fill="#A7F3D0" stroke="#5EEAD4" stroke-width="2"/>
+  <ellipse cx="42" cy="14" rx="9" ry="5" fill="#FFFFFF" opacity="0.45"/>
+
+  <!-- The ring of lights. -->
+  <g fill="#5EEAD4">
+    <circle cx="16" cy="34" r="3"/>
+    <circle cx="33" cy="41" r="3"/>
+    <circle cx="50" cy="43.5" r="3"/>
+    <circle cx="67" cy="41" r="3"/>
+    <circle cx="84" cy="34" r="3"/>
+  </g>
+</svg>

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80" width="80" height="80">
+  <!--
+    Abduct-Moo — one barn, reused for every one of the five slots.
+    Spec: docs/specs/games/abduct-moo.md §4
+
+    Loaded through an img element (Squash Mosquitoes' own art/mosquito.svg
+    precedent). A destroyed barn is the SAME file, darkened and desaturated by a
+    CSS filter on this element (spec §2.1) — no second art file, since "cracked
+    and darkened" is a filter, not a different shape.
+
+    Colours are literal hexes for the same reason art/card.svg states in full:
+    an img-loaded SVG has no access to the page's CSS, so currentColor renders
+    black and a CSS variable renders nothing at all.
+  -->
+
+  <!-- Roof. -->
+  <path d="M4 34 L40 8 L76 34 L68 34 L40 14 L12 34 Z" fill="#7C2D12" stroke="#450A0A" stroke-width="2"/>
+
+  <!-- Walls. -->
+  <rect x="10" y="32" width="60" height="42" fill="#DC2626" stroke="#7F1D1D" stroke-width="2.5"/>
+
+  <!-- Hayloft trim. -->
+  <rect x="10" y="32" width="60" height="6" fill="#FEF3C7" opacity="0.6"/>
+
+  <!-- Door. -->
+  <path d="M32 74 L32 50 Q40 42 48 50 L48 74 Z" fill="#450A0A" stroke="#1C0A0A" stroke-width="2"/>
+
+  <!-- Cross beams. -->
+  <g stroke="#FEF3C7" stroke-width="2" opacity="0.7">
+    <path d="M14 40 L28 48"/>
+    <path d="M28 40 L14 48"/>
+    <path d="M52 40 L66 48"/>
+    <path d="M66 40 L52 48"/>
+  </g>
+</svg>

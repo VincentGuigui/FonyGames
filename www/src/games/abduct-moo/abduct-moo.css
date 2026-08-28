@@ -1,0 +1,155 @@
+/*
+ * Abduct-Moo round screen. Spec: docs/specs/games/abduct-moo.md §4
+ *
+ * A night countryside painted with CSS (a gradient sky plus a few star dots, a
+ * ground gradient at the bottom) rather than an art file — this is a look, not a
+ * sprite, same distinction Ghost Hunt's and UFO Hunt's own backdrops draw.
+ *
+ * Everything drawn here wears `--game-accent`, set on this screen's own root
+ * because it is outside the lobby template, which is where every other screen
+ * inherits it from.
+ */
+
+.abduct {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  color: var(--color-text);
+  overflow: hidden;
+}
+
+.abduct__bar {
+  padding: max(var(--space-2), env(safe-area-inset-top)) max(var(--space-3), env(safe-area-inset-right))
+    var(--space-1) max(var(--space-3), env(safe-area-inset-left));
+}
+
+.abduct__stage {
+  position: relative;
+  flex: 1;
+  margin: 0 var(--space-2);
+  border-radius: var(--radius-3, 16px);
+  overflow: hidden;
+  background: linear-gradient(180deg, #0b1026 0%, #131a3a 55%, #1f3a26 55%, #14261a 100%);
+}
+
+.abduct__sky {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.abduct__star {
+  position: absolute;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0.6;
+}
+
+.abduct__ufo {
+  position: absolute;
+  top: 8%;
+  width: 22%;
+  max-width: 120px;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 4px 10px rgb(0 0 0 / 0.4));
+  transition: top 300ms ease;
+}
+
+/* The reveal's light cone — white-yellow, 50% opacity, spec §2. A trapezoid via
+   clip-path rather than a second art file: it is a beam of light, not a sprite. */
+.abduct__cone {
+  position: absolute;
+  top: 14%;
+  width: 26%;
+  height: 46%;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, rgb(253 230 138 / 0.55), rgb(253 230 138 / 0.05));
+  clip-path: polygon(38% 0%, 62% 0%, 100% 100%, 0% 100%);
+  animation: abduct-cone-in 300ms ease both;
+}
+
+@keyframes abduct-cone-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.abduct__barns {
+  position: absolute;
+  bottom: 30%;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-evenly;
+  align-items: flex-end;
+  padding: 0 var(--space-2);
+}
+
+.abduct__barn {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  width: 17%;
+  max-width: 84px;
+  cursor: pointer;
+}
+
+.abduct__barn img {
+  width: 100%;
+  display: block;
+  filter: drop-shadow(0 3px 6px rgb(0 0 0 / 0.35));
+  transition: filter 200ms ease, transform 200ms ease;
+}
+
+.abduct__barn:active img {
+  transform: scale(0.94);
+}
+
+.abduct__barn:disabled {
+  cursor: default;
+}
+
+/* Cracked and darkened (spec §2.1) — a filter on the same file, not a second one. */
+.abduct__barn--destroyed img {
+  filter: grayscale(0.7) brightness(0.45);
+}
+
+.abduct__cows {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.abduct__cow {
+  position: absolute;
+  width: 13%;
+  max-width: 64px;
+  transform: translate(-50%, -50%);
+  transition: left 300ms ease, top 300ms ease, opacity 400ms ease;
+  /* Dimmer, but never the only cue — see the ring below (spec §11). */
+  filter: brightness(0.55);
+}
+
+.abduct__cow--mine {
+  filter: brightness(1.15) drop-shadow(0 0 0 transparent);
+  outline: 3px solid var(--game-accent);
+  outline-offset: 2px;
+  border-radius: 50%;
+}
+
+.abduct__cow--abducted {
+  top: 6% !important;
+  opacity: 0;
+  transition: left 300ms ease, top 900ms ease-in, opacity 900ms ease-in;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .abduct__ufo,
+  .abduct__cow,
+  .abduct__cone {
+    transition-duration: 1ms;
+    animation-duration: 1ms;
+  }
+}
