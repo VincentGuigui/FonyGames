@@ -19,8 +19,8 @@ export const CARD: GameCard = {
   concept: 'Five barns, one UFO. Tap where your cow runs — the beam only ever picks one.',
   rules: [
     'Tap a barn to send your cow there. Change your mind as often as you like.',
-    'When the clock runs out, the UFO beams up every cow at the barn it picks.',
-    'Safe is worth a point. Most points after three rounds wins.',
+    'When the countdown ends, the UFO beams up every cow at the barn it picks.',
+    'Beamed up, you’re out for good. Last cow standing wins.',
   ],
   art: { src: art, alt: "A UFO's light cone over a barn, a cow mid-abduction" },
   fr: {
@@ -28,8 +28,8 @@ export const CARD: GameCard = {
     concept: 'Cinq granges, une soucoupe. Touchez la grange où votre vache court — le rayon n’en choisit qu’une.',
     rules: [
       'Touchez une grange pour y envoyer votre vache. Changez d’avis autant que vous voulez.',
-      'Quand le temps est écoulé, la soucoupe enlève toutes les vaches de la grange choisie.',
-      'Être épargné rapporte un point. Le plus de points après trois manches gagne.',
+      'Quand le décompte se termine, la soucoupe enlève toutes les vaches de la grange choisie.',
+      'Enlevée, votre vache est éliminée. La dernière vache debout gagne.',
     ],
     art: { alt: 'Le rayon lumineux d’une soucoupe au-dessus d’une grange, une vache en train d’être enlevée' },
   },

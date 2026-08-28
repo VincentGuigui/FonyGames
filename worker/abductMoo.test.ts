@@ -1,8 +1,8 @@
 import {
   ABDUCT_BARN_COUNT,
-  ABDUCT_CHOOSE_MS,
+  ABDUCT_COUNTDOWN_MS,
   ABDUCT_REVEAL_MS,
-  ABDUCT_ROUNDS,
+  ABDUCT_WAIT_MS,
   type ServerMessage,
 } from '../shared/protocol';
 import { abductTick, nextDeadline, onPick, startAbduct, type Abduct, type Ctx } from './abductMoo';
@@ -11,13 +11,15 @@ import { abductTick, nextDeadline, onPick, startAbduct, type Abduct, type Ctx } 
  * Abduct-Moo's referee.
  * Spec: docs/specs/games/abduct-moo.md
  *
- * Unlike every other game here, the whole state is public and the round loop is
- * fully automatic — no host action between rounds — so what is worth asserting is
- * the choosing→revealing→next-round cycle itself, the target draw being independent
- * of any pick AND drawn (but hidden) the instant choosing opens, an unpicked player
- * landing somewhere rather than being safe by default, a destroyed barn staying
- * destroyed for the rest of the match, and a full 3-round match reaching a winner
- * (or nobody, on a tie).
+ * Three phases repeat until one cow is left standing: `waiting` (up to
+ * ABDUCT_WAIT_MS, ends early the instant every active player has a barn),
+ * `countdown` (a fixed beat once everyone does), then `revealing`. What is
+ * worth asserting: the early-vs-deadline transition into `countdown`, a
+ * straggler landing somewhere rather than nowhere, a target barn always
+ * destroyed whether or not cows were on it, permanent elimination (an out
+ * player can neither pick nor block anyone else's `waiting`), barns
+ * replenishing once every one of them is gone, and the match ending on
+ * players — last one standing, or nobody if the last two go together.
  */
 
 let failures = 0;
@@ -35,17 +37,13 @@ const A = 'p-a';
 const B = 'p-b';
 const C = 'p-c';
 
-function harness(at = 1_000_000, rolls?: number[]) {
+function harness(at = 1_000_000) {
   let now = at;
   let seq = 0;
-  let r = 0;
   let stored: Abduct | null = null;
   let roster: string[] = [];
   const sent: ServerMessage[] = [];
   let alarm = 0;
-
-  const originalRandom = Math.random;
-  if (rolls) Math.random = () => rolls[r++ % rolls.length] as number;
 
   const ctx: Ctx = {
     now: () => now,
@@ -64,9 +62,6 @@ function harness(at = 1_000_000, rolls?: number[]) {
   return {
     ctx,
     sent,
-    restoreRandom: () => {
-      Math.random = originalRandom;
-    },
     /** The REAL internal state — unlike a client, a test is allowed to see the
      *  target before it is revealed, since that is exactly what needs checking. */
     get state() {
@@ -89,14 +84,7 @@ function harness(at = 1_000_000, rolls?: number[]) {
   };
 }
 
-/**
- * The lowest-numbered barn that is neither `avoid` nor already destroyed — for
- * a player scripted to dodge a target. Reads destruction straight off `state`
- * rather than trusting a test to track it by hand, because the referee now
- * refuses a pick on a destroyed barn (spec §2.1): a test picking blind into one
- * from an earlier round would silently leave that player unpicked instead of
- * exercising what it meant to.
- */
+/** The lowest-numbered barn that is none of `avoid` and not already destroyed. */
 function safeBarn(state: Abduct, ...avoid: number[]): number {
   for (let i = 0; i < ABDUCT_BARN_COUNT; i++) {
     if (avoid.includes(i) || state.barns[i]?.destroyed) continue;
@@ -113,53 +101,65 @@ console.log('\nstarting a match');
   const ok = await startAbduct(h.ctx, 1, [A, B, C]);
   check('three players is a match', ok === true);
   check('round one', h.state?.round === 1);
-  check('choosing first', h.state?.phase === 'choosing');
+  check('waiting first', h.state?.phase === 'waiting');
   check('five fresh barns', h.state?.barns.length === ABDUCT_BARN_COUNT);
   check('none destroyed yet', !!h.state?.barns.every((b) => !b.destroyed));
   check('nobody has picked', Object.keys(h.state?.picks ?? {}).length === 0);
+  check('nobody is out yet', h.state?.out.length === 0);
   check('everyone starts scoreless', h.state?.scores[A] === 0 && h.state?.scores[B] === 0);
-  check('the deadline is the choosing window', h.state?.deadlineAt === h.now + ABDUCT_CHOOSE_MS);
+  check('the deadline is the waiting cap', h.state?.deadlineAt === h.now + ABDUCT_WAIT_MS);
   check('a state frame went out', h.count('abduct') === 1);
   check('and the alarm matches the deadline', h.alarm === h.state?.deadlineAt);
 
-  check(
-    'the target is already drawn internally, the instant choosing opens',
-    typeof h.state?.target === 'number' && h.state.target >= 0 && h.state.target < ABDUCT_BARN_COUNT,
-    h.state?.target,
-  );
   const startFrame = h.last('abduct');
-  check('but hidden from the wire while choosing', startFrame?.t === 'abduct' && startFrame.d.target === null);
+  check('the target is drawn internally already', typeof h.state?.target === 'number');
+  check('but hidden from the wire while waiting', startFrame?.t === 'abduct' && startFrame.d.target === null);
 
   const solo = harness();
   solo.setRoster([A]);
-  check('one player is not a match', (await startAbduct(solo.ctx, 1, [A])) === false);
+  check('one player is a solo match', (await startAbduct(solo.ctx, 1, [A], true)) === true);
+  const notSolo = harness();
+  notSolo.setRoster([A]);
+  check('one player is not a match otherwise', (await startAbduct(notSolo.ctx, 1, [A])) === false);
 }
 
-console.log('\npicking a barn');
+console.log('\nwaiting ends the instant everyone has a barn, not at its own deadline');
 
 {
   const h = harness();
   h.setRoster([A, B]);
   await startAbduct(h.ctx, 1, [A, B]);
+  const target = h.state?.target as number;
 
-  await onPick(h.ctx, A, 1, 1, 2);
-  check('the pick is recorded', h.state?.picks[A] === 2);
-  check('and broadcast', h.last('abduct')?.t === 'abduct');
+  await onPick(h.ctx, A, 1, 1, safeBarn(h.state!, target));
+  check('still waiting with one pick outstanding', h.state?.phase === 'waiting');
 
-  await onPick(h.ctx, A, 1, 1, 4);
-  check('a player can change their mind before the deadline', h.state?.picks[A] === 4);
-
-  await onPick(h.ctx, A, 1, 1, 99);
-  check('an out-of-range barn is refused', h.state?.picks[A] === 4);
-
-  await onPick(h.ctx, A, 7, 1, 0);
-  check('a pick for the wrong roundId changes nothing', h.state?.picks[A] === 4);
-
-  await onPick(h.ctx, A, 1, 9, 0);
-  check('a pick for the wrong round changes nothing', h.state?.picks[A] === 4);
+  h.advance(1_200); // well short of ABDUCT_WAIT_MS
+  await onPick(h.ctx, B, 1, 1, safeBarn(h.state!, target));
+  check('countdown starts the instant the last active player picks', h.state?.phase === 'countdown');
+  check('from right now, not from when waiting opened', h.state?.deadlineAt === h.now + ABDUCT_COUNTDOWN_MS);
+  check('and the alarm follows it', h.alarm === h.state?.deadlineAt);
 }
 
-console.log('\nthe target is revealed only at the deadline, unchanged from what was drawn at round start');
+console.log('\na straggler is assigned somewhere at the waiting deadline, not left safe');
+
+{
+  const h = harness();
+  h.setRoster([A, B, C]);
+  await startAbduct(h.ctx, 1, [A, B, C]);
+  const target = h.state?.target as number;
+  await onPick(h.ctx, A, 1, 1, safeBarn(h.state!, target));
+  await onPick(h.ctx, B, 1, 1, safeBarn(h.state!, target));
+  check('C never picked, still waiting', h.state?.phase === 'waiting');
+
+  h.advance(ABDUCT_WAIT_MS);
+  await abductTick(h.ctx);
+  check('C landed somewhere', typeof h.state?.picks[C] === 'number');
+  check('waiting resolved into countdown', h.state?.phase === 'countdown');
+  check('a fresh countdown window', h.state?.deadlineAt === h.now + ABDUCT_COUNTDOWN_MS);
+}
+
+console.log('\nthe target is revealed only at the countdown\'s end, unchanged from the draw');
 
 {
   const h = harness();
@@ -167,47 +167,22 @@ console.log('\nthe target is revealed only at the deadline, unchanged from what 
   await startAbduct(h.ctx, 1, [A, B]);
   const drawnAtStart = h.state?.target;
   await onPick(h.ctx, A, 1, 1, safeBarn(h.state!, drawnAtStart!));
+  await onPick(h.ctx, B, 1, 1, safeBarn(h.state!, drawnAtStart!));
+  check('countdown reached', h.state?.phase === 'countdown');
+  check('still hidden mid-countdown', h.last('abduct')?.t === 'abduct' && (h.last('abduct') as { d: { target: unknown } }).d.target === null);
 
-  h.advance(ABDUCT_CHOOSE_MS);
+  h.advance(ABDUCT_COUNTDOWN_MS);
   await abductTick(h.ctx);
-  check('choosing resolves to revealing', h.state?.phase === 'revealing');
-  check('the target did not change between the draw and the reveal', h.state?.target === drawnAtStart, {
-    drawnAtStart,
-    revealed: h.state?.target,
-  });
+  check('countdown resolves to revealing', h.state?.phase === 'revealing');
+  check('the target never changed', h.state?.target === drawnAtStart);
   const revealFrame = h.last('abduct');
   check('and it is now on the wire', revealFrame?.t === 'abduct' && revealFrame.d.target === drawnAtStart);
-  check('the reveal deadline is the reveal window', h.state?.deadlineAt === h.now + ABDUCT_REVEAL_MS);
-  check('and the alarm follows it', h.alarm === h.state?.deadlineAt);
 }
 
-console.log('\nan unpicked player is not safe by default — they land somewhere too');
+console.log('\na target barn is destroyed whether or not cows were on it');
 
 {
-  // Same roll every time it is asked (valid barns never change in this test), so
-  // the auto-assignment for C lands on the SAME barn the round-start draw already
-  // chose — deliberately forcing the "unlucky" case to prove it is reachable.
-  const h = harness(1_000_000, [0.41]);
-  h.setRoster([A, B, C]);
-  await startAbduct(h.ctx, 1, [A, B, C]);
-  const target = h.state?.target as number;
-  await onPick(h.ctx, A, 1, 1, safeBarn(h.state!, target));
-  await onPick(h.ctx, B, 1, 1, safeBarn(h.state!, target));
-  // C never picks.
-
-  h.advance(ABDUCT_CHOOSE_MS);
-  await abductTick(h.ctx);
-  check('C ended up somewhere, not nowhere', typeof h.state?.picks[C] === 'number');
-  check('and it is a real, undestroyed barn', h.state?.barns[h.state.picks[C] as number]?.destroyed === false);
-  check('that somewhere happens to be the target this time', h.state?.picks[C] === target);
-  check('so C is abducted, exactly like a player who chose it themselves', !!h.state?.abducted.includes(C));
-  check('C scores nothing this round', h.state?.scores[C] === 0);
-  h.restoreRandom();
-}
-
-console.log('\nabduction and destruction');
-
-{
+  // Cows present: both A and B walk right into the target.
   const h = harness();
   h.setRoster([A, B, C]);
   await startAbduct(h.ctx, 1, [A, B, C]);
@@ -215,134 +190,182 @@ console.log('\nabduction and destruction');
   await onPick(h.ctx, A, 1, 1, target);
   await onPick(h.ctx, B, 1, 1, target);
   await onPick(h.ctx, C, 1, 1, safeBarn(h.state!, target));
-
-  h.advance(ABDUCT_CHOOSE_MS);
+  h.advance(ABDUCT_COUNTDOWN_MS);
   await abductTick(h.ctx);
-  check('both cows on the target are abducted together', new Set(h.state?.abducted).size === 2
+  check('both cows on the target are abducted', new Set(h.state?.abducted).size === 2
     && !!h.state?.abducted.includes(A) && !!h.state?.abducted.includes(B));
-  check('the barn itself is not destroyed when cows were there', h.state?.barns[target]?.destroyed === false);
+  check('they are permanently out', !!h.state?.out.includes(A) && !!h.state?.out.includes(B));
+  check('the barn is destroyed too, not just emptied of cows', h.state?.barns[target]?.destroyed === true);
   check('the abducted score nothing this round', h.state?.scores[A] === 0 && h.state?.scores[B] === 0);
-  check('a cow that dodged it scores', h.state?.scores[C] === 1);
+  check('the cow that dodged scores', h.state?.scores[C] === 1);
 }
 
 {
+  // Nobody home: same destruction, no elimination.
   const h = harness();
   h.setRoster([A, B]);
   await startAbduct(h.ctx, 1, [A, B]);
   const target = h.state?.target as number;
   await onPick(h.ctx, A, 1, 1, safeBarn(h.state!, target));
   await onPick(h.ctx, B, 1, 1, safeBarn(h.state!, target));
-
-  h.advance(ABDUCT_CHOOSE_MS);
+  h.advance(ABDUCT_COUNTDOWN_MS);
   await abductTick(h.ctx);
   check('nobody was on the target', h.state?.abducted.length === 0);
-  check('so the barn is destroyed instead', h.state?.barns[target]?.destroyed === true);
-  check('everyone connected scores', h.state?.scores[A] === 1 && h.state?.scores[B] === 1);
+  check('nobody is out', h.state?.out.length === 0);
+  check('the barn is destroyed anyway', h.state?.barns[target]?.destroyed === true);
+  check('everyone still in scores', h.state?.scores[A] === 1 && h.state?.scores[B] === 1);
 }
 
-console.log('\na destroyed barn stays destroyed for the rest of the match');
+console.log('\nan abducted player can neither pick again nor block the next waiting phase');
 
 {
   const h = harness();
-  h.setRoster([A, B]);
-  await startAbduct(h.ctx, 1, [A, B]);
-  const round1Target = h.state?.target as number;
-  await onPick(h.ctx, A, 1, 1, safeBarn(h.state!, round1Target));
-  await onPick(h.ctx, B, 1, 1, safeBarn(h.state!, round1Target));
-  h.advance(ABDUCT_CHOOSE_MS);
-  await abductTick(h.ctx); // -> revealing, round1Target destroyed (nobody there)
-  check('round 1\'s empty target is destroyed', h.state?.barns[round1Target]?.destroyed === true);
+  h.setRoster([A, B, C]);
+  await startAbduct(h.ctx, 1, [A, B, C]);
+  const target = h.state?.target as number;
+  await onPick(h.ctx, A, 1, 1, safeBarn(h.state!, target));
+  await onPick(h.ctx, B, 1, 1, safeBarn(h.state!, target));
+  await onPick(h.ctx, C, 1, 1, target); // C alone walks in
+  h.advance(ABDUCT_COUNTDOWN_MS);
+  await abductTick(h.ctx); // -> revealing
+  check('C is out', !!h.state?.out.includes(C));
 
   h.advance(ABDUCT_REVEAL_MS);
-  await abductTick(h.ctx); // -> round 2, choosing, fresh target
-  check('round 2 started', h.state?.round === 2);
-  check('the barn destroyed in round 1 is STILL destroyed — barns do not reset', h.state?.barns[round1Target]?.destroyed === true);
-  check('and round 2\'s own draw never lands on a destroyed barn', h.state?.target !== round1Target, h.state?.target);
-  check('every other barn is still standing', h.state?.barns.filter((b) => b.destroyed).length === 1);
+  await abductTick(h.ctx); // -> round 2, waiting (A and B both still in)
+  check('round 2 opens', h.state?.round === 2, h.state);
+  check('still waiting', h.state?.phase === 'waiting');
 
-  const round2Target = h.state?.target as number;
-  // Exclude round1Target too — it is already destroyed, and the referee now
-  // refuses a pick on a destroyed barn (spec §2.1), so it is not a "safe" pick.
-  await onPick(h.ctx, A, 1, 2, safeBarn(h.state!, round2Target, round1Target));
-  await onPick(h.ctx, B, 1, 2, safeBarn(h.state!, round2Target, round1Target));
-  h.advance(ABDUCT_CHOOSE_MS);
-  await abductTick(h.ctx);
-  h.advance(ABDUCT_REVEAL_MS);
-  await abductTick(h.ctx); // -> round 3
+  await onPick(h.ctx, C, 1, 2, safeBarn(h.state!));
+  check('an out player\'s pick is silently ignored', h.state?.picks[C] === undefined || h.state?.picks[C] === target);
 
-  check('two different barns can end up destroyed across the match',
-    h.state?.barns.filter((b) => b.destroyed).length === 2);
-  check('round 3\'s draw avoids both of them',
-    h.state?.target !== round1Target && h.state?.target !== round2Target, h.state?.target);
+  const target2 = h.state?.target as number;
+  await onPick(h.ctx, A, 1, 2, safeBarn(h.state!, target2));
+  check('still waiting on B alone — C does not count', h.state?.phase === 'waiting');
+  await onPick(h.ctx, B, 1, 2, safeBarn(h.state!, target2));
+  check('A and B alone are enough to start the countdown', h.state?.phase === 'countdown');
 }
 
-console.log('\na full three-round match ends with a winner');
+console.log('\ndestroying one barn a round eventually leaves nowhere left to dodge to');
 
 {
   const h = harness();
   h.setRoster([A, B]);
   await startAbduct(h.ctx, 1, [A, B]);
 
-  for (let round = 1; round <= ABDUCT_ROUNDS; round++) {
-    const target = h.state?.target as number;
-    await onPick(h.ctx, A, 1, round, safeBarn(h.state!, target)); // A always dodges
-    await onPick(h.ctx, B, 1, round, target); // B always walks right in
-    h.advance(ABDUCT_CHOOSE_MS);
-    await abductTick(h.ctx); // choosing -> revealing
-    h.advance(ABDUCT_REVEAL_MS);
-    await abductTick(h.ctx); // revealing -> next round, or done
-  }
-
-  check('the match is done after three rounds', h.state?.phase === 'done', h.state);
-  check('A, never abducted, wins', h.state?.winner === A, h.state?.scores);
-  check('B, caught every time, has nothing', h.state?.scores[B] === 0, h.state?.scores);
-
-  const before = JSON.stringify(h.state);
-  h.advance(ABDUCT_CHOOSE_MS);
-  await abductTick(h.ctx);
-  check('a tick after done is a no-op', JSON.stringify(h.state) === before);
-}
-
-console.log('\na tie at the end is nobody\'s win');
-
-{
-  const h = harness();
-  h.setRoster([A, B]);
-  await startAbduct(h.ctx, 1, [A, B]);
-
-  for (let round = 1; round <= ABDUCT_ROUNDS; round++) {
+  // Both always dodge — nobody is eliminated yet, but every round's own
+  // target is destroyed regardless of cows (spec §2.1), so the pool of
+  // open barns shrinks by exactly one a round whether or not anyone is caught.
+  for (let round = 1; round <= ABDUCT_BARN_COUNT - 1; round++) {
     const target = h.state?.target as number;
     const safe = safeBarn(h.state!, target);
     await onPick(h.ctx, A, 1, round, safe);
     await onPick(h.ctx, B, 1, round, safe);
-    h.advance(ABDUCT_CHOOSE_MS);
-    await abductTick(h.ctx);
+    h.advance(ABDUCT_COUNTDOWN_MS);
+    await abductTick(h.ctx); // -> revealing
     h.advance(ABDUCT_REVEAL_MS);
-    await abductTick(h.ctx);
+    await abductTick(h.ctx); // -> next round
   }
 
-  check('an equal score is not ranked', h.state?.winner === null, h.state?.scores);
+  check('nobody caught yet', h.state?.out.length === 0, h.state?.out);
+  check(`${ABDUCT_BARN_COUNT - 1} barns destroyed, one left standing`,
+    h.state?.barns.filter((b) => b.destroyed).length === ABDUCT_BARN_COUNT - 1);
+  check('the match is still going', h.state?.phase === 'waiting');
+
+  // Only one barn is left standing, so it IS this round's own target — there
+  // is nowhere left to dodge to.
+  const lastBarn = h.state?.barns.findIndex((b) => !b.destroyed);
+  check('the sole remaining barn is this round\'s own target', h.state?.target === lastBarn);
+
+  h.advance(ABDUCT_WAIT_MS); // neither player can do anything but land on it
+  await abductTick(h.ctx); // waiting -> countdown, both assigned the only barn left
+  h.advance(ABDUCT_COUNTDOWN_MS);
+  await abductTick(h.ctx); // countdown -> revealing: everyone still in is caught
+  h.advance(ABDUCT_REVEAL_MS);
+  await abductTick(h.ctx); // revealing -> done: nobody is left
+
+  check('every barn is destroyed', !!h.state?.barns.every((b) => b.destroyed));
+  check('both players were caught together', h.state?.out.length === 2);
+  check('the match ends with nobody left to win it', h.state?.phase === 'done' && h.state.winner === null, h.state);
 }
 
-console.log('\nonly the connected roster scores at resolution');
+console.log('\nlast one standing ends the match');
 
 {
   const h = harness();
   h.setRoster([A, B]);
   await startAbduct(h.ctx, 1, [A, B]);
   const target = h.state?.target as number;
-  // A and B pick a barn they know is safe — this test is about C leaving, not
-  // about the (separately covered) random assignment an unpicked player gets.
+  await onPick(h.ctx, A, 1, 1, safeBarn(h.state!, target));
+  await onPick(h.ctx, B, 1, 1, target); // B alone walks in
+  h.advance(ABDUCT_COUNTDOWN_MS);
+  await abductTick(h.ctx); // -> revealing, B out
+  h.advance(ABDUCT_REVEAL_MS);
+  await abductTick(h.ctx); // -> done: only A is left
+
+  check('the match is done', h.state?.phase === 'done', h.state);
+  check('A, the only one left, wins', h.state?.winner === A);
+}
+
+console.log('\nthe last two going together ends the match with nobody');
+
+{
+  const h = harness();
+  h.setRoster([A, B]);
+  await startAbduct(h.ctx, 1, [A, B]);
+  const target = h.state?.target as number;
+  await onPick(h.ctx, A, 1, 1, target);
+  await onPick(h.ctx, B, 1, 1, target); // both walk in together
+  h.advance(ABDUCT_COUNTDOWN_MS);
+  await abductTick(h.ctx); // -> revealing, both out
+  h.advance(ABDUCT_REVEAL_MS);
+  await abductTick(h.ctx); // -> done: nobody left
+
+  check('the match is done', h.state?.phase === 'done');
+  check('nobody is left to win', h.state?.winner === null, h.state?.scores);
+
+  const before = JSON.stringify(h.state);
+  h.advance(ABDUCT_WAIT_MS);
+  await abductTick(h.ctx);
+  check('a tick after done is a no-op', JSON.stringify(h.state) === before);
+}
+
+console.log('\nsolo mode lowers the threshold to nobody left, not one');
+
+{
+  const h = harness();
+  h.setRoster([A, B]);
+  await startAbduct(h.ctx, 1, [A, B], true);
+  const target = h.state?.target as number;
+  await onPick(h.ctx, A, 1, 1, safeBarn(h.state!, target));
+  await onPick(h.ctx, B, 1, 1, target);
+  h.advance(ABDUCT_COUNTDOWN_MS);
+  await abductTick(h.ctx); // -> revealing, B out
+  h.advance(ABDUCT_REVEAL_MS);
+  await abductTick(h.ctx); // one left (A) — solo does not end it here
+
+  check('one left is not the end in solo mode', h.state?.phase !== 'done', h.state?.phase);
+  check('round 2 opens instead', h.state?.round === 2);
+}
+
+console.log('\nonly the connected roster is scored or eliminated');
+
+{
+  const h = harness();
+  h.setRoster([A, B]);
+  await startAbduct(h.ctx, 1, [A, B]);
+  const target = h.state?.target as number;
+  // C leaves before the countdown resolves — should not be scored or
+  // eliminated even if they had walked right into the target.
+  await onPick(h.ctx, C, 1, 1, target);
+  h.setRoster([A, B]);
   await onPick(h.ctx, A, 1, 1, safeBarn(h.state!, target));
   await onPick(h.ctx, B, 1, 1, safeBarn(h.state!, target));
-  // C leaves before the reveal — should not be scored even if they had picked before.
-  await onPick(h.ctx, C, 1, 1, safeBarn(h.state!, target));
-  h.setRoster([A, B]);
 
-  h.advance(ABDUCT_CHOOSE_MS);
+  h.advance(ABDUCT_COUNTDOWN_MS);
   await abductTick(h.ctx);
-  check('a disconnected player is not scored this round', h.state?.scores[C] === 0, h.state?.scores);
-  check('connected players are', h.state?.scores[A] === 1 && h.state?.scores[B] === 1);
+  check('a disconnected player is not eliminated', !h.state?.out.includes(C));
+  check('nor scored', h.state?.scores[C] === 0, h.state?.scores);
+  check('connected players score', h.state?.scores[A] === 1 && h.state?.scores[B] === 1);
 }
 
 console.log('\nrejections');
@@ -370,13 +393,13 @@ console.log('\nthe deadline is a moment, and it comes round');
   await startAbduct(h.ctx, 1, [A, B]);
   const s = h.state as Abduct;
 
-  check('it is the choosing window away', nextDeadline(s) === h.now + ABDUCT_CHOOSE_MS);
+  check('it is the waiting cap away', nextDeadline(s) === h.now + ABDUCT_WAIT_MS);
   check('not due yet', !(h.now >= nextDeadline(s)));
   check('and the alarm matches', h.alarm === nextDeadline(s));
 
-  h.advance(ABDUCT_CHOOSE_MS);
+  h.advance(ABDUCT_WAIT_MS);
   await abductTick(h.ctx);
-  check('revealing is due next at its own deadline', h.alarm === (h.state as Abduct).deadlineAt);
+  check('countdown is due next at its own deadline', h.alarm === (h.state as Abduct).deadlineAt);
 }
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);

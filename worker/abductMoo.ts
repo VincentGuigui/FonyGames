@@ -1,16 +1,16 @@
 import {
   ABDUCT_BARN_COUNT,
-  ABDUCT_CHOOSE_MS,
+  ABDUCT_COUNTDOWN_MS,
   ABDUCT_MAX_PLAYERS,
   ABDUCT_MIN_PLAYERS,
   ABDUCT_REVEAL_MS,
-  ABDUCT_ROUNDS,
+  ABDUCT_WAIT_MS,
   type AbductBarn,
   type AbductState,
   type PlayerId,
   type ServerMessage,
 } from '../shared/protocol';
-import { enoughToStart } from '../shared/players';
+import { enoughToStart, lastStanding } from '../shared/players';
 
 /**
  * Abduct-Moo. Spec: docs/specs/games/abduct-moo.md
@@ -39,11 +39,13 @@ export type Ctx = {
   setAlarm(at: number): Promise<void>;
   /**
    * Who is on the room's roster right now. Unlike every other game here, a
-   * round's own resolution (who is safe, who scores) depends on this at
-   * TICK time, not only at start — a late joiner is meant to start scoring
-   * the moment they are on the roster, whether or not they have tapped yet
-   * (spec §7). Every other game freezes its roster at `start`; this is the
-   * one new thing Abduct-Moo needs from `Ctx`.
+   * round's own resolution (who is safe, who scores, who is still in) depends
+   * on this at TICK time, not only at start — a late joiner is meant to start
+   * scoring the moment they are on the roster, whether or not they have
+   * tapped yet (spec §7), and the match's own end condition (last one
+   * standing) is read fresh off the live roster too. Every other game
+   * freezes its roster at `start`; this is the one new thing Abduct-Moo
+   * needs from `Ctx`.
    */
   connected(): Promise<PlayerId[]>;
 };
@@ -53,54 +55,52 @@ function freshBarns(): AbductBarn[] {
 }
 
 /**
- * One of the barns still standing, or null if every one of them has been
- * destroyed already (never actually reachable at `ABDUCT_BARN_COUNT: 5` and
- * `ABDUCT_ROUNDS: 3` — at most one barn is destroyed per round — but a random
- * draw is not the place to assume an invariant holds forever).
+ * One of the barns still standing. If every barn has been destroyed already,
+ * every barn resets fresh first rather than returning nothing to draw from.
+ *
+ * In practice this branch is not reachable through ordinary play: with
+ * `ABDUCT_BARN_COUNT` at 5, the round that would destroy the fifth barn is
+ * also the round with only one barn left standing — everyone still in is
+ * forced onto it (nowhere left to dodge to) and the match ends in that same
+ * tick, before a sixth draw is ever needed. It stays as a defensive fallback
+ * rather than an assumed invariant — a barn count change, or a future rule
+ * that skips a round's destruction, would make it reachable again.
  */
-function randomValidBarn(barns: AbductBarn[]): number | null {
-  const valid = barns.reduce<number[]>((acc, b, i) => (b.destroyed ? acc : [...acc, i]), []);
-  if (valid.length === 0) return null;
+function randomValidBarn(barns: AbductBarn[]): number {
+  let valid = barns.reduce<number[]>((acc, b, i) => (b.destroyed ? acc : [...acc, i]), []);
+  if (valid.length === 0) {
+    for (const b of barns) b.destroyed = false;
+    valid = barns.map((_, i) => i);
+  }
   return valid[Math.floor(Math.random() * valid.length)]!;
+}
+
+/** Connected players who have not yet been abducted — the ones still playing. */
+function active(game: Abduct, connected: PlayerId[]): PlayerId[] {
+  return connected.filter((id) => !game.out.includes(id));
+}
+
+/** Does every active, connected player already have a barn of their own? */
+function everyoneReady(game: Abduct, connected: PlayerId[]): boolean {
+  const who = active(game, connected);
+  return who.length > 0 && who.every((id) => game.picks[id] !== null && game.picks[id] !== undefined);
 }
 
 /**
  * The public frame is the whole state minus `solo`, which never leaves the
- * room — plus one more thing withheld while `phase === 'choosing'`: `target`
- * is drawn the instant a round's choosing phase opens (spec §2, §8), not at
- * its deadline, but a client is never told it before its own reveal. Nulling
- * it out here, rather than not drawing it yet, is what keeps that promise —
- * the internal state and the wire state simply disagree about it until then.
+ * room — plus one more thing withheld before a round's own reveal: `target`
+ * is drawn the instant `waiting` opens (spec §2, §8), not at any deadline,
+ * but a client is never told it before `revealing`. Nulling it out here,
+ * rather than not drawing it yet, is what keeps that promise — the internal
+ * state and the wire state simply disagree about it until then.
  */
 export function toState(game: Abduct): AbductState {
   const { solo: _solo, ...state } = game;
-  return state.phase === 'choosing' ? { ...state, target: null } : state;
+  return state.phase === 'waiting' || state.phase === 'countdown' ? { ...state, target: null } : state;
 }
 
 function publish(ctx: Ctx, game: Abduct): void {
   ctx.broadcast({ t: 'abduct', s: ctx.nextSeq(), d: toState(game) });
-}
-
-/**
- * Who has the most points, or null when several players are tied for the
- * top — the same "a tie is unranked" convention Pass the Bomb's own
- * (unexported) `leader` uses. A small pure helper like this is cheaper
- * duplicated than cross-imported between sibling worker modules.
- */
-function leader(scores: Record<PlayerId, number>): PlayerId | null {
-  let best: PlayerId | null = null;
-  let bestN = 0;
-  let tied = false;
-  for (const [id, n] of Object.entries(scores)) {
-    if (n > bestN) {
-      bestN = n;
-      best = id;
-      tied = false;
-    } else if (n === bestN) {
-      tied = true;
-    }
-  }
-  return tied ? null : best;
 }
 
 /** When this room next owes Abduct-Moo an answer. Never, once the match is done. */
@@ -123,14 +123,15 @@ export async function startAbduct(
   const game: Abduct = {
     roundId,
     round: 1,
-    phase: 'choosing',
-    deadlineAt: now + ABDUCT_CHOOSE_MS,
+    phase: 'waiting',
+    deadlineAt: now + ABDUCT_WAIT_MS,
     barns,
     picks: {},
-    // Drawn now, not at the deadline — see `toState`'s own doc for why that
+    // Drawn now, not at any deadline — see `toState`'s own doc for why that
     // is safe: nothing on the wire leaks it before this round's own reveal.
     target: randomValidBarn(barns),
     abducted: [],
+    out: [],
     scores: Object.fromEntries(connected.map((id) => [id, 0])),
     winner: null,
     solo,
@@ -143,8 +144,14 @@ export async function startAbduct(
 }
 
 /**
- * A phone tapped a barn. Sendable any number of times while choosing is open —
- * only the latest one before the deadline is ever honoured (spec §8).
+ * A phone tapped a barn. Sendable any number of times while a barn is still
+ * choosable — during `waiting` or the final `countdown` — only the latest
+ * one before the reveal is ever honoured (spec §8). Ignored outright for a
+ * player already abducted (spec §2.2): once out, always out.
+ *
+ * The moment every active, connected player has a barn, `waiting` ends right
+ * here rather than waiting out its own deadline (spec §2) — the deadline is
+ * only a ceiling for stragglers.
  */
 export async function onPick(
   ctx: Ctx,
@@ -154,10 +161,11 @@ export async function onPick(
   barn: number,
 ): Promise<void> {
   const game = await ctx.load();
-  if (!game || game.phase !== 'choosing') return;
+  if (!game || (game.phase !== 'waiting' && game.phase !== 'countdown')) return;
   // A pick belongs to the round it was made in. Without this, a stale frame
   // from a previous round — or a forged one — moves a barn nobody is at now.
   if (game.roundId !== roundId || game.round !== round) return;
+  if (game.out.includes(playerId)) return;
   if (!Number.isInteger(barn) || barn < 0 || barn >= ABDUCT_BARN_COUNT) return;
   // A destroyed barn cannot be used for the rest of the match (spec §2.1) — the
   // client already disables tapping one, this is the referee's own copy of that
@@ -168,54 +176,85 @@ export async function onPick(
   // A late joiner's first pick is also their first appearance in the score
   // table (spec §7) — they start at nil, same as everyone at kick-off.
   if (game.scores[playerId] === undefined) game.scores[playerId] = 0;
+
+  if (game.phase === 'waiting') {
+    const connected = await ctx.connected();
+    if (everyoneReady(game, connected)) {
+      game.phase = 'countdown';
+      game.deadlineAt = ctx.now() + ABDUCT_COUNTDOWN_MS;
+      await ctx.save(game);
+      publish(ctx, game);
+      await ctx.setAlarm(game.deadlineAt);
+      return;
+    }
+  }
+
   await ctx.save(game);
   publish(ctx, game);
 }
 
-/**
- * The choosing deadline has passed. `game.target` was already drawn the
- * moment this round opened (`toState` is what kept it off the wire since) —
- * everything here is what falls out of it: a random valid barn for anyone
- * who never tapped one, who gets abducted, whether the target is destroyed,
- * and this round's scoring.
- *
- * Scores only ever move for currently CONNECTED players: a disconnected
- * player's last score simply stands (spec §7) rather than continuing to tick
- * up, or down, while nobody is there to see it.
- */
-function resolveChoosing(game: Abduct, connected: PlayerId[]): void {
-  for (const id of connected) {
+/** The `waiting` deadline passed with stragglers left. Hiding nowhere is not
+ *  the same as being safe (spec §7) — an undecided cow ends up somewhere,
+ *  same as everyone else's. */
+function assignStragglers(game: Abduct, connected: PlayerId[]): void {
+  for (const id of active(game, connected)) {
     if (game.picks[id] === null || game.picks[id] === undefined) {
-      // Hiding nowhere is not the same as being safe (spec §12) — an
-      // undecided cow ends up somewhere, same as everyone else's.
       game.picks[id] = randomValidBarn(game.barns);
     }
   }
+}
 
-  const { target } = game;
-  const abducted = target === null ? [] : connected.filter((id) => game.picks[id] === target);
+/**
+ * The countdown has run out. `game.target` was already drawn the moment this
+ * round's own `waiting` opened — this is everything that falls out of it:
+ * who is abducted, and — cows there or not — the target barn is destroyed
+ * for the rest of the match (spec §2.1). An abducted player is added to
+ * `out` for good (spec §2.2); everyone else still in scores a point.
+ *
+ * Scores and eliminations only ever move for currently CONNECTED players: a
+ * disconnected player's last score simply stands (spec §7) rather than
+ * continuing to tick up, or down, while nobody is there to see it.
+ */
+function resolveCountdown(game: Abduct, connected: PlayerId[]): void {
+  const target = game.target!;
+  const inPlay = active(game, connected);
+  const abducted = inPlay.filter((id) => game.picks[id] === target);
+
   game.abducted = abducted;
-  // Nobody was there to take — the barn itself is what the UFO has to show for it.
-  if (target !== null && abducted.length === 0) game.barns[target]!.destroyed = true;
+  game.barns[target]!.destroyed = true;
+  for (const id of abducted) game.out.push(id);
 
-  for (const id of connected) {
+  for (const id of inPlay) {
     if (game.scores[id] === undefined) game.scores[id] = 0;
     if (!abducted.includes(id)) game.scores[id] += 1;
   }
 }
 
 /**
- * The current phase's deadline has passed. Advances choosing → revealing,
- * or revealing → the next round's choosing, or → `done` after the last one.
+ * The current phase's deadline has passed. Advances `waiting` → `countdown`,
+ * `countdown` → `revealing`, or `revealing` → the next round's `waiting` —
+ * unless only one cow (or none) is left standing, which ends the match
+ * (spec §2, §7) whatever round it happens to be.
  */
 export async function abductTick(ctx: Ctx): Promise<void> {
   const game = await ctx.load();
   if (!game || game.phase === 'done') return;
   const now = ctx.now();
   if (now < game.deadlineAt) return;
+  const connected = await ctx.connected();
 
-  if (game.phase === 'choosing') {
-    resolveChoosing(game, await ctx.connected());
+  if (game.phase === 'waiting') {
+    assignStragglers(game, connected);
+    game.phase = 'countdown';
+    game.deadlineAt = now + ABDUCT_COUNTDOWN_MS;
+    await ctx.save(game);
+    publish(ctx, game);
+    await ctx.setAlarm(game.deadlineAt);
+    return;
+  }
+
+  if (game.phase === 'countdown') {
+    resolveCountdown(game, connected);
     game.phase = 'revealing';
     game.deadlineAt = now + ABDUCT_REVEAL_MS;
     await ctx.save(game);
@@ -225,9 +264,10 @@ export async function abductTick(ctx: Ctx): Promise<void> {
   }
 
   // phase === 'revealing'
-  if (game.round >= ABDUCT_ROUNDS) {
+  const stillIn = active(game, connected);
+  if (lastStanding(stillIn.length, game.solo)) {
     game.phase = 'done';
-    game.winner = leader(game.scores);
+    game.winner = stillIn[0] ?? null;
     await ctx.save(game);
     publish(ctx, game);
     return;
@@ -235,12 +275,13 @@ export async function abductTick(ctx: Ctx): Promise<void> {
 
   game.round += 1;
   // Barns are NOT reset here — a destroyed barn stays destroyed for the rest
-  // of the match (spec §2.1), so `game.barns` carries straight over.
+  // of the match (spec §2.1), except the one time `randomValidBarn` itself
+  // has to replenish all five at once (spec §8).
   game.picks = {};
   game.target = randomValidBarn(game.barns);
   game.abducted = [];
-  game.phase = 'choosing';
-  game.deadlineAt = now + ABDUCT_CHOOSE_MS;
+  game.phase = 'waiting';
+  game.deadlineAt = now + ABDUCT_WAIT_MS;
   await ctx.save(game);
   publish(ctx, game);
   await ctx.setAlarm(game.deadlineAt);

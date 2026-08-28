@@ -526,10 +526,11 @@ export type UfoHuntState = {
 };
 
 /**
- * Abduct-Moo: one barn's own state this round. `destroyed` only ever turns
- * true at a round's reveal (an empty barn the UFO happened to pick) and is
- * reset the moment the next round's choosing phase opens — see
- * docs/specs/games/abduct-moo.md §2.1.
+ * Abduct-Moo: one barn's own state this round. `destroyed` turns true the
+ * instant its round resolves — the UFO's own target, cows caught there or
+ * not (spec §2.1) — and stays that way for the rest of the match, though a
+ * match that outlasts every barn resets them all fresh rather than ending
+ * for lack of one (§8).
  */
 export type AbductBarn = {
   destroyed: boolean;
@@ -543,25 +544,38 @@ export type AbductBarn = {
  */
 export type AbductState = {
   roundId: number;
-  /** 1..ABDUCT_ROUNDS — the match's own round counter, not the room's `roundId`. */
+  /** The match's own round counter, not the room's `roundId` — no fixed cap
+   *  any more (spec §2): rounds repeat until one cow is left standing. */
   round: number;
-  phase: 'choosing' | 'revealing' | 'done';
+  /**
+   * `waiting` — barns open, tap one any time. `countdown` — everyone has a
+   * barn (by choice or by the deadline's own random assignment) and the
+   * final "3, 2, 1" is playing before the UFO commits. `revealing` — the
+   * outcome is already decided; only the choreography is left to play.
+   */
+  phase: 'waiting' | 'countdown' | 'revealing' | 'done';
   /** Server time the current phase ends. */
   deadlineAt: number;
   /**
    * Always ABDUCT_BARN_COUNT entries. A destroyed barn stays destroyed for the
-   * rest of the match (spec §2.1) — this does NOT reset between rounds.
+   * rest of the match (spec §2.1) — this does NOT reset between rounds, except
+   * the one time every barn is gone at once (§8).
    */
   barns: AbductBarn[];
-  /** Every connected player's current barn, or null before their first tap this round. */
+  /** Every connected, still-in player's current barn, or null before their
+   *  first tap this round. */
   picks: Record<PlayerId, number | null>;
   /** The UFO's drawn target this round — null until that round's reveal. */
   target: number | null;
   /** This round's victims — [] until reveal, holds until the next round resets it. */
   abducted: PlayerId[];
-  /** +1 per round a player was not abducted, summed across the whole match. */
+  /** Every player ever abducted, across the whole match — permanently out
+   *  (spec §2.2): once here, always here. */
+  out: PlayerId[];
+  /** +1 per round a player was connected, still in, and not abducted. */
   scores: Record<PlayerId, number>;
-  /** Set only once `phase` is `'done'`, after round ABDUCT_ROUNDS's reveal. */
+  /** Set only once `phase` is `'done'` — the sole player left in, or null if
+   *  the last two went together (spec §7). */
   winner: PlayerId | null;
 };
 
@@ -2014,15 +2028,23 @@ export function ufoImpact(offsetDeg: number): number {
 /** Barns across the middle of the screen, evenly spaced. */
 export const ABDUCT_BARN_COUNT = 5;
 
-/** The match is exactly this many rounds — not a safety-cap loop like most games here. */
-export const ABDUCT_ROUNDS = 3;
+/**
+ * `waiting`'s own cap — the longest any barn stays open before the deadline
+ * assigns a random one to anyone who never tapped (spec §2, §7). Ends early,
+ * for everyone at once, the moment every connected, still-in player has a
+ * barn of their own — the deadline is a ceiling, not a fixed wait.
+ */
+export const ABDUCT_WAIT_MS = 5_000;
 
-/** The brief's own number: how long every barn stays open to change your mind. */
-export const ABDUCT_CHOOSE_MS = 3_000;
+/**
+ * The final "3, 2, 1" once everyone has a barn (spec §2) — a beat of pure
+ * tension before the UFO commits; nothing about the outcome changes here.
+ */
+export const ABDUCT_COUNTDOWN_MS = 3_000;
 
 /**
  * How long the UFO's fly-in, light cone and abduction get to play out before the
- * next round's choosing phase opens. The referee has already decided everything
+ * next round's `waiting` phase opens. The referee has already decided everything
  * by the time this starts (spec §2, §8) — this window is pure presentation.
  *
  * Budgeted for the client's own choreography (spec §4): ~2 s hovering fast over

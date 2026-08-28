@@ -116,7 +116,7 @@ function body(): array
  * no CORS here to succeed at.
  */
 /** 30 days from the redeem, checked server-side and mirrored in PHP's session storage. */
-const SESSION_TTL_S = 2_592_000 ;
+const SESSION_TTL_S = 2_592_000;
 
 function beginSession(): void
 {
