@@ -11,8 +11,8 @@ import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard, type ScoreRow } from '../../core/ui/Scoreboard';
 import { useGameText } from '../../core/i18n/gameText';
 import { cowGridSlot, ufoDriftAt, ufoHoverAt, type AbductView } from './game';
-import cowArt from './art/cow.svg?url&no-inline';
-import barnArt from './art/barn.svg?url&no-inline';
+import cowArt from './art/cow.png?url&no-inline';
+import barnArt from './art/barn.png?url&no-inline';
 import ufoArt from './art/ufo.svg?url&no-inline';
 
 /**

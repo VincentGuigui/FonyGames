@@ -96,10 +96,9 @@ Only `classic` at launch.
   fields below — with up to five barns evenly spaced across the middle of
   the screen (fewer once one is destroyed, §2.1) and every connected
   player's cow lined up along the bottom edge when unplaced. **Your own cow
-  is drawn at full brightness; everyone else's is dimmed** — never the only
-  signal, since a cow also gets a small ring around it while it is *yours*,
-  so brightness alone (which some displays and some eyes flatten) is not
-  what tells you which one you are (spec §11). During **choosing**, a
+  is drawn at full opacity; everyone else's sits at 70%** — the cow and barn
+  art are the maintainer's own pixel-art files (`art/cow.png`, `art/barn.png`),
+  used as given rather than redrawn (spec §12). During **choosing**, a
   countdown banner sits between the UFO and the barns — *"N seconds before
   abduction, hide your cow!"*, wrapping rather than overflowing on a narrow
   phone — and every cow, yours and everyone else's, moves to sit **just
@@ -218,10 +217,11 @@ live.
 
 ## 11. Accessibility
 
-- Own-cow versus everyone-else is never brightness alone: your own cow also
-  carries a small ring the others do not, so a display or a viewer that
-  flattens the brightness difference still has a second, independent way to
-  find yourself.
+- Own-cow versus everyone-else is opacity alone (100% vs. 70%) — a deliberate
+  simplification the maintainer asked for directly, dropping this spec's
+  earlier second cue (a ring around your own cow). Worth revisiting if a
+  display or a viewer that flattens the opacity difference turns out to
+  need one back.
 - The reveal's outcome (abducted vs. safe) is read from the score ticking
   up and the cow visibly leaving the board, not from colour — a cow that is
   gone is gone, on any screen.
@@ -264,9 +264,9 @@ live.
   still have its rise animation cut short by the round advancing — the
   outcome itself is never in doubt by then (§2), only how much of the
   flourish is seen.
-- **Art**: cow and barn are hand-drawn SVG, not PNG. The brief allowed
-  either; this session cannot produce polished raster art (the same call
-  UFO Hunt's own saucer made), and SVG keeps them crisp at any size for
-  free. The UFO itself is not redrawn — it is `ufo-hunt/art/ufo.svg`,
-  copied in rather than shared by reference, so the two games can drift
-  apart visually later without one edit breaking the other.
+- ~~Cow and barn art~~ — **resolved.** Originally hand-drawn SVG, since this
+  session cannot produce polished raster art on its own; the maintainer then
+  supplied the real pixel-art PNGs (`art/cow.png`, `art/barn.png`) directly,
+  used exactly as given — loaded through an `<img>` like any other gameplay
+  sprite, sized by CSS `width` percentages, nothing redrawn or regenerated.
+  The UFO alone is still the SVG copy of `ufo-hunt/art/ufo.svg`.
