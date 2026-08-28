@@ -41,7 +41,7 @@ export default defineConfig({
         'tic-tac-tic-tac-toe': 'www/tic-tac-tic-tac-toe/index.html',
         'hundred-taps': 'www/hundred-taps/index.html',
         'ufo-hunt': 'www/ufo-hunt/index.html',
-        'abduct-moo': 'www/abduct-moo/index.html',
+        'aliens-love-cows': 'www/aliens-love-cows/index.html',
         // The admin centre. Built to a PLACEHOLDER directory name and renamed to the
         // ADMIN_PATH secret by the deploy — this repository is public, so the real
         // path cannot be committed (docs/deployment.md §3.4).

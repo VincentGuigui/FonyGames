@@ -97,7 +97,7 @@ import {
   toState as abductToState,
   type Abduct,
   type Ctx as AbductCtx,
-} from './abductMoo';
+} from './aliensLoveCows';
 import {
   nextDeadline as ttttDeadline,
   onSelect as onTtttSelect,
@@ -1485,7 +1485,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'ufo-hunt', s: this.#nextSeq(), d: ufoHuntToState(ufoHunt) });
     }
 
-    /* Abduct-Moo: also fully public — same reasoning as UFO Hunt just above. */
+    /* Aliens love cows: also fully public — same reasoning as UFO Hunt just above. */
     const abducting = await this.#abduct();
     if (abducting && abducting.phase !== 'done') {
       this.#send(ws, { t: 'abduct', s: this.#nextSeq(), d: abductToState(abducting) });

@@ -237,9 +237,10 @@ export type ClientMessage =
   | { t: 'tttt-tap'; d: { roundId: number; smallCell: number } }
   | { t: 'fighter-lock'; d: { roundId: number; actions: FighterAction[]; seat?: FighterSeat } }
   /**
-   * Abduct-Moo: my cow now wants barn `barn` (0..ABDUCT_BARN_COUNT-1). Sendable
-   * any number of times while `phase === 'choosing'`; the referee only ever
-   * keeps the latest one it received before the deadline (spec §8).
+   * Aliens love cows: my cow now wants barn `barn` (0..ABDUCT_BARN_COUNT-1).
+   * Sendable any number of times while `phase` is `'waiting'` or `'countdown'`;
+   * the referee only ever keeps the latest one it received before the reveal
+   * (spec §8).
    */
   | { t: 'abduct-pick'; d: { roundId: number; round: number; barn: number } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
@@ -526,7 +527,7 @@ export type UfoHuntState = {
 };
 
 /**
- * Abduct-Moo: one barn's own state this round. `destroyed` turns true the
+ * Aliens love cows: one barn's own state this round. `destroyed` turns true the
  * instant its round resolves — the UFO's own target, cows caught there or
  * not (spec §2.1) — and stays that way for the rest of the match, though a
  * match that outlasts every barn resets them all fresh rather than ending
@@ -537,7 +538,7 @@ export type AbductBarn = {
 };
 
 /**
- * Abduct-Moo: the whole match, fully public. Unlike every other game with a
+ * Aliens love cows: the whole match, fully public. Unlike every other game with a
  * "who picked what" mechanic, there is no private half at all here — a
  * player's own barn pick is something everyone else is explicitly meant to
  * see live (spec §6), so this is the entire wire protocol for the game.
@@ -793,7 +794,7 @@ export type ServerMessage =
   | { t: 'ufo-hunt'; s: number; d: UfoHuntState }
   | { t: 'tttt'; s: number; d: TttState }
   | { t: 'fighter'; s: number; d: TapFighterState }
-  /** Abduct-Moo: the whole match — fully public, spec §6. */
+  /** Aliens love cows: the whole match — fully public, spec §6. */
   | { t: 'abduct'; s: number; d: AbductState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
@@ -2022,7 +2023,7 @@ export function ufoImpact(offsetDeg: number): number {
 }
 
 /* ------------------------------------------------------------------ */
-/* Abduct-Moo (docs/specs/games/abduct-moo.md)                         */
+/* Aliens love cows (docs/specs/games/aliens-love-cows.md)             */
 /* ------------------------------------------------------------------ */
 
 /** Barns across the middle of the screen, evenly spaced. */
@@ -2054,5 +2055,5 @@ export const ABDUCT_COUNTDOWN_MS = 3_000;
 export const ABDUCT_REVEAL_MS = 5_000;
 
 /** Derived from players.ts, so a card and its referee cannot disagree. */
-export const ABDUCT_MIN_PLAYERS = PLAYERS['abduct-moo'][0];
-export const ABDUCT_MAX_PLAYERS = PLAYERS['abduct-moo'][1];
+export const ABDUCT_MIN_PLAYERS = PLAYERS['aliens-love-cows'][0];
+export const ABDUCT_MAX_PLAYERS = PLAYERS['aliens-love-cows'][1];

@@ -1,7 +1,7 @@
 import type { AbductBarn, PlayerId, ServerMessage } from '../../../../shared/protocol';
 
 /**
- * What the phone knows about the match. Spec: docs/specs/games/abduct-moo.md
+ * What the phone knows about the match. Spec: docs/specs/games/aliens-love-cows.md
  *
  * Unlike almost every other game here, this is a straight projection of the
  * referee's one broadcast frame — the whole match is public (spec §6), so

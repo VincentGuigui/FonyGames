@@ -42,7 +42,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Tic-Tac-Tic-Tac-Toe](games/tic-tac-tic-tac-toe.md) | *Win the little boards to conquer the big one* | touch | 2 | 📝 draft — awaiting approval |
 | [100 Taps](games/hundred-taps.md) | *Find them in order. Fastest fingers win* | touch | 2–8 | 🎮 beta — checkpoint size, window size and pitch curve untested on real thumbs |
 | [UFO Hunt](games/ufo-hunt.md) | *One saucer, everyone's lasers. Highest score wins* | orientation + camera | 2–10 | 🎮 beta — scope, cooldown and round-length numbers untested on real thumbs |
-| [Abduct-Moo](games/abduct-moo.md) | *Pick a barn. Dodge the beam* | touch | 2–8 | 🎮 beta — the hover/transit/abduction timing and a full 8-cow pileup on one barn untested on real thumbs |
+| [Aliens love cows](games/aliens-love-cows.md) | *Pick a barn. Dodge the beam* | touch | 2–8 | 🎮 beta — the hover/transit/abduction timing and a full 8-cow pileup on one barn untested on real thumbs |
 
 ### Idea notes (not yet specs)
 

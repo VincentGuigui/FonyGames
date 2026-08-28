@@ -12,7 +12,7 @@ import {
 import type { ServerMessage } from '../../../../shared/protocol';
 
 /**
- * Abduct-Moo, client side. Spec: docs/specs/games/abduct-moo.md
+ * Aliens love cows, client side. Spec: docs/specs/games/aliens-love-cows.md
  *
  * `applyAbduct` has no referee to catch a mistake either — it only projects the
  * one public frame the server sends, same shape as UFO Hunt's own `applyUfoHunt`.

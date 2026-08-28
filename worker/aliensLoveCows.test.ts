@@ -5,11 +5,11 @@ import {
   ABDUCT_WAIT_MS,
   type ServerMessage,
 } from '../shared/protocol';
-import { abductTick, nextDeadline, onPick, startAbduct, type Abduct, type Ctx } from './abductMoo';
+import { abductTick, nextDeadline, onPick, startAbduct, type Abduct, type Ctx } from './aliensLoveCows';
 
 /**
- * Abduct-Moo's referee.
- * Spec: docs/specs/games/abduct-moo.md
+ * Aliens love cows' referee.
+ * Spec: docs/specs/games/aliens-love-cows.md
  *
  * Three phases repeat until one cow is left standing: `waiting` (up to
  * ABDUCT_WAIT_MS, ends early the instant every active player has a barn),

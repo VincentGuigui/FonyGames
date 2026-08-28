@@ -19,7 +19,7 @@ import ufoArt from './art/ufo.svg?url&no-inline';
 
 /**
  * The round screen: five barns, everyone's cow, one drifting UFO.
- * Spec: docs/specs/games/abduct-moo.md §4
+ * Spec: docs/specs/games/aliens-love-cows.md §4
  *
  * Positions are plain percentages of the stage, written to inline `style` from a
  * `requestAnimationFrame` loop for anything that moves every frame (Squash

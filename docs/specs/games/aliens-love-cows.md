@@ -1,12 +1,12 @@
-# Abduct-Moo
+# Aliens love cows
 
 > Status: **live**.
 
 | | |
 | --- | --- |
-| **Slug** | `abduct-moo` |
+| **Slug** | `aliens-love-cows` |
 | **Catchy sentence** | *Pick a barn. Dodge the beam* |
-| **Illustration** | `www/src/games/abduct-moo/art/card.svg` — a UFO's light cone over a barn, a cow mid-abduction |
+| **Illustration** | `www/src/games/aliens-love-cows/art/card.svg` — a UFO's light cone over a barn, a cow mid-abduction, the barn and cow the maintainer's own art (spec §12) |
 | **Players** | 2–8 |
 | **Round length** | No fixed count — each round is up to 5 s to pick a barn (ends early once everyone has), a 3 s "3, 2, 1," then 5 s to watch the UFO hover, fly in and abduct; rounds repeat until one cow is left standing |
 | **Inputs** | touch |
@@ -306,3 +306,20 @@ live.
   used exactly as given — loaded through an `<img>` like any other gameplay
   sprite, sized by CSS `width` percentages, nothing redrawn or regenerated.
   The UFO alone is still the SVG copy of `ufo-hunt/art/ufo.svg`.
+- ~~Game name~~ — **resolved.** Renamed from Abduct-Moo to Aliens love cows,
+  per direct instruction: the title, slug (`abduct-moo` → `aliens-love-cows`),
+  this spec's own file name, the client folder and page, and the worker
+  referee module's file name all moved to match. Left as-is, deliberately,
+  same reasoning as the Tap Tap Music rename before it: the `AbductState`/
+  `Abduct` type names, the `ABDUCT_*` constants, the `abduct`/`abduct-pick`
+  wire message types, and the `.abduct__*` CSS class prefix — internal
+  identifiers nobody outside this codebase ever sees, and renaming them would
+  touch a dozen more call sites for no user-facing benefit.
+- ~~Hub card art~~ — **resolved.** The hub card's illustration (§4's header
+  table) now embeds base64 crops of the real `art/barn.png` and `art/cow.png`
+  directly into `art/card.svg`, in place of the hand-drawn barn and cow paths
+  it shipped with — the UFO, its cone, the stars and the ground are still
+  fresh vector paths. Per direct instruction ("hub's card should reuse actual
+  art") and the same reasoning Tap Fighter's own card exception already
+  established (docs/design/illustrations.md): a hand-drawn approximation of
+  authored pixel art reads worse than the real thing at hub-card size.

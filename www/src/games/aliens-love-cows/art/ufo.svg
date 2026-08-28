@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 56" width="100" height="56">
   <!--
-    Abduct-Moo — the UFO, drifting above the barns and swooping down to abduct.
-    Spec: docs/specs/games/abduct-moo.md §12
+    Aliens love cows — the UFO, drifting above the barns and swooping down to abduct.
+    Spec: docs/specs/games/aliens-love-cows.md §12
 
     A copy of ufo-hunt/art/ufo.svg, not shared by reference (spec §12), so the two
     games can drift apart visually later without one edit breaking the other.

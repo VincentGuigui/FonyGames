@@ -19,7 +19,7 @@ import { CARD as TAP_TAP_MUSIC_CARD } from './tap-tap-music/card';
 import { CARD as TTTT_CARD } from './tic-tac-tic-tac-toe/card';
 import { CARD as HUNDRED_TAPS_CARD } from './hundred-taps/card';
 import { CARD as UFO_HUNT_CARD } from './ufo-hunt/card';
-import { CARD as ABDUCT_MOO_CARD } from './abduct-moo/card';
+import { CARD as ALIENS_LOVE_COWS_CARD } from './aliens-love-cows/card';
 import type { GameCard } from '../core/types';
 
 /**
@@ -56,7 +56,7 @@ export const GAMES: GameCard[] = [
   TTTT_CARD,
   HUNDRED_TAPS_CARD,
   UFO_HUNT_CARD,
-  ABDUCT_MOO_CARD,
+  ALIENS_LOVE_COWS_CARD,
   SCREAM_METER_CARD,
 ];
 

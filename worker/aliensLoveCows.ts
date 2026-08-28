@@ -13,7 +13,7 @@ import {
 import { enoughToStart, lastStanding } from '../shared/players';
 
 /**
- * Abduct-Moo. Spec: docs/specs/games/abduct-moo.md
+ * Aliens love cows. Spec: docs/specs/games/aliens-love-cows.md
  *
  * Kept out of Room.ts so neither file outgrows the 300-line guidance in
  * docs/conventions/code-style.md. Everything here is driven through `Ctx`,
@@ -44,7 +44,7 @@ export type Ctx = {
    * scoring the moment they are on the roster, whether or not they have
    * tapped yet (spec §7), and the match's own end condition (last one
    * standing) is read fresh off the live roster too. Every other game
-   * freezes its roster at `start`; this is the one new thing Abduct-Moo
+   * freezes its roster at `start`; this is the one new thing Aliens love cows
    * needs from `Ctx`.
    */
   connected(): Promise<PlayerId[]>;
@@ -103,7 +103,7 @@ function publish(ctx: Ctx, game: Abduct): void {
   ctx.broadcast({ t: 'abduct', s: ctx.nextSeq(), d: toState(game) });
 }
 
-/** When this room next owes Abduct-Moo an answer. Never, once the match is done. */
+/** When this room next owes Aliens love cows an answer. Never, once the match is done. */
 export function nextDeadline(game: Abduct): number {
   return game.phase === 'done' ? Infinity : game.deadlineAt;
 }

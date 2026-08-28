@@ -17,7 +17,7 @@ import { applyAbduct, ranking, scoreOf, type AbductState } from './game';
 import { AbductScreen } from './AbductScreen';
 
 /**
- * Abduct-Moo's room screen. Spec: docs/specs/games/abduct-moo.md
+ * Aliens love cows' room screen. Spec: docs/specs/games/aliens-love-cows.md
  *
  * Touch only, no permission to request — closer in shape to 100 Taps' own room
  * than to UFO Hunt's. The one thing this game has that neither of those does: it
@@ -120,7 +120,7 @@ function AbductRoomInner({ game: card, code }: { game: GameCard; code: string })
 function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
   if (!solo && connected < ABDUCT_MIN_PLAYERS) return text({ en: 'Waiting for one more player…', fr: 'En attente d’un joueur supplémentaire…' });
   if (connected > ABDUCT_MAX_PLAYERS) {
-    return text({ en: `Abduct-Moo is ${ABDUCT_MIN_PLAYERS}–${ABDUCT_MAX_PLAYERS} players.`, fr: `Abduct-Moo se joue de ${ABDUCT_MIN_PLAYERS} à ${ABDUCT_MAX_PLAYERS} joueurs.` });
+    return text({ en: `Aliens love cows is ${ABDUCT_MIN_PLAYERS}–${ABDUCT_MAX_PLAYERS} players.`, fr: `Aliens love cows se joue de ${ABDUCT_MIN_PLAYERS} à ${ABDUCT_MAX_PLAYERS} joueurs.` });
   }
   if (!isHost) return text({ en: 'The host rounds everyone up.', fr: 'L’hôte rassemble tout le monde.' });
   return text({ en: 'Pick a barn each round. Get caught and you’re out — last cow standing wins.', fr: 'Choisissez une grange à chaque manche. Enlevée, votre vache est éliminée — la dernière debout gagne.' });

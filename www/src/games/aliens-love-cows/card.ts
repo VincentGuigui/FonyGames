@@ -3,7 +3,7 @@ import { PLAYERS } from '../../../../shared/players';
 import art from './art/card.svg?url&no-inline';
 
 /**
- * Abduct-Moo's hub card. Contract: docs/design/illustrations.md
+ * Aliens love cows' hub card. Contract: docs/design/illustrations.md
  *
  * **This file is a leaf.** It may import only `core/types`, `shared/players` and its
  * own `art/`. The hub imports every card, so one import of this game's runtime would
@@ -13,8 +13,8 @@ import art from './art/card.svg?url&no-inline';
  * changing the spec is a bug.
  */
 export const CARD: GameCard = {
-  slug: 'abduct-moo',
-  title: 'Abduct-Moo',
+  slug: 'aliens-love-cows',
+  title: 'Aliens love cows',
   pitch: 'Pick a barn. Dodge the beam',
   concept: 'Five barns, one UFO. Tap where your cow runs — the beam only ever picks one.',
   rules: [
@@ -34,7 +34,7 @@ export const CARD: GameCard = {
     art: { alt: 'Le rayon lumineux d’une soucoupe au-dessus d’une grange, une vache en train d’être enlevée' },
   },
   accent: '#FACC15',
-  players: PLAYERS['abduct-moo'],
+  players: PLAYERS['aliens-love-cows'],
   duration: '< 20 s',
   inputs: ['touch'],
   modes: [],
