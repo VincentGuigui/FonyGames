@@ -10,12 +10,14 @@ import type { AbductBarn, PlayerId, ServerMessage } from '../../../../shared/pro
 export type AbductView = {
   roundId: number;
   round: number;
-  phase: 'choosing' | 'revealing' | 'done';
+  phase: 'waiting' | 'countdown' | 'revealing' | 'done';
   deadlineAt: number;
   barns: AbductBarn[];
   picks: Record<PlayerId, number | null>;
   target: number | null;
   abducted: PlayerId[];
+  /** Every player ever abducted — permanently out, across the whole match. */
+  out: PlayerId[];
   scores: Record<PlayerId, number>;
   winner: PlayerId | null;
   seq: number;
@@ -39,6 +41,7 @@ export function applyAbduct(state: AbductState, msg: ServerMessage): AbductState
     picks: msg.d.picks,
     target: msg.d.target,
     abducted: msg.d.abducted,
+    out: msg.d.out,
     scores: msg.d.scores,
     winner: msg.d.winner,
     seq: msg.s,

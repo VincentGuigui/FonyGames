@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import {
   ABDUCT_BARN_COUNT,
-  ABDUCT_CHOOSE_MS,
+  ABDUCT_COUNTDOWN_MS,
   ABDUCT_REVEAL_MS,
+  ABDUCT_WAIT_MS,
   type Player,
   type PlayerId,
 } from '../../../../shared/protocol';
@@ -13,6 +14,7 @@ import { useGameText } from '../../core/i18n/gameText';
 import { cowGridSlot, ufoDriftAt, ufoHoverAt, type AbductView } from './game';
 import cowArt from './art/cow.png?url&no-inline';
 import barnArt from './art/barn.png?url&no-inline';
+import barnDestroyedArt from './art/barn_destroyed.png?url&no-inline';
 import ufoArt from './art/ufo.svg?url&no-inline';
 
 /**
@@ -25,11 +27,13 @@ import ufoArt from './art/ufo.svg?url&no-inline';
  * render for everything driven by the server frame itself, which only ever
  * changes on a broadcast.
  *
- * The reveal is its own three-beat choreography, all of it presentational —
- * the referee has already decided everything by the time this plays (spec §8):
+ * `waiting` and `countdown` are both "nothing is decided yet, as far as this
+ * screen is allowed to say" phases — the UFO just drifts through both. The
+ * reveal is its own three-beat choreography, all of it presentational — the
+ * referee has already decided everything by the time this plays (spec §8):
  *
  * 1. `ABDUCT_HOVER_MS` — the UFO keeps sweeping the whole row, faster than it
- *    did while choosing was open.
+ *    drifted before.
  * 2. `ABDUCT_TRANSIT_MS` — it flies in to the target barn and drops to a low
  *    altitude just above it.
  * 3. Whatever is left of `ABDUCT_REVEAL_MS` — parked there, cone open, pulling
@@ -75,17 +79,20 @@ export function AbductScreen({
   const text = useGameText();
   const [secondsLeft, setSecondsLeft] = useState(0);
   /* Only the locked/not-locked edge is Preact state — it is the one thing that
-   * needs a re-render (mounting the cone). `x`/`top` change every frame, which
-   * is exactly the case Squash Mosquitoes' own wander avoids state for: they
-   * are written straight to the element's style from the raf loop instead. */
+   * needs a re-render (mounting the cone, swapping the destroyed art in). `x`/
+   * `top` change every frame, which is exactly the case Squash Mosquitoes' own
+   * wander avoids state for: they are written straight to the element's style
+   * from the raf loop instead. */
   const [locked, setLocked] = useState(false);
   const ufoRef = useRef<HTMLDivElement>(null);
-  const coneRef = useRef<HTMLDivElement>(null);
 
-  const choosing = state.phase === 'choosing';
+  const waiting = state.phase === 'waiting';
+  const countdown = state.phase === 'countdown';
   const revealing = state.phase === 'revealing';
-  const choosingStartedAt = state.deadlineAt - ABDUCT_CHOOSE_MS;
+  const canPick = waiting || countdown;
+  const driftStartedAt = state.deadlineAt - (waiting ? ABDUCT_WAIT_MS : countdown ? ABDUCT_COUNTDOWN_MS : 0);
   const revealStartedAt = state.deadlineAt - ABDUCT_REVEAL_MS;
+  const amOut = myId != null && state.out.includes(myId);
 
   /* The countdown redraws on a plain interval — it only needs whole seconds. */
   useEffect(() => {
@@ -96,30 +103,29 @@ export function AbductScreen({
   }, [state.deadlineAt, now]);
 
   /*
-   * The UFO's own path, choosing and revealing both — a raf loop, not Preact
-   * state for every frame, same reason Squash Mosquitoes' own wander is one:
-   * hovering/drifting changes every frame, and only the three beats above
-   * (spec §4) care about anything coarser.
+   * The UFO's own path, every phase — a raf loop, not Preact state for every
+   * frame, same reason Squash Mosquitoes' own wander is one: hovering/drifting
+   * changes every frame, and only the reveal's own three beats above (spec §4)
+   * care about anything coarser.
    */
   useEffect(() => {
-    if (!choosing && !revealing) return;
+    if (!waiting && !countdown && !revealing) return;
     let raf = 0;
     let wasLocked = false;
 
     const place = (x: number, top: number): void => {
       const el = ufoRef.current;
-      if (!el) return;
-      el.style.left = `${x}%`;
-      el.style.top = `${top}%`;
-      const cone = coneRef.current;
-      if (cone) cone.style.left = `${x}%`;
+      if (el) {
+        el.style.left = `${x}%`;
+        el.style.top = `${top}%`;
+      }
     };
 
     const frame = (): void => {
       raf = requestAnimationFrame(frame);
 
-      if (choosing) {
-        place(barnX(ufoDriftAt(now() - choosingStartedAt) * (ABDUCT_BARN_COUNT - 1)), UFO_TOP_HOVER);
+      if (waiting || countdown) {
+        place(barnX(ufoDriftAt(now() - driftStartedAt) * (ABDUCT_BARN_COUNT - 1)), UFO_TOP_HOVER);
         return;
       }
 
@@ -145,7 +151,7 @@ export function AbductScreen({
     setLocked(false);
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [choosing, revealing, choosingStartedAt, revealStartedAt, state.target, now]);
+  }, [waiting, countdown, revealing, driftStartedAt, revealStartedAt, state.target, now]);
 
   /* Who is standing where: unplaced cows share a stable waiting slot along the
    * bottom, keyed on room order so a cow never jumps sideways for no reason. */
@@ -162,7 +168,7 @@ export function AbductScreen({
     <div class="abduct" style={{ '--game-accent': accent } as JSX.CSSProperties}>
       <div class="abduct__bar">
         <StatusBar
-          status={text({ en: `Round ${state.round} / 3`, fr: `Manche ${state.round} / 3` })}
+          status={text({ en: `Round ${state.round}`, fr: `Manche ${state.round}` })}
           title={title}
           concept={concept}
           rules={rules}
@@ -176,16 +182,29 @@ export function AbductScreen({
           ))}
         </div>
 
-        {choosing && (
+        {waiting && !amOut && (
           <p class="abduct__countdown" role="status">
-            {text({
-              en: `${secondsLeft} second${secondsLeft === 1 ? '' : 's'} before abduction, hide your cow!`,
-              fr: `${secondsLeft} seconde${secondsLeft === 1 ? '' : 's'} avant l’enlèvement, cachez votre vache !`,
-            })}
+            {text({ en: 'Hide your cow behind a barn!', fr: 'Cachez votre vache derrière une grange !' })}
+          </p>
+        )}
+        {countdown && !amOut && (
+          <p class="abduct__countdown abduct__countdown--number" role="status" aria-live="polite">
+            {Math.max(1, Math.min(3, secondsLeft))}
+          </p>
+        )}
+        {amOut && (waiting || countdown) && (
+          <p class="abduct__countdown" role="status">
+            {text({ en: 'You were abducted — watch how the rest plays out.', fr: 'Vous avez été enlevé·e — regardez la suite.' })}
           </p>
         )}
 
-        {revealing && locked && <div ref={coneRef} class="abduct__cone" style={{ left: '50%' }} aria-hidden="true" />}
+        {revealing && locked && (
+          <div
+            class="abduct__cone"
+            style={{ left: `${barnX(state.target ?? 0)}%`, top: `${UFO_TOP_LOCKED}%` }}
+            aria-hidden="true"
+          />
+        )}
 
         <div ref={ufoRef} class="abduct__ufo" style={{ left: '50%', top: `${UFO_TOP_HOVER}%` }} aria-hidden="true">
           <img src={ufoArt} alt="" />
@@ -194,12 +213,17 @@ export function AbductScreen({
         <div class="abduct__barns">
           {Array.from({ length: ABDUCT_BARN_COUNT }, (_, i) => i).map((barn) => {
             const destroyed = state.barns[barn]?.destroyed ?? false;
+            // This round's own target stays looking intact until the cone
+            // actually appears over it — the wire already knows it is gone,
+            // but the picture only catches up once the UFO has arrived.
+            const revealDelayed = revealing && !locked && barn === state.target;
+            const showDestroyed = destroyed && !revealDelayed;
             return (
               <button
                 key={barn}
                 type="button"
-                class={`abduct__barn${destroyed ? ' abduct__barn--destroyed' : ''}`}
-                disabled={!choosing || destroyed}
+                class={`abduct__barn${showDestroyed ? ' abduct__barn--destroyed' : ''}`}
+                disabled={!canPick || destroyed || amOut}
                 onClick={() => onPick(barn)}
                 aria-label={
                   destroyed
@@ -207,7 +231,7 @@ export function AbductScreen({
                     : text({ en: `Send your cow to barn ${barn + 1}`, fr: `Envoyer votre vache vers la grange ${barn + 1}` })
                 }
               >
-                <img src={barnArt} alt="" aria-hidden="true" />
+                <img src={showDestroyed ? barnDestroyedArt : barnArt} alt="" aria-hidden="true" />
               </button>
             );
           })}
@@ -215,9 +239,13 @@ export function AbductScreen({
 
         <div class="abduct__cows">
           {players.map((p, i) => {
+            // Out from an earlier round: gone for good, nothing left to draw —
+            // except for the one round its own abduction is still playing.
+            const abducted = revealing && state.abducted.includes(p.id);
+            if (state.out.includes(p.id) && !abducted) return null;
+
             const barn = state.picks[p.id];
             const placed = barn !== null && barn !== undefined;
-            const abducted = revealing && state.abducted.includes(p.id);
             const mine = p.id === myId;
 
             let x: number;
@@ -254,7 +282,7 @@ export function AbductScreen({
       </div>
 
       <Scoreboard
-        rows={rows(players, state.scores)}
+        rows={rows(players, state.scores, state.out)}
         me={myId}
         unit={text({ en: 'points', fr: 'points' })}
         best="high"
@@ -287,6 +315,6 @@ const COW_GRID_TOP_PCT = 79;
 const COW_ROW_GAP_PCT = 6;
 const COW_COL_GAP_PCT = 7;
 
-function rows(players: Player[], scores: Record<PlayerId, number>): ScoreRow[] {
-  return players.map((p) => ({ id: p.id, avatar: p.avatar, name: p.name, value: scores[p.id] ?? 0 }));
+function rows(players: Player[], scores: Record<PlayerId, number>, out: PlayerId[]): ScoreRow[] {
+  return players.map((p) => ({ id: p.id, avatar: p.avatar, name: p.name, value: scores[p.id] ?? 0, out: out.includes(p.id) }));
 }

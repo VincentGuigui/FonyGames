@@ -43,12 +43,13 @@ function view(over: Partial<AbductView> = {}): AbductView {
   return {
     roundId: 1,
     round: 1,
-    phase: 'choosing',
+    phase: 'waiting',
     deadlineAt: 3_000,
     barns: [{ destroyed: false }, { destroyed: false }, { destroyed: false }, { destroyed: false }, { destroyed: false }],
     picks: {},
     target: null,
     abducted: [],
+    out: [],
     scores: { [ME]: 0, [OTHER]: 0 },
     winner: null,
     seq: 1,
@@ -65,7 +66,7 @@ function projecting(): void {
   console.log('\napplying frames');
   let state: AbductState = null;
   state = applyAbduct(state, msg(view()));
-  check('the phase came through', state?.phase === 'choosing');
+  check('the phase came through', state?.phase === 'waiting');
   check('so did the barns', state?.barns.length === 5);
 
   // A later frame, same round: a pick lands.

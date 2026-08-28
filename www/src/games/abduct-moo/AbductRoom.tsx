@@ -13,17 +13,17 @@ import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useGameText, type GameText } from '../../core/i18n/gameText';
-import { applyAbduct, leaderOf, ranking, scoreOf, type AbductState } from './game';
+import { applyAbduct, ranking, scoreOf, type AbductState } from './game';
 import { AbductScreen } from './AbductScreen';
 
 /**
  * Abduct-Moo's room screen. Spec: docs/specs/games/abduct-moo.md
  *
  * Touch only, no permission to request — closer in shape to 100 Taps' own room
- * than to UFO Hunt's. The one thing this game has that neither of those does: three
- * rounds run automatically inside a single `start`, so `state.phase === 'done'` is
- * the only moment `again()` is ever offered — there is no host action between
- * rounds (spec §2).
+ * than to UFO Hunt's. The one thing this game has that neither of those does: it
+ * runs, round after round, entirely on its own inside a single `start` until one
+ * cow is left standing — `state.phase === 'done'` is the only moment `again()`
+ * is ever offered, there is no host action in between (spec §2).
  */
 export function AbductRoom(props: { game: GameCard }): JSX.Element {
   return (
@@ -88,9 +88,10 @@ function AbductRoomInner({ game: card, code }: { game: GameCard; code: string })
           name: byId.get(id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' }),
           value: scoreOf(state, id),
           unit: text({ en: 'points', fr: 'points' }),
+          out: state.out.includes(id),
         }))}
         me={myId}
-        winner={leaderOf(state, order)}
+        winner={state.winner}
         onAgain={again}
         againLabel={text({ en: 'Play again', fr: 'Rejouer' })}
         canAct={room.isHost && enough}
@@ -122,5 +123,5 @@ function note(isHost: boolean, connected: number, solo: boolean, text: GameText)
     return text({ en: `Abduct-Moo is ${ABDUCT_MIN_PLAYERS}–${ABDUCT_MAX_PLAYERS} players.`, fr: `Abduct-Moo se joue de ${ABDUCT_MIN_PLAYERS} à ${ABDUCT_MAX_PLAYERS} joueurs.` });
   }
   if (!isHost) return text({ en: 'The host rounds everyone up.', fr: 'L’hôte rassemble tout le monde.' });
-  return text({ en: 'Three rounds, back to back — pick a barn each time the clock runs.', fr: 'Trois manches d’affilée — choisissez une grange à chaque décompte.' });
+  return text({ en: 'Pick a barn each round. Get caught and you’re out — last cow standing wins.', fr: 'Choisissez une grange à chaque manche. Enlevée, votre vache est éliminée — la dernière debout gagne.' });
 }

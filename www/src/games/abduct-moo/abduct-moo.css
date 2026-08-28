@@ -67,8 +67,9 @@
 }
 
 /*
- * The countdown, dead centre between the UFO's cruising height and the barns
- * (spec — "clarify the timing"). `max-width` + `overflow-wrap` keep it inside
+ * The banner between the UFO's cruising height and the barns — a sentence
+ * while barns are still open ("hide your cow"), the final "3, 2, 1" once
+ * everyone has one. `max-width` + `overflow-wrap` keep the sentence inside
  * the stage on a narrow phone rather than spilling past the edges.
  */
 .abduct__countdown {
@@ -88,12 +89,20 @@
   overflow-wrap: break-word;
 }
 
+/* The final beat: one big digit, not a sentence — the tension is the point. */
+.abduct__countdown--number {
+  font-size: 3rem;
+  line-height: 1;
+  padding: var(--space-1) var(--space-3);
+}
+
 /* The reveal's light cone — white-yellow, 50% opacity, spec §2. A trapezoid via
    clip-path rather than a second art file: it is a beam of light, not a sprite.
-   Positioned the same way as the UFO above: every frame, straight to `style.left`. */
+   `left`/`top` come from an inline style set once at render (AbductScreen.tsx) —
+   by the time this mounts the UFO has already settled at the target, sharing
+   its exact locked altitude, so there is nothing left to update per frame. */
 .abduct__cone {
   position: absolute;
-  top: 14%;
   width: 26%;
   height: 46%;
   transform: translateX(-50%);
@@ -143,10 +152,9 @@
   cursor: default;
 }
 
-/* Cracked and darkened (spec §2.1) — a filter on the same file, not a second one. */
-.abduct__barn--destroyed img {
-  filter: grayscale(0.7) brightness(0.45);
-}
+/* Cracked and darkened, in its own file (art/barn_destroyed.png), swapped in
+   once a target's own cone has appeared over it (spec §2.1, §4) — never a
+   filter over the intact art, so the crack detail is the artist's own. */
 
 .abduct__cows {
   position: absolute;
