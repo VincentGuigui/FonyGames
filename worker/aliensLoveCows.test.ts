@@ -1,6 +1,7 @@
 import {
   ABDUCT_BARN_COUNT,
   ABDUCT_COUNTDOWN_MS,
+  ABDUCT_FLEE_MS,
   ABDUCT_REVEAL_MS,
   ABDUCT_WAIT_MS,
   type ServerMessage,
@@ -11,15 +12,15 @@ import { abductTick, nextDeadline, onPick, startAbduct, type Abduct, type Ctx } 
  * Aliens love cows' referee.
  * Spec: docs/specs/games/aliens-love-cows.md
  *
- * Three phases repeat until one cow is left standing: `waiting` (up to
- * ABDUCT_WAIT_MS, ends early the instant every active player has a barn),
- * `countdown` (a fixed beat once everyone does), then `revealing`. What is
- * worth asserting: the early-vs-deadline transition into `countdown`, a
- * straggler landing somewhere rather than nowhere, a target barn always
- * destroyed whether or not cows were on it, permanent elimination (an out
- * player can neither pick nor block anyone else's `waiting`), barns
- * replenishing once every one of them is gone, and the match ending on
- * players — last one standing, or nobody if the last two go together.
+ * Phases repeat until the match ends: `waiting` (up to ABDUCT_WAIT_MS, ends
+ * early the instant every active player has a barn), `countdown` (a fixed
+ * beat once everyone does), then `revealing`. What is worth asserting: the
+ * early-vs-deadline transition into `countdown`, a straggler landing
+ * somewhere rather than nowhere, a target barn always destroyed whether or
+ * not cows were on it, permanent elimination (an out player can neither
+ * pick nor block anyone else's `waiting`), and the match ending two ways —
+ * on players (last one standing, or nobody if the last two go together) or
+ * on barns (the UFO fleeing, `fleeing` → `done`, once only one is left).
  */
 
 let failures = 0;
@@ -245,7 +246,7 @@ console.log('\nan abducted player can neither pick again nor block the next wait
   check('A and B alone are enough to start the countdown', h.state?.phase === 'countdown');
 }
 
-console.log('\ndestroying one barn a round eventually leaves nowhere left to dodge to');
+console.log('\nonly one barn left standing ends the match by fleeing, not by forcing it');
 
 {
   const h = harness();
@@ -263,29 +264,29 @@ console.log('\ndestroying one barn a round eventually leaves nowhere left to dod
     h.advance(ABDUCT_COUNTDOWN_MS);
     await abductTick(h.ctx); // -> revealing
     h.advance(ABDUCT_REVEAL_MS);
-    await abductTick(h.ctx); // -> next round
+    await abductTick(h.ctx); // -> next round, or fleeing on the last one
   }
 
-  check('nobody caught yet', h.state?.out.length === 0, h.state?.out);
+  check('nobody caught', h.state?.out.length === 0, h.state?.out);
   check(`${ABDUCT_BARN_COUNT - 1} barns destroyed, one left standing`,
     h.state?.barns.filter((b) => b.destroyed).length === ABDUCT_BARN_COUNT - 1);
-  check('the match is still going', h.state?.phase === 'waiting');
+  check('the UFO flees instead of forcing everyone onto the last barn', h.state?.phase === 'fleeing', h.state?.phase);
+  check('a flee window is set', h.state?.deadlineAt === h.now + ABDUCT_FLEE_MS);
+  check('the alarm follows it', h.alarm === h.state?.deadlineAt);
 
-  // Only one barn is left standing, so it IS this round's own target — there
-  // is nowhere left to dodge to.
-  const lastBarn = h.state?.barns.findIndex((b) => !b.destroyed);
-  check('the sole remaining barn is this round\'s own target', h.state?.target === lastBarn);
+  h.advance(ABDUCT_FLEE_MS);
+  await abductTick(h.ctx); // fleeing -> done
 
-  h.advance(ABDUCT_WAIT_MS); // neither player can do anything but land on it
-  await abductTick(h.ctx); // waiting -> countdown, both assigned the only barn left
-  h.advance(ABDUCT_COUNTDOWN_MS);
-  await abductTick(h.ctx); // countdown -> revealing: everyone still in is caught
-  h.advance(ABDUCT_REVEAL_MS);
-  await abductTick(h.ctx); // revealing -> done: nobody is left
+  check('the match ends once the UFO is gone', h.state?.phase === 'done', h.state);
+  check('nobody wins a match nobody lost', h.state?.winner === null);
+  check('the last barn was never touched',
+    h.state?.barns.filter((b) => b.destroyed).length === ABDUCT_BARN_COUNT - 1);
+  check('and nobody was ever caught', h.state?.out.length === 0);
 
-  check('every barn is destroyed', !!h.state?.barns.every((b) => b.destroyed));
-  check('both players were caught together', h.state?.out.length === 2);
-  check('the match ends with nobody left to win it', h.state?.phase === 'done' && h.state.winner === null, h.state);
+  const before = JSON.stringify(h.state);
+  h.advance(ABDUCT_WAIT_MS);
+  await abductTick(h.ctx);
+  check('a tick after done is a no-op here too', JSON.stringify(h.state) === before);
 }
 
 console.log('\nlast one standing ends the match');

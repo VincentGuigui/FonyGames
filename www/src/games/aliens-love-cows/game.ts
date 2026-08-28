@@ -10,7 +10,7 @@ import type { AbductBarn, PlayerId, ServerMessage } from '../../../../shared/pro
 export type AbductView = {
   roundId: number;
   round: number;
-  phase: 'waiting' | 'countdown' | 'revealing' | 'done';
+  phase: 'waiting' | 'countdown' | 'revealing' | 'fleeing' | 'done';
   deadlineAt: number;
   barns: AbductBarn[];
   picks: Record<PlayerId, number | null>;

@@ -8,7 +8,7 @@
 | **Catchy sentence** | *Pick a barn. Dodge the beam* |
 | **Illustration** | `www/src/games/aliens-love-cows/art/card.svg` — a UFO's light cone over a barn, a cow mid-abduction, the barn and cow the maintainer's own art (spec §12) |
 | **Players** | 2–8 |
-| **Round length** | No fixed count — each round is up to 5 s to pick a barn (ends early once everyone has), a 3 s "3, 2, 1," then 5 s to watch the UFO hover, fly in and abduct; rounds repeat until one cow is left standing |
+| **Round length** | No fixed count — each round is up to 5 s to pick a barn (ends early once everyone has), a 3 s "3, 2, 1," then 5 s to watch the UFO hover, fly in and abduct; rounds repeat until one cow is left standing, or until only one barn is left standing and the UFO gives up (a 2 s farewell) |
 | **Inputs** | touch |
 | **Accent colour** | `#FACC15` |
 | **Status** | live |
@@ -21,12 +21,14 @@ often as you like, and everyone sees everyone else's pick live, the whole
 time. Once every cow has picked, the countdown hits zero and the UFO swoops
 over one barn and beams up every cow standing in it — beamed up, you are
 out for the rest of the match. Dodge it and you score a point. Rounds
-repeat until one cow is left standing.
+repeat until one cow is left standing — or, once only one barn is left
+standing to draw from, the UFO gives up and leaves rather than force
+everyone onto it.
 
 ## 2. Core loop
 
 The whole match is one continuous session — a host presses Start once, not
-once per round. Four phases, driven entirely by the server's own clock;
+once per round. Five phases, driven entirely by the server's own clock;
 nobody has to click anything between rounds, and the match itself decides
 when it is over, not a round count.
 
@@ -61,11 +63,17 @@ when it is over, not a round count.
 5. **Repeat**, drawing a fresh target from whatever barns are still
    standing, until only one cow is left in — that cow wins. If the round
    that resolves takes the last two (or, in solo testing, the last one) at
-   once, the match still ends, with no winner (spec §7).
+   once, the match still ends, with no winner (spec §7). If, instead, only
+   one barn is left standing to draw the next round's target from,
+   **fleeing (`ABDUCT_FLEE_MS`, 2 s)** replaces that round: the UFO gives
+   up and leaves rather than force everyone onto the one barn left to
+   dodge to, and the match ends with no winner the moment it is gone
+   (§2.1, §4).
 
 **Win condition:** last cow standing. **Scoring:** +1 per round a
 still-in player's cow is not abducted — a running tally shown alongside the
-result, but it is elimination, not points, that ends the match.
+result, but it is elimination or the UFO fleeing, never points, that ends
+the match.
 
 ### 2.1 A barn nobody chose, hit anyway
 
@@ -75,13 +83,19 @@ the **rest of the match**, not just the round that hit it. The referee's
 own draw for every later round only ever picks among the barns still
 standing (§2, §8), and a destroyed barn refuses a tap even if a client
 tries to send one (§8) — the button is also disabled client-side, but the
-referee does not trust that alone. With `ABDUCT_BARN_COUNT` at 5 and
-exactly one barn destroyed per round, the round that would take the fifth
-and last barn always forces every still-in player onto that one remaining
-target — nobody left to dodge to — so in practice the match always ends via
-elimination (§2.2) at or before that point; a defensive fallback replenishes
-every barn if a draw is ever attempted with none standing, but ordinary play
-never reaches it.
+referee does not trust that alone.
+
+With `ABDUCT_BARN_COUNT` at 5 and exactly one barn destroyed per round, the
+round that would take the fifth and last barn would force every still-in
+player onto that one remaining target — nobody left to dodge to, an outcome
+decided before it is even played. Rather than run that round for show, the
+match never draws it: the moment only one barn is left standing, the UFO
+gives up and flees instead (§2, §4) — "So Long, and Thanks for All the
+Fish." The match always ends this way or by elimination (§2.2) at or before
+that point, so all five barns are never destroyed at once; a defensive
+fallback in the referee's own draw function still replenishes every barn if
+it is ever asked for one with none standing, but ordinary play cannot reach
+it.
 
 ### 2.2 Elimination is permanent
 
@@ -134,25 +148,34 @@ Only `classic` at launch.
   drift speeds up, sweeping the whole row for about 2 s. Then it flies to
   the real target and drops to a low altitude just above it over about
   0.7 s — the UFO and its light cone (white-yellow, 50% opacity) share
-  exactly the target barn's own horizontal position, and the cone's top
-  sits at exactly the UFO's own locked altitude, never a pixel off it in
-  either axis. Once parked, every cow standing there rises into the cone
-  and vanishes one at a time, a short stagger between each rather than all
-  at once, for however long is left of the reveal window. The target barn
-  itself keeps showing intact right up until the cone appears — only then
-  does it swap to the cracked, darkened `art/barn_destroyed.png` file, cows
-  caught there or not (§2.1) — and it stays that way for the rest of the
-  match. A barn destroyed in an earlier round shows that cracked art
-  immediately, with no delay, the whole time it is on screen. The status
-  bar's score and elimination both land the instant the reveal frame lands,
-  not staggered to the animation — the animation is only ever telling you
-  what already happened.
+  exactly the target barn's own horizontal position, and the cone's own
+  top sits just below the UFO's own hull, not overlapping it: its locked
+  altitude plus the UFO's real rendered height, measured from the DOM at
+  the moment it locks rather than assumed (`AbductScreen.tsx`). Once
+  parked, every cow standing there rises to meet the UFO — stopping at its
+  own altitude rather than sailing past it — and vanishes one at a time, a
+  short stagger between each rather than all at once, for however long is
+  left of the reveal window. The target barn itself keeps showing intact
+  right up until the cone appears — only then does it swap to the cracked,
+  darkened `art/barn_destroyed.png` file, cows caught there or not (§2.1)
+  — and it stays that way for the rest of the match. A barn destroyed in
+  an earlier round shows that cracked art immediately, with no delay, the
+  whole time it is on screen. The status bar's score and elimination both
+  land the instant the reveal frame lands, not staggered to the animation
+  — the animation is only ever telling you what already happened.
+- **Fleeing**: only one barn left standing (§2.1) — the UFO flies off the
+  top of the screen over the full 2 s window, fading out as it goes, from
+  wherever the reveal last left it. A banner in the same spot the waiting
+  and countdown text uses instead reads *"So Long, and Thanks for All the
+  Fish"* — Douglas Adams' own line, quoted rather than paraphrased; the
+  French is that book's own published title, not a fresh translation of
+  the English one. No barn can be tapped, nothing else on the board moves.
 - **Between rounds**: no separate screen. The moment a round's reveal
-  window ends, either the match is over (§2), or the next round's barns
-  (destroyed ones still destroyed, out players still out) and the waiting
-  banner start again, live on the same board — the running score, the
-  eliminated roster and any wrecked barns are the only things that visibly
-  carry over.
+  window ends, either the match is over or fleeing (§2), or the next
+  round's barns (destroyed ones still destroyed, out players still out)
+  and the waiting banner start again, live on the same board — the running
+  score, the eliminated roster and any wrecked barns are the only things
+  that visibly carry over.
 - **Results**: once the match ends, the shared `GameOverScreen` (the
   referee's own last-one-standing winner, out players shown struck through
   — spec §7), same shape as every other game's.
@@ -185,9 +208,13 @@ deliberately disagree, and only for as long as it takes to keep the draw
 honest. `abducted` is `[]` until reveal, then holds that round's answer
 until the next round resets it. `out` is every player ever abducted across
 the whole match, in the order it happened — it only ever grows (§2.2).
-`scores` is cumulative across the whole match. `winner` is set only once
-`phase` is `'done'`: the sole player left in, or `null` if the last two (or,
-solo, the last one) went together.
+`scores` is cumulative across the whole match. `phase` includes `'fleeing'`
+— only one barn left standing (§2.1, §4) — between `'revealing'` and
+`'done'`; nothing in the payload changes shape for it, the client just
+reads the phase to show the UFO leaving instead of opening the next round.
+`winner` is set only once `phase` is `'done'`: the sole player left in, or
+`null` if the last two (or, solo, the last one) went together, or the UFO
+fled instead.
 
 A reconnecting phone gets the current state resent whole, the same as
 UFO Hunt's own fully-public frame (`tap-tap-music.md`-style private resend
@@ -207,6 +234,7 @@ else was not already sent.
 | A player joins mid-match | Starts at 0 points, not yet out; plays whichever round is currently in progress when they arrive, same as anyone else already there |
 | A player leaves mid-match | Their last pick, score and in/out status stand; the match is not tied to the roster it started with (unlike Pass the Bomb — nothing here needs "the same people" to keep meaning) |
 | The round that would eliminate the last two (or, solo, the last) cow(s) at once | Match ends with no winner — the shared `GameOverScreen` shows no winner, same convention as every safety-cap tie elsewhere in this catalogue |
+| Only one barn is left standing when a new round would open | No round opens — `phase` goes to `'fleeing'` instead (§2.1, §4), and the match ends with no winner two seconds later |
 | Fewer than 2 players (not solo) | Start disabled |
 
 ## 8. Anti-cheat
@@ -258,13 +286,15 @@ live.
 - The reveal's outcome (abducted vs. safe) is read from the score ticking
   up and the cow visibly leaving the board, not from colour — a cow that is
   gone is gone, on any screen.
-- The waiting and countdown banners are read text (*"Hide your cow behind a
-  barn!"*, then the "3, 2, 1" digit), not an icon or a ring alone — a screen
-  reader gets the same warning a sighted player does, and the number
-  updates in place rather than being announced as a wall of separate
-  live-region updates. A player who is out gets their own explanatory
-  sentence in the same spot, so nobody eliminated is left listening to
-  instructions that no longer apply to them.
+- The waiting, countdown and fleeing banners are all read text (*"Hide your
+  cow behind a barn!"*, then the "3, 2, 1" digit, then *"So Long, and
+  Thanks for All the Fish"*), not an icon or a ring alone — a screen
+  reader gets the same warning, or the same news that the match is over,
+  a sighted player does, and the number updates in place rather than being
+  announced as a wall of separate live-region updates. A player who is out
+  gets their own explanatory sentence in the same spot during waiting and
+  countdown, so nobody eliminated is left listening to instructions that
+  no longer apply to them.
 - No strobing, no flashing. The light cone is a soft fade in and out,
   respecting `prefers-reduced-motion` the same way every other game's
   decorative motion does.
@@ -280,6 +310,13 @@ live.
   the rest of the match (§2.2), and the match itself ends by last cow
   standing rather than by a fixed round count. The +1-per-survived-round
   score still exists and is shown, but it no longer decides the winner.
+- ~~The forced final round~~ — **resolved.** With destruction unconditional
+  and no fixed round cap, the round that would take the fifth and last barn
+  would have forced everyone still in onto it — a decided outcome played
+  out for nothing. A later message asked for the UFO to give up instead:
+  `phase: 'fleeing'` (§2, §2.1, §4) replaces that round, so the match now
+  always ends by elimination or by the UFO leaving, never by a barn count
+  hitting zero.
 - **A single winner, not the brief's original plural "winners."** The
   original brief said "winners of the round are the ones with most points"
   — plural, allowing co-winners; that framing no longer applies now that

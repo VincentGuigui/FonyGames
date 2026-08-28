@@ -38,6 +38,12 @@ import ufoArt from './art/ufo.svg?url&no-inline';
  *    altitude just above it.
  * 3. Whatever is left of `ABDUCT_REVEAL_MS` — parked there, cone open, pulling
  *    up every cow caught underneath it one at a time.
+ *
+ * `fleeing` is its own short coda rather than a fourth reveal beat — it
+ * only ever follows a `revealing` whose target barn was NOT this match's
+ * last one standing, so there is nothing left to choreograph over a barn.
+ * The UFO's own last position (wherever the raf loop above left it) is
+ * simply where `.abduct__ufo--fleeing`'s CSS transition starts from.
  */
 const ABDUCT_HOVER_MS = 2_000;
 const ABDUCT_TRANSIT_MS = 700;
@@ -84,11 +90,20 @@ export function AbductScreen({
    * wander avoids state for: they are written straight to the element's style
    * from the raf loop instead. */
   const [locked, setLocked] = useState(false);
+  /* The cone's own top: `UFO_TOP_LOCKED` plus the UFO's real rendered height,
+   * measured once the UFO locks rather than assumed — its width is a percent
+   * of the stage's WIDTH but `top` is a percent of the stage's HEIGHT, and
+   * nothing here can convert one to the other without asking the DOM (same
+   * reasoning UFO Hunt's own reticle measurement uses). Defaults to
+   * `UFO_TOP_LOCKED` itself until that first measurement lands. */
+  const [coneTop, setConeTop] = useState(UFO_TOP_LOCKED);
   const ufoRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
 
   const waiting = state.phase === 'waiting';
   const countdown = state.phase === 'countdown';
   const revealing = state.phase === 'revealing';
+  const fleeing = state.phase === 'fleeing';
   const canPick = waiting || countdown;
   const driftStartedAt = state.deadlineAt - (waiting ? ABDUCT_WAIT_MS : countdown ? ABDUCT_COUNTDOWN_MS : 0);
   const revealStartedAt = state.deadlineAt - ABDUCT_REVEAL_MS;
@@ -145,6 +160,13 @@ export function AbductScreen({
       if (!wasLocked) {
         wasLocked = true;
         setLocked(true);
+        const ufoEl = ufoRef.current;
+        const stageEl = stageRef.current;
+        const stageHeight = stageEl?.getBoundingClientRect().height ?? 0;
+        if (ufoEl && stageHeight > 0) {
+          const ufoHeightPct = (ufoEl.getBoundingClientRect().height / stageHeight) * 100;
+          setConeTop(UFO_TOP_LOCKED + ufoHeightPct);
+        }
       }
     };
 
@@ -175,7 +197,7 @@ export function AbductScreen({
         />
       </div>
 
-      <div class="abduct__stage" role="group" aria-label={text({ en: 'The barns', fr: 'Les granges' })}>
+      <div ref={stageRef} class="abduct__stage" role="group" aria-label={text({ en: 'The barns', fr: 'Les granges' })}>
         <div class="abduct__sky" aria-hidden="true">
           {STARS.map(([x, y, r], i) => (
             <span key={i} class="abduct__star" style={{ left: `${x}%`, top: `${y}%`, width: `${r}px`, height: `${r}px` }} />
@@ -197,16 +219,30 @@ export function AbductScreen({
             {text({ en: 'You were abducted — watch how the rest plays out.', fr: 'Vous avez été enlevé·e — regardez la suite.' })}
           </p>
         )}
+        {/* Only one barn left standing: the UFO gives up rather than force
+            everyone onto it (spec §2, §7) — the dolphins' own farewell line,
+            quoted from Douglas Adams; the French is that book's own
+            published title, not a fresh translation of the English one. */}
+        {fleeing && (
+          <p class="abduct__countdown" role="status" aria-live="polite">
+            {text({ en: 'So Long, and Thanks for All the Fish', fr: 'Salut, et encore merci pour le poisson !' })}
+          </p>
+        )}
 
         {revealing && locked && (
           <div
             class="abduct__cone"
-            style={{ left: `${barnX(state.target ?? 0)}%`, top: `${UFO_TOP_LOCKED}%` }}
+            style={{ left: `${barnX(state.target ?? 0)}%`, top: `${coneTop}%` }}
             aria-hidden="true"
           />
         )}
 
-        <div ref={ufoRef} class="abduct__ufo" style={{ left: '50%', top: `${UFO_TOP_HOVER}%` }} aria-hidden="true">
+        <div
+          ref={ufoRef}
+          class={`abduct__ufo${fleeing ? ' abduct__ufo--fleeing' : ''}`}
+          style={{ left: '50%', top: `${UFO_TOP_HOVER}%` }}
+          aria-hidden="true"
+        >
           <img src={ufoArt} alt="" />
         </div>
 
@@ -255,7 +291,10 @@ export function AbductScreen({
               const list = occupants.get(barn) ?? [p.id];
               const slot = cowGridSlot(list.indexOf(p.id), list.length);
               x = barnX(barn) + slot.col * COW_COL_GAP_PCT;
-              y = COW_GRID_TOP_PCT + slot.row * COW_ROW_GAP_PCT;
+              // An abducted cow rises to meet the UFO itself, not past it —
+              // the barn's own target is already this cow's barn (it could
+              // not be caught otherwise), so `x` above already lines up.
+              y = abducted ? UFO_TOP_LOCKED : COW_GRID_TOP_PCT + slot.row * COW_ROW_GAP_PCT;
               if (abducted) delayMs = ABDUCT_LOCK_AT_MS + state.abducted.indexOf(p.id) * ABDUCT_STAGGER_MS;
             } else {
               x = startX(i, players.length);

@@ -67,6 +67,20 @@
 }
 
 /*
+ * Only one barn left standing: the UFO leaves rather than force everyone
+ * onto it (spec §2, §7). `!important` on purpose, and the only override the
+ * raf loop above ever gets — its last `style.top` (wherever the reveal left
+ * it) is exactly the transition's own starting point. `2000ms` is
+ * ABDUCT_FLEE_MS (shared/protocol.ts); nothing here can import that
+ * constant, so the two have to be kept in sync by hand.
+ */
+.abduct__ufo--fleeing {
+  top: -30% !important;
+  opacity: 0;
+  transition: top 2000ms ease-in, opacity 2000ms ease-in;
+}
+
+/*
  * The banner between the UFO's cruising height and the barns — a sentence
  * while barns are still open ("hide your cow"), the final "3, 2, 1" once
  * everyone has one. `max-width` + `overflow-wrap` keep the sentence inside
@@ -99,8 +113,10 @@
 /* The reveal's light cone — white-yellow, 50% opacity, spec §2. A trapezoid via
    clip-path rather than a second art file: it is a beam of light, not a sprite.
    `left`/`top` come from an inline style set once at render (AbductScreen.tsx) —
-   by the time this mounts the UFO has already settled at the target, sharing
-   its exact locked altitude, so there is nothing left to update per frame. */
+   by the time this mounts the UFO has already settled at the target, and `top`
+   sits just below the UFO's own hull (its locked altitude plus its own real
+   rendered height, measured from the DOM rather than assumed) so the cone
+   starts where the saucer ends instead of overlapping it. */
 .abduct__cone {
   position: absolute;
   width: 26%;
@@ -184,18 +200,22 @@
   max-width: 46px;
 }
 
+/* `top` itself is not set here — AbductScreen.tsx already writes it as an
+   inline style equal to the UFO's own locked altitude, so the cow rises to
+   meet the UFO and stops there rather than sailing past it. Only the fade
+   and the timing are this rule's own job. */
 .abduct__cow--abducted {
-  top: 6% !important;
   opacity: 0;
   transition: left 300ms ease, top 900ms ease-in, opacity 900ms ease-in;
 }
 
 @media (prefers-reduced-motion: reduce) {
   /* The UFO's own path is JS-driven, not CSS (see .abduct__ufo above), so
-     there is no transition here to shorten — only the cow moves and the
-     cone's fade-in are. */
+     there is no transition here to shorten — only the cow moves, the
+     cone's fade-in, and the UFO's own farewell flight are. */
   .abduct__cow,
-  .abduct__cone {
+  .abduct__cone,
+  .abduct__ufo--fleeing {
     transition-duration: 1ms;
     animation-duration: 1ms;
   }

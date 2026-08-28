@@ -529,9 +529,9 @@ export type UfoHuntState = {
 /**
  * Aliens love cows: one barn's own state this round. `destroyed` turns true the
  * instant its round resolves — the UFO's own target, cows caught there or
- * not (spec §2.1) — and stays that way for the rest of the match, though a
- * match that outlasts every barn resets them all fresh rather than ending
- * for lack of one (§8).
+ * not (spec §2.1) — and stays that way for the rest of the match. The match
+ * itself never lets every barn go: the moment only one is left standing, the
+ * UFO flees instead of drawing a round from it (spec §2, §8).
  */
 export type AbductBarn = {
   destroyed: boolean;
@@ -553,14 +553,17 @@ export type AbductState = {
    * barn (by choice or by the deadline's own random assignment) and the
    * final "3, 2, 1" is playing before the UFO commits. `revealing` — the
    * outcome is already decided; only the choreography is left to play.
+   * `fleeing` — only one barn is left standing, so the UFO gives up and
+   * leaves rather than force everyone onto the one barn left to dodge to
+   * (spec §2, §7); the match ends the moment it is gone.
    */
-  phase: 'waiting' | 'countdown' | 'revealing' | 'done';
+  phase: 'waiting' | 'countdown' | 'revealing' | 'fleeing' | 'done';
   /** Server time the current phase ends. */
   deadlineAt: number;
   /**
    * Always ABDUCT_BARN_COUNT entries. A destroyed barn stays destroyed for the
-   * rest of the match (spec §2.1) — this does NOT reset between rounds, except
-   * the one time every barn is gone at once (§8).
+   * rest of the match (spec §2.1) — this does NOT reset between rounds, and
+   * never reaches every barn destroyed: the UFO flees once only one is left.
    */
   barns: AbductBarn[];
   /** Every connected, still-in player's current barn, or null before their
@@ -576,7 +579,7 @@ export type AbductState = {
   /** +1 per round a player was connected, still in, and not abducted. */
   scores: Record<PlayerId, number>;
   /** Set only once `phase` is `'done'` — the sole player left in, or null if
-   *  the last two went together (spec §7). */
+   *  the last two went together, or the UFO fled instead (spec §7). */
   winner: PlayerId | null;
 };
 
@@ -2053,6 +2056,13 @@ export const ABDUCT_COUNTDOWN_MS = 3_000;
  * long a staggered, one-by-one abduction of everyone caught there takes.
  */
 export const ABDUCT_REVEAL_MS = 5_000;
+
+/**
+ * How long the UFO's own farewell gets to play before the match ends
+ * (spec §2, §7) — triggered once only one barn is left standing, rather
+ * than ever forcing everyone onto it.
+ */
+export const ABDUCT_FLEE_MS = 2_000;
 
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const ABDUCT_MIN_PLAYERS = PLAYERS['aliens-love-cows'][0];

@@ -1,6 +1,7 @@
 import {
   ABDUCT_BARN_COUNT,
   ABDUCT_COUNTDOWN_MS,
+  ABDUCT_FLEE_MS,
   ABDUCT_MAX_PLAYERS,
   ABDUCT_MIN_PLAYERS,
   ABDUCT_REVEAL_MS,
@@ -55,16 +56,16 @@ function freshBarns(): AbductBarn[] {
 }
 
 /**
- * One of the barns still standing. If every barn has been destroyed already,
- * every barn resets fresh first rather than returning nothing to draw from.
+ * One of the barns still standing. If every barn has somehow been destroyed
+ * already, every barn resets fresh first rather than returning nothing to
+ * draw from.
  *
- * In practice this branch is not reachable through ordinary play: with
- * `ABDUCT_BARN_COUNT` at 5, the round that would destroy the fifth barn is
- * also the round with only one barn left standing — everyone still in is
- * forced onto it (nowhere left to dodge to) and the match ends in that same
- * tick, before a sixth draw is ever needed. It stays as a defensive fallback
- * rather than an assumed invariant — a barn count change, or a future rule
- * that skips a round's destruction, would make it reachable again.
+ * Not reachable through ordinary play: `abductTick` only ever draws a new
+ * round while at least two barns are still standing — the moment only one
+ * is left, the match ends by fleeing instead (spec §2, §7), never asking
+ * this for a barn count of one. It stays as a defensive fallback rather
+ * than an assumed invariant — a barn count change, or a future rule that
+ * skips a round's destruction, would make it reachable again.
  */
 function randomValidBarn(barns: AbductBarn[]): number {
   let valid = barns.reduce<number[]>((acc, b, i) => (b.destroyed ? acc : [...acc, i]), []);
@@ -232,9 +233,11 @@ function resolveCountdown(game: Abduct, connected: PlayerId[]): void {
 
 /**
  * The current phase's deadline has passed. Advances `waiting` → `countdown`,
- * `countdown` → `revealing`, or `revealing` → the next round's `waiting` —
- * unless only one cow (or none) is left standing, which ends the match
- * (spec §2, §7) whatever round it happens to be.
+ * `countdown` → `revealing`, and `revealing` → the next round's `waiting` —
+ * unless only one cow (or none) is left standing, or only one barn is left
+ * standing, either of which ends the match (spec §2, §7) whatever round it
+ * happens to be. `fleeing` → `done` needs no further decision: the UFO
+ * leaving is itself the whole event.
  */
 export async function abductTick(ctx: Ctx): Promise<void> {
   const game = await ctx.load();
@@ -263,6 +266,14 @@ export async function abductTick(ctx: Ctx): Promise<void> {
     return;
   }
 
+  if (game.phase === 'fleeing') {
+    game.phase = 'done';
+    game.winner = null;
+    await ctx.save(game);
+    publish(ctx, game);
+    return;
+  }
+
   // phase === 'revealing'
   const stillIn = active(game, connected);
   if (lastStanding(stillIn.length, game.solo)) {
@@ -273,10 +284,24 @@ export async function abductTick(ctx: Ctx): Promise<void> {
     return;
   }
 
+  // With only one barn left standing, a new round could only ever force
+  // every still-in player onto it — an outcome decided before it is even
+  // played. Rather than run that round for show, the UFO gives up and
+  // leaves (spec §2, §7): nobody wins, and the barn is never touched.
+  const standing = game.barns.filter((b) => !b.destroyed).length;
+  if (standing <= 1) {
+    game.phase = 'fleeing';
+    game.deadlineAt = now + ABDUCT_FLEE_MS;
+    await ctx.save(game);
+    publish(ctx, game);
+    await ctx.setAlarm(game.deadlineAt);
+    return;
+  }
+
   game.round += 1;
   // Barns are NOT reset here — a destroyed barn stays destroyed for the rest
-  // of the match (spec §2.1), except the one time `randomValidBarn` itself
-  // has to replenish all five at once (spec §8).
+  // of the match (spec §2.1); the flee branch above is what keeps this from
+  // ever needing `randomValidBarn`'s own replenish fallback.
   game.picks = {};
   game.target = randomValidBarn(game.barns);
   game.abducted = [];
