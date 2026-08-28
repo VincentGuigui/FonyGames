@@ -225,7 +225,7 @@ export function AbductScreen({
             published title, not a fresh translation of the English one. */}
         {fleeing && (
           <p class="abduct__countdown" role="status" aria-live="polite">
-            {text({ en: 'So Long, and Thanks for All the Fish', fr: 'Salut, et encore merci pour le poisson !' })}
+            {text({ en: 'So Long, and Thanks for All the Cow', fr: 'Salut, et encore merci pour la vache !' })}
           </p>
         )}
 

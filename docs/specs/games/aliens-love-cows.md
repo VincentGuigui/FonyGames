@@ -91,7 +91,7 @@ player onto that one remaining target — nobody left to dodge to, an outcome
 decided before it is even played. Rather than run that round for show, the
 match never draws it: the moment only one barn is left standing, the UFO
 gives up and flees instead (§2, §4) — "So Long, and Thanks for All the
-Fish." The match always ends this way or by elimination (§2.2) at or before
+Cow." The match always ends this way or by elimination (§2.2) at or before
 that point, so all five barns are never destroyed at once; a defensive
 fallback in the referee's own draw function still replenishes every barn if
 it is ever asked for one with none standing, but ordinary play cannot reach
@@ -167,9 +167,9 @@ Only `classic` at launch.
   top of the screen over the full 2 s window, fading out as it goes, from
   wherever the reveal last left it. A banner in the same spot the waiting
   and countdown text uses instead reads *"So Long, and Thanks for All the
-  Fish"* — Douglas Adams' own line, quoted rather than paraphrased; the
-  French is that book's own published title, not a fresh translation of
-  the English one. No barn can be tapped, nothing else on the board moves.
+  Cow"* — a cow-abducting riff on Douglas Adams' dolphins' own farewell line,
+  not a straight quote. No barn can be tapped, nothing else on the board
+  moves.
 - **Between rounds**: no separate screen. The moment a round's reveal
   window ends, either the match is over or fleeing (§2), or the next
   round's barns (destroyed ones still destroyed, out players still out)
@@ -288,7 +288,7 @@ live.
   gone is gone, on any screen.
 - The waiting, countdown and fleeing banners are all read text (*"Hide your
   cow behind a barn!"*, then the "3, 2, 1" digit, then *"So Long, and
-  Thanks for All the Fish"*), not an icon or a ring alone — a screen
+  Thanks for All the Cow"*), not an icon or a ring alone — a screen
   reader gets the same warning, or the same news that the match is over,
   a sighted player does, and the number updates in place rather than being
   announced as a wall of separate live-region updates. A player who is out
