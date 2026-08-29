@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
 import blueSprite from './art/fighter1.png?url&no-inline';
 import greenSprite from './art/fighter2.png?url&no-inline';
-import { FIGHTER_SPRITE_MIRRORED, FIGHTER_WINDUP_MS } from './game';
+import { FIGHTER_SPRITE_MIRRORED } from './game';
 
 type Props = {
   bluePose: number;
@@ -58,13 +58,12 @@ export function FightCanvas(props: Props): JSX.Element {
       const leftIdle = (width - idleGap) / 2;
       const rightIdle = (width + idleGap) / 2;
       const minimumSeparation = spriteSize * 0.95;
-      // `attacking` only ever turns true once the idle wind-up (`FIGHTER_WINDUP_MS`,
-      // `TapFighterRoom.tsx`) has already played, so the ramp-in starts there —
-      // the hold-until-1500 and the decay after it stay anchored to the beat's own
-      // absolute time, unaffected by the wind-up.
+      // `beatTime` here is `actionElapsed` (`TapFighterRoom.tsx`) — time since the
+      // idle wind-up ended, not since the beat itself started — so this ramp is
+      // exactly as it was before the wind-up existed.
       const attackProgress = (attacking: boolean): number => {
         if (!attacking) return 0;
-        if (state.beatTime < FIGHTER_WINDUP_MS + 180) return (state.beatTime - FIGHTER_WINDUP_MS) / 180;
+        if (state.beatTime < 180) return state.beatTime / 180;
         if (state.beatTime < 1_500) return 1;
         return Math.max(0, 1 - (state.beatTime - 1_500) / 250);
       };

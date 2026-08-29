@@ -6,7 +6,7 @@
 | **Catchy sentence** | *Pick six moves, then watch the fight unfold* |
 | **Illustration** | `www/src/games/tap-fighter/art/card.svg` — two original pixel-art fighters, blue versus green, colliding punch and kick effects between them |
 | **Players** | 2 exactly |
-| **Round length** | 15–75 s; first to 3 round wins |
+| **Round length** | 27–75 s; first to 3 round wins |
 | **Inputs** | touch |
 | **Accent colour** | `#F97316` orange |
 | **Status** | live · beta |
@@ -15,7 +15,7 @@
 
 Tap Fighter is a turn-by-turn fighting game presented like an original retro
 arcade brawler. Each player secretly programs six moves, locks them with
-**Fight**, then watches both fighters execute one confrontation per second.
+**Fight**, then watches both fighters execute one confrontation every 4.5 s.
 The strategy is reading the opponent: attack high or low, or evade at the right
 height.
 
@@ -29,12 +29,12 @@ Both players privately choose an ordered sequence of six actions. Actions may
 repeat and may be replaced or reordered until **Fight** is pressed. Pressing
 Fight locks that player's whole sequence; the opponent sees only that they are
 ready, never the chosen moves. When both sequences are locked, the server
-resolves all six confrontations, then reveals and plays them one per second.
+resolves all six confrontations, then reveals and plays them one every 4.5 s.
 
 1. Choose six actions: high punch, low kick, jump or crouch.
 2. Review their order and press **Fight** to lock the sequence.
 3. Wait until the opponent has locked theirs.
-4. Watch the six server-resolved confrontations, one every second.
+4. Watch the six server-resolved confrontations, one every 4.5 s.
 5. Award the round to the fighter who received fewer impacts.
 6. Reset both health bars and sequences for the next round.
 
@@ -127,12 +127,15 @@ Every mode shares the core loop. A mode that does not is a different game.
   screen names the winner and offers Play again / Leave game. Play again clears
   both players' round-win pips.
 
-Each beat lasts 2.5 seconds, split into two equal halves. The first opens with a
-short wind-up — both fighters idle 1-2-1-2 before either action pose (or its
-canvas lunge) takes over — then holds the chosen action pose for the rest of
-that half; the second plays the reaction, whoever's action landed showing the
-hit pose while the other keeps theirs. A hit flash and health-bar change occur
-at contact (the halfway point), never at the start of the beat.
+Each beat lasts 4.5 seconds: a 2-second wind-up — both fighters idle 1-2-1-2,
+0.5 s a pose — comes first, unchanged whether or not either side's action even
+exists yet, then the original 2.5-second action/reaction envelope plays exactly
+as before the wind-up existed. Its first half holds the chosen action pose (and
+its canvas lunge); its second plays the reaction, whoever's action landed
+showing the hit pose while the other keeps theirs. A hit flash and health-bar
+change occur at contact (the envelope's own halfway point), never at the start
+of the beat. The same 2-second wind-up, at the same 0.5 s-a-pose speed, also
+fills the pre-fight countdown (3-2-1-FIGHT, now 1 s a step — 4 s in total).
 
 ### 4.1 Rendering decision
 

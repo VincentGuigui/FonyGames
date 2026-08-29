@@ -103,19 +103,27 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   const text = useGameText();
   const now = useFightClock(state.phase === 'fighting', clock);
   const elapsed = Math.min(now - state.startsAt, Math.max(0, state.endsAt - state.startsAt - 1));
-  const beatMs = 2_500;
   /**
-   * Every beat plays in two equal halves: the action, then the reaction. Whoever's
-   * action landed this beat shows their hit pose for the second half; whoever wasn't
-   * hit just keeps the pose their own action left them in — there is no separate
-   * "settle back to idle" step mid-beat, only at the very start of the next one.
+   * Every beat opens with `FIGHTER_WINDUP_MS` of idle 1-2-1-2, THEN the original
+   * two-equal-halves action/reaction envelope — the wind-up is prepended, not
+   * carved out of it, so the action pose, the hit reaction and the canvas lunge
+   * (`FightCanvas.tsx`) all keep the exact timings they always had. Whoever's
+   * action landed this beat shows their hit pose for the second half; whoever
+   * wasn't hit just keeps the pose their own action left them in — there is no
+   * separate "settle back to idle" step mid-beat, only at the very start (the
+   * wind-up) of the next one.
    */
-  const halfBeat = beatMs / 2;
+  const ACTION_BEAT_MS = 2_500;
+  const beatMs = FIGHTER_WINDUP_MS + ACTION_BEAT_MS;
+  const halfBeat = ACTION_BEAT_MS / 2;
   // Negative while the reveal (VS, countdown, FIGHT) plays: no beat has landed yet.
   const beatIndex = elapsed < 0 || state.beats.length === 0 ? -1 : Math.min(state.beats.length - 1, Math.floor(elapsed / beatMs));
   const beat = beatIndex >= 0 ? state.beats[beatIndex] : undefined;
   const withinBeat = elapsed >= 0 ? elapsed % beatMs : 0;
-  const contact = elapsed >= 0 && withinBeat >= halfBeat;
+  // Time since the wind-up ended — negative during it, then 0…ACTION_BEAT_MS,
+  // exactly what `withinBeat` used to mean before the wind-up existed.
+  const actionElapsed = withinBeat - FIGHTER_WINDUP_MS;
+  const contact = elapsed >= 0 && actionElapsed >= halfBeat;
   const previous = beatIndex > 0 ? state.beats[beatIndex - 1] : undefined;
   const health = state.phase === 'fighting' && !contact ? { blue: previous?.blueHealth ?? 100, green: previous?.greenHealth ?? 100 } : { blue: beat?.blueHealth ?? 100, green: beat?.greenHealth ?? 100 };
   const pose = (seat: FighterSeat) => {
@@ -149,7 +157,7 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     <StatusBar status={text({ en: `Round ${state.matchRound}`, fr: `Manche ${state.matchRound}` })} title={game.title} concept={game.concept} rules={game.rules} />
     <div class="fighter-score"><span>{nameOf(BLUE)} {pips(state.roundWins.blue)}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(state.roundWins.green)} {nameOf(GREEN)}</span></div>
     <section class="fighter-stage">
-      <FightCanvas bluePose={pose(BLUE)} greenPose={pose(GREEN)} blueAttacking={Boolean(beat?.blueAction && withinBeat >= FIGHTER_WINDUP_MS && withinBeat < 1_750)} greenAttacking={Boolean(beat?.greenAction && withinBeat >= FIGHTER_WINDUP_MS && withinBeat < 1_750)} beatTime={withinBeat} />
+      <FightCanvas bluePose={pose(BLUE)} greenPose={pose(GREEN)} blueAttacking={Boolean(beat?.blueAction && actionElapsed >= 0 && actionElapsed < 1_750)} greenAttacking={Boolean(beat?.greenAction && actionElapsed >= 0 && actionElapsed < 1_750)} beatTime={actionElapsed} />
       <div class="fighter-side"><HealthBar value={health.blue} seat={BLUE} name={nameOf(BLUE)} /></div>
       {introStep?.kind === 'vs' && <div class="fighter-versus">{nameOf(BLUE)} {text({ en: 'VS', fr: 'VS' })} {nameOf(GREEN)}</div>}
       {introStep?.kind === 'count' && <div class="fighter-countdown" key={introStep.n}>{introStep.n}</div>}

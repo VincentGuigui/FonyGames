@@ -2,8 +2,8 @@ import type { PlayerId, ServerMessage, TapFighterState } from '../shared/protoco
 import { REVEAL_LEAD_MS, resolveFight, validFighterPlan, type FighterAction, type FighterSeat } from '../shared/tapFighter';
 
 const PLAN_CAP_MS = 75_000;
-/** Six 2.5 s beats; the room client adds the shared 0.5 s board-only result hold. */
-const FIGHT_MS = 15_000;
+/** Six 4.5 s beats (2 s idle wind-up + the original 2.5 s action/reaction). */
+const FIGHT_MS = 27_000;
 const MATCH_TARGET = 3;
 
 export type TapFighter = TapFighterState & {
