@@ -121,7 +121,15 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   const pose = (seat: FighterSeat) => {
     if (state.phase !== 'fighting' && health[seat] <= 0) return FIGHTER_POSES.defeated;
     const action = beat?.[seat === 'blue' ? 'blueAction' : 'greenAction'];
-    if (!action) return FIGHTER_POSES.idle1;
+    if (!action) {
+      // The countdown (3-2-1-FIGHT, 4 steps) gets the same idle wind-up as every
+      // beat, at the same speed — it just runs the whole time that phase does.
+      if (elapsed < 0) {
+        const sinceCountdownStart = elapsed + REVEAL_LEAD_MS - (FIGHT_VS_MS + FIGHT_VS_FADE_MS);
+        if (sinceCountdownStart >= 0) return idleWindupPose(sinceCountdownStart);
+      }
+      return FIGHTER_POSES.idle1;
+    }
     // Before the action itself: idle 1-2-1-2, the same wind-up every beat gets.
     if (withinBeat < FIGHTER_WINDUP_MS) return idleWindupPose(withinBeat);
     const reacting = contact && beat?.[seat === 'blue' ? 'blueHit' : 'greenHit'];

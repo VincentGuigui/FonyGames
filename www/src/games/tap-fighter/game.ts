@@ -55,7 +55,7 @@ export const ACTION_POSE = {
  * render the identical frame from the identical `elapsed` clock, not their own
  * independently-ticking one.
  */
-export const FIGHTER_WINDUP_FRAME_MS = 150;
+export const FIGHTER_WINDUP_FRAME_MS = 500;
 export const FIGHTER_WINDUP_MS = FIGHTER_WINDUP_FRAME_MS * 4;
 
 export function idleWindupPose(sinceBeatStart: number): number {

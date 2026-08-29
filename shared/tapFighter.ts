@@ -12,9 +12,9 @@ export type FighterSeat = 'blue' | 'green';
  */
 export const FIGHT_VS_MS = 2_000;
 export const FIGHT_VS_FADE_MS = 500;
-export const FIGHT_COUNTDOWN_STEP_MS = 700;
+export const FIGHT_COUNTDOWN_STEP_MS = 1_000;
 export const FIGHT_COUNTDOWN_STEPS = 3;
-export const FIGHT_FLASH_MS = 500;
+export const FIGHT_FLASH_MS = 1_000;
 
 /** Both plans are in to the first beat landing — long enough for the whole reveal above. */
 export const REVEAL_LEAD_MS =
