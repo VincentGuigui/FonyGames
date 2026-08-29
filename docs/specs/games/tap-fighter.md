@@ -127,10 +127,12 @@ Every mode shares the core loop. A mode that does not is a different game.
   screen names the winner and offers Play again / Leave game. Play again clears
   both players' round-win pips.
 
-Each beat lasts 2.5 seconds: the chosen action holds for one second, a 0.5-second
-anticipation pause follows, the reaction/impact lands, then one second of rhythmic
-shoulder and arm movement separates it from the next action. A hit flash and
-health-bar change occur at contact, never at the start of the beat.
+Each beat lasts 2.5 seconds, split into two equal halves. The first opens with a
+short wind-up — both fighters idle 1-2-1-2 before either action pose (or its
+canvas lunge) takes over — then holds the chosen action pose for the rest of
+that half; the second plays the reaction, whoever's action landed showing the
+hit pose while the other keeps theirs. A hit flash and health-bar change occur
+at contact (the halfway point), never at the start of the beat.
 
 ### 4.1 Rendering decision
 

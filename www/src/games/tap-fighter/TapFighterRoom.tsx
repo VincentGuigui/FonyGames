@@ -22,7 +22,15 @@ import {
 import type { Player, ServerMessage, TapFighterState } from '../../../../shared/protocol';
 import { playOutcomeSound } from '../../core/audio/outcome';
 import { StatusBar } from '../../core/ui/StatusBar';
-import { ACTION_POSE, FIGHTER_COLORS, FIGHTER_POSES, FIGHTER_SPRITE_COLUMNS, FIGHTER_SPRITE_MIRRORED } from './game';
+import {
+  ACTION_POSE,
+  FIGHTER_COLORS,
+  FIGHTER_POSES,
+  FIGHTER_SPRITE_COLUMNS,
+  FIGHTER_SPRITE_MIRRORED,
+  FIGHTER_WINDUP_MS,
+  idleWindupPose,
+} from './game';
 import { FightCanvas } from './FightCanvas';
 
 /** How long a tapped move flashes in the big preview before settling back to idle. */
@@ -114,6 +122,8 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     if (state.phase !== 'fighting' && health[seat] <= 0) return FIGHTER_POSES.defeated;
     const action = beat?.[seat === 'blue' ? 'blueAction' : 'greenAction'];
     if (!action) return FIGHTER_POSES.idle1;
+    // Before the action itself: idle 1-2-1-2, the same wind-up every beat gets.
+    if (withinBeat < FIGHTER_WINDUP_MS) return idleWindupPose(withinBeat);
     const reacting = contact && beat?.[seat === 'blue' ? 'blueHit' : 'greenHit'];
     return reacting ? FIGHTER_POSES.hit : ACTION_POSE[action];
   };
@@ -131,7 +141,7 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     <StatusBar status={text({ en: `Round ${state.matchRound}`, fr: `Manche ${state.matchRound}` })} title={game.title} concept={game.concept} rules={game.rules} />
     <div class="fighter-score"><span>{nameOf(BLUE)} {pips(state.roundWins.blue)}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(state.roundWins.green)} {nameOf(GREEN)}</span></div>
     <section class="fighter-stage">
-      <FightCanvas bluePose={pose(BLUE)} greenPose={pose(GREEN)} blueAttacking={Boolean(beat?.blueAction && withinBeat < 1_750)} greenAttacking={Boolean(beat?.greenAction && withinBeat < 1_750)} beatTime={withinBeat} />
+      <FightCanvas bluePose={pose(BLUE)} greenPose={pose(GREEN)} blueAttacking={Boolean(beat?.blueAction && withinBeat >= FIGHTER_WINDUP_MS && withinBeat < 1_750)} greenAttacking={Boolean(beat?.greenAction && withinBeat >= FIGHTER_WINDUP_MS && withinBeat < 1_750)} beatTime={withinBeat} />
       <div class="fighter-side"><HealthBar value={health.blue} seat={BLUE} name={nameOf(BLUE)} /></div>
       {introStep?.kind === 'vs' && <div class="fighter-versus">{nameOf(BLUE)} {text({ en: 'VS', fr: 'VS' })} {nameOf(GREEN)}</div>}
       {introStep?.kind === 'count' && <div class="fighter-countdown" key={introStep.n}>{introStep.n}</div>}

@@ -45,3 +45,20 @@ export const ACTION_POSE = {
   jump: FIGHTER_POSES.jump,
   crouch: FIGHTER_POSES.crouch,
 } as const;
+
+/**
+ * The wind-up before every beat's action lands: four frames, idle1→idle2→idle1→
+ * idle2, `FIGHTER_WINDUP_FRAME_MS` each, before the action pose (and its canvas
+ * lunge, `FightCanvas.tsx`'s `attackProgress`) takes over. A pure function of time
+ * since the beat itself started, not a local timer/interval — like every other
+ * beat of this fight (`TapFighterRoom.tsx`'s own `pose`), both phones have to
+ * render the identical frame from the identical `elapsed` clock, not their own
+ * independently-ticking one.
+ */
+export const FIGHTER_WINDUP_FRAME_MS = 150;
+export const FIGHTER_WINDUP_MS = FIGHTER_WINDUP_FRAME_MS * 4;
+
+export function idleWindupPose(sinceBeatStart: number): number {
+  const frame = Math.floor(sinceBeatStart / FIGHTER_WINDUP_FRAME_MS) % 2;
+  return frame === 0 ? FIGHTER_POSES.idle1 : FIGHTER_POSES.idle2;
+}
