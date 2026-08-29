@@ -12,5 +12,6 @@
     reach ufo-hunt.css exactly as if they were written inline.
   -->
   <circle class="ufohunt__reticle-ring" cx="0" cy="0" r="28" />
+  <circle class="ufohunt__reticle-inner-ring" cx="0" cy="0" r="10" />
   <path class="ufohunt__reticle-cross" d="M0,-44 L0,-30 M0,30 L0,44 M-44,0 L-30,0 M30,0 L44,0" />
 </svg>
