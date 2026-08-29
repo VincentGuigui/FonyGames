@@ -43,6 +43,7 @@ function view(over: Partial<UfoHuntView> = {}): UfoHuntView {
     endsAt: 120_000,
     wave: WAVE,
     scores: { [ME]: 10, [OTHER]: 20 },
+    missileCharge: { [ME]: 0, [OTHER]: 0 },
     winner: null,
     phase: 'running',
     seq: 1,

@@ -6,11 +6,13 @@ import {
   UFOHUNT_KIND_COUNT,
   UFOHUNT_MAX_PLAYERS,
   UFOHUNT_MIN_PLAYERS,
+  UFOHUNT_MISSILE_CHARGE_GOAL,
   UFOHUNT_ROUND_CAP_MS,
   UFOHUNT_SHOT_COOLDOWN_MS,
   UFOHUNT_TICK_MS,
   ufoAngleBetween,
   ufoImpact,
+  ufoMissileImpact,
   ufoPositionAt,
   type PlayerId,
   type ServerMessage,
@@ -47,6 +49,8 @@ export type UfoHunt = {
   scores: Record<PlayerId, number>;
   /** Server time each player's last accepted shot landed — the cooldown clock (spec §2, §8). */
   lastShotAt: Record<PlayerId, number>;
+  /** Each player's own missile charge, 0…`UFOHUNT_MISSILE_CHARGE_GOAL` (spec §2.6). */
+  missileCharge: Record<PlayerId, number>;
   winner: PlayerId | null;
   phase: 'running' | 'done';
 };
@@ -99,9 +103,11 @@ export async function startUfoHunt(
   const now = ctx.now();
   const scores: Record<PlayerId, number> = {};
   const lastShotAt: Record<PlayerId, number> = {};
+  const missileCharge: Record<PlayerId, number> = {};
   for (const id of connected) {
     scores[id] = 0;
     lastShotAt[id] = 0;
+    missileCharge[id] = 0;
   }
 
   const s: UfoHunt = {
@@ -112,6 +118,7 @@ export async function startUfoHunt(
     wave: spawnWave(ctx.random, 0, now),
     scores,
     lastShotAt,
+    missileCharge,
     winner: null,
     phase: 'running',
   };
@@ -130,6 +137,7 @@ export function toState(s: UfoHunt): UfoHuntState {
     endsAt: s.endsAt,
     wave: { ...s.wave },
     scores: { ...s.scores },
+    missileCharge: { ...s.missileCharge },
     winner: s.winner,
     phase: s.phase,
   };
@@ -174,7 +182,53 @@ export async function onUfoShoot(
   s.scores[playerId] = (s.scores[playerId] ?? 0) + impact;
   s.wave.health = Math.max(0, s.wave.health - impact);
 
+  // A landed ordinary shot is what fills the missile — not the missile itself
+  // (spec §2.6), so this cannot chain into an unbounded charge.
+  if (impact > 0) {
+    s.missileCharge[playerId] = Math.min(UFOHUNT_MISSILE_CHARGE_GOAL, (s.missileCharge[playerId] ?? 0) + 1);
+  }
+
   // The saucer explodes at 0 health; the next one spawns immediately, tougher (spec §2.5).
+  if (s.wave.health <= 0) s.wave = spawnWave(ctx.random, s.wave.index + 1, now);
+
+  await ctx.save(s);
+  broadcast(ctx, s);
+}
+
+/**
+ * A phone fired its missile. Spec §2.6, §8.
+ *
+ * Same referee-decides shape as `onUfoShoot`: the saucer's true position is
+ * recomputed here, never trusted from the client. Two things set it apart —
+ * the charge gate (this is refused outright below `UFOHUNT_MISSILE_CHARGE_GOAL`,
+ * not merely throttled) and `ufoMissileImpact`'s own flat-fraction damage in
+ * place of `ufoImpact`'s precision curve. The charge is consumed the instant
+ * this is accepted, whether or not the shot itself lands — firing is what
+ * empties the button, same as the brief states it.
+ */
+export async function onUfoMissile(
+  ctx: Ctx,
+  playerId: PlayerId,
+  roundId: number,
+  aimAz: number,
+  aimEl: number,
+): Promise<void> {
+  const s = await ctx.load();
+  if (!s || s.phase !== 'running' || s.roundId !== roundId) return;
+  if (!Number.isFinite(aimAz) || !Number.isFinite(aimEl)) return;
+  if (s.scores[playerId] === undefined) return;
+  if ((s.missileCharge[playerId] ?? 0) < UFOHUNT_MISSILE_CHARGE_GOAL) return; // not charged yet
+
+  const now = ctx.now();
+  s.missileCharge[playerId] = 0;
+
+  const pos = ufoPositionAt(s.wave.homeAz, s.wave.homeEl, s.wave.index, now - s.wave.spawnedAt);
+  const offset = ufoAngleBetween({ azimuth: aimAz, elevation: aimEl }, pos);
+  const impact = ufoMissileImpact(offset, s.wave.maxHealth);
+
+  s.scores[playerId] = (s.scores[playerId] ?? 0) + impact;
+  s.wave.health = Math.max(0, s.wave.health - impact);
+
   if (s.wave.health <= 0) s.wave = spawnWave(ctx.random, s.wave.index + 1, now);
 
   await ctx.save(s);

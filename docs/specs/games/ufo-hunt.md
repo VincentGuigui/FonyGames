@@ -47,15 +47,24 @@ score when the clock runs out wins.
    ignored — the blaster is recharging (§8).
 5. **The saucer explodes at 0 health.** The next one spawns immediately: a
    fresh random direction and kind, `UFOHUNT_HEALTH_STEP` tougher than the
-   one before.
-6. The round ends at the safety cap. Ranking is by score; ties are
+   one before. `explosion.gif` plays at wherever the OLD saucer was last on
+   screen, for every player who had it in view — the one shared, "seen by
+   both" beat in a game that is otherwise everyone's own private aim (§2.5).
+6. **The missile.** `UFOHUNT_MISSILE_CHARGE_GOAL` (10) of YOUR OWN landed
+   ordinary shots fill a second button, bottom centre of the screen — a
+   flat count of hits, not a fraction of the damage they did. Full, it
+   fires a much heavier shot at your current aim; empty, it is disabled
+   outright. Firing empties it again immediately, whether or not the
+   missile itself lands, and it can only refill from more ordinary hits —
+   never from another missile (§2.6).
+7. The round ends at the safety cap. Ranking is by score; ties are
    unranked, the same convention every other timed game in this catalogue
    uses at its own cap.
 
 **Win condition:** highest score when the round ends.
-**Scoring:** the running sum of a player's own shot damage. No separate
-"shots fired" or accuracy stat — not asked for, and the score already says
-it.
+**Scoring:** the running sum of a player's own shot damage, missiles
+included. No separate "shots fired" or accuracy stat — not asked for, and
+the score already says it.
 
 ### 2.1 Reused from Ghost Hunt: the roam, the calibration, the camera-as-scenery
 
@@ -130,6 +139,24 @@ Only `classic` at launch.
 - **Health bar**: the shared saucer's current/max health, always visible,
   updates the instant anyone's shot lands — this is co-op, so watching it
   drop from someone else's shot is the point.
+- **Impact gifs** (§2.3, §2.6): a landed ordinary shot plays
+  `art/impact_laser.gif` (15×15px) on the saucer, and a landed missile plays
+  `art/impact_missile.gif` (80×80px) there instead — both **local to the
+  player who fired**, predicted from the same roam function and formula the
+  referee itself scores with (`saucerAt`/`ufoAngleBetween`/`ufoImpact`,
+  `UfoRoom.tsx`), not waited for over the wire. A shot that lands beyond
+  `UFOHUNT_SCOPE_DEG` plays neither.
+- **Explosion gif** (§2.5): `art/explosion.gif` (30×30px), at wherever the
+  saucer was last on screen for THIS player — every player who had it in
+  view sees it, from their own last-known position for it, not a single
+  shared coordinate. A kill off this player's own screen (someone else's
+  shot, the saucer out of view) plays no gif here, only the sound.
+- **The missile button** (§2.6): bottom centre, disabled and visually empty
+  until `missileCharge` (server-owned, spec §6) reaches
+  `UFOHUNT_MISSILE_CHARGE_GOAL` — a conic-gradient ring around the button
+  IS the fill meter, not a second bar. Tapping it while full sends
+  `ufo-missile` at the current aim and immediately empties again, whether
+  or not the shot lands.
 - **Live scoreboard**: everyone's running score, updating per shot, same
   `Scoreboard` component every other game uses, `best="high"`.
 - **Results**: final ranking by score, winner called out, same shape as
@@ -176,7 +203,8 @@ a choice, stated plainly rather than left implicit.
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
 | `ufo-shoot` | client → server | `{roundId, aimAz, aimEl}` | This player's current aim, in degrees, at the moment they tapped |
-| `ufo-hunt` | server → both | `{roundId, wave: {index, kind, maxHealth, health, homeAz, homeEl, spawnedAt}, scores, endsAt, phase, winner}` | The shared saucer and everyone's score — nothing here is private |
+| `ufo-missile` | client → server | `{roundId, aimAz, aimEl}` | Same shape as `ufo-shoot` — the missile launch (§2.6), only accepted once this player's own `missileCharge` has reached `UFOHUNT_MISSILE_CHARGE_GOAL` |
+| `ufo-hunt` | server → both | `{roundId, wave: {index, kind, maxHealth, health, homeAz, homeEl, spawnedAt}, scores, missileCharge, endsAt, phase, winner}` | The shared saucer, everyone's score, and everyone's own missile charge — nothing here is private |
 
 No per-player private message: unlike Tap Tap Music or Squash Mosquitoes,
 there is nothing to hide — the whole point is a shared target and public
@@ -190,6 +218,9 @@ scores.
 | The safety cap hits | Ranked by score; a tie is unranked |
 | A shot arrives inside the cooldown window | Ignored — no health change, no score change |
 | Two shots land on the same tick, killing the saucer | Both are scored in full against the health that was left when each was processed (server-sequential, not simultaneous) — the next wave spawns once health reaches 0, however many shots overshot it |
+| A missile is sent below `UFOHUNT_MISSILE_CHARGE_GOAL` | Refused outright — not merely ignored the way a within-cooldown ordinary shot is, since a legitimate client can never actually reach this state |
+| A missile lands beyond `UFOHUNT_SCOPE_DEG` | No health change, no score change, no gif — same "beyond scope, zero" test as an ordinary shot, just against a heavier damage formula |
+| A missile kills the saucer mid-flight of an ordinary shot already in transit | Same as two ordinary shots landing together: server-sequential, each scored against the health left when it is actually processed |
 | Fewer than 2 players | Start disabled |
 | A player refreshes mid-round | Same seat, same score; resent the current wave and every score on reconnect |
 | Camera or orientation denied | Start is blocked with the explanation in §5.3 — there is no way into the round without both |
@@ -202,6 +233,13 @@ scores.
 - **The damage formula lives on the server**, not the client: a shot reports
   only a raw aim, and the referee applies `UFOHUNT_SCOPE_DEG` and the linear
   interpolation itself.
+- **The missile charge lives on the server too** (`missileCharge`, spec §6),
+  not a client-side hit counter — the button's own disabled state is a
+  courtesy, not the enforcement; `onUfoMissile` (`worker/ufoHunt.ts`) refuses
+  a launch below `UFOHUNT_MISSILE_CHARGE_GOAL` regardless of what a modified
+  client claims or sends. The client's own impact gifs (§4) are predicted
+  locally from the same public formula purely for feel — never trusted as
+  the shot's real outcome, same caveat as everywhere else in this file.
 - **Honest limit, stated plainly rather than glossed over**: the referee
   cannot verify that the *reported aim* reflects the phone's real sensor
   reading — the same fundamental gap Ghost Hunt avoids entirely by never

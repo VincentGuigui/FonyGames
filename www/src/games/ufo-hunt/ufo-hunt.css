@@ -287,6 +287,105 @@
   }
 }
 
+/* --- impact/explosion gifs (spec §2.5, §2.6) ------------------------------- */
+
+/*
+ * `impact_laser.gif`/`explosion.gif`/`impact_missile.gif`, positioned once by
+ * the caller and left to play their own frames — nothing here loops or times
+ * them; `UfoRoom.tsx`'s `addBurst` unmounts each one once its real gif runtime
+ * has elapsed. `pointer-events: none` is inherited from `.ufohunt__scope`
+ * already (these sit inside it, next to `.ufohunt__saucer`) — stated again here
+ * because it matters: none of these may ever catch the tap that fires.
+ */
+.ufohunt__gifburst {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: ufohunt-burst-in 120ms ease-out both;
+}
+
+.ufohunt__gifburst--laser {
+  width: 15px;
+  height: 15px;
+}
+
+.ufohunt__gifburst--explosion {
+  width: 30px;
+  height: 30px;
+}
+
+.ufohunt__gifburst--missile {
+  width: 80px;
+  height: 80px;
+}
+
+@keyframes ufohunt-burst-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* --- the missile (spec §2.6) ------------------------------------------------ */
+
+/*
+ * Bottom centre, above the tapzone by DOM order (`UfoScreen.tsx`) — its own
+ * `<button>` and hit target, not a click read off the tapzone beneath it. The
+ * fill is a conic-gradient read straight off `--missile-pct`
+ * (`missileCharge / UFOHUNT_MISSILE_CHARGE_GOAL`) rather than a second bar
+ * element — the ring itself is the meter.
+ */
+.ufohunt__missile {
+  position: absolute;
+  left: 50%;
+  bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 0.35);
+  background:
+    radial-gradient(circle at center, #05070b 58%, transparent 60%),
+    conic-gradient(
+      var(--game-accent, var(--color-accent)) calc(var(--missile-pct, 0) * 1%),
+      rgb(255 255 255 / 0.14) 0
+    );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 120ms ease;
+}
+
+.ufohunt__missile:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.ufohunt__missile:not(:disabled) {
+  animation: ufohunt-missile-ready 1.1s ease-in-out infinite;
+}
+
+.ufohunt__missile:not(:disabled):active {
+  transform: translateX(-50%) scale(0.92);
+}
+
+@keyframes ufohunt-missile-ready {
+  0%, 100% {
+    box-shadow: 0 0 12px var(--game-accent, var(--color-accent));
+  }
+  50% {
+    box-shadow: 0 0 22px var(--game-accent, var(--color-accent));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ufohunt__saucer {
     animation: none;
@@ -303,6 +402,13 @@
   .ufohunt__laserbeam {
     animation: none;
     opacity: 0;
+  }
+  .ufohunt__gifburst {
+    animation: none;
+  }
+  .ufohunt__missile:not(:disabled) {
+    animation: none;
+    box-shadow: 0 0 14px var(--game-accent, var(--color-accent));
   }
 }
 

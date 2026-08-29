@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { JSX, RefObject } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
-import { UFOHUNT_KIND_COUNT } from '../../../../shared/protocol';
+import { UFOHUNT_KIND_COUNT, UFOHUNT_MISSILE_CHARGE_GOAL } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { scoreOf, type UfoHuntView } from './game';
@@ -9,6 +9,25 @@ import { cornerBeams, LASER_GAP_PX } from './beam';
 import { useGameText } from '../../core/i18n/gameText';
 import saucerArt from './art/ufo.svg?url&no-inline';
 import crosshairArt from './art/crosshair.svg?raw';
+import impactLaserGif from './art/impact_laser.gif?url&no-inline';
+import explosionGif from './art/explosion.gif?url&no-inline';
+import impactMissileGif from './art/impact_missile.gif?url&no-inline';
+
+/**
+ * A gif burst: `impact_laser.gif` on a landed ordinary shot, `explosion.gif` on
+ * a kill, `impact_missile.gif` on a landed missile (spec §2.5, §2.6). Its
+ * screen position is captured once, at the moment it is triggered
+ * (`UfoRoom.tsx`'s `addBurst`), not re-derived on every frame — the saucer may
+ * already have moved (or, for a kill, no longer exist) by the time this shows.
+ */
+export type GifBurstKind = 'laser' | 'explosion' | 'missile';
+export type GifBurst = { id: number; kind: GifBurstKind; x: number; y: number };
+
+const GIF_BURST_ART: Record<GifBurstKind, string> = {
+  laser: impactLaserGif,
+  explosion: explosionGif,
+  missile: impactMissileGif,
+};
 
 /**
  * The hunt, on one phone. Spec: docs/specs/games/ufo-hunt.md §4
@@ -41,6 +60,9 @@ export function UfoScreen({
   videoRef,
   onShoot,
   shotId,
+  bursts,
+  onMissile,
+  missileCharge,
 }: {
   state: UfoHuntView;
   players: Player[];
@@ -64,6 +86,12 @@ export function UfoScreen({
   /** Bumped by the caller on every shot actually fired. Keying the laser burst on
    *  this replays its animation from scratch each time, with no timer to manage. */
   shotId: number;
+  /** Live impact/explosion gifs, positioned and timed by the caller (spec §2.5, §2.6). */
+  bursts: GifBurst[];
+  /** Fire the missile — only meaningful once `missileCharge` has reached the goal. */
+  onMissile: () => void;
+  /** This player's own missile charge, 0…`UFOHUNT_MISSILE_CHARGE_GOAL`. */
+  missileCharge: number;
 }): JSX.Element {
   const text = useGameText();
   const mine = myId ? scoreOf(state, myId) : 0;
@@ -75,6 +103,8 @@ export function UfoScreen({
    *  the bar and health bar above push `.ufohunt__scope` down from true centre,
    *  so `LaserBurst` measures this rather than assuming `innerWidth/2, innerHeight/2`. */
   const scopeRef = useRef<HTMLDivElement>(null);
+  const missileReady = missileCharge >= UFOHUNT_MISSILE_CHARGE_GOAL;
+  const missilePct = Math.max(0, Math.min(100, (missileCharge / UFOHUNT_MISSILE_CHARGE_GOAL) * 100));
 
   return (
     <div
@@ -142,11 +172,44 @@ export function UfoScreen({
             alt=""
           />
         )}
+
+        {/* Impact/explosion gifs (spec §2.5, §2.6) — each one positioned once, at
+            the screen spot it was triggered with, not re-derived every frame.
+            Inside `.ufohunt__scope` itself, not a sibling of it: that box, not
+            the padded `.ufohunt` root, is the saucer's own coordinate space —
+            the same reason `.ufohunt__saucer` above is positioned in here. */}
+        {bursts.map((b) => (
+          <img
+            key={b.id}
+            src={GIF_BURST_ART[b.kind]}
+            class={`ufohunt__gifburst ufohunt__gifburst--${b.kind}`}
+            style={{ left: `${(50 + b.x * 50).toFixed(2)}%`, top: `${(50 - b.y * 50).toFixed(2)}%` }}
+            alt=""
+          />
+        ))}
       </div>
 
       {/* One burst per shot fired (spec §2.3): four neon beams, one from each
           screen corner, stopping short of the crosshair rather than covering it. */}
       {shotId > 0 && <LaserBurst key={shotId} scopeRef={scopeRef} />}
+
+      {/*
+        The missile: bottom centre, filled by the caller's own `missileCharge`
+        (spec §2.6) — disabled and empty until it reaches
+        `UFOHUNT_MISSILE_CHARGE_GOAL`. Its own `<button>`, not a click handled by
+        `.ufohunt__tapzone` underneath: a tap here is hit-tested against this
+        element, not the sibling behind it, so it never also fires a shot.
+      */}
+      <button
+        type="button"
+        class="ufohunt__missile"
+        style={{ '--missile-pct': missilePct.toFixed(1) } as JSX.CSSProperties}
+        disabled={!missileReady}
+        onClick={onMissile}
+        aria-label={text({ en: 'Launch missile', fr: 'Lancer le missile' })}
+      >
+        🚀
+      </button>
 
       <Scoreboard
         rows={players.map((p) => ({

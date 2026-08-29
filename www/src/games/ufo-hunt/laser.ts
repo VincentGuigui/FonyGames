@@ -63,6 +63,25 @@ export function playLaser(): void {
   oscillator.stop(at + 0.15);
 }
 
+/** The missile launch: the same descending sweep as `playLaser`, lower and longer — the earned, heavier shot. */
+export function playMissile(): void {
+  const current = audio();
+  if (!current || current.state !== 'running' || !soundOn()) return;
+
+  const at = current.currentTime + 0.01;
+  const oscillator = current.createOscillator();
+  const gain = current.createGain();
+  oscillator.type = 'sawtooth';
+  oscillator.frequency.setValueAtTime(900, at);
+  oscillator.frequency.exponentialRampToValueAtTime(90, at + 0.3);
+  gain.gain.setValueAtTime(0.0001, at);
+  gain.gain.exponentialRampToValueAtTime(0.16, at + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.32);
+  oscillator.connect(gain).connect(current.destination);
+  oscillator.start(at);
+  oscillator.stop(at + 0.33);
+}
+
 /** The saucer's explosion: a burst of noise under a falling thud. */
 export function playExplosion(): void {
   const current = audio();

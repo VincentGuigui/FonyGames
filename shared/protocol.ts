@@ -231,6 +231,13 @@ export type ClientMessage =
    * roam the client rendered with and scores the angle between (spec §8).
    */
   | { t: 'ufo-shoot'; d: { roundId: number; aimAz: number; aimEl: number } }
+  /**
+   * UFO Hunt: the missile launch, only sendable once `missileCharge` (spec §2.6)
+   * has reached `UFOHUNT_MISSILE_CHARGE_GOAL` — the referee, not the button's own
+   * disabled state, is what actually enforces that (spec §8). Same shape as
+   * `ufo-shoot`: still an aimed shot, just a much heavier one.
+   */
+  | { t: 'ufo-missile'; d: { roundId: number; aimAz: number; aimEl: number } }
   /** Tic-Tac-Tic-Tac-Toe: choose the next unresolved meta board. */
   | { t: 'tttt-select'; d: { roundId: number; metaCell: number } }
   /** Tic-Tac-Tic-Tac-Toe: play a move in the selected small board. */
@@ -522,6 +529,14 @@ export type UfoHuntState = {
   wave: UfoWave;
   /** Running sum of each player's own shot damage. The score. */
   scores: Record<PlayerId, number>;
+  /**
+   * Each player's own missile charge, 0…`UFOHUNT_MISSILE_CHARGE_GOAL` — one full
+   * charge per landed ordinary shot (spec §2.6), reset to 0 the instant a missile
+   * fires. Server-owned, same as `scores`: the missile button's own fill is read
+   * straight off this rather than the client counting its own hits, so a
+   * modified client cannot fire early.
+   */
+  missileCharge: Record<PlayerId, number>;
   winner: PlayerId | null;
   phase: 'running' | 'done';
 };
@@ -1527,6 +1542,7 @@ const CLIENT_TYPES = new Set([
   'taptap-tap',
   'taps100-tap',
   'ufo-shoot',
+  'ufo-missile',
   'tttt-select',
   'tttt-tap',
   'fighter-lock',
@@ -1929,6 +1945,20 @@ export const UFOHUNT_ELEVATION_MIN_DEG = -30;
 export const UFOHUNT_ELEVATION_MAX_DEG = 60;
 
 /**
+ * The missile: a heavier shot, earned rather than always available (spec §2.6).
+ *
+ * `UFOHUNT_MISSILE_CHARGE_GOAL` landed ordinary shots (`ufoImpact(offset) > 0`,
+ * spec §2.2) fill it; firing consumes the whole charge regardless of whether the
+ * missile itself lands. Unlike an ordinary shot, a missile that lands within
+ * `UFOHUNT_SCOPE_DEG` does not interpolate by precision — it always removes
+ * `UFOHUNT_MISSILE_DAMAGE_FRACTION` of the wave's own `maxHealth`, a flat
+ * fraction of THIS saucer's toughness rather than a fixed number, so it stays
+ * meaningful against a later, tougher wave instead of trailing off.
+ */
+export const UFOHUNT_MISSILE_CHARGE_GOAL = 10;
+export const UFOHUNT_MISSILE_DAMAGE_FRACTION = 1 / 3;
+
+/**
  * The floor between two shots from the same player — "the blaster recharges"
  * (spec §2, §8). The one rate-limit standing in for verifying a phone's real
  * orientation reading, which the referee has no way to do (spec §8).
@@ -2023,6 +2053,17 @@ export function ufoPositionAt(
  */
 export function ufoImpact(offsetDeg: number): number {
   return Math.min(10, Math.max(0, 10 * (1 - offsetDeg / UFOHUNT_SCOPE_DEG)));
+}
+
+/**
+ * A missile's damage against a wave of `maxHealth`: 0 if the aim is beyond
+ * `UFOHUNT_SCOPE_DEG` (same landing test as an ordinary shot), otherwise a flat
+ * `UFOHUNT_MISSILE_DAMAGE_FRACTION` of that wave's own toughness regardless of
+ * how close to dead-centre it landed — a missile does not reward precision the
+ * way `ufoImpact` does, only landing it at all (spec §2.6).
+ */
+export function ufoMissileImpact(offsetDeg: number, maxHealth: number): number {
+  return offsetDeg <= UFOHUNT_SCOPE_DEG ? maxHealth * UFOHUNT_MISSILE_DAMAGE_FRACTION : 0;
 }
 
 /* ------------------------------------------------------------------ */

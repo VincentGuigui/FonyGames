@@ -4,8 +4,11 @@ import type { GameCard } from '../../core/types';
 import {
   UFOHUNT_MAX_PLAYERS,
   UFOHUNT_MIN_PLAYERS,
+  UFOHUNT_MISSILE_CHARGE_GOAL,
   UFOHUNT_SCOPE_DEG,
   UFOHUNT_SHOT_COOLDOWN_MS,
+  ufoAngleBetween,
+  ufoImpact,
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
@@ -22,11 +25,11 @@ import {
   type OrientationSupport,
   type OrientationTracker,
 } from '../../core/sensors/orientation';
-import { applyUfoHunt, leaderOf, ranking, scoreOf, type UfoHuntState } from './game';
+import { applyUfoHunt, leaderOf, missileChargeOf, ranking, scoreOf, type UfoHuntState } from './game';
 import { bearingDeg, saucerAt, scopeHeat, screenSpot } from './scope';
-import { UfoScreen } from './UfoScreen';
+import { UfoScreen, type GifBurst, type GifBurstKind } from './UfoScreen';
 import { startCamera, type Camera } from './camera';
-import { armLaserAudio, playExplosion, playLaser } from './laser';
+import { armLaserAudio, playExplosion, playLaser, playMissile } from './laser';
 import { useGameText, type GameText } from '../../core/i18n/gameText';
 
 /**
@@ -69,9 +72,31 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
   /** Bumped on every shot actually fired — `UfoScreen` keys its laser-flash
    *  overlay on this so each shot replays the animation from scratch. */
   const [shotId, setShotId] = useState(0);
+  /** Live impact/explosion gifs (spec §2.5, §2.6) — see `addBurst` below. */
+  const [bursts, setBursts] = useState<GifBurst[]>([]);
 
   const onGame = useCallback((msg: ServerMessage) => {
     setState((prev) => applyUfoHunt(prev, msg));
+  }, []);
+
+  const burstIdRef = useRef(0);
+  /**
+   * Drop a gif overlay at a screen position and let it clean itself up.
+   *
+   * `pos` is `null` whenever the saucer was not actually on screen at the
+   * moment worth marking — off-screen kills, mainly (spec §2.5) — and this
+   * simply skips those rather than drawing at a guessed spot. Durations
+   * match each gif's own real playtime (`impact_laser.gif` 5 frames/500ms,
+   * `explosion.gif` 16 frames/960ms, `impact_missile.gif` 6 frames/540ms,
+   * all `loop: 0` — infinite — so something here has to end it) with a
+   * small margin so the last frame is never cut mid-flicker.
+   */
+  const addBurst = useCallback((kind: GifBurstKind, pos: { x: number; y: number } | null) => {
+    if (!pos) return;
+    const id = ++burstIdRef.current;
+    const durationMs = kind === 'explosion' ? 1000 : kind === 'missile' ? 580 : 540;
+    setBursts((prev) => [...prev, { id, kind, x: pos.x, y: pos.y }]);
+    setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), durationMs);
   }, []);
 
   const solo = useSoloTesting();
@@ -115,6 +140,12 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
     if (!running) return;
 
     let raf = 0;
+    // The saucer's own last on-screen spot, one frame behind `spot` state on
+    // purpose: by the time a kill's index change is DETECTED, `stateRef.current`
+    // already holds the fresh wave, so the explosion (spec §2.5) has to reuse
+    // wherever the OLD wave was last seen rather than recompute a position that
+    // no longer exists.
+    let lastSpot: { x: number; y: number } | null = null;
     const frame = (): void => {
       raf = requestAnimationFrame(frame);
 
@@ -124,15 +155,20 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
       if (s.wave.index !== waveIndexRef.current) {
         // The very first frame of a round is not a kill — nothing exploded yet,
         // the wave simply appeared.
-        if (waveIndexRef.current >= 0) playExplosion();
+        if (waveIndexRef.current >= 0) {
+          playExplosion();
+          addBurst('explosion', lastSpot);
+        }
         waveIndexRef.current = s.wave.index;
       }
 
       const serverNow = clientRef.current?.now() ?? Date.now();
       const aim = trackerRef.current?.read().aim ?? null;
       const saucer = aim ? saucerAt(s.wave, serverNow) : null;
+      const spot = aim && saucer ? screenSpot(aim, saucer) : null;
 
-      setSpot(aim && saucer ? screenSpot(aim, saucer) : null);
+      setSpot(spot);
+      lastSpot = spot;
       setBearing(aim && saucer ? bearingDeg(aim, saucer) : null);
       setHot(aim && saucer ? scopeHeat(aim, saucer, UFOHUNT_SCOPE_DEG) : 0);
       setSecondsLeft(Math.max(0, Math.ceil((s.endsAt - serverNow) / 1000)));
@@ -140,7 +176,7 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
 
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [running]);
+  }, [running, addBurst]);
 
   /*
    * The camera's own video element, sized to fill the backdrop by CSS `object-fit`
@@ -240,6 +276,29 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
     c.send({ t: 'ufo-shoot', d: { roundId: s.roundId, aimAz: aim.azimuth, aimEl: aim.elevation } });
     playLaser();
     setShotId((id) => id + 1);
+
+    // Predicted locally, from the same roam function and formula the referee
+    // itself scores with (`saucerAt`/`ufoAngleBetween`/`ufoImpact`) — purely for
+    // this player's own impact flash (spec §2.5), never what actually decides
+    // the shot. The referee's own broadcast is that, same as everywhere else.
+    const saucer = saucerAt(s.wave, c.now());
+    if (ufoImpact(ufoAngleBetween(aim, saucer)) > 0) addBurst('laser', screenSpot(aim, saucer));
+  };
+
+  const onMissile = (): void => {
+    const s = stateRef.current;
+    const c = clientRef.current;
+    if (!s || s.phase !== 'running' || !c || !myId) return;
+    if (missileChargeOf(s, myId) < UFOHUNT_MISSILE_CHARGE_GOAL) return;
+
+    const aim = trackerRef.current?.read().aim;
+    if (!aim) return;
+    c.send({ t: 'ufo-missile', d: { roundId: s.roundId, aimAz: aim.azimuth, aimEl: aim.elevation } });
+    playMissile();
+    setShotId((id) => id + 1);
+
+    const saucer = saucerAt(s.wave, c.now());
+    if (ufoImpact(ufoAngleBetween(aim, saucer)) > 0) addBurst('missile', screenSpot(aim, saucer));
   };
 
   if (state && state.phase === 'done') {
@@ -290,6 +349,9 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
         videoRef={videoElRef}
         onShoot={onShoot}
         shotId={shotId}
+        bursts={bursts}
+        onMissile={onMissile}
+        missileCharge={myId ? missileChargeOf(state, myId) : 0}
       />
     );
   }

@@ -14,6 +14,8 @@ export type UfoHuntView = {
   wave: UfoWave;
   /** Running sum of each player's own shot damage. The score. */
   scores: Record<PlayerId, number>;
+  /** Each player's own missile charge, 0…`UFOHUNT_MISSILE_CHARGE_GOAL` (spec §2.6). */
+  missileCharge: Record<PlayerId, number>;
   winner: PlayerId | null;
   phase: 'running' | 'done';
   seq: number;
@@ -34,6 +36,7 @@ export function applyUfoHunt(state: UfoHuntState, msg: ServerMessage): UfoHuntSt
     endsAt: msg.d.endsAt,
     wave: msg.d.wave,
     scores: msg.d.scores,
+    missileCharge: msg.d.missileCharge,
     winner: msg.d.winner,
     phase: msg.d.phase,
     seq: msg.s,
@@ -43,6 +46,11 @@ export function applyUfoHunt(state: UfoHuntState, msg: ServerMessage): UfoHuntSt
 /** This player's score. Zero for somebody who has not landed a shot, which is honest. */
 export function scoreOf(state: UfoHuntView, id: PlayerId): number {
   return state.scores[id] ?? 0;
+}
+
+/** This player's own missile charge, 0…`UFOHUNT_MISSILE_CHARGE_GOAL`. */
+export function missileChargeOf(state: UfoHuntView, id: PlayerId): number {
+  return state.missileCharge[id] ?? 0;
 }
 
 /** Everyone, best first: highest score. Ties keep room order, which is stable. */

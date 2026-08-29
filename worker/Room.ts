@@ -82,6 +82,7 @@ import {
 } from './taps100';
 import {
   nextDeadline as ufoHuntDeadline,
+  onUfoMissile,
   onUfoShoot,
   startUfoHunt,
   tick as ufoHuntTick,
@@ -425,6 +426,11 @@ export class Room extends DurableObject<Env> {
       case 'ufo-shoot': {
         const id = this.#idOf(ws);
         if (id) await onUfoShoot(this.#ufoHuntCtx(), id, msg.d.roundId, msg.d.aimAz, msg.d.aimEl);
+        return;
+      }
+      case 'ufo-missile': {
+        const id = this.#idOf(ws);
+        if (id) await onUfoMissile(this.#ufoHuntCtx(), id, msg.d.roundId, msg.d.aimAz, msg.d.aimEl);
         return;
       }
       case 'abduct-pick': {

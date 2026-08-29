@@ -169,6 +169,7 @@ console.log('\na round somebody won counts');
       endsAt: 1,
       wave: { index: 0, kind: 0, maxHealth: 50, health: 50, homeAz: 0, homeEl: 0, spawnedAt: 0 },
       scores: {},
+      missileCharge: {},
       winner,
       phase,
     },
@@ -203,7 +204,7 @@ console.log('\nnothing mid-round counts');
       d: {
         roundId: 1, startsAt: 0, endsAt: 1,
         wave: { index: 0, kind: 0, maxHealth: 50, health: 50, homeAz: 0, homeEl: 0, spawnedAt: 0 },
-        scores: {}, winner: null, phase: 'running',
+        scores: {}, missileCharge: {}, winner: null, phase: 'running',
       },
     },
     { t: 'error', d: { code: 'rate-limited', message: 'Slow down.' } },
