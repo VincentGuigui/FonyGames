@@ -140,17 +140,22 @@ Only `classic` at launch.
   updates the instant anyone's shot lands — this is co-op, so watching it
   drop from someone else's shot is the point.
 - **Impact gifs** (§2.3, §2.6): a landed ordinary shot plays
-  `art/impact_laser.gif` (15×15px) on the saucer, and a landed missile plays
-  `art/impact_missile.gif` (80×80px) there instead — both **local to the
-  player who fired**, predicted from the same roam function and formula the
-  referee itself scores with (`saucerAt`/`ufoAngleBetween`/`ufoImpact`,
-  `UfoRoom.tsx`), not waited for over the wire. A shot that lands beyond
+  `art/impact_laser.gif` (30×30px, twice the source art's own 15×15) on the
+  saucer, and a landed missile plays `art/impact_missile.gif` (160×160px,
+  twice its own 80×80) there instead — both **local to the player who
+  fired**, positioned at this player's own current `spot` (the exact screen
+  coordinate already driving `.ufohunt__saucer`, `UfoRoom.tsx`) so the gif
+  lands on the sprite as drawn rather than a separately recomputed position.
+  Whether one plays at all is still predicted from the same roam function and
+  formula the referee itself scores with (`saucerAt`/`ufoAngleBetween`/
+  `ufoImpact`), not waited for over the wire. A shot that lands beyond
   `UFOHUNT_SCOPE_DEG` plays neither.
-- **Explosion gif** (§2.5): `art/explosion.gif` (30×30px), at wherever the
-  saucer was last on screen for THIS player — every player who had it in
-  view sees it, from their own last-known position for it, not a single
-  shared coordinate. A kill off this player's own screen (someone else's
-  shot, the saucer out of view) plays no gif here, only the sound.
+- **Explosion gif** (§2.5): `art/explosion.gif` (60×60px, twice its own
+  30×30), at wherever the saucer was last on screen for THIS player — every
+  player who had it in view sees it, from their own last-known position for
+  it, not a single shared coordinate. A kill off this player's own screen
+  (someone else's shot, the saucer out of view) plays no gif here, only the
+  sound.
 - **The missile button** (§2.6): bottom centre, disabled and visually empty
   until `missileCharge` (server-owned, spec §6) reaches
   `UFOHUNT_MISSILE_CHARGE_GOAL` — a conic-gradient ring around the button

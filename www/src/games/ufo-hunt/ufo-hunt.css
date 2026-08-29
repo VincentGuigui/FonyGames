@@ -136,7 +136,14 @@
   overflow: visible;
 }
 
-.ufohunt__reticle-ring {
+/*
+ * The inner ring shares this rule rather than getting its own: "the usual
+ * stroke colour/width" is exactly this declaration, not a smaller echo of it.
+ * Its own selector still exists in the SVG (`art/crosshair.svg`) so the two
+ * rings can diverge later without a rename.
+ */
+.ufohunt__reticle-ring,
+.ufohunt__reticle-inner-ring {
   fill: none;
   stroke: var(--game-accent, var(--color-accent));
   stroke-width: calc(2px + var(--hot, 0) * 2px);
@@ -145,7 +152,10 @@
   transition: opacity 120ms linear;
 }
 
-.ufohunt__reticle-cross {
+/* The inner cross's own arms reach exactly to the inner ring's radius (10,
+   `art/crosshair.svg`) — sized to it, not to the outer cross's own reach. */
+.ufohunt__reticle-cross,
+.ufohunt__reticle-inner-cross {
   fill: none;
   stroke: var(--game-accent, var(--color-accent));
   stroke-width: 2;
@@ -304,19 +314,21 @@
   animation: ufohunt-burst-in 120ms ease-out both;
 }
 
+/* Twice each gif's own native size (15/30/80px) — bigger than the raw frame
+   reads clearer against a full-bleed sky than the source asset's own scale. */
 .ufohunt__gifburst--laser {
-  width: 15px;
-  height: 15px;
-}
-
-.ufohunt__gifburst--explosion {
   width: 30px;
   height: 30px;
 }
 
+.ufohunt__gifburst--explosion {
+  width: 60px;
+  height: 60px;
+}
+
 .ufohunt__gifburst--missile {
-  width: 80px;
-  height: 80px;
+  width: 160px;
+  height: 160px;
 }
 
 @keyframes ufohunt-burst-in {

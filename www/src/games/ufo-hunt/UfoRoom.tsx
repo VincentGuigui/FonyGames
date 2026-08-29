@@ -281,8 +281,12 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
     // itself scores with (`saucerAt`/`ufoAngleBetween`/`ufoImpact`) — purely for
     // this player's own impact flash (spec §2.5), never what actually decides
     // the shot. The referee's own broadcast is that, same as everywhere else.
+    // The burst's own POSITION is `spot` — this render's own screen coordinate
+    // already driving `.ufohunt__saucer`, not a freshly recomputed one — so it
+    // lands exactly on the sprite as drawn, not a few pixels off from a
+    // slightly later reading of the same aim.
     const saucer = saucerAt(s.wave, c.now());
-    if (ufoImpact(ufoAngleBetween(aim, saucer)) > 0) addBurst('laser', screenSpot(aim, saucer));
+    if (ufoImpact(ufoAngleBetween(aim, saucer)) > 0) addBurst('laser', spot ?? screenSpot(aim, saucer));
   };
 
   const onMissile = (): void => {
@@ -298,7 +302,7 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
     setShotId((id) => id + 1);
 
     const saucer = saucerAt(s.wave, c.now());
-    if (ufoImpact(ufoAngleBetween(aim, saucer)) > 0) addBurst('missile', screenSpot(aim, saucer));
+    if (ufoImpact(ufoAngleBetween(aim, saucer)) > 0) addBurst('missile', spot ?? screenSpot(aim, saucer));
   };
 
   if (state && state.phase === 'done') {
