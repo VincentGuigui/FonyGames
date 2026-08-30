@@ -33,6 +33,7 @@ export function GameCardTile({
   flag = DEFAULT_FLAG,
   showAll = false,
   hot = false,
+  week = false,
 }: {
   game: GameCard;
   flag?: GameFlag;
@@ -40,8 +41,10 @@ export function GameCardTile({
   showAll?: boolean;
   /** The most-played game. Decided by the grid, not here — see `hottest`. */
   hot?: boolean;
+  /** The week's own spotlighted game. Decided by the grid, not here — see `gameOfWeek`. */
+  week?: boolean;
 }): JSX.Element | null {
-  const view = cardState(game.status, flag, showAll, hot);
+  const view = cardState(game.status, flag, showAll, hot, week);
 
   // A hidden game is not rendered at all — not hidden with CSS, which would still put
   // its title and its link in the document for anyone who looked.
@@ -66,11 +69,13 @@ export function GameCardTile({
   const badgeKind =
     view.badge === 'hot'
       ? 'hot'
-      : view.badge === 'new'
-        ? 'new'
-        : view.badge === 'soon'
-          ? 'soon'
-          : 'paused';
+      : view.badge === 'week'
+        ? 'week'
+        : view.badge === 'new'
+          ? 'new'
+          : view.badge === 'soon'
+            ? 'soon'
+            : 'paused';
 
   const inner = (
     <>

@@ -55,6 +55,32 @@ play something in under ten seconds.
   **re-implemented in PHP** (`Flags::hottest`) because the server renders the grid
   and the client hydrates it — the two must agree exactly or Preact re-orders the
   page after paint. Both are asserted against the same table of cases.
+- **One card wears WEEK automatically, from the calendar alone — no operator, no
+  flag.** It is the ISO-8601 week number's own index into every `live` game,
+  sorted alphabetically by its own (English) title: week 1 picks the first title,
+  week 2 the second, and the rotation wraps once every game has had a turn. The
+  same slug returns on the same calendar week every year — that repetition is
+  the whole point, since it is what makes the rule nameable in one sentence
+  rather than a schedule someone has to maintain. Sorted by the untranslated
+  title specifically, so a French visitor and an English one see the same game:
+  sorting *after* translation would give two languages two different orders.
+- **WEEK is ranked below HOT and above NEW.** HOT is a measured fact — people are
+  actually playing this — and always outranks a scheduled tag; NEW sits below
+  WEEK so the rotation the maintainer asked for stays visible rather than
+  quietly buried behind every game that also happens to be flagged new. Unlike
+  HOT, **WEEK never moves the grid.** It only tags whichever card already sits
+  at its curated (or hot-promoted) position — a schedule is not a popularity
+  signal, and does not compete with one for the front of the shelf.
+- The rule lives in `gameOfWeek()`/`isoWeek()` in `shared/flags.ts`, computed
+  independently — never transmitted — by both the client (from `catalogue()` at
+  render time) and the PHP build (`weekOrder()` in `scripts/ssr.mjs`, baked into
+  `cards.php` once, since the list of live games' titles cannot change without a
+  deploy anyway). **Re-implemented in PHP** (`Flags::gameOfWeek`/`Flags::isoWeek`)
+  for the same reason HOT is: the server renders the grid, the client hydrates
+  it, and the two must agree exactly. `gmdate('W')` already computes an ISO week
+  number on the PHP side; the TypeScript side has to hand-roll the same rule,
+  and both are asserted, date for date, against the same table of boundary
+  cases (a year with 53 ISO weeks, a year beginning on a Sunday).
 - **Runtime feature flags** can additionally grey out or hide a card; see
   [backoffice.md](backoffice.md) §2b. They are orthogonal to `status`, and the
   first paint is **already correct**: PHP applies them while rendering the page and

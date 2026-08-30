@@ -261,6 +261,13 @@ export type ClientMessage =
       t: 'tiles-report';
       d: { roundId: number; score: number; lives: number; perfects: number; longestStreak: number; avgReactionMs: number };
     }
+  /**
+   * Gravity Shooter: this turn's shot, and its own claimed outcome. The
+   * referee trusts `hit` as reported — it holds everything a verification
+   * would need (the planets it rolled itself, plus `angle`/`strength`) but
+   * deliberately does not re-derive it, by direct instruction (spec §8).
+   */
+  | { t: 'gravity-shot'; d: { roundId: number; angle: number; strength: number; hit: boolean } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
@@ -643,6 +650,57 @@ export type TilesSurferState = {
   phase: 'running' | 'done';
 };
 
+/** Gravity Shooter: one of the two planets between the ships (spec §2.1).
+ *  Rolled once by the referee at round start and never touched again. */
+export type GravityPlanet = {
+  /** World-normalized coordinates, shared by both viewers and the referee —
+   *  the per-seat flip (spec §2.2) happens only at render time. */
+  x: number;
+  y: number;
+  /** World-normalized radius, mapped from the spec's 20-100px range. */
+  r: number;
+  /** Which of the ~3 planet PNGs to draw. Decorative only. */
+  art: number;
+};
+
+/** Gravity Shooter: the last shot fired, for the non-shooting client's own
+ *  cosmetic replay (spec §2.3) — `hit` is trusted as reported (spec §8),
+ *  never re-derived from this replay. */
+export type GravityShot = {
+  shooter: PlayerId;
+  angle: number;
+  strength: number;
+  hit: boolean;
+};
+
+/**
+ * Gravity Shooter: the whole match, fully public — both ships and both
+ * planets are always visible to both players, so there is nothing here
+ * private to begin with (spec §6).
+ */
+export type GravityShooterState = {
+  roundId: number;
+  startsAt: number;
+  /**
+   * Which player's ship sits at which end of the shared canonical board
+   * (spec §2.2) — `seats[0]` at world `y = 1`, `seats[1]` at world `y = 0`.
+   * Fixed for the whole match, so both clients' render-time flip and every
+   * shot's own simulation agree on the same two fixed points without this
+   * having to be re-derived from object key order or anything else implicit.
+   */
+  seats: [PlayerId, PlayerId];
+  /** Rolled once at round start, echoed unchanged on every later frame. */
+  planets: [GravityPlanet, GravityPlanet];
+  lives: Record<PlayerId, number>;
+  turn: PlayerId;
+  /** Deadline for the current turn's `gravity-shot` — a silent shooter is
+   *  resolved as a miss here rather than stalling the match (spec §2.4). */
+  resolvesAt: number;
+  lastShot: GravityShot | null;
+  winner: PlayerId | null;
+  phase: 'running' | 'done';
+};
+
 /** Spill: one projectile, described once and animated locally from then on. */
 export type SpillDrop = {
   dropId: string;
@@ -861,6 +919,8 @@ export type ServerMessage =
   | { t: 'abduct'; s: number; d: AbductState }
   /** Tiles Surfer: everyone's last-reported numbers, fully public — spec §6. */
   | { t: 'tiles'; s: number; d: TilesSurferState }
+  /** Gravity Shooter: the whole match — planets, lives, turn, phase, winner. */
+  | { t: 'gravity'; s: number; d: GravityShooterState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
    * Tap Tap Music: sent to **one player only** — their own cleared
@@ -1595,6 +1655,7 @@ const CLIENT_TYPES = new Set([
   'fighter-lock',
   'abduct-pick',
   'tiles-report',
+  'gravity-shot',
   'switch-game',
 ]);
 
@@ -2199,3 +2260,49 @@ export const TILES_ROUND_CAP_MS = 5 * 60_000;
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const TILES_MIN_PLAYERS = PLAYERS['tiles-surfer'][0];
 export const TILES_MAX_PLAYERS = PLAYERS['tiles-surfer'][1];
+
+/* ------------------------------------------------------------------ */
+/* Gravity Shooter (docs/specs/games/gravity-shooter.md)                */
+/* ------------------------------------------------------------------ */
+
+export const GRAVITY_LIVES = 5;
+
+/** Middle band a planet's own `y` is rolled into, so both sit between the
+ *  two ships rather than crowding either one (spec §2.1). */
+export const GRAVITY_PLANET_Y_MIN = 0.3;
+export const GRAVITY_PLANET_Y_MAX = 0.7;
+/** Edge margin a planet's own `x` is rolled into. */
+export const GRAVITY_PLANET_X_MARGIN = 0.15;
+
+/** The brief's 20-100px, mapped onto world-normalized radius via a fixed
+ *  reference board width (spec §2.1) — mirrors Sling Puck's own board-unit
+ *  normalization rather than assuming a screen size. */
+export const GRAVITY_REFERENCE_BOARD_PX = 400;
+export const GRAVITY_PLANET_R_MIN = 20 / GRAVITY_REFERENCE_BOARD_PX;
+export const GRAVITY_PLANET_R_MAX = 100 / GRAVITY_REFERENCE_BOARD_PX;
+
+/** How many pre-made planet PNGs `GravityPlanet.art` may index into. */
+export const GRAVITY_PLANET_ART_COUNT = 3;
+
+/**
+ * A pull's own strength is normalized 0..1 client-side; the referee clamps
+ * an incoming `gravity-shot` to this range before re-broadcasting it, so a
+ * malformed payload cannot produce `NaN`/`Infinity` in a replay (spec §6).
+ *
+ * The gravity simulation itself — step size, planet pull, hit radius,
+ * simulation bounds — is NOT here. Same reasoning Sling Puck's own physics
+ * gives for staying out of `shared/` (`www/src/games/sling-puck/physics.ts`):
+ * the referee never runs it and never needs to agree with it (spec §8), so
+ * it lives with the two clients that do, in
+ * `www/src/games/gravity-shooter/game.ts`.
+ */
+export const GRAVITY_MAX_STRENGTH = 1;
+
+/** How long a turn waits for its own `gravity-shot` before the referee
+ *  resolves it as a miss and passes the turn on (spec §2.4) — comfortably
+ *  longer than the 3s flight itself, since it only covers message arrival. */
+export const GRAVITY_SHOT_TIMEOUT_MS = 15_000;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const GRAVITY_MIN_PLAYERS = PLAYERS['gravity-shooter'][0];
+export const GRAVITY_MAX_PLAYERS = PLAYERS['gravity-shooter'][1];

@@ -27,14 +27,16 @@ function fakeCards(): array
         foreach (['active', 'disabled', 'hidden'] as $availability) {
             foreach ([0, 1] as $isNew) {
                 foreach ([0, 1] as $hot) {
-                    foreach ([0, 1] as $showAll) {
-                        $key = "{$availability}:{$isNew}:{$hot}:{$showAll}";
-                        // A hidden game is absent on prod and present on dev, which is what
-                        // cardState() decides and what ssr.mjs bakes in.
-                        $absent = $availability === 'hidden' && $showAll === 0;
-                        $cards[$slug][$key] = $absent
-                            ? ''
-                            : "<li data-slug=\"{$slug}\" data-key=\"{$key}\">%%REASON%%</li>";
+                    foreach ([0, 1] as $week) {
+                        foreach ([0, 1] as $showAll) {
+                            $key = "{$availability}:{$isNew}:{$hot}:{$week}:{$showAll}";
+                            // A hidden game is absent on prod and present on dev, which is what
+                            // cardState() decides and what ssr.mjs bakes in.
+                            $absent = $availability === 'hidden' && $showAll === 0;
+                            $cards[$slug][$key] = $absent
+                                ? ''
+                                : "<li data-slug=\"{$slug}\" data-key=\"{$key}\">%%REASON%%</li>";
+                        }
                     }
                 }
             }
@@ -71,14 +73,14 @@ group('the most-played game is pulled to the front and badged');
 $hot = Page::grid(ORDER, fakeCards(), [], false, ['ghost-tag' => 4, 'spill' => 1]);
 preg_match_all('/data-slug="([^"]+)"/', $hot, $m3);
 check('the hot game leads', $m3[1] === ['ghost-tag', 'tap-duel', 'spill'], $m3[1]);
-check('and it gets the hot variant', str_contains($hot, 'data-slug="ghost-tag" data-key="active:0:1:0"'), $hot);
-check('while the rest stay cold', substr_count($hot, ':0:0:0"') === 2, $hot);
+check('and it gets the hot variant', str_contains($hot, 'data-slug="ghost-tag" data-key="active:0:1:0:0"'), $hot);
+check('while the rest stay cold', substr_count($hot, ':0:0:0:0"') === 2, $hot);
 
 // A tie is not a winner: two games on the same count leaves the curated order alone.
 $tie = Page::grid(ORDER, fakeCards(), [], false, ['ghost-tag' => 4, 'spill' => 4]);
 preg_match_all('/data-slug="([^"]+)"/', $tie, $m4);
 check('a tie promotes nobody', $m4[1] === ORDER, $m4[1]);
-check('and badges nobody', !str_contains($tie, ':1:0"'), $tie);
+check('and badges nobody', !str_contains($tie, ':1:0:0"'), $tie);
 
 // Zero is "never played", not "played least".
 $zero = Page::grid(ORDER, fakeCards(), [], false, ['ghost-tag' => 0]);
@@ -90,17 +92,48 @@ $gone = Page::grid(ORDER, fakeCards(), [], false, ['a-game-that-was-deleted' => 
 preg_match_all('/data-slug="([^"]+)"/', $gone, $m6);
 check('a count for a game the build never saw is ignored', $m6[1] === ['spill', 'tap-duel', 'ghost-tag'], $m6[1]);
 
+group("the week's own game is tagged, but never moved");
+
+/*
+ * `$now` fixes "which week it is" so the test does not depend on the day it runs.
+ * ISO week 1 of 2024 (Jan 1) picks index 0 of the alphabetical list handed in.
+ */
+$week1 = (int) gmdate('U', strtotime('2024-01-01T00:00:00Z'));
+$weekOrder = ['ghost-tag', 'spill', 'tap-duel']; // already alphabetical, unlike ORDER
+$withWeek = Page::grid(ORDER, fakeCards(), [], false, [], $weekOrder, $week1);
+preg_match_all('/data-slug="([^"]+)"/', $withWeek, $m7);
+check('the curated order is unchanged — WEEK does not promote', $m7[1] === ORDER, $m7[1]);
+check('the week\'s own game gets the week variant', str_contains($withWeek, 'data-slug="ghost-tag" data-key="active:0:0:1:0"'), $withWeek);
+check('the other two stay untagged', substr_count($withWeek, ':0:0:0"') === 2, $withWeek);
+
+// ISO week 2 (Jan 8) moves the index on, same list, same rule.
+$week2 = (int) gmdate('U', strtotime('2024-01-08T00:00:00Z'));
+$nextWeek = Page::grid(ORDER, fakeCards(), [], false, [], $weekOrder, $week2);
+check('a different week tags a different card', str_contains($nextWeek, 'data-slug="spill" data-key="active:0:0:1:0"'), $nextWeek);
+
+// HOT and WEEK can both be true — the variant key just carries both bits — but HOT still
+// wins the front-of-shelf position, and cardState() still ranks HOT above WEEK for the badge.
+$both = Page::grid(ORDER, fakeCards(), [], false, ['ghost-tag' => 4], $weekOrder, $week1);
+preg_match_all('/data-slug="([^"]+)"/', $both, $m8);
+check('the hot game still leads even when it is also the week\'s pick', $m8[1] === ['ghost-tag', 'tap-duel', 'spill'], $m8[1]);
+check('and its variant carries both bits', str_contains($both, 'data-slug="ghost-tag" data-key="active:0:1:1:0"'), $both);
+
+// An empty week order — no build-time data at all — spotlights nobody, the same fail-open
+// shape gameOfWeek() itself already guarantees.
+$noWeek = Page::grid(ORDER, fakeCards(), [], false, [], [], $week1);
+check('no week order means no card is tagged', !str_contains($noWeek, ':0:1:0"') && !str_contains($noWeek, ':0:1:1"'), $noWeek);
+
 group('a flag selects the variant');
 
 $grid = Page::grid(ORDER, fakeCards(), ['spill' => ['availability' => 'disabled', 'isNew' => false]], false);
-check('a disabled game gets the disabled variant', str_contains($grid, 'data-key="disabled:0:0:0"'), $grid);
-check('and the others stay active', substr_count($grid, 'data-key="active:0:0:0"') === 2);
+check('a disabled game gets the disabled variant', str_contains($grid, 'data-key="disabled:0:0:0:0"'), $grid);
+check('and the others stay active', substr_count($grid, 'data-key="active:0:0:0:0"') === 2);
 
 $grid = Page::grid(ORDER, fakeCards(), ['spill' => ['availability' => 'active', 'isNew' => true]], false);
-check('isNew picks its own variant', str_contains($grid, 'data-key="active:1:0:0"'));
+check('isNew picks its own variant', str_contains($grid, 'data-key="active:1:0:0:0"'));
 
 $grid = Page::grid(ORDER, fakeCards(), ['spill' => ['availability' => 'active', 'isNew' => false]], true);
-check('showAll picks its own variant', str_contains($grid, 'data-key="active:0:0:1"'));
+check('showAll picks its own variant', str_contains($grid, 'data-key="active:0:0:0:1"'));
 
 group('a hidden game is ABSENT, not merely dimmed');
 
@@ -112,16 +145,16 @@ check('nothing for it reaches the document on prod', !str_contains($prod, 'data-
 check('the other two are still there', substr_count($prod, '<li ') === 2, $prod);
 
 $dev = Page::grid(ORDER, fakeCards(), $flags, true);
-check('but dev shows it, badged', str_contains($dev, 'data-key="hidden:0:0:1"'), $dev);
+check('but dev shows it, badged', str_contains($dev, 'data-key="hidden:0:0:0:1"'), $dev);
 
 group('the flags fail open, exactly as everything else does');
 
 $grid = Page::grid(ORDER, fakeCards(), ['spill' => ['availability' => 'banana']], false);
-check('an availability outside the enum renders as active', str_contains($grid, 'data-key="active:0:0:0"'));
+check('an availability outside the enum renders as active', str_contains($grid, 'data-key="active:0:0:0:0"'));
 check('rather than vanishing', substr_count($grid, '<li ') === 3, $grid);
 
 $grid = Page::grid(ORDER, fakeCards(), [], false);
-check('no flags at all means every game active', substr_count($grid, 'data-key="active:0:0:0"') === 3);
+check('no flags at all means every game active', substr_count($grid, 'data-key="active:0:0:0:0"') === 3);
 
 $grid = Page::grid(['tap-duel', 'a-game-the-build-never-saw'], fakeCards(), [], false);
 check('a slug with no rendered variant is skipped, not invented', substr_count($grid, '<li ') === 1, $grid);

@@ -1,4 +1,4 @@
-import { cardState, DEFAULT_FLAG, flagFor, hottest, mayOpenRoom, promote, type GameFlag } from './flags';
+import { cardState, DEFAULT_FLAG, flagFor, gameOfWeek, hottest, isoWeek, mayOpenRoom, promote, type GameFlag } from './flags';
 
 /**
  * `cardState` — the one function that decides what a player sees on a card.
@@ -147,6 +147,67 @@ console.log('\nthe hot game');
   // The other states' badges are caveats, and a caveat outranks a boast.
   check('a paused game does not boast', cardState('live', flag({ availability: 'disabled' }), false, true).badge === 'paused');
   check('nor does one that is not built yet', cardState('soon', flag({}), false, true).badge === 'soon');
+}
+
+console.log('\nISO week number, UTC — mirrored in api/tests/flags_test.php against gmdate(\'W\')');
+
+{
+  const day = (iso: string): Date => new Date(`${iso}T00:00:00Z`);
+
+  check('the first Monday of an ordinary year is week 1', isoWeek(day('2024-01-01')) === 1);
+  check('the last day of that same week is still week 1', isoWeek(day('2024-01-07')) === 1);
+  check('the next day rolls over to week 2', isoWeek(day('2024-01-08')) === 2);
+  // 2020 has an ISO week 53 — Dec 28, 2020 through Jan 3, 2021.
+  check('the extra 53rd week of 2020 exists', isoWeek(day('2020-12-28')) === 53);
+  check('new year\'s eve can fall inside it', isoWeek(day('2020-12-31')) === 53);
+  check('so can the first days of the following January', isoWeek(day('2021-01-03')) === 53);
+  check('until the 4th, which is always week 1', isoWeek(day('2021-01-04')) === 1);
+  // 2025 begins on a Wednesday, so week 1 reaches back into the last two days of 2024.
+  check('the last days of 2024 already belong to 2025\'s week 1', isoWeek(day('2024-12-31')) === 1);
+  check('and so does New Year\'s Day itself', isoWeek(day('2025-01-01')) === 1);
+  // 2023 begins on a Sunday, so New Year's Day itself is still the OLD year's last week.
+  check('a year starting on a Sunday leaves Jan 1 in the old year\'s week', isoWeek(day('2023-01-01')) === 52);
+  check('and the very next day starts the new year\'s week 1', isoWeek(day('2023-01-02')) === 1);
+}
+
+console.log('\nthe week\'s own spotlighted game');
+
+{
+  const alphabetical = ['aliens-love-cows', 'ghost-hunt', 'spill', 'tap-duel'];
+
+  check('week 1 picks the first title alphabetically',
+    gameOfWeek(alphabetical, new Date('2024-01-01T00:00:00Z')) === 'aliens-love-cows');
+  check('week 2 picks the second',
+    gameOfWeek(alphabetical, new Date('2024-01-08T00:00:00Z')) === 'ghost-hunt');
+  // Week 5 wraps back around to the first game — 4 games, and (5-1) % 4 === 0.
+  check('the rotation wraps once every game has had a week',
+    gameOfWeek(alphabetical, new Date('2024-01-29T00:00:00Z')) === 'aliens-love-cows');
+  check('an empty catalogue spotlights nothing', gameOfWeek([], new Date()) === null);
+  check('a single game is always it', gameOfWeek(['spill'], new Date('2024-01-01T00:00:00Z')) === 'spill');
+
+  // The whole point of taking a plain list rather than computing the order here:
+  // the same week produces the same slug every single call, with no hidden state.
+  const now = new Date('2026-08-30T00:00:00Z');
+  check('the same inputs always answer the same way',
+    gameOfWeek(alphabetical, now) === gameOfWeek(alphabetical, now));
+}
+
+console.log('\nWEEK, ranked between HOT and NEW');
+
+{
+  // Mirrored, case for case, in api/tests/flags_test.php — same reasoning as the hot
+  // game's own mirrored table: the server orders and badges the grid, the client
+  // hydrates it, and the two must agree.
+  check('the week\'s own game wears WEEK',
+    cardState('live', flag({}), false, false, true).badge === 'week');
+  check('even when it is also flagged new', cardState('live', flag({ isNew: true }), false, false, true).badge === 'week');
+  check('but HOT still outranks it', cardState('live', flag({}), false, true, true).badge === 'hot');
+  check('and it is still playable', cardState('live', flag({}), false, false, true).playable === true);
+  check('a paused game does not get spotlighted either',
+    cardState('live', flag({ availability: 'disabled' }), false, false, true).badge === 'paused');
+  check('nor a game that is not built yet', cardState('soon', flag({}), false, false, true).badge === 'soon');
+  // Without week, the existing NEW/nothing rule is exactly as it always was.
+  check('no week, no change to a plain new card', cardState('live', flag({ isNew: true }), false).badge === 'new');
 }
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);

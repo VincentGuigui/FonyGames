@@ -100,12 +100,19 @@ export function cardState(
    * player's expense.
    */
   hot = false,
+  /**
+   * Is this the week's own spotlighted game (`gameOfWeek`)? Ranked below HOT — a real
+   * signal (people are actually playing this) always outranks a scheduled one — and
+   * above NEW, so the rotation stays visible rather than quietly buried behind every
+   * game that also happens to be flagged new.
+   */
+  week = false,
 ): { show: boolean; playable: boolean; badge: string | null } {
   if (status === 'soon') return { show: true, playable: false, badge: 'soon' };
 
   switch (flag.availability) {
     case 'active':
-      return { show: true, playable: true, badge: hot ? 'hot' : flag.isNew ? 'new' : null };
+      return { show: true, playable: true, badge: hot ? 'hot' : week ? 'week' : flag.isNew ? 'new' : null };
     case 'disabled':
       return {
         show: true,
@@ -165,4 +172,49 @@ export function hottest(plays: Record<string, number> | undefined, slugs: string
 export function promote(order: string[], hot: string | null): string[] {
   if (hot === null || !order.includes(hot)) return order;
   return [hot, ...order.filter((slug) => slug !== hot)];
+}
+
+/**
+ * ISO-8601 week number (1–53) of `now`, evaluated in UTC.
+ *
+ * UTC on both sides, not local time: a visitor's own timezone — and the server's —
+ * must never be able to make the client and the server-rendered page disagree about
+ * which week it is. Weeks start Monday; week 1 is the week containing the year's
+ * first Thursday. The same rule PHP's `gmdate('W')` already applies natively
+ * (`Flags::isoWeek` in `api/lib/Flags.php`), so this is the one side that has to
+ * hand-implement it.
+ */
+export function isoWeek(now: Date): number {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const dayNum = (d.getUTCDay() + 6) % 7; // Monday = 0 .. Sunday = 6
+  d.setUTCDate(d.getUTCDate() - dayNum + 3); // the nearest Thursday
+  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const firstDayNum = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayNum + 3);
+  return 1 + Math.round((d.getTime() - firstThursday.getTime()) / 604_800_000);
+}
+
+/**
+ * The week's own spotlighted game — automatic, from nothing but the calendar and the
+ * catalogue.
+ * Spec: docs/specs/hub.md §2
+ *
+ * `slugsAlphabetical` is every **live** game, sorted by title — the caller's job, not
+ * this one's. That split matters for one reason: the client (fresh from `catalogue()`)
+ * and the PHP build (`weekOrder()` in `scripts/ssr.mjs`, baked into `cards.php` once,
+ * at build time) each supply their own copy of the identical list, and neither has to
+ * agree with the other about *how* to sort — only that the list, once made, is the
+ * same. Sorted by the game's own (English) title, never a locale's translation of it:
+ * `HubGrid.tsx` computes this before `localizeCard`, so a French visitor is shown the
+ * same spotlighted game an English one is.
+ *
+ * The index into that list is nothing cleverer than the ISO week number: no year
+ * offset, no shuffle. The same slug returns on the same calendar week every year,
+ * which is what makes it "automatic" rather than a schedule someone has to maintain —
+ * asked for directly, in exactly those words.
+ */
+export function gameOfWeek(slugsAlphabetical: string[], now: Date): string | null {
+  if (slugsAlphabetical.length === 0) return null;
+  const index = (isoWeek(now) - 1) % slugsAlphabetical.length;
+  return slugsAlphabetical[index] ?? null;
 }

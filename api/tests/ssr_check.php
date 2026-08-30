@@ -47,8 +47,10 @@ if (!is_readable($generated)) {
     foreach (Flags::STATES as $availability) {
         foreach ([false, true] as $isNew) {
             foreach ([false, true] as $hot) {
-                foreach ([false, true] as $showAll) {
-                    $wanted[] = Page::variantKey($availability, $isNew, $hot, $showAll);
+                foreach ([false, true] as $week) {
+                    foreach ([false, true] as $showAll) {
+                        $wanted[] = Page::variantKey($availability, $isNew, $hot, $week, $showAll);
+                    }
                 }
             }
         }
@@ -80,10 +82,12 @@ if (!is_readable($generated)) {
     $firstSlug = $built['order'][0];
     check(
         'a disabled variant still carries the reason sentinel',
-        str_contains((string) ($built['cards'][$firstSlug]['disabled:0:0:0'] ?? ''), Page::REASON_SENTINEL)
-            || ($built['cards'][$firstSlug]['disabled:0:0:0'] ?? '') === '',
-        $built['cards'][$firstSlug]['disabled:0:0:0'] ?? null,
+        str_contains((string) ($built['cards'][$firstSlug]['disabled:0:0:0:0'] ?? ''), Page::REASON_SENTINEL)
+            || ($built['cards'][$firstSlug]['disabled:0:0:0:0'] ?? '') === '',
+        $built['cards'][$firstSlug]['disabled:0:0:0:0'] ?? null,
     );
+
+    check('the build also recorded a week order', is_array($built['week'] ?? null) && count($built['week']) > 0, $built['week'] ?? null);
 
     // And a real end-to-end assembly against the real strings.
     $real = Page::grid($built['order'], $built['cards'], [], false);
@@ -107,6 +111,24 @@ if (!is_readable($generated)) {
     check('and it wears the HOT badge', substr_count($withHot, 'game-card__badge--hot') === 1,
         substr_count($withHot, 'game-card__badge--hot'));
     check('while the cold grid has none', !str_contains($real, 'game-card__badge--hot'));
+
+    /*
+     * The week's own card, against the real markup — same reasoning as the HOT check
+     * above, and the same failure mode it guards: a forgotten `week` prop in ssr.mjs
+     * would make the tagged variant byte-identical to the untagged one.
+     */
+    $weekOrder = $built['week'];
+    $weekSlug = $weekOrder[0];
+    $withWeek = Page::grid($built['order'], $built['cards'], [], false, [], $weekOrder, (int) gmdate('U', strtotime('2024-01-01T00:00:00Z')));
+    check('the week\'s own card wears the WEEK badge exactly once', substr_count($withWeek, 'game-card__badge--week') === 1,
+        substr_count($withWeek, 'game-card__badge--week'));
+    check('and it is on the right card', str_contains($withWeek, "/{$weekSlug}/") && strpos($withWeek, 'game-card__badge--week') > strpos($withWeek, "/{$weekSlug}/"));
+    // Same hrefs, same order, as the plain cold grid: WEEK tags a card in place rather
+    // than moving anything, unlike HOT.
+    preg_match_all('#href="/([a-z0-9-]+)/"#', $real, $mCold);
+    preg_match_all('#href="/([a-z0-9-]+)/"#', $withWeek, $mWeek);
+    check('WEEK never reorders the grid', $mWeek[1] === $mCold[1] && $mCold[1] !== [], $mWeek[1]);
+    check('while the cold grid has no week badge', !str_contains($real, 'game-card__badge--week'));
 }
 
 // Standalone, so it prints its own verdict. Named `ssr_check.php` rather than
