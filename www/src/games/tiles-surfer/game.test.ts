@@ -4,8 +4,11 @@ import {
   isPerfect,
   reportDue,
   scoreOf,
+  tapComment,
   tilesImpact,
   trackForTile,
+  TILES_COMMENT_MS,
+  TILES_MISS_COMMENT,
   TilesRun,
   windowMsFor,
   type TilesSurferView,
@@ -92,6 +95,20 @@ function scoring(): void {
   check('9.4 is not', !isPerfect(9.4));
 }
 
+function comments(): void {
+  console.log('\ntapComment: the accuracy tiers, top to bottom');
+
+  check('10 is the perfect tier', tapComment(10) === '🌟🌟🌟');
+  check('9.6, which rounds to 10, is also the perfect tier', tapComment(9.6) === '🌟🌟🌟');
+  check('9 is the next tier down', tapComment(9) === '⭐⭐⭐');
+  check('8 is the same tier as 9', tapComment(8) === '⭐⭐⭐');
+  check('7 and 6 share a tier', tapComment(7) === '⭐⭐' && tapComment(6) === '⭐⭐');
+  check('5 and 4 share a tier', tapComment(5) === '⭐' && tapComment(4) === '⭐');
+  check('3 and 2 share a tier', tapComment(3) === '🫣' && tapComment(2) === '🫣');
+  check('1 and 0 share the worst tier', tapComment(1) === '😱' && tapComment(0) === '😱');
+  check('a fractional near-zero score still reads as the worst tier', tapComment(0.3) === '😱');
+}
+
 function run(): void {
   console.log('\nTilesRun: one player\'s own board, start to finish');
 
@@ -115,6 +132,8 @@ function run(): void {
   check('the streak grows', r.longestStreak === 1);
   check('speed increases on a hit', r.speedMul > 1, r.speedMul);
   check('the tile is gone once tapped', r.tiles.length === 0);
+  check('a perfect hit leaves its own accuracy comment', r.comments.length === 1 && r.comments[0]!.hit === true);
+  check('and it is the perfect tier, in the tapped lane', r.comments[0]!.text === '🌟🌟🌟' && r.comments[0]!.track === tile.track);
 
   // A second tile, tapped early — before the tile ever reaches the line.
   r.spawnDue(600);
@@ -125,6 +144,11 @@ function run(): void {
   check('an early tap is a miss, not a score', r.lives === beforeMiss - 1);
   check('a miss resets the streak', r.longestStreak === 1 && r.perfects === 1);
   check('a miss softens speed, never below the starting speed', r.speedMul < speedBeforeMiss && r.speedMul >= 1);
+  check('the miss leaves its own skull comment', r.comments[1]!.text === TILES_MISS_COMMENT && r.comments[1]!.hit === false);
+
+  // Comments fade: nothing survives long past TILES_COMMENT_MS, no matter when it was added.
+  r.pruneComments(early.spawnedAt + early.fallMs + TILES_COMMENT_MS + 10_000);
+  check('every comment is gone once its own window has passed', r.comments.length === 0);
 
   // Tapping a lane with nothing in flight does nothing at all.
   const beforeIdleTap = { lives: r.lives, score: r.score };
@@ -140,6 +164,8 @@ function run(): void {
   sweeper.sweepMissed(closeAt, tileHeightPx, lineY);
   check('an untapped, expired tile is swept as a miss', sweeper.lives === beforeSweep - 1);
   check('the swept tile is gone', sweeper.tiles.length === 0);
+  check('a swept miss leaves the same skull comment, in the tile\'s own lane',
+    sweeper.comments.length === 1 && sweeper.comments[0]!.text === TILES_MISS_COMMENT && sweeper.comments[0]!.track === t0.track);
 
   // Running out of lives ends the run.
   const dying = new TilesRun(3);
@@ -209,6 +235,7 @@ function projecting(): void {
 
 trackAssignment();
 scoring();
+comments();
 run();
 reactionAverage();
 projecting();

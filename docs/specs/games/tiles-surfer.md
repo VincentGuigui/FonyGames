@@ -40,7 +40,7 @@ each other.
    the start. **Which lane each tile falls down is the same sequence for
    every player** (§2.1) — nobody's board is quietly easier.
 3. **Tap the lane the instant the tile's own leading edge reaches the
-   line, two thirds of the way down the screen.** Dead on time is worth 10
+   line, half way down the screen.** Dead on time is worth 10
    points; tap late and the value falls in a straight line to 0 by the
    moment the tile has fully passed the line — at which point it is a
    miss, the same as tapping too early (§2.2).
@@ -127,18 +127,36 @@ Only `classic` at launch.
 
 - **Lobby**: shared template. No host setting beyond `mode`.
 - **Round**: a `<canvas>` board, five lanes top to bottom, a bright line
-  two thirds of the way down (`TILES_LINE_FRACTION`) — a proportion of the
-  board's own height, not a fixed pixel count, so it lands in the same place
-  on every screen size. Tiles are 1 lane-width wide, 2 lane-widths
-  tall, falling straight down, glowing on the game's own accent as they
-  near the line. A tap targets **the lane**, not the tile's own moving
-  pixels — one of five fixed tap zones spanning the board, resolved
-  against whichever tile is currently nearest the line in that lane, the
-  same "tap the lane, not the exact pixel" idiom Neon Fall's protector
-  triggers already use. This board is rendered on `<canvas>`, the same
-  reasoning — and the same measured rejection of PixiJS — Neon Fall's own
-  §13 already recorded: many continuously falling, continuously animated
-  tiles is not a DOM-diffing job.
+  half way down (`TILES_LINE_FRACTION`) — a proportion of the board's own
+  height, not a fixed pixel count, so it lands in the same place on every
+  screen size. Tiles are 1 lane-width wide, 2 lane-widths tall, falling
+  straight down, glowing on the game's own accent as they near the line. A
+  tap targets **the lane**, not the tile's own moving pixels — one of five
+  fixed tap zones spanning the board, resolved against whichever tile is
+  currently nearest the line in that lane, the same "tap the lane, not the
+  exact pixel" idiom Neon Fall's protector triggers already use. This board
+  is rendered on `<canvas>`, the same reasoning — and the same measured
+  rejection of PixiJS — Neon Fall's own §13 already recorded: many
+  continuously falling, continuously animated tiles is not a DOM-diffing job.
+- **Accuracy feedback, right at the line**: every resolution — a landed
+  tap or an untapped tile timing out — flashes a colour over the line in
+  that tile's own lane (light green for a tap, red for a miss) and shows a
+  symbol above the line, 24px, for `TILES_COMMENT_MS` (700ms), keyed to the
+  tap's own score:
+
+  | Score | Comment |
+  | --- | --- |
+  | 10 (perfect — `isPerfect`) | 🌟🌟🌟 |
+  | 9–8 | ⭐⭐⭐ |
+  | 7–6 | ⭐⭐ |
+  | 5–4 | ⭐ |
+  | 3–2 | 🫣 |
+  | 1–0 | 😱 |
+  | missed (never tapped, or tapped outside the window) | ☠️ |
+
+  `tapComment()` (`game.ts`) is the tier lookup; `TilesRun.comments` is the
+  transient queue both the flash and the symbol are drawn from, pruned
+  every frame so nothing outlives its own 700ms.
 - **Own lives**: a row of five pips, same idiom Pass the Bomb and Steady
   Hand already use, always visible.
 - **Live leaderboard**: the shared `Scoreboard` component, `best="high"`,
@@ -243,7 +261,10 @@ life of the round.
 
 The line and every tile read by position and glow, never colour alone —
 a player with colour-blindness reads "how close to the line," not "which
-colour it turned." Reduced motion shortens the tile's own fall-in/land
+colour it turned." The green/red accuracy flash (§4) is likewise never the
+only signal: every flash carries its own distinct symbol (a star tier, 🫣,
+😱 or ☠️), so the shape and the number of stars say what the colour alone
+cannot. Reduced motion shortens the tile's own fall-in/land
 flourish, not the fall itself (the fall IS the mechanic — there is no
 version of this game without motion on screen, the same honest limit
 Neon Fall's own glider states about itself). Own lives and the live

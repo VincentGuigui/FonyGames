@@ -63,6 +63,25 @@ export function isPerfect(score: number): boolean {
   return Math.round(score) === 10;
 }
 
+/** The skull shown over a tile nobody tapped in time, or a tap that landed
+ *  outside the scoring window entirely (spec §2.2, §4). */
+export const TILES_MISS_COMMENT = '☠️';
+
+/**
+ * The accuracy comment for a landed tap, keyed off the same rounding
+ * `isPerfect` already uses — a perfect tap is exactly the top tier here, not
+ * a separate check (spec §2.2, §4).
+ */
+export function tapComment(score: number): string {
+  if (isPerfect(score)) return '🌟🌟🌟';
+  const rounded = Math.round(score);
+  if (rounded >= 8) return '⭐⭐⭐';
+  if (rounded >= 6) return '⭐⭐';
+  if (rounded >= 4) return '⭐';
+  if (rounded >= 2) return '🫣';
+  return '😱';
+}
+
 /** One tile currently on screen, not yet resolved. */
 export type LiveTile = {
   id: number;
@@ -71,6 +90,19 @@ export type LiveTile = {
   spawnedAt: number;
   /** Fixed at spawn, from that instant's own speed — a tile never changes speed mid-flight. */
   fallMs: number;
+};
+
+/** How long an accuracy comment stays on screen before it is dropped (spec §4). */
+export const TILES_COMMENT_MS = 700;
+
+/** One resolution's own feedback — the emoji shown over its lane, at the line,
+ *  and whether the tile counts as tapped (green) or missed (red) (spec §4). */
+export type LiveComment = {
+  track: number;
+  text: string;
+  hit: boolean;
+  /** Local run time it was resolved — a comment fades out `TILES_COMMENT_MS` after this. */
+  at: number;
 };
 
 /**
@@ -85,6 +117,8 @@ export class TilesRun {
   longestStreak = 0;
   speedMul = 1;
   tiles: LiveTile[] = [];
+  /** Recent accuracy feedback, for the board to draw over the line — pruned by `pruneComments`. */
+  comments: LiveComment[] = [];
 
   #streak = 0;
   #reactionSum = 0;
@@ -141,9 +175,14 @@ export class TilesRun {
     this.tiles = this.tiles.filter((tile) => {
       const crossAt = tile.spawnedAt + tile.fallMs;
       if (t <= crossAt + windowMsFor(tile.fallMs, tileHeightPx, lineY)) return true;
-      this.#miss();
+      this.#miss(tile.track, t);
       return false;
     });
+  }
+
+  /** Drop any accuracy comment older than `TILES_COMMENT_MS` (spec §4). */
+  pruneComments(t: number): void {
+    this.comments = this.comments.filter((c) => t - c.at < TILES_COMMENT_MS);
   }
 
   /**
@@ -170,10 +209,11 @@ export class TilesRun {
     const score = offsetMs < 0 || offsetMs > windowMs ? 0 : tilesImpact(offsetMs, windowMs);
 
     if (score <= 0) {
-      this.#miss();
+      this.#miss(best.track, t);
       return;
     }
 
+    this.comments.push({ track: best.track, text: tapComment(score), hit: true, at: t });
     this.score += score;
     this.speedMul *= TILES_SPEEDUP_MUL;
     this.#reactionSum += offsetMs;
@@ -188,7 +228,8 @@ export class TilesRun {
     }
   }
 
-  #miss(): void {
+  #miss(track: number, t: number): void {
+    this.comments.push({ track, text: TILES_MISS_COMMENT, hit: false, at: t });
     this.lives = Math.max(0, this.lives - 1);
     this.speedMul = Math.max(1, this.speedMul * TILES_MISS_MUL);
     this.#streak = 0;
