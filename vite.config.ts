@@ -43,6 +43,7 @@ export default defineConfig({
         'ufo-hunt': 'www/ufo-hunt/index.html',
         'aliens-love-cows': 'www/aliens-love-cows/index.html',
         'tiles-surfer': 'www/tiles-surfer/index.html',
+        'gravity-shooter': 'www/gravity-shooter/index.html',
         // The admin centre. Built to a PLACEHOLDER directory name and renamed to the
         // ADMIN_PATH secret by the deploy — this repository is public, so the real
         // path cannot be committed (docs/deployment.md §3.4).
