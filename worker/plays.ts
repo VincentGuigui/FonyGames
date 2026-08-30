@@ -139,6 +139,16 @@ export function endsRound(msg: ServerMessage): boolean {
     case 'tiles':
       return msg.d.phase === 'done' && msg.d.winner !== null;
 
+    /*
+     * Gravity Shooter ends the same way — a phase and a winner in the same
+     * frame. A player leaving mid-match still names a winner
+     * (worker/gravityShooter.ts), so that counts too; only a round with
+     * nobody left in it at all would not, and that never reaches `done`
+     * without a winner.
+     */
+    case 'gravity':
+      return msg.d.phase === 'done' && msg.d.winner !== null;
+
     default:
       return false;
   }

@@ -110,6 +110,16 @@ import {
   type TilesSurfer,
 } from './tilesSurfer';
 import {
+  nextDeadline as gravityDeadline,
+  onGravityShot,
+  onPlayerGone as gravityPlayerGone,
+  startGravityShooter,
+  tick as gravityTick,
+  toState as gravityToState,
+  type Ctx as GravityCtx,
+  type Gravity,
+} from './gravityShooter';
+import {
   nextDeadline as ttttDeadline,
   onSelect as onTtttSelect,
   onTap as onTtttTap,
@@ -457,6 +467,11 @@ export class Room extends DurableObject<Env> {
         }
         return;
       }
+      case 'gravity-shot': {
+        const id = this.#idOf(ws);
+        if (id) await onGravityShot(this.#gravityCtx(), id, msg.d.roundId, msg.d.angle, msg.d.strength, msg.d.hit);
+        return;
+      }
       case 'tttt-select': {
         const id = this.#idOf(ws); if (id) await onTtttSelect(this.#ttttCtx(), id, msg.d.roundId, msg.d.metaCell); return;
       }
@@ -655,6 +670,12 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const shooting = await this.#gravity();
+    if (shooting && shooting.phase === 'running' && Date.now() >= gravityDeadline(shooting)) {
+      await gravityTick(this.#gravityCtx());
+      await this.#rearm();
+      return;
+    }
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over' && Date.now() >= ttttDeadline(tttt)) {
       await ttttTick(this.#ttttCtx()); await this.#rearm(); return;
@@ -773,6 +794,8 @@ export class Room extends DurableObject<Env> {
     if (abducting && abducting.phase !== 'done') return;
     const surfing = await this.#tiles();
     if (surfing && surfing.phase !== 'done') return;
+    const shooting = await this.#gravity();
+    if (shooting && shooting.phase !== 'done') return;
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over') return;
     const fighter = await this.#fighter();
@@ -799,6 +822,7 @@ export class Room extends DurableObject<Env> {
       mode === 'ufo' ||
       mode === 'abduct' ||
       mode === 'tiles' ||
+      mode === 'gravity' ||
       mode === 'tttt'
       || mode === 'fighter'
     ) {
@@ -821,6 +845,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'ufo') started = await startUfoHunt(this.#ufoHuntCtx(), roundId, ids, solo);
       else if (mode === 'abduct') started = await startAbduct(this.#abductCtx(), roundId, ids, solo);
       else if (mode === 'tiles') started = await startTilesSurfer(this.#tilesCtx(), roundId, ids, solo);
+      else if (mode === 'gravity') started = await startGravityShooter(this.#gravityCtx(), roundId, ids);
       else if (mode === 'tttt') started = await startTttt(this.#ttttCtx(), roundId, ids, symbols, solo);
       else if (mode === 'fighter') started = await startTapFighter(this.#fighterCtx(), roundId, ids, solo);
       // `direct` is the default because it needs no explanation: grab your icon
@@ -894,7 +919,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'tttt', 'fighter', 'roundId', 'scores']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'tttt', 'fighter', 'roundId', 'scores']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -1182,6 +1207,22 @@ export class Room extends DurableObject<Env> {
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#tiles(),
       save: (s) => this.ctx.storage.put('tiles', s),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #gravity(): Promise<Gravity | null> {
+    return (await this.ctx.storage.get<Gravity>('gravity')) ?? null;
+  }
+
+  #gravityCtx(): GravityCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      random: () => Math.random(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#gravity(),
+      save: (s) => this.ctx.storage.put('gravity', s),
       setAlarm: () => this.#rearm(),
     };
   }
@@ -1548,6 +1589,13 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'tiles', s: this.#nextSeq(), d: tilesToState(surfing) });
     }
 
+    /* Gravity Shooter: also fully public — both ships and both planets are
+       always visible to both players (spec §6). */
+    const shooting = await this.#gravity();
+    if (shooting && shooting.phase !== 'done') {
+      this.#send(ws, { t: 'gravity', s: this.#nextSeq(), d: gravityToState(shooting) });
+    }
+
     await this.#broadcastPresence(ws);
   }
 
@@ -1624,6 +1672,9 @@ export class Room extends DurableObject<Env> {
     // player out, immediately, not deferred to the reconnect grace window
     // (spec §7).
     await tilesPlayerGone(this.#tilesCtx(), id);
+    // Gravity Shooter is the same shape as Grid Attack: two fixed seats, and a
+    // phone leaving ends the match rather than shrinking it.
+    await gravityPlayerGone(this.#gravityCtx(), id);
     // Neon Fall is the same shape as Grid Attack: two fixed seats, and a phone
     // leaving means one of the roles is simply gone — there is no game left.
     await neonPlayerGone(this.#neonCtx(), id);
@@ -1730,6 +1781,9 @@ export class Room extends DurableObject<Env> {
 
     const surfing = await this.#tiles();
     if (surfing?.phase === 'running') return tilesDeadline(surfing);
+
+    const shooting = await this.#gravity();
+    if (shooting?.phase === 'running') return gravityDeadline(shooting);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);
