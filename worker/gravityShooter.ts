@@ -83,6 +83,7 @@ export async function startGravityShooter(
   const g: Gravity = {
     roundId,
     startsAt: now,
+    seats: [host, other],
     planets: [rollPlanet(ctx.random), rollPlanet(ctx.random)],
     lives: { [host]: GRAVITY_LIVES, [other]: GRAVITY_LIVES },
     turn: host,

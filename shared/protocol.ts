@@ -681,6 +681,14 @@ export type GravityShot = {
 export type GravityShooterState = {
   roundId: number;
   startsAt: number;
+  /**
+   * Which player's ship sits at which end of the shared canonical board
+   * (spec §2.2) — `seats[0]` at world `y = 1`, `seats[1]` at world `y = 0`.
+   * Fixed for the whole match, so both clients' render-time flip and every
+   * shot's own simulation agree on the same two fixed points without this
+   * having to be re-derived from object key order or anything else implicit.
+   */
+  seats: [PlayerId, PlayerId];
   /** Rolled once at round start, echoed unchanged on every later frame. */
   planets: [GravityPlanet, GravityPlanet];
   lives: Record<PlayerId, number>;
