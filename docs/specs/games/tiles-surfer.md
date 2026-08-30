@@ -40,7 +40,7 @@ each other.
    the start. **Which lane each tile falls down is the same sequence for
    every player** (§2.1) — nobody's board is quietly easier.
 3. **Tap the lane the instant the tile's own leading edge reaches the
-   line, 50px above the bottom of the screen.** Dead on time is worth 10
+   line, two thirds of the way down the screen.** Dead on time is worth 10
    points; tap late and the value falls in a straight line to 0 by the
    moment the tile has fully passed the line — at which point it is a
    miss, the same as tapping too early (§2.2).
@@ -127,7 +127,9 @@ Only `classic` at launch.
 
 - **Lobby**: shared template. No host setting beyond `mode`.
 - **Round**: a `<canvas>` board, five lanes top to bottom, a bright line
-  50px above the bottom edge. Tiles are 1 lane-width wide, 2 lane-widths
+  two thirds of the way down (`TILES_LINE_FRACTION`) — a proportion of the
+  board's own height, not a fixed pixel count, so it lands in the same place
+  on every screen size. Tiles are 1 lane-width wide, 2 lane-widths
   tall, falling straight down, glowing on the game's own accent as they
   near the line. A tap targets **the lane**, not the tile's own moving
   pixels — one of five fixed tap zones spanning the board, resolved
