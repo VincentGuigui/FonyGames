@@ -1,0 +1,76 @@
+/*
+ * Tiles Surfer's round screen. Spec: docs/specs/games/tiles-surfer.md §4
+ *
+ * The board itself is drawn on `TilesCanvas.tsx`; this is only the chrome
+ * around it, and it fills the viewport the same way every other canvas
+ * game in this catalogue does (neon.css, siege.css, spill.css) — a
+ * falling-tile board wants every pixel of height it can get.
+ */
+
+.tiles {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #0b0a12;
+  color: var(--color-text);
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tiles > .statusbar {
+  flex: 0 0 auto;
+  padding: max(0.75rem, env(safe-area-inset-top)) 1rem 0;
+}
+
+.tiles__lives {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 1rem;
+  font-size: 1.35rem;
+  letter-spacing: 0.15em;
+  color: var(--game-accent, var(--color-accent));
+}
+
+.tiles__lives-n {
+  font-size: var(--font-small);
+  letter-spacing: normal;
+  color: var(--color-text-dim);
+}
+
+.tiles-canvas {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  display: block;
+  touch-action: none;
+}
+
+.tiles > .scores {
+  flex: 0 0 auto;
+  position: relative;
+  margin: 0 auto max(0.75rem, env(safe-area-inset-bottom));
+}
+
+/* --- out, and watching ---------------------------------------------------- */
+
+.tiles--out {
+  align-items: center;
+  text-align: center;
+  padding: max(var(--space-4), env(safe-area-inset-top)) var(--space-4) max(var(--space-5), env(safe-area-inset-bottom));
+}
+
+.tiles__gone {
+  margin: var(--space-5) 0 0;
+  font-size: 3.5rem;
+}
+
+.tiles__gone-note {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-dim);
+}

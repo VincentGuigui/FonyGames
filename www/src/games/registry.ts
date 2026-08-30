@@ -20,6 +20,7 @@ import { CARD as TTTT_CARD } from './tic-tac-tic-tac-toe/card';
 import { CARD as HUNDRED_TAPS_CARD } from './hundred-taps/card';
 import { CARD as UFO_HUNT_CARD } from './ufo-hunt/card';
 import { CARD as ALIENS_LOVE_COWS_CARD } from './aliens-love-cows/card';
+import { CARD as TILES_SURFER_CARD } from './tiles-surfer/card';
 import type { GameCard } from '../core/types';
 
 /**
@@ -57,6 +58,7 @@ export const GAMES: GameCard[] = [
   HUNDRED_TAPS_CARD,
   UFO_HUNT_CARD,
   ALIENS_LOVE_COWS_CARD,
+  TILES_SURFER_CARD,
   SCREAM_METER_CARD,
 ];
 

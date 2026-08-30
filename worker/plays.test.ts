@@ -178,6 +178,17 @@ console.log('\na round somebody won counts');
   not(ufoHunt('done', null), 'ufo hunt: not a tie at the cap');
   not(ufoHunt('running', null), 'ufo hunt: not mid-round');
 
+  // Tiles Surfer ends the same way: phase and winner in the same frame. A
+  // genuinely-solo run, or a safety-cap tie, both end with no winner.
+  const tiles = (phase: 'running' | 'done', winner: PlayerId | null): ServerMessage => ({
+    t: 'tiles',
+    s: 1,
+    d: { roundId: 1, startsAt: 0, endsAt: 1, scores: {}, winner, phase },
+  });
+  won(tiles('done', A), 'tiles surfer: the last one standing');
+  not(tiles('done', null), 'tiles surfer: a solo run or a capped tie has no winner');
+  not(tiles('running', null), 'tiles surfer: not mid-round');
+
   const fighter = (phase: 'planning' | 'fighting' | 'round-over' | 'match-over', matchWinner: 'blue' | 'green' | null): ServerMessage => ({
     t: 'fighter', s: 1, d: { roundId: 1, matchRound: 5, phase, seats: { blue: A, green: B }, ready: { blue: true, green: true }, actions: null, beats: [], roundWins: { blue: 3, green: 1 }, startsAt: 0, endsAt: 1, roundWinner: 'blue', matchWinner, draw: false, solo: false },
   });
@@ -207,6 +218,7 @@ console.log('\nnothing mid-round counts');
         scores: {}, missileCharge: {}, winner: null, phase: 'running',
       },
     },
+    { t: 'tiles', s: 1, d: { roundId: 1, startsAt: 0, endsAt: 1, scores: {}, winner: null, phase: 'running' } },
     { t: 'error', d: { code: 'rate-limited', message: 'Slow down.' } },
   ];
 

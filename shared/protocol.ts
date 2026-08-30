@@ -250,6 +250,17 @@ export type ClientMessage =
    * (spec §8).
    */
   | { t: 'abduct-pick'; d: { roundId: number; round: number; barn: number } }
+  /**
+   * Tiles Surfer: my own current run, sent at a 100-point checkpoint or the
+   * instant my own lives reach 0 — never per tap (spec §6, §8). Deliberately
+   * the one message in this whole file the referee does not validate against
+   * anything of its own: there is no tap, no lane, no tile on the wire at all
+   * for it to check this against.
+   */
+  | {
+      t: 'tiles-report';
+      d: { roundId: number; score: number; lives: number; perfects: number; longestStreak: number; avgReactionMs: number };
+    }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
@@ -598,6 +609,40 @@ export type AbductState = {
   winner: PlayerId | null;
 };
 
+/**
+ * Tiles Surfer: one player's own last-reported run (spec §6). Everything here
+ * is exactly what a `tiles-report` claims — the referee stores it, clamped to
+ * sane ranges, and never checks it against anything of its own (spec §8: this
+ * game has no anti-cheat, by direct instruction).
+ */
+export type TilesSurferRun = {
+  score: number;
+  lives: number;
+  perfects: number;
+  longestStreak: number;
+  /** Mean offset (ms) across every non-miss tap — a genuine reaction-time
+   *  number, reported as-is rather than derived, since the referee never
+   *  sees the raw per-tap history this would otherwise come from. */
+  avgReactionMs: number;
+};
+
+/**
+ * Tiles Surfer: the whole match, fully public — every player's own board runs
+ * entirely on their own phone (spec §2), so there is nothing here that is
+ * private to begin with, the same shape Aliens Love Cows' own state already
+ * is for the same reason.
+ */
+export type TilesSurferState = {
+  roundId: number;
+  startsAt: number;
+  /** The safety cap — a defensive backstop for a run nobody's own lives end (spec §7). */
+  endsAt: number;
+  /** Each player's own last-reported run. Absent until their first report. */
+  scores: Record<PlayerId, TilesSurferRun>;
+  winner: PlayerId | null;
+  phase: 'running' | 'done';
+};
+
 /** Spill: one projectile, described once and animated locally from then on. */
 export type SpillDrop = {
   dropId: string;
@@ -814,6 +859,8 @@ export type ServerMessage =
   | { t: 'fighter'; s: number; d: TapFighterState }
   /** Aliens love cows: the whole match — fully public, spec §6. */
   | { t: 'abduct'; s: number; d: AbductState }
+  /** Tiles Surfer: everyone's last-reported numbers, fully public — spec §6. */
+  | { t: 'tiles'; s: number; d: TilesSurferState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
    * Tap Tap Music: sent to **one player only** — their own cleared
@@ -1547,6 +1594,7 @@ const CLIENT_TYPES = new Set([
   'tttt-tap',
   'fighter-lock',
   'abduct-pick',
+  'tiles-report',
   'switch-game',
 ]);
 
@@ -2108,3 +2156,46 @@ export const ABDUCT_FLEE_MS = 2_000;
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const ABDUCT_MIN_PLAYERS = PLAYERS['aliens-love-cows'][0];
 export const ABDUCT_MAX_PLAYERS = PLAYERS['aliens-love-cows'][1];
+
+/* ------------------------------------------------------------------ */
+/* Tiles Surfer (docs/specs/games/tiles-surfer.md)                      */
+/* ------------------------------------------------------------------ */
+
+/** Five lives, and how many lanes the board is split into. */
+export const TILES_LIVES = 5;
+export const TILES_TRACK_COUNT = 5;
+
+/** Top-to-line time at the very start of a run (spec §2). */
+export const TILES_INITIAL_FALL_MS = 2_000;
+
+/**
+ * The one thing that actually evolves: a multiplier on the base speed above,
+ * not a duration (spec §2.3) — `fallMs = TILES_INITIAL_FALL_MS / speedMul`.
+ * `SPEEDUP` on a landed tap, `MISS_MUL` (floored at the round's own starting
+ * speed, never below it) on a miss.
+ */
+export const TILES_SPEEDUP_MUL = 1.02;
+export const TILES_MISS_MUL = 0.8;
+
+/** A tile is 1 lane-width wide, 2 lane-widths tall (spec §2.2, §4). */
+export const TILES_HEIGHT_TRACKS = 2;
+
+/** The line a tile has to be tapped against: a fixed pixel offset, not a
+ *  proportion of the screen (spec §2). */
+export const TILES_LINE_OFFSET_PX = 50;
+
+/** A new tile every this many ms, regardless of the current fall speed
+ *  (spec §12 — a stated default, not a number the brief itself gave). */
+export const TILES_SPAWN_INTERVAL_MS = 600;
+
+/** A `tiles-report` goes out every this many points, or the moment a
+ *  player's own lives reach 0 (spec §6) — never per tap. */
+export const TILES_REPORT_EVERY = 100;
+
+/** Defensive backstop — ranked by score among whoever is still alive if
+ *  nobody's own lives have run out by then (spec §7, §12). */
+export const TILES_ROUND_CAP_MS = 5 * 60_000;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const TILES_MIN_PLAYERS = PLAYERS['tiles-surfer'][0];
+export const TILES_MAX_PLAYERS = PLAYERS['tiles-surfer'][1];
