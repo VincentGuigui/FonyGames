@@ -131,6 +131,14 @@ export function endsRound(msg: ServerMessage): boolean {
     case 'ufo-hunt':
       return msg.d.phase === 'done' && msg.d.winner !== null;
 
+    /*
+     * Tiles Surfer ends the same way — a phase and a winner in the same
+     * frame. A genuinely-solo run, or a safety-cap tie, both end with no
+     * winner (worker/tilesSurfer.ts) and neither counts as a game played.
+     */
+    case 'tiles':
+      return msg.d.phase === 'done' && msg.d.winner !== null;
+
     default:
       return false;
   }

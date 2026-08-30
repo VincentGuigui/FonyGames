@@ -203,10 +203,12 @@ This game does none of that, by direct instruction: taps stay local, and
 the referee stores whatever a `tiles-report` claims.
 
 - **What the referee does do**: cheap range clamps on arrival, not
-  validation — `lives` clamped to `0..TILES_LIVES`, `score`/`perfects`/
-  `longestStreak`/`avgReactionMs` clamped to finite and non-negative. This
-  stops a malformed message from corrupting the shared state; it does not
-  stop a player from simply lying about their own numbers.
+  validation — every field (`score`, `lives`, `perfects`, `longestStreak`,
+  `avgReactionMs`) must be finite and non-negative or that one field is
+  simply not updated this report, and `lives` is additionally capped at
+  `TILES_LIVES`. This stops a malformed message from corrupting the shared
+  state; it does not stop a player from simply lying about their own
+  numbers.
 - **What this costs**: a modified client can report any score, any streak,
   claim to be alive indefinitely, or claim a life loss it never suffered.
   Nothing here can tell the difference. The leaderboard and the eventual

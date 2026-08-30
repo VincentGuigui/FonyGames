@@ -100,6 +100,16 @@ import {
   type Ctx as AbductCtx,
 } from './aliensLoveCows';
 import {
+  nextDeadline as tilesDeadline,
+  onPlayerGone as tilesPlayerGone,
+  onTilesReport,
+  startTilesSurfer,
+  tick as tilesTick,
+  toState as tilesToState,
+  type Ctx as TilesCtx,
+  type TilesSurfer,
+} from './tilesSurfer';
+import {
   nextDeadline as ttttDeadline,
   onSelect as onTtttSelect,
   onTap as onTtttTap,
@@ -438,6 +448,15 @@ export class Room extends DurableObject<Env> {
         if (id) await onAbductPick(this.#abductCtx(), id, msg.d.roundId, msg.d.round, msg.d.barn);
         return;
       }
+      case 'tiles-report': {
+        const id = this.#idOf(ws);
+        if (id) {
+          await onTilesReport(
+            this.#tilesCtx(), id, msg.d.roundId, msg.d.score, msg.d.lives, msg.d.perfects, msg.d.longestStreak, msg.d.avgReactionMs,
+          );
+        }
+        return;
+      }
       case 'tttt-select': {
         const id = this.#idOf(ws); if (id) await onTtttSelect(this.#ttttCtx(), id, msg.d.roundId, msg.d.metaCell); return;
       }
@@ -630,6 +649,12 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const surfing = await this.#tiles();
+    if (surfing && surfing.phase === 'running' && Date.now() >= tilesDeadline(surfing)) {
+      await tilesTick(this.#tilesCtx());
+      await this.#rearm();
+      return;
+    }
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over' && Date.now() >= ttttDeadline(tttt)) {
       await ttttTick(this.#ttttCtx()); await this.#rearm(); return;
@@ -746,6 +771,8 @@ export class Room extends DurableObject<Env> {
     if (huntingUfo && huntingUfo.phase !== 'done') return;
     const abducting = await this.#abduct();
     if (abducting && abducting.phase !== 'done') return;
+    const surfing = await this.#tiles();
+    if (surfing && surfing.phase !== 'done') return;
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over') return;
     const fighter = await this.#fighter();
@@ -771,6 +798,7 @@ export class Room extends DurableObject<Env> {
       mode === 'taps100' ||
       mode === 'ufo' ||
       mode === 'abduct' ||
+      mode === 'tiles' ||
       mode === 'tttt'
       || mode === 'fighter'
     ) {
@@ -792,6 +820,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'taps100') started = await startTaps100(this.#taps100Ctx(), roundId, ids, solo);
       else if (mode === 'ufo') started = await startUfoHunt(this.#ufoHuntCtx(), roundId, ids, solo);
       else if (mode === 'abduct') started = await startAbduct(this.#abductCtx(), roundId, ids, solo);
+      else if (mode === 'tiles') started = await startTilesSurfer(this.#tilesCtx(), roundId, ids, solo);
       else if (mode === 'tttt') started = await startTttt(this.#ttttCtx(), roundId, ids, symbols, solo);
       else if (mode === 'fighter') started = await startTapFighter(this.#fighterCtx(), roundId, ids, solo);
       // `direct` is the default because it needs no explanation: grab your icon
@@ -865,7 +894,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tttt', 'fighter', 'roundId', 'scores']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'tttt', 'fighter', 'roundId', 'scores']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -1139,6 +1168,21 @@ export class Room extends DurableObject<Env> {
       save: (s) => this.ctx.storage.put('abduct', s),
       setAlarm: () => this.#rearm(),
       connected: async () => [...(await this.#players()).values()].filter((p) => p.connected).map((p) => p.id),
+    };
+  }
+
+  async #tiles(): Promise<TilesSurfer | null> {
+    return (await this.ctx.storage.get<TilesSurfer>('tiles')) ?? null;
+  }
+
+  #tilesCtx(): TilesCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#tiles(),
+      save: (s) => this.ctx.storage.put('tiles', s),
+      setAlarm: () => this.#rearm(),
     };
   }
 
@@ -1497,6 +1541,13 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'abduct', s: this.#nextSeq(), d: abductToState(abducting) });
     }
 
+    /* Tiles Surfer: fully public too — every board runs on its own phone, so
+       there is no private half to withhold on a reconnect (spec §6). */
+    const surfing = await this.#tiles();
+    if (surfing && surfing.phase !== 'done') {
+      this.#send(ws, { t: 'tiles', s: this.#nextSeq(), d: tilesToState(surfing) });
+    }
+
     await this.#broadcastPresence(ws);
   }
 
@@ -1569,6 +1620,10 @@ export class Room extends DurableObject<Env> {
     await onGridPlayerGone(this.#gridCtx(), id);
     await steadyPlayerGone(this.#steadyCtx(), id);
     await rushPlayerGone(this.#rushCtx(), id);
+    // Tiles Surfer: same shape as Steady Hand's own lives — a phone gone is a
+    // player out, immediately, not deferred to the reconnect grace window
+    // (spec §7).
+    await tilesPlayerGone(this.#tilesCtx(), id);
     // Neon Fall is the same shape as Grid Attack: two fixed seats, and a phone
     // leaving means one of the roles is simply gone — there is no game left.
     await neonPlayerGone(this.#neonCtx(), id);
@@ -1672,6 +1727,9 @@ export class Room extends DurableObject<Env> {
 
     const abducting = await this.#abduct();
     if (abducting && abducting.phase !== 'done') return abductDeadline(abducting);
+
+    const surfing = await this.#tiles();
+    if (surfing?.phase === 'running') return tilesDeadline(surfing);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);
