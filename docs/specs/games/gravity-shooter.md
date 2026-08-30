@@ -9,7 +9,7 @@
 | **Round length** | 1–3 min |
 | **Inputs** | touch (drag back and release) |
 | **Accent colour** | `#818CF8` |
-| **Status** | 📝 draft — awaiting approval |
+| **Status** | 🎮 beta — gravity strength and hit radius untested on real thumbs |
 
 ## 1. Pitch
 
