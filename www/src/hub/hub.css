@@ -161,6 +161,17 @@
   border-color: transparent;
 }
 
+/*
+ * WEEK: the calendar's own pick (`gameOfWeek`), ranked below HOT and above NEW
+ * (`cardState`). A cool violet rather than either warm tone — HOT and NEW already own
+ * "shout", and this is a schedule, not a claim about how popular the game is.
+ */
+.game-card__badge--week {
+  color: #1e1440;
+  background: linear-gradient(180deg, #c4b5fd, #7c3aed);
+  border-color: transparent;
+}
+
 .game-card__body {
   padding: var(--space-2) var(--space-3) var(--space-3);
 }

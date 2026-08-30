@@ -34,9 +34,9 @@ final class Page
      * one coupling between them, and `page_test.php` asserts every key the renderer emits
      * is one this function can ask for.
      */
-    public static function variantKey(string $availability, bool $isNew, bool $hot, bool $showAll): string
+    public static function variantKey(string $availability, bool $isNew, bool $hot, bool $week, bool $showAll): string
     {
-        return $availability . ':' . ($isNew ? '1' : '0') . ':' . ($hot ? '1' : '0') . ':' . ($showAll ? '1' : '0');
+        return $availability . ':' . ($isNew ? '1' : '0') . ':' . ($hot ? '1' : '0') . ':' . ($week ? '1' : '0') . ':' . ($showAll ? '1' : '0');
     }
 
     /**
@@ -54,15 +54,27 @@ final class Page
      * the flags disagree about which games exist, and inventing markup for it is how a
      * deleted game reappears.
      *
+     * `$weekOrder` — every live game, alphabetical by title, from `weekOrder()` in
+     * `scripts/ssr.mjs` — decides which single card wears WEEK (`Flags::gameOfWeek`).
+     * Unlike `$hot` it never reorders anything: WEEK is a scheduled tag, not a measured
+     * popularity signal, so it does not compete with HOT for the front of the shelf,
+     * only for the badge on whichever card already sits at its curated position.
+     *
+     * `$now` is a plain timestamp rather than a read of the clock in here, the same
+     * reasoning `Flags::gameOfWeek()` itself is written that way: a test has to be able
+     * to ask "what does the grid look like in week 1" without waiting for it.
+     *
      * @param list<string> $order
      * @param array<string, array<string, string>> $cards
      * @param array<string, array<string, mixed>> $flags
      * @param array<string, int> $plays
+     * @param list<string> $weekOrder
      */
-    public static function grid(array $order, array $cards, array $flags, bool $showAll, array $plays = []): string
+    public static function grid(array $order, array $cards, array $flags, bool $showAll, array $plays = [], array $weekOrder = [], ?int $now = null): string
     {
         $out = '';
         $hot = Flags::hottest($plays, $order);
+        $week = Flags::gameOfWeek($weekOrder, $now ?? time());
 
         foreach (Flags::promote($order, $hot) as $slug) {
             $variants = $cards[$slug] ?? null;
@@ -81,6 +93,7 @@ final class Page
                 $availability,
                 ($flag['isNew'] ?? false) === true,
                 $slug === $hot,
+                $slug === $week,
                 $showAll,
             )] ?? '';
             if ($html === '') {

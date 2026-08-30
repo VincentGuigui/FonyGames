@@ -346,6 +346,36 @@ final class Flags
     }
 
     /**
+     * ISO-8601 week number (1-53), UTC. Mirrors `isoWeek()` in `shared/flags.ts`, which
+     * has to hand-roll the same rule PHP already gets for free: `gmdate()`, unlike
+     * `date()`, is always UTC regardless of the server's own configured timezone, so
+     * this needs no explicit timezone handling to agree with the TypeScript side.
+     */
+    public static function isoWeek(int $now): int
+    {
+        return (int) gmdate('W', $now);
+    }
+
+    /**
+     * Which game the week itself spotlights. Mirrors `gameOfWeek()` in
+     * `shared/flags.ts` — see that function's own comment for why `$slugsAlphabetical`
+     * is the caller's job, not this one's.
+     *
+     * @param list<string> $slugsAlphabetical
+     */
+    public static function gameOfWeek(array $slugsAlphabetical, int $now): ?string
+    {
+        $count = count($slugsAlphabetical);
+        if ($count === 0) {
+            return null;
+        }
+
+        $index = (self::isoWeek($now) - 1) % $count;
+
+        return $slugsAlphabetical[$index] ?? null;
+    }
+
+    /**
      * The published file, decoded — or an empty array if anything is wrong.
      *
      * @return array<string, mixed>

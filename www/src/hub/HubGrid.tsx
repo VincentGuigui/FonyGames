@@ -1,7 +1,7 @@
 import type { JSX } from 'preact';
 import { catalogue } from '../games/registry';
 import { GameCardTile } from './GameCardTile';
-import { flagFor, hottest, promote, type GameFlag } from '../../../shared/flags';
+import { flagFor, gameOfWeek, hottest, promote, type GameFlag } from '../../../shared/flags';
 import { localizeCard } from '../core/i18n/localizeCard';
 import type { Locale } from '../core/i18n/locale';
 
@@ -21,6 +21,12 @@ import type { Locale } from '../core/i18n/locale';
  * `index.php` applies the same two rules to the same numbers before it serves the page
  * (Page::grid), which is what keeps hydration exact — a grid the server ordered one way
  * and the client another is a mismatch on every card after the first.
+ *
+ * The week's own spotlighted game (`gameOfWeek`) is computed the same way, from the
+ * **unlocalized** catalogue — before `localizeCard` runs, on purpose, so a French
+ * visitor and an English one are shown the same game rather than two different
+ * alphabetical orders of two different sets of titles. Unlike HOT it never reorders
+ * the grid: it only tags whichever card already sits at its curated position.
  */
 export function HubGrid({
   flags,
@@ -39,10 +45,18 @@ export function HubGrid({
   showAll: boolean;
   locale?: Locale;
 }): JSX.Element {
-  const games = catalogue().map((g) => localizeCard(g, locale));
+  const raw = catalogue();
+  const games = raw.map((g) => localizeCard(g, locale));
   const hot = hottest(plays, games.map((g) => g.slug));
   const order = promote(games.map((g) => g.slug), hot);
   const bySlug = new Map(games.map((g) => [g.slug, g]));
+
+  const weekOrder = raw
+    .filter((g) => g.status === 'live')
+    .slice()
+    .sort((a, b) => a.title.localeCompare(b.title))
+    .map((g) => g.slug);
+  const week = gameOfWeek(weekOrder, new Date());
 
   return (
     <ul class="hub__grid">
@@ -56,6 +70,7 @@ export function HubGrid({
             flag={flagFor(flags, slug)}
             showAll={showAll}
             hot={slug === hot}
+            week={slug === week}
           />
         );
       })}

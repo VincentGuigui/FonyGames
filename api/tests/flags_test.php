@@ -357,3 +357,34 @@ check('the hot game leads the order', Flags::promote($all, 'ghost-hunt') === ['g
 check('the rest keep theirs', Flags::promote($all, 'tap-duel') === $all);
 check('and nothing hot changes nothing', Flags::promote($all, null) === $all);
 check('as does a slug that is not in the order', Flags::promote($all, 'zone-rush') === $all);
+
+group('ISO week number, UTC — mirrored in shared/flags.test.ts against a hand-rolled algorithm');
+
+// gmdate() is always UTC regardless of the server's own configured timezone, so these
+// need no explicit timezone handling to agree with the TypeScript side, which has to
+// hand-roll the same rule PHP gets for free.
+$day = static fn (string $iso): int => (int) gmdate('U', strtotime($iso . 'T00:00:00Z'));
+check('the first Monday of an ordinary year is week 1', Flags::isoWeek($day('2024-01-01')) === 1);
+check('the last day of that same week is still week 1', Flags::isoWeek($day('2024-01-07')) === 1);
+check('the next day rolls over to week 2', Flags::isoWeek($day('2024-01-08')) === 2);
+// 2020 has an ISO week 53 — Dec 28, 2020 through Jan 3, 2021.
+check('the extra 53rd week of 2020 exists', Flags::isoWeek($day('2020-12-28')) === 53);
+check("new year's eve can fall inside it", Flags::isoWeek($day('2020-12-31')) === 53);
+check('so can the first days of the following January', Flags::isoWeek($day('2021-01-03')) === 53);
+check('until the 4th, which is always week 1', Flags::isoWeek($day('2021-01-04')) === 1);
+// 2025 begins on a Wednesday, so week 1 reaches back into the last two days of 2024.
+check("the last days of 2024 already belong to 2025's week 1", Flags::isoWeek($day('2024-12-31')) === 1);
+check("and so does New Year's Day itself", Flags::isoWeek($day('2025-01-01')) === 1);
+// 2023 begins on a Sunday, so New Year's Day itself is still the OLD year's last week.
+check("a year starting on a Sunday leaves Jan 1 in the old year's week", Flags::isoWeek($day('2023-01-01')) === 52);
+check("and the very next day starts the new year's week 1", Flags::isoWeek($day('2023-01-02')) === 1);
+
+group("the week's own spotlighted game");
+
+$alphabetical = ['aliens-love-cows', 'ghost-hunt', 'spill', 'tap-duel'];
+check('week 1 picks the first title alphabetically', Flags::gameOfWeek($alphabetical, $day('2024-01-01')) === 'aliens-love-cows');
+check('week 2 picks the second', Flags::gameOfWeek($alphabetical, $day('2024-01-08')) === 'ghost-hunt');
+// Week 5 wraps back around to the first game — 4 games, and (5-1) % 4 === 0.
+check('the rotation wraps once every game has had a week', Flags::gameOfWeek($alphabetical, $day('2024-01-29')) === 'aliens-love-cows');
+check('an empty catalogue spotlights nothing', Flags::gameOfWeek([], $day('2024-01-01')) === null);
+check('a single game is always it', Flags::gameOfWeek(['spill'], $day('2024-01-01')) === 'spill');
