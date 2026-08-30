@@ -32,6 +32,7 @@ import {
   idleWindupPose,
 } from './game';
 import { FightCanvas } from './FightCanvas';
+import dojoArt from './art/dojo.jpg?url&no-inline';
 
 /** How long a tapped move flashes in the big preview before settling back to idle. */
 const POSE_FLASH_MS = 500;
@@ -153,7 +154,7 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     if (state.phase !== 'round-over' || !state.roundWinner || !me) return;
     playOutcomeSound(state.seats[state.roundWinner] === me ? 'win' : 'lose');
   }, [state.phase, state.roundWinner, me]);
-  return <main class="fighter-game" style={{ '--fighter-blue': FIGHTER_COLORS.blue, '--fighter-green': FIGHTER_COLORS.green } as JSX.CSSProperties}>
+  return <main class="fighter-game" style={{ '--fighter-blue': FIGHTER_COLORS.blue, '--fighter-green': FIGHTER_COLORS.green, '--fighter-dojo': `url(${dojoArt})` } as JSX.CSSProperties}>
     <StatusBar status={text({ en: `Round ${state.matchRound}`, fr: `Manche ${state.matchRound}` })} title={game.title} concept={game.concept} rules={game.rules} />
     <div class="fighter-score"><span>{nameOf(BLUE)} {pips(state.roundWins.blue)}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(state.roundWins.green)} {nameOf(GREEN)}</span></div>
     <section class="fighter-stage">
