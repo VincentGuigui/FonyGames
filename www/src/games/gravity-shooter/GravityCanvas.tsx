@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { art } from '../../core/art/sprites';
-import shipArt from './art/ship.svg?url&no-inline';
-import planetArtA from './art/planet-a.svg?url&no-inline';
-import planetArtB from './art/planet-b.svg?url&no-inline';
-import planetArtC from './art/planet-c.svg?url&no-inline';
-import missileArt from './art/missile.svg?url&no-inline';
+import shipArtA from './art/ship-a.png?url&no-inline';
+import shipArtB from './art/ship-b.png?url&no-inline';
+import planetArtA from './art/planet-a.png?url&no-inline';
+import planetArtB from './art/planet-b.png?url&no-inline';
+import planetArtC from './art/planet-c.png?url&no-inline';
+import missileArt from './art/missile.png?url&no-inline';
 import {
   GRAVITY_STEP_MS,
   GravityGame,
@@ -29,7 +30,10 @@ import {
  */
 
 const PLANET_ART = [planetArtA, planetArtB, planetArtC].map((url) => art(url));
-const shipSprite = art(shipArt);
+/** One art file per ship colour (spec's own two-colour brief) — `isSelf` in
+ *  `drawShip` picks between them, the same shape Tap Fighter's own
+ *  `fighter1.png`/`fighter2.png` pair already uses. */
+const SHIP_ART: [ReturnType<typeof art>, ReturnType<typeof art>] = [art(shipArtA), art(shipArtB)];
 const missileSprite = art(missileArt);
 
 const BG_TOP = '#0a0a18';
@@ -106,7 +110,7 @@ export function GravityCanvas({ game, onFlightEnd, onShoot }: Props): JSX.Elemen
           const px = toPixel(local);
           // The self ship always draws nearest local y=1 (bottom), by construction.
           const isSelf = mySeat !== null && seat === mySeat;
-          drawShip(ctx, px.x, px.y, width, isSelf ? SHIP_COLORS[0] : SHIP_COLORS[1], local.y > 0.5, dpr);
+          drawShip(ctx, px.x, px.y, width, isSelf, local.y > 0.5, dpr);
         }
 
         // The fading aim preview (spec §2), while a drag is live.
@@ -275,9 +279,9 @@ function drawPlanet(ctx: CanvasRenderingContext2D, x: number, y: number, r: numb
 
 /** A half-circle-domed ship, 256x128 art (spec's own dimensions) — the dome
  *  points toward the opponent, i.e. away from local y = 1. */
-function drawShip(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidth: number, color: string, domeUp: boolean, dpr: number): void {
+function drawShip(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidth: number, isSelf: boolean, domeUp: boolean, dpr: number): void {
   const w = boardWidth * 0.22;
-  const sprite = shipSprite.at(w, dpr);
+  const sprite = SHIP_ART[isSelf ? 0 : 1].at(w, dpr);
   if (sprite) {
     ctx.save();
     ctx.translate(x, y);
@@ -289,7 +293,7 @@ function drawShip(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidt
     return;
   }
   ctx.save();
-  ctx.fillStyle = color;
+  ctx.fillStyle = SHIP_COLORS[isSelf ? 0 : 1];
   ctx.beginPath();
   ctx.arc(x, y, w / 2, Math.PI, 0, !domeUp);
   ctx.closePath();
