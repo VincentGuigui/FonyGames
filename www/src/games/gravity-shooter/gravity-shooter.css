@@ -1,0 +1,93 @@
+/*
+ * Gravity Shooter's round screen. Spec: docs/specs/games/gravity-shooter.md §4
+ *
+ * The board itself is drawn on `GravityCanvas.tsx`; this is only the chrome
+ * around it, filling the viewport the same way every other canvas game in
+ * this catalogue does (tiles-surfer.css, neon.css, siege.css) — a curving
+ * missile wants every pixel of height it can get.
+ */
+
+.gravity {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #0a0a18;
+  color: var(--color-text);
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.gravity > .statusbar {
+  flex: 0 0 auto;
+  padding: max(0.75rem, env(safe-area-inset-top)) 1rem 0;
+}
+
+.gravity__lives {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-1) 1rem;
+  font-size: 1.35rem;
+  letter-spacing: 0.15em;
+  color: var(--game-accent, var(--color-accent));
+}
+
+.gravity__lives--them {
+  /* The opponent's own ship sits at the top of this screen either way (spec
+     §2.2) — their lives read above the board for the same reason. */
+  transform: scaleX(-1);
+}
+
+.gravity__board {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+.gravity-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+/* --- impact/explosion gifs, reused from UFO Hunt's own art (spec §4) ---- */
+
+.gravity__gifburst {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: gravity-burst-in 120ms ease-out both;
+}
+
+.gravity__gifburst--missile {
+  width: 96px;
+  height: 96px;
+}
+
+.gravity__gifburst--explosion {
+  width: 140px;
+  height: 140px;
+}
+
+@keyframes gravity-burst-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gravity__gifburst {
+    animation: none;
+  }
+}

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" width="120" height="90">
+  <!--
+    Gravity Shooter — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <circle cx="66" cy="46" r="16" fill="#818CF8" opacity="0.22"/>
+  <circle cx="66" cy="46" r="16" fill="none" stroke="#818CF8" stroke-width="1.5" opacity="0.5"/>
+  <circle cx="60" cy="41" r="3.4" fill="#818CF8" opacity="0.35"/>
+  <circle cx="72" cy="52" r="2.2" fill="#818CF8" opacity="0.3"/>
+
+  <!-- The missile's own curving trail, bending hard around the planet. -->
+  <path d="M18 78 C 34 66, 40 54, 52 60 S 78 34, 92 16"
+        fill="none" stroke="#818CF8" stroke-width="1.6" stroke-dasharray="3 3" opacity="0.75"/>
+
+  <!-- The missile itself, mid-flight past the planet. -->
+  <g transform="translate(60,58) rotate(35)">
+    <rect x="-2.4" y="-6.5" width="4.8" height="13" rx="2.2" fill="#818CF8"/>
+  </g>
+
+  <!-- The distant starship, dome up, waiting at the far end of the shot. -->
+  <path d="M84 16 a8 8 0 0 1 16 0 z" fill="#818CF8"/>
+  <rect x="82" y="16" width="20" height="2.4" rx="1" fill="#818CF8" opacity="0.7"/>
+
+  <!-- The shooter's own ship, bottom left, where the shot started. -->
+  <path d="M10 84 a8 8 0 0 1 16 0 z" fill="#818CF8" opacity="0.85"/>
+  <rect x="8" y="84" width="20" height="2.4" rx="1" fill="#818CF8" opacity="0.6"/>
+</svg>
