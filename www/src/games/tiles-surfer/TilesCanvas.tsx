@@ -1,13 +1,18 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { TILES_HEIGHT_TRACKS, TILES_LINE_FRACTION, TILES_TRACK_COUNT } from '../../../../shared/protocol';
-import type { TilesRun } from './game';
+import { TILES_COMMENT_MS, type TilesRun } from './game';
 
 /** Where the line sits for a board this tall — one formula, shared by drawing
  *  and by tap detection, so the two can never drift apart. */
 function lineYFor(height: number): number {
   return height * TILES_LINE_FRACTION;
 }
+
+/** A tapped tile's own flash — a lighter version of the accent, always green. */
+const TILES_HIT_COLOR = '#4ADE80';
+/** A missed tile's own flash — the same idea, in red. */
+const TILES_MISS_COLOR = '#F87171';
 
 type Props = {
   run: TilesRun;
@@ -95,6 +100,26 @@ export function TilesCanvas({ run, elapsedMs, accent, onTick }: Props): JSX.Elem
         if (bottomY < 0 || topY > height) continue;
         const x = tile.track * laneWidth;
         context.fillRect(x + pad, topY, laneWidth - pad * 2, tileHeightPx);
+      }
+      context.globalAlpha = 1;
+
+      // Accuracy feedback: a colour flash over the line and a symbol above it,
+      // both fading out over TILES_COMMENT_MS, both anchored to the LINE rather
+      // than the tile's last position — the line is what the tap judged against.
+      run.pruneComments(t);
+      context.textAlign = 'center';
+      for (const c of run.comments) {
+        const alpha = Math.max(0, 1 - (t - c.at) / TILES_COMMENT_MS);
+        const cx = c.track * laneWidth + laneWidth / 2;
+
+        context.globalAlpha = alpha * 0.85;
+        context.fillStyle = c.hit ? TILES_HIT_COLOR : TILES_MISS_COLOR;
+        context.fillRect(c.track * laneWidth + pad, lineY - tileHeightPx / 2, laneWidth - pad * 2, tileHeightPx);
+
+        context.globalAlpha = alpha;
+        context.font = '24px sans-serif';
+        context.textBaseline = 'bottom';
+        context.fillText(c.text, cx, lineY - tileHeightPx / 2 - 6);
       }
       context.globalAlpha = 1;
 

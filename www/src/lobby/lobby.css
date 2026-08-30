@@ -787,12 +787,19 @@ a.btn {
   margin-bottom: var(--space-5);
 }
 
+/*
+ * Styled exactly like `.btn` (lobby.css above) rather than a bespoke flat
+ * outline: a tab a thumb can't tell apart from a button reads as text with
+ * a border around it, not as something to tap. Same surface, same border,
+ * same weight — the tablist role is what makes these tabs, the look is
+ * what makes them buttons.
+ */
 .choice__tab {
   flex: 1 1 0;
   min-height: var(--tap-target);
   padding: 0 var(--space-3);
-  background: var(--color-surface);
-  border: 2px solid var(--color-border);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius);
   color: var(--color-text-dim);
   font-size: var(--font-small);
@@ -800,8 +807,9 @@ a.btn {
 }
 
 .choice__tab--on {
-  border-color: var(--game-accent, var(--color-accent));
-  color: var(--color-text);
+  background: var(--game-accent, var(--color-accent));
+  border-color: transparent;
+  color: var(--color-on-accent);
 }
 
 .choice__tab:not(:disabled):active {

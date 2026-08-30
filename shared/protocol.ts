@@ -2180,9 +2180,9 @@ export const TILES_MISS_MUL = 0.8;
 /** A tile is 1 lane-width wide, 2 lane-widths tall (spec §2.2, §4). */
 export const TILES_HEIGHT_TRACKS = 2;
 
-/** The line a tile has to be tapped against: two thirds of the way down the
- *  screen, not a fixed pixel offset — it has to scale with the board (spec §2). */
-export const TILES_LINE_FRACTION = 2 / 3;
+/** The line a tile has to be tapped against: half way down the screen, not a
+ *  fixed pixel offset — it has to scale with the board (spec §2). */
+export const TILES_LINE_FRACTION = 1 / 2;
 
 /** A new tile every this many ms, regardless of the current fall speed
  *  (spec §12 — a stated default, not a number the brief itself gave). */
