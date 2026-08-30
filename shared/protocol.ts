@@ -2284,33 +2284,19 @@ export const GRAVITY_PLANET_R_MAX = 100 / GRAVITY_REFERENCE_BOARD_PX;
 /** How many pre-made planet PNGs `GravityPlanet.art` may index into. */
 export const GRAVITY_PLANET_ART_COUNT = 3;
 
-/** Fixed-timestep gravity integration (spec §2.3): 1/60s steps, up to 3s
- *  of flight before a shot that never resolves is treated as a miss. */
-export const GRAVITY_STEP_MS = 1000 / 60;
-export const GRAVITY_MAX_STEPS = 180;
-
-/** Acceleration from a planet at distance `dist`: `G * planet.r / max(dist²,
- *  planet.r²)` — the planet's own radius doubles as both the softening
- *  distance near its center and its own missile-absorption radius. */
-export const GRAVITY_G = 0.03;
-
-/** A missile within this distance of the opponent's ship is a hit (spec
- *  §2.3) — a separate constant from any planet's own radius. */
-export const GRAVITY_HIT_RADIUS = 0.05;
-
-/** A pull's own strength is normalized 0..1 client-side; the referee clamps
- *  an incoming `gravity-shot` to this range before re-broadcasting it, so a
- *  malformed payload cannot produce `NaN`/`Infinity` in a replay (spec §6). */
-export const GRAVITY_MAX_STRENGTH = 1;
-
 /**
- * The simulation's own termination bounds — deliberately wider than the
- * visible `[0,1]x[0,1]` board (spec §2.3, §7), so a slingshot shot that
- * loops off-screen and curves back in is never clipped mid-flight. Only
- * this rectangle and `GRAVITY_MAX_STEPS` end a shot early.
+ * A pull's own strength is normalized 0..1 client-side; the referee clamps
+ * an incoming `gravity-shot` to this range before re-broadcasting it, so a
+ * malformed payload cannot produce `NaN`/`Infinity` in a replay (spec §6).
+ *
+ * The gravity simulation itself — step size, planet pull, hit radius,
+ * simulation bounds — is NOT here. Same reasoning Sling Puck's own physics
+ * gives for staying out of `shared/` (`www/src/games/sling-puck/physics.ts`):
+ * the referee never runs it and never needs to agree with it (spec §8), so
+ * it lives with the two clients that do, in
+ * `www/src/games/gravity-shooter/game.ts`.
  */
-export const GRAVITY_SIM_BOUNDS_MIN = -0.5;
-export const GRAVITY_SIM_BOUNDS_MAX = 1.5;
+export const GRAVITY_MAX_STRENGTH = 1;
 
 /** How long a turn waits for its own `gravity-shot` before the referee
  *  resolves it as a miss and passes the turn on (spec §2.4) — comfortably
