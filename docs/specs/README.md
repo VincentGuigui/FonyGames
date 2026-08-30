@@ -43,7 +43,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [100 Taps](games/hundred-taps.md) | *Find them in order. Fastest fingers win* | touch | 2–8 | 🎮 beta — checkpoint size, window size and pitch curve untested on real thumbs |
 | [UFO Hunt](games/ufo-hunt.md) | *One saucer, everyone's lasers. Highest score wins* | orientation + camera | 2–10 | 🎮 beta — scope, cooldown and round-length numbers untested on real thumbs |
 | [Aliens love cows](games/aliens-love-cows.md) | *Pick a barn. Dodge the beam* | touch | 2–8 | 🎮 beta — the hover/transit/abduction timing and a full 8-cow pileup on one barn untested on real thumbs |
-| [Tiles Surfer](games/tiles-surfer.md) | *Tap the tile the instant it hits the line* | touch | 1–8 | 📝 draft — awaiting approval |
+| [Tiles Surfer](games/tiles-surfer.md) | *Tap the tile the instant it hits the line* | touch | 1–8 | 🎮 beta — spawn cadence, safety cap and difficulty curve untested on real thumbs |
 
 ### Idea notes (not yet specs)
 

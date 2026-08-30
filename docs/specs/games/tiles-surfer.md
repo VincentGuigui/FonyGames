@@ -1,5 +1,11 @@
 # Tiles Surfer
 
+> Status: **built, beta**. Verified end to end against a real Worker: the shared
+> lane sequence, the score/miss/speed formulas, own-lives elimination, the
+> genuinely-solo "no winner" edge case, and the round-over panel with its
+> longest-streak note. The spawn cadence, safety cap and difficulty curve
+> numbers are stated defaults (§12), untested against a real thumb.
+
 | | |
 | --- | --- |
 | **Slug** | `tiles-surfer` |
@@ -9,7 +15,7 @@
 | **Round length** | Up to 5 min (§7); most runs end sooner, on elimination |
 | **Inputs** | touch |
 | **Accent colour** | `#F0ABFC` |
-| **Status** | draft — awaiting approval |
+| **Status** | beta |
 
 ## 1. Pitch
 

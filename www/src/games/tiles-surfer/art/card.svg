@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" width="120" height="90">
+  <!--
+    Tiles Surfer — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <g stroke="#F0ABFC" stroke-width="1" opacity="0.22">
+    <line x1="24" y1="4" x2="24" y2="86"/>
+    <line x1="48" y1="4" x2="48" y2="86"/>
+    <line x1="72" y1="4" x2="72" y2="86"/>
+    <line x1="96" y1="4" x2="96" y2="86"/>
+  </g>
+  <rect x="46" y="16" width="20" height="36" rx="3" fill="#F0ABFC" opacity="0.18"/>
+  <rect x="49" y="19" width="14" height="30" rx="2" fill="#F0ABFC"/>
+  <rect x="0" y="74" width="120" height="2.5" fill="#F0ABFC" opacity="0.3"/>
+  <rect x="0" y="75" width="120" height="1" fill="#F0ABFC"/>
+</svg>
