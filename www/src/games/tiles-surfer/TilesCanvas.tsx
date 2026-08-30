@@ -1,7 +1,13 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
-import { TILES_HEIGHT_TRACKS, TILES_LINE_OFFSET_PX, TILES_TRACK_COUNT } from '../../../../shared/protocol';
+import { TILES_HEIGHT_TRACKS, TILES_LINE_FRACTION, TILES_TRACK_COUNT } from '../../../../shared/protocol';
 import type { TilesRun } from './game';
+
+/** Where the line sits for a board this tall — one formula, shared by drawing
+ *  and by tap detection, so the two can never drift apart. */
+function lineYFor(height: number): number {
+  return height * TILES_LINE_FRACTION;
+}
 
 type Props = {
   run: TilesRun;
@@ -58,7 +64,7 @@ export function TilesCanvas({ run, elapsedMs, accent, onTick }: Props): JSX.Elem
 
       const laneWidth = width / TILES_TRACK_COUNT;
       const tileHeightPx = laneWidth * TILES_HEIGHT_TRACKS;
-      const lineY = height - TILES_LINE_OFFSET_PX;
+      const lineY = lineYFor(height);
       const t = elapsedMs();
 
       if (run.alive) {
@@ -101,7 +107,7 @@ export function TilesCanvas({ run, elapsedMs, accent, onTick }: Props): JSX.Elem
       const laneWidth = rect.width / TILES_TRACK_COUNT;
       const track = Math.min(TILES_TRACK_COUNT - 1, Math.max(0, Math.floor((event.clientX - rect.left) / laneWidth)));
       const tileHeightPx = laneWidth * TILES_HEIGHT_TRACKS;
-      const lineY = rect.height - TILES_LINE_OFFSET_PX;
+      const lineY = lineYFor(rect.height);
       latest.current.run.tap(track, latest.current.elapsedMs(), tileHeightPx, lineY);
       latest.current.onTick();
     };
