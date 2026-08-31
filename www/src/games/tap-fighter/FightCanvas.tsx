@@ -2,7 +2,13 @@ import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
 import blueSprite from './art/fighter1.png?url&no-inline';
 import greenSprite from './art/fighter2.png?url&no-inline';
-import { FIGHTER_SPRITE_MIRRORED, FIGHTER_SPRITE_SCALE } from './game';
+import {
+  ACTION_LUNGE_FADE_END_MS,
+  ACTION_LUNGE_HOLD_UNTIL_MS,
+  ACTION_LUNGE_RAMP_MS,
+  FIGHTER_SPRITE_MIRRORED,
+  FIGHTER_SPRITE_SCALE,
+} from './game';
 
 type Props = {
   bluePose: number;
@@ -66,9 +72,12 @@ export function FightCanvas(props: Props): JSX.Element {
       // exactly as it was before the wind-up existed.
       const attackProgress = (attacking: boolean): number => {
         if (!attacking) return 0;
-        if (state.beatTime < 180) return state.beatTime / 180;
-        if (state.beatTime < 1_500) return 1;
-        return Math.max(0, 1 - (state.beatTime - 1_500) / 250);
+        if (state.beatTime < ACTION_LUNGE_RAMP_MS) return state.beatTime / ACTION_LUNGE_RAMP_MS;
+        if (state.beatTime < ACTION_LUNGE_HOLD_UNTIL_MS) return 1;
+        return Math.max(
+          0,
+          1 - (state.beatTime - ACTION_LUNGE_HOLD_UNTIL_MS) / (ACTION_LUNGE_FADE_END_MS - ACTION_LUNGE_HOLD_UNTIL_MS),
+        );
       };
       const blueLunge = attackProgress(state.blueAttacking);
       const greenLunge = attackProgress(state.greenAttacking);

@@ -23,6 +23,8 @@ import type { Player, ServerMessage, TapFighterState } from '../../../../shared/
 import { playOutcomeSound } from '../../core/audio/outcome';
 import { StatusBar } from '../../core/ui/StatusBar';
 import {
+  ACTION_BEAT_MS,
+  ACTION_LUNGE_FADE_END_MS,
   ACTION_POSE,
   FIGHTER_COLORS,
   FIGHTER_POSES,
@@ -105,16 +107,13 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   const now = useFightClock(state.phase === 'fighting', clock);
   const elapsed = Math.min(now - state.startsAt, Math.max(0, state.endsAt - state.startsAt - 1));
   /**
-   * Every beat opens with `FIGHTER_WINDUP_MS` of idle 1-2-1-2, THEN the original
-   * two-equal-halves action/reaction envelope — the wind-up is prepended, not
-   * carved out of it, so the action pose, the hit reaction and the canvas lunge
-   * (`FightCanvas.tsx`) all keep the exact timings they always had. Whoever's
-   * action landed this beat shows their hit pose for the second half; whoever
-   * wasn't hit just keeps the pose their own action left them in — there is no
-   * separate "settle back to idle" step mid-beat, only at the very start (the
-   * wind-up) of the next one.
+   * Every beat opens with `FIGHTER_WINDUP_MS` of idle 1-2-1-2, THEN `ACTION_BEAT_MS`
+   * (`game.ts`) split into two equal halves for action/reaction — the wind-up is
+   * prepended, not carved out of it. Whoever's action landed this beat shows their
+   * hit pose for the second half; whoever wasn't hit just keeps the pose their own
+   * action left them in — there is no separate "settle back to idle" step mid-beat,
+   * only at the very start (the wind-up) of the next one.
    */
-  const ACTION_BEAT_MS = 2_500;
   const beatMs = FIGHTER_WINDUP_MS + ACTION_BEAT_MS;
   const halfBeat = ACTION_BEAT_MS / 2;
   // Negative while the reveal (VS, countdown, FIGHT) plays: no beat has landed yet.
@@ -159,7 +158,7 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     <StatusBar status={text({ en: `Round ${state.matchRound}`, fr: `Manche ${state.matchRound}` })} title={game.title} concept={game.concept} rules={game.rules} />
     <div class="fighter-score"><span>{nameOf(BLUE)} {pips(state.roundWins.blue)}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(state.roundWins.green)} {nameOf(GREEN)}</span></div>
     <section class="fighter-stage">
-      <FightCanvas bluePose={pose(BLUE)} greenPose={pose(GREEN)} blueAttacking={Boolean(beat?.blueAction && actionElapsed >= 0 && actionElapsed < 1_750)} greenAttacking={Boolean(beat?.greenAction && actionElapsed >= 0 && actionElapsed < 1_750)} beatTime={actionElapsed} />
+      <FightCanvas bluePose={pose(BLUE)} greenPose={pose(GREEN)} blueAttacking={Boolean(beat?.blueAction && actionElapsed >= 0 && actionElapsed < ACTION_LUNGE_FADE_END_MS)} greenAttacking={Boolean(beat?.greenAction && actionElapsed >= 0 && actionElapsed < ACTION_LUNGE_FADE_END_MS)} beatTime={actionElapsed} />
       <div class="fighter-side"><HealthBar value={health.blue} seat={BLUE} name={nameOf(BLUE)} /></div>
       {introStep?.kind === 'vs' && <div class="fighter-versus">{nameOf(BLUE)} {text({ en: 'VS', fr: 'VS' })} {nameOf(GREEN)}</div>}
       {introStep?.kind === 'count' && <div class="fighter-countdown" key={introStep.n}>{introStep.n}</div>}

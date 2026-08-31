@@ -2,8 +2,8 @@ import type { PlayerId, ServerMessage, TapFighterState } from '../shared/protoco
 import { REVEAL_LEAD_MS, resolveFight, validFighterPlan, type FighterAction, type FighterSeat } from '../shared/tapFighter';
 
 const PLAN_CAP_MS = 75_000;
-/** Six 4.5 s beats (2 s idle wind-up + the original 2.5 s action/reaction). */
-const FIGHT_MS = 27_000;
+/** Six 2 s beats (1 s idle wind-up + 1 s action/reaction, issue #11). */
+const FIGHT_MS = 12_000;
 const MATCH_TARGET = 3;
 
 export type TapFighter = TapFighterState & {

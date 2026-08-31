@@ -15,7 +15,7 @@
 
 Tap Fighter is a turn-by-turn fighting game presented like an original retro
 arcade brawler. Each player secretly programs six moves, locks them with
-**Fight**, then watches both fighters execute one confrontation every 4.5 s.
+**Fight**, then watches both fighters execute one confrontation every 2 s.
 The strategy is reading the opponent: attack high or low, or evade at the right
 height.
 
@@ -29,12 +29,12 @@ Both players privately choose an ordered sequence of six actions. Actions may
 repeat and may be replaced or reordered until **Fight** is pressed. Pressing
 Fight locks that player's whole sequence; the opponent sees only that they are
 ready, never the chosen moves. When both sequences are locked, the server
-resolves all six confrontations, then reveals and plays them one every 4.5 s.
+resolves all six confrontations, then reveals and plays them one every 2 s.
 
 1. Choose six actions: high punch, low kick, jump or crouch.
 2. Review their order and press **Fight** to lock the sequence.
 3. Wait until the opponent has locked theirs.
-4. Watch the six server-resolved confrontations, one every 4.5 s.
+4. Watch the six server-resolved confrontations, one every 2 s.
 5. Award the round to the fighter who received fewer impacts.
 6. Reset both health bars and sequences for the next round.
 
@@ -127,15 +127,15 @@ Every mode shares the core loop. A mode that does not is a different game.
   screen names the winner and offers Play again / Leave game. Play again clears
   both players' round-win pips.
 
-Each beat lasts 4.5 seconds: a 2-second wind-up — both fighters idle 1-2-1-2,
-0.5 s a pose — comes first, unchanged whether or not either side's action even
-exists yet, then the original 2.5-second action/reaction envelope plays exactly
-as before the wind-up existed. Its first half holds the chosen action pose (and
-its canvas lunge); its second plays the reaction, whoever's action landed
-showing the hit pose while the other keeps theirs. A hit flash and health-bar
-change occur at contact (the envelope's own halfway point), never at the start
-of the beat. The same 2-second wind-up, at the same 0.5 s-a-pose speed, also
-fills the pre-fight countdown (3-2-1-FIGHT, now 1 s a step — 4 s in total).
+Each beat lasts 2 seconds (issue #11): a 1-second wind-up — both fighters idle
+1-2-1-2, 0.25 s a pose — comes first, unchanged whether or not either side's
+action even exists yet, then a 1-second action/reaction envelope. Its first half
+(0.5 s) holds the chosen action pose (and its canvas lunge); its second (0.5 s)
+plays the reaction, whoever's action landed showing the hit pose while the other
+keeps theirs. A hit flash and health-bar change occur at contact (the envelope's
+own halfway point), never at the start of the beat. The same 1-second wind-up, at
+the same 0.25 s-a-pose speed, also fills the pre-fight countdown (3-2-1-FIGHT,
+still 1 s a step — 4 s in total).
 
 ### 4.1 Rendering decision
 
