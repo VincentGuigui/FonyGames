@@ -111,3 +111,24 @@ that is expected.
 
 - Push with `git push -u origin <branch>`.
 - PRs are opened only on request.
+
+## GitHub issues
+
+An issue tracks a piece of work from pick-up to production, not to merge —
+`main` is not "done" for the purpose of an issue, `prod` is.
+
+- **Starting work**: a short comment on the issue, so the timeline shows when
+  work began. No label, no separate "in progress" state — plain GitHub
+  issues only have `open`/`closed`, and there is no Projects board with a
+  `Status` field wired up yet to hold a third one (`docs/deployment.md` is
+  where that would be recorded if one is ever added).
+- **Commits**: reference the issue with `Refs #N` in the commit body, never
+  a closing keyword (`Fixes`/`Closes`/`Resolves`). GitHub auto-closes on a
+  closing keyword the moment the commit reaches the repo's default branch
+  (`main`) — before `dev`, before `prod` — which is earlier than this
+  project counts an issue as done.
+- **Merging to `main`, deploying to `dev`**: the issue stays open. `dev` is
+  a place to verify a change, not the finish line.
+- **Deploying to `prod`**: close the issue by hand, with a comment naming
+  what shipped (and the commit/merge it shipped in). This is the one step
+  that actually marks it done.

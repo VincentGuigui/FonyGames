@@ -280,12 +280,43 @@ group('the admin session survives browser restarts within its TTL');
 $index = (string) file_get_contents(__DIR__ . '/../index.php');
 check('the cookie has a persistent TTL', str_contains($index, "'lifetime' => (int) (SESSION_TTL_S)"));
 check('PHP session garbage collection matches the TTL', str_contains($index, "ini_set('session.gc_maxlifetime', (string) (SESSION_TTL_S))"));
+/*
+ * `SESSION_TTL_S` replaced an older `SESSION_TTL_MS` constant everywhere except one
+ * survivor inside `signedIn()`'s own age check — an undefined constant, which PHP 8
+ * throws as `Error`, not a warning. `signedIn()` runs on every request that reaches
+ * it without the break-glass token, so this turned `?a=state`, `?a=flags` and every
+ * other read into a bare 500 for anyone signed in only by session cookie.
+ */
+check('signedIn() ages the session against SESSION_TTL_S, not a constant that no longer exists', ! str_contains($index, 'SESSION_TTL_MS'));
 check(
     'and the instance method delegates to it rather than comparing again',
     (bool) preg_match(
         '/public function authorisedByToken\(\?string \$header\): bool\s*\{\s*'
         . 'return self::tokenMatches\(self::tokenFromHeader\(\$header\), \$this->adminToken\);\s*\}/',
         $source,
+    ),
+);
+
+group('a database hiccup during redeem is diagnosable, not a bare 500');
+
+/*
+ * `session` used to be the only database-touching action in index.php with no guard
+ * at all — every other one calls `requireSchema()` or its own try/catch, and reports
+ * a diagnosable 503 when the database misbehaves mid-request. A PDOException here
+ * fell straight through to `crash()`'s generic, undiagnosable 500 — at the exact
+ * moment an operator has just clicked their magic link and has no other way in.
+ */
+check(
+    'redeem() is called inside its own guard',
+    str_contains($index, "case 'session':") && str_contains($index, '$redeemed = $auth->redeem($token);'),
+);
+check(
+    'and a PDOException there answers the same diagnosable shape every other DB guard in this file uses',
+    (bool) preg_match(
+        '/\$redeemed = \$auth->redeem\(\$token\);\s*\} catch \(PDOException \$e\) \{\s*reply\(503,\s*\[\s*'
+        . "'error' => 'the database is not reachable from this host',\s*"
+        . "'dbUnreachable' => true,/",
+        $index,
     ),
 );
 

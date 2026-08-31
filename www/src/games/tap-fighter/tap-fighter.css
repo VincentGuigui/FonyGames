@@ -42,10 +42,10 @@
 .fighter-sequence button { min-width: 0; }
 .fighter-sprite.is-tiny { width: 2rem; height: 2rem; flex: 0 0 auto; animation: none; }
 
-/* The dojo backdrop (`--fighter-dojo`, set inline from `art/dojo.jpg` — the
-   same reasoning Squash Mosquitoes' own skin photo already established:
-   a real photo, not a flat colour, so it is a JS import rather than a CSS
-   `url()`, and it rides on a CSS variable so this file never names the
-   asset). `cover` + centred: the stage's own box is never exactly the
-   photo's 9:16, so it crops rather than distorts. */
-.fighter-stage { background-image: var(--fighter-dojo); background-size: cover; background-position: center; }
+/* The stage backdrop (`--fighter-bg`, set inline from a photo `art/backgrounds.ts`
+   picked at random for this match — the same reasoning Squash Mosquitoes' own
+   skin photo already established: a real photo, not a flat colour, so it is a
+   JS import rather than a CSS `url()`, and it rides on a CSS variable so this
+   file never names an asset). `cover` + centred: the stage's own box is never
+   exactly the photo's 9:16, so it crops rather than distorts. */
+.fighter-stage { background-image: var(--fighter-bg); background-size: cover; background-position: center; }

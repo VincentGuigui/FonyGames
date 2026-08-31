@@ -152,7 +152,7 @@ function signedIn(): bool
 
     // The age is checked server-side against our own timestamp. A session cookie's own
     // lifetime is a hint the browser may ignore; this is not.
-    if ((int) round(microtime(true) * 1000) - $since > SESSION_TTL_MS) {
+    if ((int) round(microtime(true) * 1000) - $since > SESSION_TTL_S * 1000) {
         $_SESSION = [];
         session_destroy();
 
@@ -258,7 +258,20 @@ switch ($action) {
 
     case 'session':
         $token = is_string(body()['token'] ?? null) ? body()['token'] : '';
-        if (!$auth->redeem($token)) {
+        // The one DB-touching action in this file that skipped `requireSchema()` and
+        // its own guard: every other action reports a diagnosable 503 when the
+        // database misbehaves mid-request, and this one fell through to a bare,
+        // undiagnosable 500 — at the exact moment an operator has just clicked their
+        // magic link and has no other way in.
+        try {
+            $redeemed = $auth->redeem($token);
+        } catch (PDOException $e) {
+            reply(503, [
+                'error' => 'the database is not reachable from this host',
+                'dbUnreachable' => true,
+            ] + ($authorised ? ['dbError' => $e->getMessage()] : []));
+        }
+        if (!$redeemed) {
             reply(401, ['error' => 'no']);
         }
         beginSession();
