@@ -128,8 +128,38 @@ console.log('\na report claiming 0 lives is elimination');
   check('only C is left, so the round ends', h.state?.phase === 'done');
   check('C wins outright', h.state?.winner === C);
 
-  await onTilesReport(h.ctx, C, 1, 999, 3, 20, 15, 90);
-  check('a report after the round is over changes nothing', h.state?.players[C]?.score === 0);
+  await onTilesReport(h.ctx, B, 1, 999, 3, 20, 15, 90);
+  check('a late report from someone other than the winner changes nothing', h.state?.players[B]?.score === 150);
+}
+
+console.log('\nthe winner catches up their own final numbers after the round ends (issue #8)');
+
+{
+  /*
+   * The winner's own lives never reach zero — by definition they are still
+   * going when the round ends around them — so their real closing numbers
+   * only ever arrive in a report sent AFTER `phase` is already 'done'
+   * (`TilesRoom.tsx`'s own "the winner never sends their own closing report
+   * by running out of lives" effect). Rejecting every post-done report
+   * outright, as the general case above still does, left the winner's
+   * numbers frozen at their last mid-round checkpoint — invisible in most
+   * multiplayer matches, but the ONLY number ever recorded in a solo round,
+   * where there is nobody else's correct terminal report to fall back on.
+   */
+  const h = harness();
+  await startTilesSurfer(h.ctx, 1, [A]);
+  await onTilesReport(h.ctx, A, 1, 120, 5, 6, 4, 150);
+  h.advance(TILES_ROUND_CAP_MS);
+  await tick(h.ctx);
+  check('surviving to the cap wins it, still alive', h.state?.phase === 'done' && h.state?.winner === A);
+  check('but the streak on record is only the last checkpoint', h.state?.players[A]?.longestStreak === 4);
+
+  await onTilesReport(h.ctx, A, 1, 190, 5, 12, 8, 140);
+  check('the winner’s own catch-up report lands', h.state?.players[A]?.longestStreak === 8);
+  check('and the rest of their final numbers land with it', h.state?.players[A]?.score === 190 && h.state?.players[A]?.perfects === 12);
+
+  await onTilesReport(h.ctx, A, 2, 999, 5, 99, 99, 999);
+  check('a catch-up report for the wrong round still changes nothing', h.state?.players[A]?.longestStreak === 8);
 }
 
 console.log('\na genuinely-solo room ends on its own elimination, not a forced win');
