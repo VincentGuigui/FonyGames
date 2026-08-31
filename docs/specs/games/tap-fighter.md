@@ -15,7 +15,7 @@
 
 Tap Fighter is a turn-by-turn fighting game presented like an original retro
 arcade brawler. Each player secretly programs six moves, locks them with
-**Fight**, then watches both fighters execute one confrontation every 4.5 s.
+**Fight**, then watches both fighters execute one confrontation every 2 s.
 The strategy is reading the opponent: attack high or low, or evade at the right
 height.
 
@@ -29,12 +29,12 @@ Both players privately choose an ordered sequence of six actions. Actions may
 repeat and may be replaced or reordered until **Fight** is pressed. Pressing
 Fight locks that player's whole sequence; the opponent sees only that they are
 ready, never the chosen moves. When both sequences are locked, the server
-resolves all six confrontations, then reveals and plays them one every 4.5 s.
+resolves all six confrontations, then reveals and plays them one every 2 s.
 
 1. Choose six actions: high punch, low kick, jump or crouch.
 2. Review their order and press **Fight** to lock the sequence.
 3. Wait until the opponent has locked theirs.
-4. Watch the six server-resolved confrontations, one every 4.5 s.
+4. Watch the six server-resolved confrontations, one every 2 s.
 5. Award the round to the fighter who received fewer impacts.
 6. Reset both health bars and sequences for the next round.
 
@@ -108,9 +108,10 @@ Every mode shares the core loop. A mode that does not is a different game.
 
 ## 4. Screens
 
-- **Lobby:** shared lobby, exactly two players, blue/green seat labels and the
-  normal one-time Ready gate. The host may swap the two colours. No readiness
-  is requested again between rounds.
+- **Lobby:** shared lobby, exactly two players, the normal one-time Ready gate,
+  no seat-colour tag in the players list (issue #3) — blue/green is only
+  assigned once the match actually starts. The host may swap the two colours.
+  No readiness is requested again between rounds.
 - **Plan:** the player's fighter stands above four illustrated action tiles.
   Six numbered slots show the private sequence. A selected slot can be removed
   or replaced before locking. Fight is disabled until all six slots are full.
@@ -120,22 +121,48 @@ Every mode shares the core loop. A mode that does not is a different game.
   one another and animate idle, punch, kick, jump, crouch, hit and knockout
   states. The current pair of actions is labelled. Health bars sit at the
   bottom of the scene, immediately above each player's name and round pips.
-- **Round overlay:** after the sixth animation settles, a retro panel overlays
-  the scene with “<nickname> wins” / “<nickname> gagne” or “Draw” / “Match nul”.
-  The host gets **Next round**; the guest sees that the host is continuing.
+- **Round overlay:** after the last animation settles — the sixth beat, or
+  earlier on a knockout (issue #3) — a retro panel overlays the scene with
+  “<nickname> wins” / “<nickname> gagne” or “Draw” / “Match nul”. The host gets
+  **Next round**; the guest sees that the host is continuing.
 - **Match result:** after a player's third round win, the shared match result
   screen names the winner and offers Play again / Leave game. Play again clears
   both players' round-win pips.
 
-Each beat lasts 4.5 seconds: a 2-second wind-up — both fighters idle 1-2-1-2,
-0.5 s a pose — comes first, unchanged whether or not either side's action even
-exists yet, then the original 2.5-second action/reaction envelope plays exactly
-as before the wind-up existed. Its first half holds the chosen action pose (and
-its canvas lunge); its second plays the reaction, whoever's action landed
-showing the hit pose while the other keeps theirs. A hit flash and health-bar
-change occur at contact (the envelope's own halfway point), never at the start
-of the beat. The same 2-second wind-up, at the same 0.5 s-a-pose speed, also
-fills the pre-fight countdown (3-2-1-FIGHT, now 1 s a step — 4 s in total).
+Each beat lasts 2 seconds (issue #11): a 1-second wind-up — both fighters idle
+1-2-1-2, 0.25 s a pose — comes first, unchanged whether or not either side's
+action even exists yet, then a 1-second action/reaction envelope. Its first half
+(0.5 s) holds the chosen action pose (and its canvas lunge); its second (0.5 s)
+plays the reaction, whoever's action landed showing the hit pose while the other
+keeps theirs. A hit flash and health-bar change occur at contact (the envelope's
+own halfway point), never at the start of the beat. The same 1-second wind-up, at
+the same 0.25 s-a-pose speed, also fills the pre-fight countdown (3-2-1-FIGHT,
+still 1 s a step — 4 s in total).
+
+Landing three hits in a row with none received earns a "Combo!" callout above
+that fighter (issue #9), derived purely from the already-resolved `beats`
+timeline — no extra wire state. It reveals at the same instant as the hit pose
+and health-bar change (contact, never the start of the beat) and only for the
+beat that keeps the streak alive; taking a hit resets it to zero.
+
+Health starts at 100 and drops 20 per landed hit — never proportional to how
+many hits either side actually lands, so a fighter's own health always reads
+the same way round to round (issue #3). A knockout (health reaches zero) ends
+the round the instant it happens rather than waiting out the remaining beats;
+the referee stops resolving beats there, and the client's beat playback simply
+holds the fight's last resolved beat once it runs out. The loser gets a "K.O.!"
+callout above them (the same floating-label mechanism as Combo!); a winner who
+took no hits at all across the round — whether it went the full six beats or
+ended in a knockout — gets "Perfect" above them instead. The two are
+independent and can both show in the same round. Deciding a round that reaches
+all six beats without a knockout is unchanged in spirit — more health remaining
+(equivalently, fewer hits received) wins, draw on a tie — just derived from the
+new fixed-damage health rather than a proportional one.
+
+The loss pose (two further frames beyond today's seven, looped for a beat) is
+specified but not yet built: the sprite sheets (`art/fighter1.png`,
+`art/fighter2.png`) do not have that art yet, and this is the maintainer's own
+follow-up, not guessed at here.
 
 ### 4.1 Rendering decision
 

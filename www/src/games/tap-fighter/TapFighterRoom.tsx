@@ -10,6 +10,8 @@ import { useGameText } from '../../core/i18n/gameText';
 import { useSoloTesting } from '../../core/useSolo';
 import { enoughToStart } from '../../../../shared/players';
 import {
+  COMBO_STREAK,
+  comboStreak,
   FIGHT_COUNTDOWN_STEP_MS,
   FIGHT_COUNTDOWN_STEPS,
   FIGHT_VS_FADE_MS,
@@ -23,6 +25,8 @@ import type { Player, ServerMessage, TapFighterState } from '../../../../shared/
 import { playOutcomeSound } from '../../core/audio/outcome';
 import { StatusBar } from '../../core/ui/StatusBar';
 import {
+  ACTION_BEAT_MS,
+  ACTION_LUNGE_FADE_END_MS,
   ACTION_POSE,
   FIGHTER_COLORS,
   FIGHTER_POSES,
@@ -59,10 +63,10 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
   const start = () => client?.send({ t: 'start', d: { mode: 'fighter', solo } });
 
   if (!state) {
+    // No seat-colour tag in the players list (issue #3).
     return <GameLobby card={game} code={code} joinUrl={connection.joinUrl} room={room} copied={connection.copied} showQr={connection.showQr} onShare={connection.share} onToggleQr={connection.toggleQr}
       canStart={room.isHost && enoughToStart(room.connected, [2, 2], solo)} startLabel={t.common.startRound} onStart={start}
-      note={room.isHost ? text({ en: 'Two fighters. Six secret moves each.', fr: 'Deux combattants. Six attaques secrètes chacun.' }) : text({ en: 'The host starts the match.', fr: 'L’hôte démarre le match.' })}
-      playerTag={(id) => players.findIndex((player) => player.id === id) === 0 ? text({ en: 'Blue', fr: 'Bleu' }) : text({ en: 'Green', fr: 'Vert' })} />;
+      note={room.isHost ? text({ en: 'Two fighters. Six secret moves each.', fr: 'Deux combattants. Six attaques secrètes chacun.' }) : text({ en: 'The host starts the match.', fr: 'L’hôte démarre le match.' })} />;
   }
 
   if (state.phase === 'match-over') {
@@ -105,16 +109,13 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   const now = useFightClock(state.phase === 'fighting', clock);
   const elapsed = Math.min(now - state.startsAt, Math.max(0, state.endsAt - state.startsAt - 1));
   /**
-   * Every beat opens with `FIGHTER_WINDUP_MS` of idle 1-2-1-2, THEN the original
-   * two-equal-halves action/reaction envelope — the wind-up is prepended, not
-   * carved out of it, so the action pose, the hit reaction and the canvas lunge
-   * (`FightCanvas.tsx`) all keep the exact timings they always had. Whoever's
-   * action landed this beat shows their hit pose for the second half; whoever
-   * wasn't hit just keeps the pose their own action left them in — there is no
-   * separate "settle back to idle" step mid-beat, only at the very start (the
-   * wind-up) of the next one.
+   * Every beat opens with `FIGHTER_WINDUP_MS` of idle 1-2-1-2, THEN `ACTION_BEAT_MS`
+   * (`game.ts`) split into two equal halves for action/reaction — the wind-up is
+   * prepended, not carved out of it. Whoever's action landed this beat shows their
+   * hit pose for the second half; whoever wasn't hit just keeps the pose their own
+   * action left them in — there is no separate "settle back to idle" step mid-beat,
+   * only at the very start (the wind-up) of the next one.
    */
-  const ACTION_BEAT_MS = 2_500;
   const beatMs = FIGHTER_WINDUP_MS + ACTION_BEAT_MS;
   const halfBeat = ACTION_BEAT_MS / 2;
   // Negative while the reveal (VS, countdown, FIGHT) plays: no beat has landed yet.
@@ -144,6 +145,22 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     const reacting = contact && beat?.[seat === 'blue' ? 'blueHit' : 'greenHit'];
     return reacting ? FIGHTER_POSES.hit : ACTION_POSE[action];
   };
+  // "Combo" reveals at the same instant the hit pose and health bar do — contact,
+  // never the start of the beat — and only for as long as this exact beat is the
+  // one showing (issue #9: three landed hits in a row with none received). Gated
+  // on `fighting` so it cannot linger into round-over and collide with the K.O./
+  // Perfect callouts below, which share the same floating-label spot.
+  const comboActive = (seat: FighterSeat) => state.phase === 'fighting' && contact && beatIndex >= 0 && comboStreak(state.beats, beatIndex, seat) >= COMBO_STREAK;
+  // K.O. above whoever's health hit exactly zero; Perfect above a winner who
+  // never took a hit across the whole (possibly knockout-shortened) beat
+  // timeline (issue #3). Both read the same `beats` the referee already
+  // resolved — no separate wire state, and both can fire in the same round.
+  const finalBeat = state.beats.at(-1);
+  const loser: FighterSeat | null = state.roundWinner ? (state.roundWinner === BLUE ? GREEN : BLUE) : null;
+  const knockedOut = state.phase !== 'fighting' && loser !== null
+    && finalBeat?.[loser === 'blue' ? 'blueHealth' : 'greenHealth'] === 0;
+  const flawless = state.phase !== 'fighting' && state.roundWinner !== null
+    && state.beats.every((oneBeat) => !oneBeat[state.roundWinner === 'blue' ? 'blueHit' : 'greenHit']);
   // The reveal: a VS callout, then 3-2-1, then FIGHT — computed straight from `elapsed`
   // so it can never drift from `REVEAL_LEAD_MS`, the same number the worker used to
   // decide when the first beat actually lands.
@@ -159,11 +176,15 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     <StatusBar status={text({ en: `Round ${state.matchRound}`, fr: `Manche ${state.matchRound}` })} title={game.title} concept={game.concept} rules={game.rules} />
     <div class="fighter-score"><span>{nameOf(BLUE)} {pips(state.roundWins.blue)}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(state.roundWins.green)} {nameOf(GREEN)}</span></div>
     <section class="fighter-stage">
-      <FightCanvas bluePose={pose(BLUE)} greenPose={pose(GREEN)} blueAttacking={Boolean(beat?.blueAction && actionElapsed >= 0 && actionElapsed < 1_750)} greenAttacking={Boolean(beat?.greenAction && actionElapsed >= 0 && actionElapsed < 1_750)} beatTime={actionElapsed} />
+      <FightCanvas bluePose={pose(BLUE)} greenPose={pose(GREEN)} blueAttacking={Boolean(beat?.blueAction && actionElapsed >= 0 && actionElapsed < ACTION_LUNGE_FADE_END_MS)} greenAttacking={Boolean(beat?.greenAction && actionElapsed >= 0 && actionElapsed < ACTION_LUNGE_FADE_END_MS)} beatTime={actionElapsed} />
       <div class="fighter-side"><HealthBar value={health.blue} seat={BLUE} name={nameOf(BLUE)} /></div>
       {introStep?.kind === 'vs' && <div class="fighter-versus">{nameOf(BLUE)} {text({ en: 'VS', fr: 'VS' })} {nameOf(GREEN)}</div>}
       {introStep?.kind === 'count' && <div class="fighter-countdown" key={introStep.n}>{introStep.n}</div>}
       {introStep?.kind === 'fight' && <div class="fighter-go">{text({ en: 'FIGHT!', fr: 'COMBAT !' })}</div>}
+      {comboActive(BLUE) && <div class="fighter-combo is-blue" key={beatIndex}>{text({ en: 'COMBO!', fr: 'COMBO !' })}</div>}
+      {comboActive(GREEN) && <div class="fighter-combo is-green" key={beatIndex}>{text({ en: 'COMBO!', fr: 'COMBO !' })}</div>}
+      {knockedOut && loser && <div class={`fighter-combo is-${loser}`}>{text({ en: 'K.O.!', fr: 'K.O. !' })}</div>}
+      {flawless && state.roundWinner && <div class={`fighter-combo is-${state.roundWinner}`}>{text({ en: 'PERFECT', fr: 'PARFAIT' })}</div>}
       <div class="fighter-side fighter-side--green"><HealthBar value={health.green} seat={GREEN} name={nameOf(GREEN)} /></div>
       {state.phase !== 'fighting' && <div class="fighter-round-overlay"><strong>{roundHeadline}</strong>{isHost ? <button type="button" onClick={onNext}>{text({ en: 'Next round', fr: 'Manche suivante' })}</button> : <p>{text({ en: 'Waiting for the host…', fr: 'En attente de l’hôte…' })}</p>}</div>}
     </section>

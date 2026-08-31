@@ -65,8 +65,28 @@ export const ACTION_POSE = {
  * render the identical frame from the identical `elapsed` clock, not their own
  * independently-ticking one.
  */
-export const FIGHTER_WINDUP_FRAME_MS = 500;
+export const FIGHTER_WINDUP_FRAME_MS = 250;
 export const FIGHTER_WINDUP_MS = FIGHTER_WINDUP_FRAME_MS * 4;
+
+/**
+ * The action envelope after the wind-up: half holding the action pose (and its
+ * canvas lunge), half playing the reaction — 500 ms each, per issue #11's fluid-
+ * animation pass. `TapFighterRoom.tsx` derives `beatMs`/`halfBeat` from this, so
+ * a beat lasts `FIGHTER_WINDUP_MS + ACTION_BEAT_MS` and contact lands exactly at
+ * its midpoint.
+ */
+export const ACTION_BEAT_MS = 1_000;
+
+/**
+ * The canvas lunge's own envelope inside that action half (`FightCanvas.tsx`'s
+ * `attackProgress`): ramps in, holds through contact, then fades back to idle.
+ * `ACTION_LUNGE_FADE_END_MS` doubles as the instant `TapFighterRoom.tsx` treats a
+ * fighter as no longer attacking, so the canvas and the room state can never
+ * disagree about when the lunge is over.
+ */
+export const ACTION_LUNGE_RAMP_MS = 70;
+export const ACTION_LUNGE_HOLD_UNTIL_MS = 600;
+export const ACTION_LUNGE_FADE_END_MS = 700;
 
 export function idleWindupPose(sinceBeatStart: number): number {
   const frame = Math.floor(sinceBeatStart / FIGHTER_WINDUP_FRAME_MS) % 2;

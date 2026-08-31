@@ -1,4 +1,4 @@
-import { confront, resolveFight } from '../shared/tapFighter';
+import { comboStreak, confront, resolveFight } from '../shared/tapFighter';
 import { onFighterLock, startTapFighter, tick, type TapFighter } from './tapFighter';
 import type { ServerMessage } from '../shared/protocol';
 
@@ -15,7 +15,43 @@ const resolved = resolveFight(
   ['jump', 'jump', 'jump', 'punch', 'kick', 'crouch'],
 );
 check('fewer received impacts wins', resolved.winner === 'blue');
-check('loser reaches zero health', resolved.beats.at(-1)?.greenHealth === 0);
+check('the loser takes twenty damage per hit, four hits deep', resolved.beats.at(-1)?.greenHealth === 20);
+check('the winner takes none', resolved.beats.at(-1)?.blueHealth === 100);
+check('all six beats play when nobody is knocked out', resolved.beats.length === 6);
+
+/*
+ * Five unanswered kicks is a knockout at fixed 20-damage-per-hit (issue #3):
+ * health hits zero and the fight stops there rather than always playing out
+ * all six beats.
+ */
+const ko = resolveFight(
+  ['kick', 'kick', 'kick', 'kick', 'kick', 'crouch'],
+  ['crouch', 'crouch', 'crouch', 'crouch', 'crouch', 'crouch'],
+);
+check('a knockout stops the fight before the sixth beat', ko.beats.length === 5);
+check('the knocked-out fighter reaches exactly zero', ko.beats.at(-1)?.greenHealth === 0);
+check('the unanswered attacker is the winner', ko.winner === 'blue');
+check('and never took a hit themselves', ko.beats.every((beat) => !beat.blueHit));
+
+const mutualKo = resolveFight(
+  ['kick', 'kick', 'kick', 'kick', 'kick', 'crouch'],
+  ['kick', 'kick', 'kick', 'kick', 'kick', 'crouch'],
+);
+check('reaching zero together on the same beat is a draw', mutualKo.winner === null && mutualKo.draw);
+
+/*
+ * Blue lands three unanswered punches, then swaps to jump right as green swaps
+ * to punch — breaking blue's streak and starting green's own (issue #9).
+ */
+const comboFight = resolveFight(
+  ['punch', 'punch', 'punch', 'jump', 'jump', 'jump'],
+  ['jump', 'jump', 'jump', 'punch', 'punch', 'punch'],
+);
+check('one landed hit is a streak of one', comboStreak(comboFight.beats, 0, 'blue') === 1);
+check('a second unanswered hit extends it', comboStreak(comboFight.beats, 1, 'blue') === 2);
+check('a third earns the combo', comboStreak(comboFight.beats, 2, 'blue') === 3);
+check('taking a hit resets the streak to zero', comboStreak(comboFight.beats, 3, 'blue') === 0);
+check('the other fighter starts their own streak from the same beat', comboStreak(comboFight.beats, 3, 'green') === 1);
 
 let now = 1_000;
 let state: TapFighter | null = null;
@@ -28,7 +64,7 @@ const privateFrame = sent.at(-1);
 check('one locked plan stays private', privateFrame?.t === 'fighter' && privateFrame.d.actions === null);
 await onFighterLock(ctx, 'b', 1, [...plan]);
 check('both plans start the automatic fight', state !== null && (state as TapFighter).phase === 'fighting');
-check('six choreographed beats last twenty-seven seconds', (state as unknown as TapFighter).endsAt - (state as unknown as TapFighter).startsAt === 27_000);
+check('six choreographed beats last twelve seconds', (state as unknown as TapFighter).endsAt - (state as unknown as TapFighter).startsAt === 12_000);
 now = (state as unknown as TapFighter).endsAt;
 await tick(ctx);
 check('equal plans produce a round draw', state !== null && (state as TapFighter).phase === 'round-over' && (state as TapFighter).draw);

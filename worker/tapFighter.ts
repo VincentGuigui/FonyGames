@@ -2,8 +2,8 @@ import type { PlayerId, ServerMessage, TapFighterState } from '../shared/protoco
 import { REVEAL_LEAD_MS, resolveFight, validFighterPlan, type FighterAction, type FighterSeat } from '../shared/tapFighter';
 
 const PLAN_CAP_MS = 75_000;
-/** Six 4.5 s beats (2 s idle wind-up + the original 2.5 s action/reaction). */
-const FIGHT_MS = 27_000;
+/** Must match `game.ts`'s `FIGHTER_WINDUP_MS + ACTION_BEAT_MS` (client-only, issue #11). */
+const BEAT_MS = 2_000;
 const MATCH_TARGET = 3;
 
 export type TapFighter = TapFighterState & {
@@ -90,7 +90,10 @@ export async function onFighterLock(ctx: Ctx, playerId: PlayerId, roundId: numbe
     state.matchWinner = result.winner && state.roundWins[result.winner] >= MATCH_TARGET ? result.winner : null;
     state.phase = 'fighting';
     state.startsAt = ctx.now() + REVEAL_LEAD_MS;
-    state.endsAt = state.startsAt + FIGHT_MS;
+    // Only as long as the beats that actually happened — a knockout (issue #3)
+    // shortens `result.beats`, and the round ends there rather than always
+    // waiting out a fixed six-beat clock.
+    state.endsAt = state.startsAt + result.beats.length * BEAT_MS;
   }
   await ctx.save(state);
   emit(ctx, state);
