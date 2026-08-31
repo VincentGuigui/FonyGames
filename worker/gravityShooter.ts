@@ -55,14 +55,28 @@ export function nextDeadline(g: Gravity): number {
   return g.phase === 'running' ? g.resolvesAt : Infinity;
 }
 
-/** One planet, rolled with the referee's own fair `random()` (spec §2.1). */
-function rollPlanet(random: () => number): GravityPlanet {
+/** One planet, rolled with the referee's own fair `random()` (spec §2.1), at
+ *  a given `x` — the caller decides which half of the board that is. */
+function rollPlanet(random: () => number, x: number): GravityPlanet {
   return {
-    x: GRAVITY_PLANET_X_MARGIN + random() * (1 - 2 * GRAVITY_PLANET_X_MARGIN),
+    x,
     y: GRAVITY_PLANET_Y_MIN + random() * (GRAVITY_PLANET_Y_MAX - GRAVITY_PLANET_Y_MIN),
     r: GRAVITY_PLANET_R_MIN + random() * (GRAVITY_PLANET_R_MAX - GRAVITY_PLANET_R_MIN),
     art: Math.floor(random() * GRAVITY_PLANET_ART_COUNT),
   };
+}
+
+/**
+ * Both planets' own `x`, one per half of the board — never on the same side
+ * (a genuine complaint: two planets both left, or both right, leaves the
+ * other side of the board with nothing to curve a shot at all). Which
+ * planet gets which half is still a fair coin flip; nothing about a
+ * planet's own identity should read as "the left one" or "the right one".
+ */
+function rollPlanetXs(random: () => number): [number, number] {
+  const left = GRAVITY_PLANET_X_MARGIN + random() * (0.5 - GRAVITY_PLANET_X_MARGIN);
+  const right = 0.5 + random() * (0.5 - GRAVITY_PLANET_X_MARGIN);
+  return random() < 0.5 ? [left, right] : [right, left];
 }
 
 /** Host pressed start. Returns false when the room is not eligible.
@@ -80,11 +94,12 @@ export async function startGravityShooter(
   if (!host || !other) return false;
 
   const now = ctx.now();
+  const [xa, xb] = rollPlanetXs(ctx.random);
   const g: Gravity = {
     roundId,
     startsAt: now,
     seats: [host, other],
-    planets: [rollPlanet(ctx.random), rollPlanet(ctx.random)],
+    planets: [rollPlanet(ctx.random, xa), rollPlanet(ctx.random, xb)],
     lives: { [host]: GRAVITY_LIVES, [other]: GRAVITY_LIVES },
     turn: host,
     resolvesAt: now + GRAVITY_SHOT_TIMEOUT_MS,
