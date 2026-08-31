@@ -7,18 +7,19 @@
 | **Illustration** | `www/src/games/gravity-shooter/art/card.svg` — a missile mid-flight, its dashed trail curving hard around a planet toward a ship at the top of frame |
 | **Players** | 2 — exactly |
 | **Round length** | 1–3 min |
-| **Inputs** | touch (drag back and release) |
+| **Inputs** | touch (aim above the ship, release) |
 | **Accent colour** | `#818CF8` |
 | **Status** | 🎮 beta — gravity strength and hit radius untested on real thumbs |
 
 ## 1. Pitch
 
 Two starships, one at the bottom of your screen, one at the top. Between
-them, two planets — same for both players, placed at random when the match
-starts. Pull back from your ship to aim, let go, and your missile curves
-under the planets' own gravity on its way across the board. Land a hit and
-the other ship loses a life; run them out of five and you win. No score, no
-rounds — just landing the shot.
+them, two planets — same for both players, always on opposite sides of the
+board, placed at random when the match starts. Touch above your ship to aim
+toward your finger, let go, and your missile curves under the planets' own
+gravity on its way across the board — bigger planets pull harder. Land a hit
+and the other ship loses a life; run them out of five and you win. No score,
+no rounds — just landing the shot.
 
 ## 2. Core loop
 
@@ -30,15 +31,17 @@ viewer, never two different boards.
 1. Host starts the round. Two planets are placed once, at random positions
    and sizes, identical on both screens (§2.1). Ships are fixed near their
    own edge and never move.
-2. Turns strictly alternate, host first. On your turn, drag back from your
-   own ship — the pull's direction and length are your shot's angle and
-   strength.
-3. While dragging, a dashed preview of the shot's own path is shown, fully
-   visible only near your own ship, fading to nothing by the middle of the
-   screen (§2.2) — a rough read on your own aim, never a look at the whole
-   shot.
+2. Turns strictly alternate, host first. On your turn, touch above your own
+   ship — the finger's own position relative to the ship sets your shot's
+   angle and strength; the missile fires toward wherever your finger is,
+   like a targeting reticle, not away from it like a slingshot.
+3. While your finger is down, a dashed preview of the shot's own path is
+   shown, fully visible only near your own ship, fading to nothing by the
+   middle of the screen (§2.2) — a rough read on your own aim, never a
+   look at the whole shot.
 4. Release, and the missile flies, curving under both planets' gravity,
-   for up to 3 seconds of flight.
+   for up to 10 seconds of flight before an unresolved shot is abandoned
+   outright.
 5. A hit costs the other ship one of five lives. A miss — the missile
    either drifts off the board or is swallowed by a planet — costs
    nothing, and the turn simply passes.
@@ -55,9 +58,12 @@ random state once and broadcasts the resolved value" pattern Squash
 Mosquitoes' own `generatePattern()` already uses
 (`worker/squashMosquitoes.ts`), just independent draws for position/size/
 art instead of a shuffle. `y` is constrained to a middle band so both
-planets sit between the two ships; `x` keeps clear of the side edges; `r`
-is mapped from the brief's 20–100px onto the shared board's own normalized
-units. `art` picks one of ~3 planet PNGs. Broadcast once, in the
+planets sit between the two ships; `x` keeps clear of the side edges and
+**always splits the board in half — one planet rolled left of centre, one
+right, which side is a fair coin flip** — so a shot is never faced with
+both planets bunched on the same side and nothing to curve around on the
+other. `r` is mapped from the brief's 20–100px onto the shared board's own
+normalized units. `art` picks one of ~3 planet PNGs. Broadcast once, in the
 round-start state, and never touched again for the rest of the match —
 unlike a puck or a position, a planet here is scenery the referee decided
 once, not a thing either side keeps re-agreeing on.
@@ -75,20 +81,29 @@ canvas renderer.
 
 ### 2.3 The shot: aimed locally, resolved locally, trusted by the referee
 
-A drag's angle and strength are simulated with a fixed-timestep (1/60s)
-gravity integration: each planet pulls the missile toward it with
-acceleration `G · planet.r / max(dist², planet.r²)` (the planet's own
-radius doubles as both the softening distance near its center and its own
-absorption radius — a missile that gets within a planet's radius is
-swallowed there, ending as a plain miss), summed over both planets. The
-simulation runs up to 180 steps (3 seconds of flight) or stops early the
-moment the missile is within `GRAVITY_HIT_RADIUS` of the opponent's ship
-(a hit) or leaves a generous simulation area well outside the visible
-board (a miss) — that simulation boundary is deliberately **wider than the
-screen itself** (§7), so a shot that loops off-screen and curves back in
-is never clipped mid-flight.
+The finger's own position relative to the ship — not a drag delta from
+where the touch began — sets angle and strength: distance from the ship
+maps to strength (capped at `GRAVITY_MAX_AIM_DISTANCE`), and the missile
+fires toward the finger, a targeting reticle rather than a slingshot pulled
+back and released opposite the drag.
 
-The shooter's own phone runs this simulation the instant the drag is
+The shot is simulated with a fixed-timestep (1/60s) gravity integration:
+each planet pulls the missile toward it with acceleration
+`G · planet.r² / max(dist², planet.r²)` — mass proportional to the
+planet's own area, so a bigger planet pulls harder at any given distance,
+not just asymptotically far away from it (the planet's own radius still
+doubles as both the softening distance near its center and its own
+absorption radius — a missile that gets within a planet's radius is
+swallowed there, ending as a plain miss) — summed over both planets. The
+simulation runs up to 600 steps (10 seconds of flight) before an
+unresolved shot is abandoned outright, or stops early the moment the
+missile is within `GRAVITY_HIT_RADIUS` of the opponent's ship (a hit) or
+leaves a generous simulation area well outside the visible board (a miss)
+— that simulation boundary is deliberately **wider than the screen
+itself** (§7), so a shot that loops off-screen and curves back in is
+never clipped mid-flight.
+
+The shooter's own phone runs this simulation the instant the finger is
 released and sends the referee `{ roundId, angle, strength, hit }` — the
 referee stores `hit` as reported, rather than re-deriving it (§8). The
 non-shooting phone receives the same `angle`/`strength` in the next
@@ -122,13 +137,22 @@ Only `classic` at launch.
 - **Lobby**: shared template. No host setting beyond `mode`.
 - **Round**: a `<canvas>` board — two planets, two ships, a turn indicator,
   a row of five life-pips per ship (same idiom Pass the Bomb/Steady Hand
-  already use). Dragging from your own ship on your turn shows the fading
+  already use). Touching above your own ship on your turn shows the fading
   dashed aim preview (§2.2); releasing plays the missile's flight,
   followed by `impact_missile.gif` on a hit and, on the life-ending hit,
   `explosion.gif` straight after (both reused from UFO Hunt's own art,
   copied into this game's own `art/` folder). Rendered on `<canvas>`, the
   same reasoning as every other continuously-animated board in this
   catalogue (Neon Fall §13, Tiles Surfer §4) — not a DOM-diffing job.
+  **The life pips never spoil a shot still in flight.** The referee decides
+  a hit and broadcasts the new life count the instant a `gravity-shot`
+  arrives — seconds before either phone's own missile animation finishes —
+  so each client holds the previous life count on screen until its own
+  flight animation ends, the same `displayed<value>` pattern Tap Fighter's
+  round-win pips use for the identical reason. A match-ending shot's own
+  flight and impact GIF are likewise played out in full before the results
+  screen appears, rather than being cut short by the referee's `phase:
+  'done'` arriving mid-flight.
 - **Results**: the shared `GameOverScreen`, `rows[].value` a plain win/lose
   word per player — no numeric score anywhere, the same non-numeric
   `OverRow` shape Tic-Tac-Tic-Tac-Toe's own `symbol(id)` already uses.
@@ -136,8 +160,8 @@ Only `classic` at launch.
 
 ## 5. Inputs & sensors
 
-Touch only — drag back from your own ship, release to fire. No sensors, no
-permissions, nothing to fall back from.
+Touch only — touch above your own ship to aim toward your finger, release
+to fire. No sensors, no permissions, nothing to fall back from.
 
 ## 6. Networking
 
@@ -175,7 +199,7 @@ in the receiver's replay.
 | --- | --- |
 | A player leaves mid-match | The match ends immediately in the other player's favor — two fixed seats, the same rule Grid Attack/Neon Fall use, not Steady Hand's "continue without them" (which only applies at 3+ players) |
 | A shooter goes silent mid-turn | Resolved as a miss at `resolvesAt`, turn passes (§2.4) |
-| A shot that would exit the visible screen but could still curve back | Not clipped — the simulation's own termination bounds are deliberately wider than the render viewport (§2.3), only the 180-step/3s cap and the generous off-board bounds end a shot early |
+| A shot that would exit the visible screen but could still curve back | Not clipped — the simulation's own termination bounds are deliberately wider than the render viewport (§2.3), only the 600-step/10s cap and the generous off-board bounds end a shot early |
 | A missile enters a planet | Absorbed there — a plain miss, no special effect |
 | Both ships would reach 0 lives on the same turn | Cannot happen — a shot only ever affects the one player who is not currently shooting |
 | A player refreshes mid-match | Same seat, same lives/turn — the match state lives on the referee, not the phone |
