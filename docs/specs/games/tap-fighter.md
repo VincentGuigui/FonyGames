@@ -161,8 +161,10 @@ new fixed-damage health rather than a proportional one.
 
 A round lost on points — health above zero, just less than the winner's — gets
 its own reaction distinct from a real knockout: the sprite sheets' eighth and
-ninth frames alternate for one second, three cycles, then hold on the last
-frame. Purely cosmetic and local to each device (no wire state, no need to
+ninth frames alternate at three cycles per second, for as long as the
+round-over panel is showing — it does not freeze after one pass, since a host
+can leave that panel open as long as they like before starting the next
+round. Purely cosmetic and local to each device (no wire state, no need to
 agree beat-for-beat the way the fight itself does), unlike `defeated` (frame
 seven), which is reserved for health actually reaching zero.
 

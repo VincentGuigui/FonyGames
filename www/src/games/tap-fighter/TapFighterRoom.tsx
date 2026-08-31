@@ -29,7 +29,6 @@ import {
   ACTION_LUNGE_FADE_END_MS,
   ACTION_POSE,
   FIGHTER_COLORS,
-  FIGHTER_LOSS_LOOP_MS,
   FIGHTER_POSES,
   FIGHTER_SPRITE_COLUMNS,
   FIGHTER_SPRITE_MIRRORED,
@@ -239,11 +238,13 @@ function useIdleRhythm(): number {
 }
 
 /**
- * The one-shot "sobbing" loop for a round lost on points, not a knockout
- * (issue #3) — its own small timer, like the idle rhythm above, rather than
- * the fight's server-driven clock: purely cosmetic, so it never needs to
- * agree between devices, and only has to run for `FIGHTER_LOSS_LOOP_MS` once
- * `active` goes true.
+ * The "sobbing" loop for a round lost on points, not a knockout — its own
+ * small timer, like the idle rhythm above, rather than the fight's
+ * server-driven clock: purely cosmetic, so it never needs to agree between
+ * devices. Keeps running for as long as `active` stays true — the loser
+ * keeps sobbing through the whole round-over panel, not just its first
+ * second, since a host can leave that panel open as long as they like
+ * before starting the next round.
  */
 function useLossPose(active: boolean): number {
   const [pose, setPose] = useState<number>(FIGHTER_POSES.loss1);
@@ -251,9 +252,7 @@ function useLossPose(active: boolean): number {
     if (!active) { setPose(FIGHTER_POSES.loss1); return; }
     const start = Date.now();
     const timer = window.setInterval(() => {
-      const sinceStart = Date.now() - start;
-      setPose(lossLoopPose(sinceStart));
-      if (sinceStart >= FIGHTER_LOSS_LOOP_MS) window.clearInterval(timer);
+      setPose(lossLoopPose(Date.now() - start));
     }, 50);
     return () => window.clearInterval(timer);
   }, [active]);
@@ -281,5 +280,15 @@ function useFightClock(running: boolean, clock: () => number): number {
 
 function pips(value: number): string { return `${'●'.repeat(value)}${'○'.repeat(Math.max(0, 3 - value))}`; }
 function seatRows(state: TapFighterState, players: Player[], text: ReturnType<typeof useGameText>) {
-  return (['blue', 'green'] as const).map((seat) => { const player = players.find((item) => item.id === state.seats[seat]); return { id: state.seats[seat], avatar: player?.avatar ?? '🥊', name: player?.name ?? seat, value: state.roundWins[seat], unit: text({ en: 'rounds', fr: 'manches' }) }; });
+  return (['blue', 'green'] as const).map((seat) => {
+    const player = players.find((item) => item.id === state.seats[seat]);
+    const n = state.roundWins[seat];
+    return {
+      id: state.seats[seat],
+      avatar: player?.avatar ?? '🥊',
+      name: player?.name ?? seat,
+      value: n,
+      unit: n === 1 ? text({ en: 'round', fr: 'manche' }) : text({ en: 'rounds', fr: 'manches' }),
+    };
+  });
 }
