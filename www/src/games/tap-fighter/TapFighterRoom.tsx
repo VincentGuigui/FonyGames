@@ -172,6 +172,19 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   // decide when the first beat actually lands.
   const introStep = elapsed < 0 ? introStepAt(elapsed + REVEAL_LEAD_MS) : null;
   const nameOf = (seat: FighterSeat) => players.find((player) => player.id === state.seats[seat])?.name ?? text({ en: seat === 'blue' ? 'Blue' : 'Green', fr: seat === 'blue' ? 'Bleu' : 'Vert' });
+  /**
+   * `state.roundWins` already carries THIS round's own outcome the instant `phase`
+   * becomes `fighting` — the referee resolves the fight and increments it in the same
+   * update (`worker/tapFighter.ts`'s `onFighterLock`), before either phone has watched
+   * a single beat. Showing it as-is spoiled the round: the pip count at the top of the
+   * screen changed during the reveal countdown, seconds before the fight it is
+   * supposedly the result of. Subtracting the pending win back out for as long as
+   * `fighting` lasts holds the pips at the PREVIOUS round's tally until the round is
+   * actually over, exactly like `roundHeadline`/`flawless`/the loss pose below already
+   * withhold everything else about the outcome until then.
+   */
+  const displayedWins = (seat: FighterSeat) =>
+    state.phase === 'fighting' && state.roundWinner === seat ? state.roundWins[seat] - 1 : state.roundWins[seat];
   const roundHeadline = state.draw ? text({ en: 'DRAW', fr: 'MATCH NUL' }) : text({ en: `${nameOf(state.roundWinner ?? 'blue')} wins`, fr: `${nameOf(state.roundWinner ?? 'blue')} gagne` });
   useEffect(() => {
     if (state.phase !== 'round-over' || !state.roundWinner || !me) return;
@@ -180,7 +193,7 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   const backgroundUrl = backgroundFor(state.roundId);
   return <main class="fighter-game" style={{ '--fighter-blue': FIGHTER_COLORS.blue, '--fighter-green': FIGHTER_COLORS.green, ...(backgroundUrl ? { '--fighter-bg': `url(${backgroundUrl})` } : {}) } as JSX.CSSProperties}>
     <StatusBar status={text({ en: `Round ${state.matchRound}`, fr: `Manche ${state.matchRound}` })} title={game.title} concept={game.concept} rules={game.rules} />
-    <div class="fighter-score"><span>{nameOf(BLUE)} {pips(state.roundWins.blue)}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(state.roundWins.green)} {nameOf(GREEN)}</span></div>
+    <div class="fighter-score"><span>{nameOf(BLUE)} {pips(displayedWins(BLUE))}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(displayedWins(GREEN))} {nameOf(GREEN)}</span></div>
     <section class="fighter-stage">
       <FightCanvas bluePose={pose(BLUE)} greenPose={pose(GREEN)} blueAttacking={Boolean(beat?.blueAction && actionElapsed >= 0 && actionElapsed < ACTION_LUNGE_FADE_END_MS)} greenAttacking={Boolean(beat?.greenAction && actionElapsed >= 0 && actionElapsed < ACTION_LUNGE_FADE_END_MS)} beatTime={actionElapsed} />
       <div class="fighter-side"><HealthBar value={health.blue} seat={BLUE} name={nameOf(BLUE)} /></div>

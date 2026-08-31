@@ -121,6 +121,13 @@ Every mode shares the core loop. A mode that does not is a different game.
   one another and animate idle, punch, kick, jump, crouch, hit and knockout
   states. The current pair of actions is labelled. Health bars sit at the
   bottom of the scene, immediately above each player's name and round pips.
+  **The pips never spoil the round they are showing.** The referee resolves a
+  round and increments `roundWins` the instant both plans lock in — before
+  either phone has watched a single beat — so the pip count a client renders
+  is held back to the PREVIOUS tally for as long as `phase` is `fighting`,
+  and only jumps to the real one once the round overlay appears. Showing the
+  live count instead gave away who wins during the reveal countdown, seconds
+  before the fight it was the result of.
 - **Round overlay:** after the last animation settles — the sixth beat, or
   earlier on a knockout (issue #3) — a retro panel overlays the scene with
   “<nickname> wins” / “<nickname> gagne” or “Draw” / “Match nul”. The host gets
