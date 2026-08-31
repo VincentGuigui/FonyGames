@@ -376,7 +376,7 @@ echo Page::render(
     (string) file_get_contents(__DIR__ . '/_hub/shell.html'),
     (string) $built['grid']['open'],
     (string) $built['grid']['close'],
-    Page::grid($built['cards'], $flags, $showAll, $plays, $built['week'], $built['soon']),
+    Page::grid($built['cards'], $flags, $showAll, $plays, $built['week'], null, $built['soon']),
     $flags,
     $showAll,
     $plays,

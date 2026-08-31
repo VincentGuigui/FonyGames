@@ -138,6 +138,37 @@ if (!is_readable($generated)) {
         substr_count($withHot, 'game-card__badge--hot'));
 }
 
+group('the generated index.php itself still runs');
+
+/*
+ * Every check above calls `Page::grid()` directly, with arguments this file wrote by
+ * hand — so a mismatch between the REAL literal call site `ssr.mjs` bakes into
+ * `dist/index.php` and `Page::grid()`'s actual signature is invisible to every one of
+ * them. That is exactly the bug that reached `dev` as a 500: a positional argument
+ * shifted by one when `$soonOrder` was added, so `$built['soon']` (an array) landed in
+ * `$now` (`?int`) — a `TypeError`, on every request, on the one page every visitor
+ * hits first. `php -l` would not have caught it either; it only checks syntax, and this
+ * is a type error raised at call time. Running the real generated file end to end is
+ * the only check that would have.
+ */
+$indexPhp = __DIR__ . '/../../dist/index.php';
+if (!is_readable($indexPhp)) {
+    check('dist/index.php was produced by the build', false, $indexPhp);
+} else {
+    $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $process = proc_open(['php', $indexPhp], $descriptors, $pipes, dirname($indexPhp));
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exitCode = proc_close($process);
+
+    check('it exits cleanly rather than fataling', $exitCode === 0, ['exit' => $exitCode, 'stderr' => $stderr]);
+    check('and says nothing to stderr', trim($stderr) === '', $stderr);
+    check('the page it renders is real HTML, not an error page', str_contains($stdout, '<!doctype html>'), substr($stdout, 0, 200));
+    check('with a grid in it', str_contains($stdout, 'hub__grid'), strlen($stdout));
+}
+
 // Standalone, so it prints its own verdict. Named `ssr_check.php` rather than
 // `*_test.php` precisely so `run.php`'s glob does NOT pick it up — `npm test` must stay
 // free of any dependency on build output.
