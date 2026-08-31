@@ -39,22 +39,26 @@ export function otherSeat(seat: Seat): Seat {
 /** How far a ship sits from its own edge of the shared board, in world units. */
 export const GRAVITY_SHIP_MARGIN = 0.08;
 
-/** How far back a pull may go, in the shooter's own local view units, before
- *  strength caps at `GRAVITY_MAX_STRENGTH` — mirrors Sling Puck's own `MAX_PULL`. */
-export const GRAVITY_MAX_PULL = 0.3;
+/** How far the finger may sit from the ship, in the shooter's own local view
+ *  units, before strength caps at `GRAVITY_MAX_STRENGTH`. */
+export const GRAVITY_MAX_AIM_DISTANCE = 0.3;
 
 /** Launch speed at full strength, in world widths per second. */
-export const GRAVITY_MAX_LAUNCH_SPEED = 1.1;
+export const GRAVITY_MAX_LAUNCH_SPEED = 1.35;
 
-/** Fixed-timestep gravity integration (spec §2.3): 1/60s steps, up to 3s of flight. */
+/** Fixed-timestep gravity integration (spec §2.3): 1/60s steps, up to 10s of
+ *  flight before an unresolved shot is abandoned outright. */
 export const GRAVITY_STEP_MS = 1000 / 60;
-export const GRAVITY_MAX_STEPS = 180;
+export const GRAVITY_MAX_STEPS = 600;
 
-/** Acceleration from a planet at distance `dist`: `G * planet.r / max(dist²,
- *  planet.r²)` — the planet's own radius doubles as both the softening
- *  distance near its centre and its own missile-absorption radius
- *  (spec §2.3, §12). */
-export const GRAVITY_G = 0.03;
+/**
+ * Acceleration from a planet at distance `dist`: `G * planet.r² / max(dist²,
+ * planet.r²)` — mass proportional to the planet's own area, so a bigger
+ * planet pulls harder at any given distance, not just asymptotically far
+ * from it. The radius doubles as both the softening distance near its
+ * centre and its own missile-absorption radius (spec §2.3, §12).
+ */
+export const GRAVITY_G = 0.06;
 
 /** A missile within this distance of the opponent's ship is a hit (spec §2.3). */
 export const GRAVITY_HIT_RADIUS = 0.06;
@@ -96,17 +100,16 @@ export function localAimToWorldVelocity(angle: number, strength: number, seat: S
 }
 
 /**
- * A pull away from the ship's own anchor, turned into an angle/strength pair
- * — the shot fires opposite the pull, the same idiom as Sling Puck's own
- * band (spec §2). `(0, 0)` is "nothing pulled", not a valid shot.
+ * The finger's own position, relative to the ship, turned into an
+ * angle/strength pair — the shot fires TOWARD the finger, like a targeting
+ * reticle held above the ship, not away from it like a slingshot. `(0, 0)`
+ * is "no finger offset yet", not a valid shot.
  */
-export function aimFromPull(dx: number, dy: number): { angle: number; strength: number } {
-  const pull = Math.hypot(dx, dy);
-  if (pull === 0) return { angle: 0, strength: 0 };
-  const strength = Math.min(GRAVITY_MAX_STRENGTH, pull / GRAVITY_MAX_PULL);
-  const sx = -dx / pull;
-  const sy = -dy / pull;
-  return { angle: Math.atan2(sx, -sy), strength };
+export function aimFromFinger(dx: number, dy: number): { angle: number; strength: number } {
+  const distance = Math.hypot(dx, dy);
+  if (distance === 0) return { angle: 0, strength: 0 };
+  const strength = Math.min(GRAVITY_MAX_STRENGTH, distance / GRAVITY_MAX_AIM_DISTANCE);
+  return { angle: Math.atan2(dx, -dy), strength };
 }
 
 export type SimResult = {
@@ -147,7 +150,7 @@ export function simulateShot(
       const distSq = dx * dx + dy * dy;
       const dist = Math.sqrt(distSq);
       if (dist <= p.r) return { path, hit: false }; // swallowed by the planet
-      const a = (GRAVITY_G * p.r) / Math.max(distSq, p.r * p.r);
+      const a = (GRAVITY_G * p.r * p.r) / Math.max(distSq, p.r * p.r);
       ax += (a * dx) / dist;
       ay += (a * dy) / dist;
     }
@@ -262,11 +265,12 @@ export class GravityGame {
     return true;
   }
 
-  /** Move the pull, clamped to `GRAVITY_MAX_PULL` — a full pull is a full-strength shot. */
+  /** Move the finger, clamped to `GRAVITY_MAX_AIM_DISTANCE` from the ship —
+   *  that distance is a full-strength shot. */
   updateAim(dx: number, dy: number): void {
     if (!this.#aim) return;
-    const pull = Math.hypot(dx, dy);
-    const scale = pull > GRAVITY_MAX_PULL && pull > 0 ? GRAVITY_MAX_PULL / pull : 1;
+    const distance = Math.hypot(dx, dy);
+    const scale = distance > GRAVITY_MAX_AIM_DISTANCE && distance > 0 ? GRAVITY_MAX_AIM_DISTANCE / distance : 1;
     this.#aim = { x: dx * scale, y: dy * scale };
   }
 
@@ -286,7 +290,7 @@ export class GravityGame {
     const seat = this.mySeat;
     if (!aim || !s || seat === null) return null;
 
-    const { angle, strength } = aimFromPull(aim.x, aim.y);
+    const { angle, strength } = aimFromFinger(aim.x, aim.y);
     if (strength <= 0) return null;
 
     const result = simulateShot(s.planets, seat, angle, strength);
