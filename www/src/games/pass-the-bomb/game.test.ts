@@ -62,11 +62,13 @@ check('holder is set', st?.holder === A, st);
 check('everyone is alive', st?.alive.length === 3);
 check('phase is running', st?.phase === 'running');
 check('no explosion yet', st?.lastBoom === null);
+check('the first holder is not a pass yet (issue #12)', st?.passes === 0, st?.passes);
 
 console.log('\na pass moves the bomb');
 
 st = applyBomb(st, bomb(2, B, [A, B, C]), 1100);
 check('holder followed the frame', st?.holder === B, st?.holder);
+check('and it counts as one pass', st?.passes === 1, st?.passes);
 
 /*
  * THE ordering rule (spec §6). WebSocket delivery can reorder, and the bomb rendering on two
@@ -93,9 +95,14 @@ check('no winner yet', st?.winner === null);
 check('the victim is now a spectator', !isAlive(st, B));
 check('and the survivors are not', isAlive(st, A) && isAlive(st, C));
 
+// A boom the round survives is followed by a fresh `bomb` frame reassigning the holder
+// among the survivors — from any phone's view the bomb just moved again, so it counts.
+st = applyBomb(st, bomb(4, C, [A, C]), 2100);
+check('a fuse-survivor reassignment counts as a pass too', st?.passes === 2, st?.passes);
+
 console.log('\nthe referee says when the round is over');
 
-st = applyBomb(st, boom(4, A, [C]), 3000);
+st = applyBomb(st, boom(5, A, [C]), 3000);
 check('phase is over', st?.phase === 'over', st?.phase);
 check('last one standing wins', st?.winner === C, st?.winner);
 
@@ -132,6 +139,7 @@ let next: BombState = applyBomb(st, bomb(1, A, [A, B, C], 2), 4000);
 check('a new round is accepted even though its seq restarts low', next?.roundId === 2, next?.roundId);
 check('and it is running again', next?.phase === 'running');
 check('the previous explosion is cleared', next?.lastBoom === null);
+check('and so is the pass count, for the new round\'s own heartbeat (issue #12)', next?.passes === 0, next?.passes);
 const beforeStraggler = next;
 next = applyBomb(next, bomb(9, B, [A, B, C], 1), 4100);
 check('a frame from the finished round is dropped', next === beforeStraggler);

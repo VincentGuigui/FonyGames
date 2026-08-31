@@ -3,6 +3,7 @@ import type { JSX } from 'preact';
 import type { BombMatch, Player, PlayerId } from '../../../../shared/protocol';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard } from '../../core/ui/Scoreboard';
+import { SoundToggle } from '../../core/ui/SoundToggle';
 import { Blast } from './Blast';
 import { BOOM_MS } from './shockwave';
 import type { BombView } from './game';
@@ -38,6 +39,8 @@ export function BombScreen({
   onPass,
   canBump,
   muted,
+  sound,
+  onSound,
 }: {
   state: BombView;
   players: Player[];
@@ -60,6 +63,9 @@ export function BombScreen({
   canBump: boolean;
   /** Bumps are being ignored for spamming (spec §8). */
   muted: boolean;
+  /** Whether the rising heartbeat (issue #12) is on. */
+  sound: boolean;
+  onSound: (on: boolean) => void;
 }): JSX.Element {
   const text = useGameText();
   const name = (id: PlayerId): string => players.find((p) => p.id === id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' });
@@ -68,6 +74,18 @@ export function BombScreen({
   const boom = useFreshBoom(state);
   const iAmHolder = state.holder === myId;
   const iAmOut = !!myId && !state.alive.includes(myId);
+
+  const soundToggle = (
+    <SoundToggle
+      on={sound}
+      onChange={onSound}
+      heading={text({ en: 'Sound', fr: 'Son' })}
+      onLabel={text({ en: 'Heartbeat', fr: 'Battement de cœur' })}
+      offLabel={text({ en: 'Silent', fr: 'Silencieux' })}
+      className="bomb__sound"
+      activeClassName="bomb__sound--on"
+    />
+  );
 
   if (boom) {
     return (
@@ -136,7 +154,9 @@ export function BombScreen({
           title={title}
           concept={concept}
           rules={rules}
-        />
+        >
+          {soundToggle}
+        </StatusBar>
 
         <Scoreboard rows={bombRows(players, state, text)} me={myId} unit={text({ en: 'bomb', fr: 'bombe' })} best="none" corner="bottom-right" />
 
@@ -187,7 +207,9 @@ export function BombScreen({
         title={title}
         concept={concept}
         rules={rules}
-      />
+      >
+        {soundToggle}
+      </StatusBar>
 
       <Scoreboard rows={bombRows(players, state, text)} me={myId} unit={text({ en: 'bomb', fr: 'bombe' })} best="none" corner="bottom-right" />
       <p class="bombscreen__holder-avatar" aria-hidden="true">

@@ -22,6 +22,7 @@ import { BombScreen } from './BombScreen';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
 import { BOOM_MS } from './shockwave';
+import { heartbeatBpm, prepareHeartbeatAudio, setSoundOn, soundOn, startHeartbeatLoop, stopHeartbeatLoop } from './heartbeat';
 import { useGameText, type GameText } from '../../core/i18n/gameText';
 import { PermissionPrimer } from '../../core/ui/PermissionPrimer';
 
@@ -55,6 +56,15 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const [support] = useState<MotionSupport>(motionSupport);
   const [motionOn, setMotionOn] = useState(false);
   const [motionAsked, setMotionAsked] = useState(false);
+  const [sound, setSound] = useState(soundOn);
+
+  useEffect(() => {
+    prepareHeartbeatAudio();
+  }, []);
+
+  useEffect(() => {
+    setSoundOn(sound);
+  }, [sound]);
 
   const onGame = useCallback((msg: ServerMessage) => {
     if (msg.t === 'calm-down') {
@@ -99,6 +109,23 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   }, [finalBoomAt]);
   const holdingBoom = finalBoomAt !== null && Date.now() - finalBoomAt < BOOM_MS;
   const iAmAlive = !!myId && !!state && state.alive.includes(myId);
+
+  /*
+   * The rising heartbeat (issue #12): starts at 60 BPM and climbs 15 BPM per pass, restarted
+   * at the new tempo every time `passes` ticks up rather than left running — a `setInterval`
+   * cannot change its own period, so a faster heartbeat means a new one. Silent once eliminated
+   * (spec §2 step 4: a spectator is no longer in any danger the tension is for) or once the
+   * round stops running at all.
+   */
+  const passes = state?.passes ?? 0;
+  useEffect(() => {
+    if (!running || !iAmAlive) {
+      stopHeartbeatLoop();
+      return;
+    }
+    startHeartbeatLoop(heartbeatBpm(passes));
+    return () => stopHeartbeatLoop();
+  }, [running, iAmAlive, passes, sound]);
 
   /*
    * The motion listener exists only while this phone is actually in a live round (spec §5). A
@@ -161,6 +188,8 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         accent={card.accent}
         canBump={motionOn}
         muted={muted}
+        sound={sound}
+        onSound={setSound}
         onPass={(to: PlayerId) =>
           client?.send({ t: 'pass', d: { to, roundId: state.roundId } })
         }

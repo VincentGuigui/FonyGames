@@ -43,10 +43,14 @@ Everyone is standing in a circle, arms out, shrieking. That's the game.
 - Fuse duration is drawn uniformly in `[FUSE_MIN, FUSE_MAX]`, defaults **8–25 s**
   for the first fuse, both bounds multiplied by `0.85` after each elimination,
   floor at 5–12 s.
-- The remaining time is **never** shown. Tension cues instead: heartbeat sound,
-  vibration pulses and screen flash accelerating over the last third — but the
-  acceleration curve is normalised to the drawn duration so it leaks no exact
-  timing.
+- The remaining time is **never** shown. A heartbeat sound instead (issue #12):
+  starting at 60 BPM and climbing 15 BPM every time the bomb changes hands,
+  driven by a plain pass count rather than the fuse — the fuse is never read on
+  the phone at all (§2), so a cue tied to *time remaining* would have to leak
+  it. A pass count is not that: every player already sees the bomb move with
+  their own eyes, so repeating it in a rising tempo adds tension without
+  adding information. It plays for every player still in the round, not only
+  the holder, and stops the moment the round does.
 - A transfer does **not** reset the fuse. That is the whole game.
 
 ### 2.2 The match
@@ -270,6 +274,12 @@ Screens are in `www/src/games/pass-the-bomb/`: `BombRoom.tsx` (lobby, permission
   not staring at a list — §4 wants them looking at people.
 - The explosion flashes a layer *behind* the text rather than the page background, so the victim's
   name stays readable while it strobes, and it is one fade under `prefers-reduced-motion` (§11).
+- **The heartbeat (§2.1, issue #12)** lives in `heartbeat.ts`: raw oscillators, the same pattern
+  as `core/audio/outcome.ts` and `ufo-hunt/laser.ts`, restarted at a new tempo every time
+  `game.ts`'s own `passes` ticks up rather than left running at the old one — a `setInterval`
+  cannot change its own period. Muted for a spectator (no longer at risk) and remembered per
+  browser via `localStorage`, toggled from a `SoundToggle` in the gear menu — the same shared
+  control Shake Rush and Tap Tap Music already use for their own sound.
 
 ## 12. Open questions
 
