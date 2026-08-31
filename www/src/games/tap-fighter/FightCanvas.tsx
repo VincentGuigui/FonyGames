@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
 import blueSprite from './art/fighter1.png?url&no-inline';
 import greenSprite from './art/fighter2.png?url&no-inline';
-import { FIGHTER_SPRITE_MIRRORED } from './game';
+import { FIGHTER_SPRITE_MIRRORED, FIGHTER_SPRITE_SCALE } from './game';
 
 type Props = {
   bluePose: number;
@@ -53,7 +53,10 @@ export function FightCanvas(props: Props): JSX.Element {
       }
 
       const state = latest.current;
-      const spriteSize = Math.min(width * 0.3, 176);
+      // `FIGHTER_SPRITE_SCALE` feeds every downstream measurement below —
+      // idle gap, minimum separation, lunge targets — so retuning fighter
+      // size never means re-deriving the placement/overlap math by hand.
+      const spriteSize = Math.min(width * 0.3, 176) * FIGHTER_SPRITE_SCALE;
       const idleGap = width * 0.54;
       const leftIdle = (width - idleGap) / 2;
       const rightIdle = (width + idleGap) / 2;

@@ -14,6 +14,16 @@ export const FIGHTER_COLORS = {
 export const FIGHTER_SPRITE_COLUMNS = 4;
 
 /**
+ * How much bigger the ring's own fighters are drawn than the base geometry
+ * `FightCanvas.tsx` computes from the stage width — feedback that the fight
+ * itself read too small. One constant, so retuning it later does not mean
+ * re-deriving the placement/lunge/overlap math that also scales from it
+ * (`FightCanvas.tsx`'s `spriteSize`, and everything measured against it —
+ * `idleGap`, `minimumSeparation`, `blueTarget`/`greenTarget`).
+ */
+export const FIGHTER_SPRITE_SCALE = 1.3;
+
+/**
  * `fighter2.png` was authored by mirroring `fighter1.png`'s whole file horizontally.
  * That correctly flips the character to face the other way, but it also reverses each
  * row's column order — player 1's row reads `idle1, idle2, punch, kick` left to right,
