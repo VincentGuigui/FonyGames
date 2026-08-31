@@ -778,11 +778,9 @@ a.btn {
 
 /*
  * Two tabs, equal width, sitting flush on the panel they open into (issue
- * #10) — no gap below the row, so `.choice__tab`'s missing bottom border and
- * `.choice__panel`'s missing top border meet at exactly one line rather than
- * two parallel ones. Equal width because neither is the recommended choice:
- * someone arriving from a friend's message wants Join, someone starting the
- * evening wants Create, and the layout should not push either.
+ * #10). Equal width because neither is the recommended choice: someone
+ * arriving from a friend's message wants Join, someone starting the evening
+ * wants Create, and the layout should not push either.
  */
 .choice__tabs {
   display: flex;
@@ -796,6 +794,13 @@ a.btn {
  * rather than a background swap — `.banner--reconnecting`/`.code-card`
  * already use exactly this "accent border, same surface" idiom for a state
  * change on a panel-like surface.
+ *
+ * `.choice__panel` below keeps a COMPLETE border, top edge included: an idle
+ * tab never touches it, so that line shows straight through beside one
+ * (issue #10 comment — a first pass that instead deleted the panel's top
+ * border made every idle tab look like it belonged to no panel at all).
+ * Only the *selected* tab erases its own segment of that line — see
+ * `.choice__tab--on`.
  */
 .choice__tab {
   flex: 1 1 0;
@@ -810,7 +815,19 @@ a.btn {
   font-weight: 700;
 }
 
+/*
+ * `margin-bottom` pulls this tab's own opaque background down over the
+ * panel's top border by exactly its width, covering that one segment of the
+ * line so the tab reads as fused with the panel rather than sitting above a
+ * border it shares with nothing. `z-index` (needing `position: relative` to
+ * apply at all) is what makes that overlap actually paint over the line:
+ * without it the panel — later in the document — paints on top of the tab
+ * here, which draws the border right back over the cut.
+ */
 .choice__tab--on {
+  position: relative;
+  z-index: 1;
+  margin-bottom: -1px;
   border-color: var(--game-accent, var(--color-accent));
   color: var(--color-text);
 }
@@ -820,16 +837,16 @@ a.btn {
 }
 
 /*
- * The open tab's own panel: border on the three sides the tab row does not
- * cover, rounded only on the bottom, same surface and accent border as the
- * tab above it so the two read as one continuous outline around whichever
- * tab is selected.
+ * The open tab's own panel: a COMPLETE border, top edge included — the
+ * selected tab overlaps and erases its own segment of it (`.choice__tab--on`
+ * above); an idle tab does not, which is what lets its line show through
+ * beside one. Rounded only on the bottom, same surface and accent border as
+ * the tab above it so the two read as one continuous outline.
  */
 .choice__panel {
   padding: var(--space-4);
   background: var(--color-surface);
   border: 1px solid var(--game-accent, var(--color-accent));
-  border-top: none;
   border-radius: 0 0 var(--radius) var(--radius);
 }
 
