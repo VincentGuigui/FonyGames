@@ -258,7 +258,20 @@ switch ($action) {
 
     case 'session':
         $token = is_string(body()['token'] ?? null) ? body()['token'] : '';
-        if (!$auth->redeem($token)) {
+        // The one DB-touching action in this file that skipped `requireSchema()` and
+        // its own guard: every other action reports a diagnosable 503 when the
+        // database misbehaves mid-request, and this one fell through to a bare,
+        // undiagnosable 500 — at the exact moment an operator has just clicked their
+        // magic link and has no other way in.
+        try {
+            $redeemed = $auth->redeem($token);
+        } catch (PDOException $e) {
+            reply(503, [
+                'error' => 'the database is not reachable from this host',
+                'dbUnreachable' => true,
+            ] + ($authorised ? ['dbError' => $e->getMessage()] : []));
+        }
+        if (!$redeemed) {
             reply(401, ['error' => 'no']);
         }
         beginSession();

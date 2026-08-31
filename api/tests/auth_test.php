@@ -289,6 +289,29 @@ check(
     ),
 );
 
+group('a database hiccup during redeem is diagnosable, not a bare 500');
+
+/*
+ * `session` used to be the only database-touching action in index.php with no guard
+ * at all — every other one calls `requireSchema()` or its own try/catch, and reports
+ * a diagnosable 503 when the database misbehaves mid-request. A PDOException here
+ * fell straight through to `crash()`'s generic, undiagnosable 500 — at the exact
+ * moment an operator has just clicked their magic link and has no other way in.
+ */
+check(
+    'redeem() is called inside its own guard',
+    str_contains($index, "case 'session':") && str_contains($index, '$redeemed = $auth->redeem($token);'),
+);
+check(
+    'and a PDOException there answers the same diagnosable shape every other DB guard in this file uses',
+    (bool) preg_match(
+        '/\$redeemed = \$auth->redeem\(\$token\);\s*\} catch \(PDOException \$e\) \{\s*reply\(503,\s*\[\s*'
+        . "'error' => 'the database is not reachable from this host',\s*"
+        . "'dbUnreachable' => true,/",
+        $index,
+    ),
+);
+
 group('the token is found wherever this host puts it');
 
 /*
