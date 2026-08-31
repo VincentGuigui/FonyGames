@@ -1,4 +1,4 @@
-import { cardState, DEFAULT_FLAG, flagFor, gameOfWeek, hottest, isoWeek, mayOpenRoom, promote, type GameFlag } from './flags';
+import { cardState, DEFAULT_FLAG, flagFor, gameOfWeek, hottest, hubSections, isoWeek, mayOpenRoom, type GameFlag } from './flags';
 
 /**
  * `cardState` — the one function that decides what a player sees on a card.
@@ -134,10 +134,34 @@ console.log('\nthe hot game');
   // The file is public and hand-editable; nonsense in it must not decide the shelf.
   check('nonsense is not a count', hottest({ spill: NaN, 'tap-duel': 2 }, all) === 'tap-duel');
 
-  check('the hot game leads the order', promote(all, 'ghost-hunt').join() === 'ghost-hunt,tap-duel,spill');
-  check('and the rest keep theirs', promote(all, 'tap-duel').join() === all.join());
-  check('nothing hot changes nothing', promote(all, null) === all);
-  check('as does a slug not in the order', promote(all, 'zone-rush') === all);
+  // hubSections' own three tiers (issue #4): week + hot pinned, then NEW alphabetical,
+  // then the rest alphabetical. `all` here is already alphabetical (ghost-hunt, spill,
+  // tap-duel would be the true sort — reusing the literal array from above instead,
+  // since hubSections trusts its caller for that, the same as gameOfWeek already does).
+  const alphabetical = ['ghost-hunt', 'spill', 'tap-duel'];
+  const flags = { spill: flag({ isNew: true }) };
+
+  check(
+    'hot and week both pinned, hot first',
+    hubSections(alphabetical, {}, 'tap-duel', 'ghost-hunt').pinned.join() === 'ghost-hunt,tap-duel',
+  );
+  check(
+    'the same slug pinned twice shows once',
+    hubSections(alphabetical, {}, 'ghost-hunt', 'ghost-hunt').pinned.join() === 'ghost-hunt',
+  );
+  check('neither hot nor week pins anything', hubSections(alphabetical, {}, null, null).pinned.length === 0);
+  check('a NEW game not pinned lands in fresh', hubSections(alphabetical, flags, null, null).fresh.join() === 'spill');
+  check(
+    'everything else lands in rest, still alphabetical',
+    hubSections(alphabetical, flags, null, null).rest.join() === 'ghost-hunt,tap-duel',
+  );
+  check(
+    'a pinned game is never also in fresh or rest',
+    (() => {
+      const sections = hubSections(alphabetical, flags, 'spill', null);
+      return !sections.fresh.includes('spill') && !sections.rest.includes('spill');
+    })(),
+  );
 
   // HOT replaces NEW rather than stacking with it: one badge slot, and a card claiming
   // both says nothing.

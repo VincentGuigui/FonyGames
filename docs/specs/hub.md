@@ -35,52 +35,54 @@ play something in under ten seconds.
 - **Card anatomy and copy rules**: see
   [../design/ui-guidelines.md](../design/ui-guidelines.md) §3. One illustration,
   one catchy sentence, no exceptions.
-- Cards are ordered: `live` first, then `soon` (dimmed, not tappable, no link).
-  The order comes from `ORDER` in `games/registry.ts`, one entry per status.
-- **The most-played game leads, wearing HOT.** One card moves — the rest keep the
-  curated order. A shelf sorted entirely by popularity stops being curated and
-  becomes a chart, with every new game buried at the bottom forever; lifting the
-  single most-played one is the whole of the "what is everyone playing" signal
-  without that. The counts come from `plays` in the published `flags.json`
-  ([backoffice.md](backoffice.md) §7).
-- **HOT replaces NEW** on that card. There is one badge slot, so the two are
-  ranked rather than stacked: NEW says nobody has tried this yet, HOT says
-  everybody has, and a card claiming both says nothing. A paused or unbuilt game
-  never wears it — those badges are caveats, and a caveat outranks a boast.
-- **A tie badges nobody**, and moves nobody. Two games on the same count means
+- **Cards are ordered in four tiers, top to bottom** (issue #4): the week's own
+  spotlighted game, then the most-played game (**pinned** — see below), then
+  every NEW-flagged `live` game alphabetically (**fresh**), then every other
+  `live` game alphabetically (**rest**), then every `soon` game in its curated
+  `games/registry.ts` order (dimmed, not tappable, no link — unchanged from
+  before). A thin divider (`.hub__spacer`) separates each pair of non-empty
+  tiers; there is never a dangling one at the very top or bottom.
+- **The week's own game and the most-played game are pinned at the top, week
+  first.** Popularity and the calendar are the two signals allowed to move a
+  card off its alphabetical position; a shelf sorted entirely by popularity
+  would bury every new game at the bottom forever, and pinning both signals
+  instead of only one is what lets the maintainer's weekly rotation
+  (`gameOfWeek`, below) stay visible next to whatever is actually trending. The
+  same slug pinned by both signals at once is shown exactly once, wearing both
+  badges.
+- **HOT** badges the most-played game — the counts come from `plays` in the
+  published `flags.json` ([backoffice.md](backoffice.md) §7) — and **replaces
+  NEW** on that card: there is one badge slot, so the two are ranked rather than
+  stacked. NEW says nobody has tried this yet, HOT says everybody has, and a
+  card claiming both says nothing. A paused or unbuilt game never wears it —
+  those badges are caveats, and a caveat outranks a boast.
+- **A tie badges nobody**, and pins nobody. Two games on the same count means
   there is no single most-played game, and picking one by slug order would make
   the badge move for a reason no player could see. Same rule as the score panel's
   leader ([../design/game-chrome.md](../design/game-chrome.md) §6).
-- The rule lives in `hottest()`/`promote()` in `shared/flags.ts`, and is
-  **re-implemented in PHP** (`Flags::hottest`) because the server renders the grid
-  and the client hydrates it — the two must agree exactly or Preact re-orders the
-  page after paint. Both are asserted against the same table of cases.
-- **One card wears WEEK automatically, from the calendar alone — no operator, no
-  flag.** It is the ISO-8601 week number's own index into every `live` game,
-  sorted alphabetically by its own (English) title: week 1 picks the first title,
-  week 2 the second, and the rotation wraps once every game has had a turn. The
-  same slug returns on the same calendar week every year — that repetition is
-  the whole point, since it is what makes the rule nameable in one sentence
-  rather than a schedule someone has to maintain. Sorted by the untranslated
-  title specifically, so a French visitor and an English one see the same game:
-  sorting *after* translation would give two languages two different orders.
-- **WEEK is ranked below HOT and above NEW.** HOT is a measured fact — people are
-  actually playing this — and always outranks a scheduled tag; NEW sits below
-  WEEK so the rotation the maintainer asked for stays visible rather than
-  quietly buried behind every game that also happens to be flagged new. Unlike
-  HOT, **WEEK never moves the grid.** It only tags whichever card already sits
-  at its curated (or hot-promoted) position — a schedule is not a popularity
-  signal, and does not compete with one for the front of the shelf.
-- The rule lives in `gameOfWeek()`/`isoWeek()` in `shared/flags.ts`, computed
-  independently — never transmitted — by both the client (from `catalogue()` at
-  render time) and the PHP build (`weekOrder()` in `scripts/ssr.mjs`, baked into
-  `cards.php` once, since the list of live games' titles cannot change without a
-  deploy anyway). **Re-implemented in PHP** (`Flags::gameOfWeek`/`Flags::isoWeek`)
-  for the same reason HOT is: the server renders the grid, the client hydrates
-  it, and the two must agree exactly. `gmdate('W')` already computes an ISO week
-  number on the PHP side; the TypeScript side has to hand-roll the same rule,
-  and both are asserted, date for date, against the same table of boundary
-  cases (a year with 53 ISO weeks, a year beginning on a Sunday).
+- **WEEK** badges one card automatically, from the calendar alone — no operator,
+  no flag. It is the ISO-8601 week number's own index into every `live` game,
+  sorted alphabetically by its own (English) title: week 1 picks the first
+  title, week 2 the second, and the rotation wraps once every game has had a
+  turn. The same slug returns on the same calendar week every year — that
+  repetition is the whole point, since it is what makes the rule nameable in one
+  sentence rather than a schedule someone has to maintain. Sorted by the
+  untranslated title specifically, so a French visitor and an English one see
+  the same game: sorting *after* translation would give two languages two
+  different orders.
+- The pinning and tiering rule lives in `hottest()`/`gameOfWeek()`/`isoWeek()`/
+  `hubSections()` in `shared/flags.ts`, and is **re-implemented in PHP**
+  (`Flags::hottest`/`Flags::gameOfWeek`/`Flags::isoWeek`/`Flags::hubSections`)
+  because the server renders the grid and the client hydrates it — the two must
+  agree exactly or Preact re-orders the page after paint. Both are asserted
+  against the same table of cases. `gameOfWeek`'s list — every live game,
+  alphabetical by title, `weekOrder()` in `scripts/ssr.mjs` on the PHP side,
+  computed independently rather than transmitted — is also what `hottest()` and
+  `hubSections()` sort the fresh/rest tiers from, so there is only the one list
+  to keep client and server in step on. The trailing `soon` tier is a separate
+  list (`soonOrder()` in `scripts/ssr.mjs`, the `soon`-status games in
+  `HubGrid.tsx`) appended verbatim after it: a `soon` card cannot be hot,
+  spotlighted, or NEW, so it plays no part in that sort at all.
 - **Runtime feature flags** can additionally grey out or hide a card; see
   [backoffice.md](backoffice.md) §2b. They are orthogonal to `status`, and the
   first paint is **already correct**: PHP applies them while rendering the page and

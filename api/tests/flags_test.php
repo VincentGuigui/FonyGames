@@ -353,10 +353,36 @@ check('a tie has no winner', Flags::hottest(['spill' => 3, 'tap-duel' => 3], $al
 check('nothing played, nobody hot', Flags::hottest([], $all) === null);
 check('zero is not a play', Flags::hottest(['spill' => 0], $all) === null);
 check('a slug outside the catalogue cannot win', Flags::hottest(['zone-rush' => 99, 'spill' => 1], $all) === 'spill');
-check('the hot game leads the order', Flags::promote($all, 'ghost-hunt') === ['ghost-hunt', 'tap-duel', 'spill']);
-check('the rest keep theirs', Flags::promote($all, 'tap-duel') === $all);
-check('and nothing hot changes nothing', Flags::promote($all, null) === $all);
-check('as does a slug that is not in the order', Flags::promote($all, 'zone-rush') === $all);
+// hubSections' own three tiers (issue #4): week + hot pinned (week first), then NEW
+// alphabetical, then the rest — mirrored, case for case, in shared/flags.test.ts.
+$alphabetical = ['ghost-hunt', 'spill', 'tap-duel'];
+$flagsWithNew = ['spill' => ['isNew' => true]];
+
+check(
+    'hot and week both pinned, week first',
+    Flags::hubSections($alphabetical, [], 'tap-duel', 'ghost-hunt')['pinned'] === ['ghost-hunt', 'tap-duel'],
+);
+check(
+    'the same slug pinned twice shows once',
+    Flags::hubSections($alphabetical, [], 'ghost-hunt', 'ghost-hunt')['pinned'] === ['ghost-hunt'],
+);
+check('neither hot nor week pins anything', Flags::hubSections($alphabetical, [], null, null)['pinned'] === []);
+check(
+    'a NEW game not pinned lands in fresh',
+    Flags::hubSections($alphabetical, $flagsWithNew, null, null)['fresh'] === ['spill'],
+);
+check(
+    'everything else lands in rest, still alphabetical',
+    Flags::hubSections($alphabetical, $flagsWithNew, null, null)['rest'] === ['ghost-hunt', 'tap-duel'],
+);
+check(
+    'a pinned game is never also in fresh or rest',
+    (static function () use ($alphabetical, $flagsWithNew): bool {
+        $sections = Flags::hubSections($alphabetical, $flagsWithNew, 'spill', null);
+
+        return !in_array('spill', $sections['fresh'], true) && !in_array('spill', $sections['rest'], true);
+    })(),
+);
 
 group('ISO week number, UTC — mirrored in shared/flags.test.ts against a hand-rolled algorithm');
 

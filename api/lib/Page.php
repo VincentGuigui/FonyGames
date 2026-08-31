@@ -28,6 +28,15 @@ final class Page
     public const REASON_SENTINEL = '%%REASON%%';
 
     /**
+     * The break between the hub's three tiers (issue #4), byte-for-byte what
+     * `preact-render-to-string` produces for `<li class="hub__spacer" aria-hidden="true" />`
+     * — `grid()` below has to emit exactly this literal or a client that hydrates the
+     * server-rendered page finds a spacer in a different shape than the one it would
+     * have drawn itself.
+     */
+    public const GRID_SPACER = '<li class="hub__spacer" aria-hidden="true"></li>';
+
+    /**
      * Which pre-rendered variant a flag selects.
      *
      * The key format is fixed by `ssr.mjs`; both sides building it the same way is the
@@ -40,82 +49,96 @@ final class Page
     }
 
     /**
-     * The grid, in the curated order the build recorded — with the hot card moved up.
-     *
-     * **Order comes from the build, with exactly one exception.** `docs/specs/hub.md` §2
-     * requires a curated order, and sorting here — or iterating the flags map — would
-     * quietly replace it with something alphabetical. What is allowed is `Flags::promote()`
-     * lifting the single most-played game to the front, which is a rule the spec now
-     * states and which `HubGrid.tsx` applies identically on the client. Identically
-     * matters: the client hydrates this markup, and a grid ordered two ways is a mismatch
-     * on every card after the first.
+     * The grid, in the hub's four tiers (issue #4): the week's spotlight and the
+     * hottest game pinned at the top, then every NEW-flagged game alphabetically, then
+     * everything else alphabetically, then every not-yet-live game in its curated
+     * `registry.ts` order — `Flags::hubSections()` supplies the first three, which
+     * `HubGrid.tsx` applies identically on the client; `$soonOrder` is appended
+     * verbatim, exactly as `HubGrid.tsx` appends its own `soon` list, since a `soon`
+     * card cannot be hot, spotlighted or NEW and so has no place in that sort at all.
+     * Identically matters: the client hydrates this markup, and a grid built two ways
+     * is a mismatch on every card after the first, including where the `GRID_SPACER`
+     * between tiers lands.
      *
      * A slug with no variant is skipped rather than guessed at: that means the build and
      * the flags disagree about which games exist, and inventing markup for it is how a
      * deleted game reappears.
      *
      * `$weekOrder` — every live game, alphabetical by title, from `weekOrder()` in
-     * `scripts/ssr.mjs` — decides which single card wears WEEK (`Flags::gameOfWeek`).
-     * Unlike `$hot` it never reorders anything: WEEK is a scheduled tag, not a measured
-     * popularity signal, so it does not compete with HOT for the front of the shelf,
-     * only for the badge on whichever card already sits at its curated position.
+     * `scripts/ssr.mjs` — is also what bounds `Flags::hottest()` now and what
+     * `hubSections()` sorts NEW and "everything else" from, so there is only the one
+     * list to keep in step with the client, the same reasoning `HubGrid.tsx` itself
+     * applies to its own `alphabetical`. `$soonOrder` is `soonOrder()` from the same
+     * file, unrelated to that sort.
      *
      * `$now` is a plain timestamp rather than a read of the clock in here, the same
      * reasoning `Flags::gameOfWeek()` itself is written that way: a test has to be able
      * to ask "what does the grid look like in week 1" without waiting for it.
      *
-     * @param list<string> $order
      * @param array<string, array<string, string>> $cards
      * @param array<string, array<string, mixed>> $flags
      * @param array<string, int> $plays
      * @param list<string> $weekOrder
+     * @param list<string> $soonOrder
      */
-    public static function grid(array $order, array $cards, array $flags, bool $showAll, array $plays = [], array $weekOrder = [], ?int $now = null): string
+    public static function grid(array $cards, array $flags, bool $showAll, array $plays = [], array $weekOrder = [], ?int $now = null, array $soonOrder = []): string
     {
-        $out = '';
-        $hot = Flags::hottest($plays, $order);
+        $hot = Flags::hottest($plays, $weekOrder);
         $week = Flags::gameOfWeek($weekOrder, $now ?? time());
+        $sections = Flags::hubSections($weekOrder, $flags, $hot, $week);
 
-        foreach (Flags::promote($order, $hot) as $slug) {
-            $variants = $cards[$slug] ?? null;
-            if (!is_array($variants)) {
-                continue;
+        $groups = array_values(array_filter(
+            [$sections['pinned'], $sections['fresh'], $sections['rest'], $soonOrder],
+            static fn (array $group): bool => count($group) > 0,
+        ));
+
+        $out = '';
+        foreach ($groups as $index => $slugs) {
+            if ($index > 0) {
+                $out .= self::GRID_SPACER;
             }
 
-            $flag = $flags[$slug] ?? Flags::default();
-            $availability = in_array($flag['availability'] ?? null, Flags::STATES, true)
-                ? (string) $flag['availability']
-                // Fail open, the same rule as everywhere: an unreadable flag means the
-                // game is playable, never that it vanishes.
-                : Flags::ACTIVE;
+            foreach ($slugs as $slug) {
+                $variants = $cards[$slug] ?? null;
+                if (!is_array($variants)) {
+                    continue;
+                }
 
-            $html = $variants[self::variantKey(
-                $availability,
-                ($flag['isNew'] ?? false) === true,
-                $slug === $hot,
-                $slug === $week,
-                $showAll,
-            )] ?? '';
-            if ($html === '') {
-                // Legitimately empty: a hidden game on prod is absent from the document
-                // rather than hidden with CSS, which would still put its title and link
-                // in the page for anyone who looked.
-                continue;
+                $flag = $flags[$slug] ?? Flags::default();
+                $availability = in_array($flag['availability'] ?? null, Flags::STATES, true)
+                    ? (string) $flag['availability']
+                    // Fail open, the same rule as everywhere: an unreadable flag means the
+                    // game is playable, never that it vanishes.
+                    : Flags::ACTIVE;
+
+                $html = $variants[self::variantKey(
+                    $availability,
+                    ($flag['isNew'] ?? false) === true,
+                    $slug === $hot,
+                    $slug === $week,
+                    $showAll,
+                )] ?? '';
+                if ($html === '') {
+                    // Legitimately empty: a hidden game on prod is absent from the document
+                    // rather than hidden with CSS, which would still put its title and link
+                    // in the page for anyone who looked.
+                    continue;
+                }
+
+                $reason = isset($flag['reason']) && is_string($flag['reason']) && trim($flag['reason']) !== ''
+                    ? trim($flag['reason'])
+                    // `cardState` falls back to "paused"; that fallback lives in TypeScript,
+                    // so the only thing to do here is supply the same word.
+                    : 'paused';
+
+                $out .= str_replace(
+                    self::REASON_SENTINEL,
+                    // Operator-supplied text landing in a page. Escaped here, at the moment
+                    // it stops being data and becomes HTML.
+                    htmlspecialchars($reason, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+                    $html,
+                );
             }
-
-            $reason = isset($flag['reason']) && is_string($flag['reason']) && trim($flag['reason']) !== ''
-                ? trim($flag['reason'])
-                // `cardState` falls back to "paused"; that fallback lives in TypeScript,
-                // so the only thing to do here is supply the same word.
-                : 'paused';
-
-            $out .= str_replace(
-                self::REASON_SENTINEL,
-                // Operator-supplied text landing in a page. Escaped here, at the moment
-                // it stops being data and becomes HTML.
-                htmlspecialchars($reason, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
-                $html,
-            );
         }
 
         return $out;

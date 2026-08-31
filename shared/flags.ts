@@ -163,15 +163,38 @@ export function hottest(plays: Record<string, number> | undefined, slugs: string
 }
 
 /**
- * The catalogue order with the hot game pulled to the front.
+ * The hub's three tiers (issue #4): the week's spotlight and the hottest game
+ * pinned at the top, then every NEW-flagged game alphabetically, then
+ * everything else alphabetically. Three separate lists rather than one
+ * ordered array, so a caller can put a visual break between them (a fresh
+ * grid section, on both the client and the server-rendered page) instead of
+ * guessing the boundary back out of a flat order.
  *
- * Only the one card moves. The rest keep the curated order from `catalogue()`, because
- * sorting the whole grid by popularity would bury every new game at the bottom forever —
- * the shelf would stop being curated and start being a chart.
+ * `slugsAlphabetical` is every live game sorted by (English) title — the
+ * same list `gameOfWeek` itself already requires, reused here so neither
+ * `fresh` nor `rest` needs a second sort, and so a French visitor and an
+ * English one still land on the same three groups.
+ *
+ * `hot` and `week` can be the same slug (the week's own spotlight also
+ * happens to be the most played) — `pinned` de-duplicates rather than
+ * showing one card twice, keeping WEEK's own rank (it is listed first in
+ * the call below) since the badge itself already ranks HOT above WEEK
+ * (`cardState`) independently of where the card sits.
  */
-export function promote(order: string[], hot: string | null): string[] {
-  if (hot === null || !order.includes(hot)) return order;
-  return [hot, ...order.filter((slug) => slug !== hot)];
+export function hubSections(
+  slugsAlphabetical: string[],
+  flags: Record<string, GameFlag>,
+  hot: string | null,
+  week: string | null,
+): { pinned: string[]; fresh: string[]; rest: string[] } {
+  const pinned = [...new Set([week, hot].filter((slug): slug is string => slug !== null))];
+  const pinnedSet = new Set(pinned);
+  const unpinned = slugsAlphabetical.filter((slug) => !pinnedSet.has(slug));
+  return {
+    pinned,
+    fresh: unpinned.filter((slug) => flagFor(flags, slug).isNew),
+    rest: unpinned.filter((slug) => !flagFor(flags, slug).isNew),
+  };
 }
 
 /**

@@ -23,7 +23,7 @@ require_once __DIR__ . '/../lib/Page.php';
 function fakeCards(): array
 {
     $cards = [];
-    foreach (['tap-duel', 'spill', 'ghost-tag'] as $slug) {
+    foreach (['tap-duel', 'spill', 'ghost-tag', 'zone-rush'] as $slug) {
         foreach (['active', 'disabled', 'hidden'] as $availability) {
             foreach ([0, 1] as $isNew) {
                 foreach ([0, 1] as $hot) {
@@ -46,130 +46,183 @@ function fakeCards(): array
     return $cards;
 }
 
-const ORDER = ['tap-duel', 'spill', 'ghost-tag'];
+/**
+ * Every live game, alphabetical by title — `weekOrder()` in `scripts/ssr.mjs`, and now
+ * the one list `Page::grid()` builds all three tiers from (issue #4). It has replaced
+ * `$order` in the grid's own signature entirely: `gameOfWeek()` can never return null for
+ * a non-empty list, so this one list is both what the grid iterates and what decides
+ * WEEK — there is no longer a separate "curated order" to diverge from it.
+ */
+const ALPHA = ['ghost-tag', 'spill', 'tap-duel'];
 
-group('the grid keeps the curated order');
+/**
+ * `zone-rush` stands in for a not-yet-live game — `soonOrder()` in `scripts/ssr.mjs`,
+ * appended verbatim as the grid's fourth tier (issue #4). It never appears in `ALPHA`:
+ * `hubSections()` only ever sorts live games, so this list plays no part in deciding
+ * WEEK, HOT or NEW at all.
+ */
+const SOON = ['zone-rush'];
 
-$grid = Page::grid(ORDER, fakeCards(), [], false);
-preg_match_all('/data-slug="([^"]+)"/', $grid, $m);
-// Order comes from the build. Iterating the flags map instead would silently replace the
-// curated order (hub.md §2) with whatever order the JSON happened to be written in.
-check('all three cards, in the order given', $m[1] === ORDER, $m[1]);
+/** ISO week 1 of 2024 (Jan 1) picks ALPHA[0] — already first, so pinning it is invisible
+ *  in the order, only in the WEEK bit. */
+$week1 = (int) gmdate('U', strtotime('2024-01-01T00:00:00Z'));
+/** ISO week 2 (Jan 8) picks ALPHA[1] instead — pinning it actually moves something,
+ *  which is what most of the checks below want to see. */
+$week2 = (int) gmdate('U', strtotime('2024-01-08T00:00:00Z'));
 
-$reversed = Page::grid(['ghost-tag', 'spill', 'tap-duel'], fakeCards(), [], false);
-preg_match_all('/data-slug="([^"]+)"/', $reversed, $m2);
-check('and it follows the order it was handed', $m2[1] === ['ghost-tag', 'spill', 'tap-duel'], $m2[1]);
+function slugsIn(string $grid): array
+{
+    preg_match_all('/data-slug="([^"]+)"/', $grid, $m);
+    return $m[1];
+}
 
-group('the most-played game is pulled to the front and badged');
+group("the week's own game always leads — gameOfWeek never spotlights nobody");
+
+$plain = Page::grid(fakeCards(), [], false, [], ALPHA, $week1);
+check('week 1 pins the already-first card, so the order is untouched', slugsIn($plain) === ALPHA, slugsIn($plain));
+check('a spacer still marks the pinned tier, even though nothing visibly moved', str_contains($plain, 'hub__spacer'), $plain);
+check('it still wears the WEEK variant', str_contains($plain, 'data-slug="ghost-tag" data-key="active:0:0:1:0"'), $plain);
+
+group('a single-game catalogue has nothing left to separate a spacer from');
+
+$solo = Page::grid(fakeCards(), [], false, [], ['ghost-tag'], $week1);
+check('the lone game is pinned — every game is the week\'s own pick', slugsIn($solo) === ['ghost-tag'], slugsIn($solo));
+check('no spacer when the pinned tier is the whole grid', !str_contains($solo, 'hub__spacer'), $solo);
+
+group("the week's own game moves the order when it isn't already first");
+
+$withWeek = Page::grid(fakeCards(), [], false, [], ALPHA, $week2);
+check('week 2 pins a different card, which now visibly leads', slugsIn($withWeek) === ['spill', 'ghost-tag', 'tap-duel'], slugsIn($withWeek));
+check('a spacer separates it from the rest', str_contains($withWeek, 'hub__spacer'), $withWeek);
+check('the week\'s own game gets the week variant', str_contains($withWeek, 'data-slug="spill" data-key="active:0:0:1:0"'), $withWeek);
+check('the other two stay untagged', substr_count($withWeek, ':0:0:0"') === 2, $withWeek);
+
+group('an empty week order is a fail-open empty grid, not an error');
+
+check('nothing to order means nothing rendered', Page::grid(fakeCards(), [], false) === '');
+
+group('the most-played game is pinned right behind the week\'s own pick');
 
 /*
- * The counts are data PHP owns, and they are the ONE thing allowed to reorder the grid
- * (hub.md §2). Everything else about the order still comes from the build.
+ * The counts are data PHP owns, and pinning the hot game is one of the two things
+ * allowed to move a card off its alphabetical position (hub.md §2) — WEEK, above, is
+ * the other, and it is listed first in `hubSections()`'s own call, so it leads whenever
+ * the two differ.
  *
- * The client applies the same two rules to the same numbers (`hottest`/`promote` in
+ * The client applies the same rule to the same numbers (`hottest`/`hubSections` in
  * shared/flags.ts) before hydrating this markup — so these cases are duplicated in the
  * TypeScript harness, deliberately, the same way the slug guard is.
  */
-$hot = Page::grid(ORDER, fakeCards(), [], false, ['ghost-tag' => 4, 'spill' => 1]);
-preg_match_all('/data-slug="([^"]+)"/', $hot, $m3);
-check('the hot game leads', $m3[1] === ['ghost-tag', 'tap-duel', 'spill'], $m3[1]);
-check('and it gets the hot variant', str_contains($hot, 'data-slug="ghost-tag" data-key="active:0:1:0:0"'), $hot);
-check('while the rest stay cold', substr_count($hot, ':0:0:0:0"') === 2, $hot);
+$hot = Page::grid(fakeCards(), [], false, ['tap-duel' => 4], ALPHA, $week1);
+check('week leads, the hot game jumps up right behind it', slugsIn($hot) === ['ghost-tag', 'tap-duel', 'spill'], slugsIn($hot));
+check('a spacer separates the pinned tier from the rest', str_contains($hot, 'hub__spacer'), $hot);
+check('and it gets the hot variant', str_contains($hot, 'data-slug="tap-duel" data-key="active:0:1:0:0"'), $hot);
+check('while the week\'s own pick keeps only its own bit', str_contains($hot, 'data-slug="ghost-tag" data-key="active:0:0:1:0"'), $hot);
 
-// A tie is not a winner: two games on the same count leaves the curated order alone.
-$tie = Page::grid(ORDER, fakeCards(), [], false, ['ghost-tag' => 4, 'spill' => 4]);
-preg_match_all('/data-slug="([^"]+)"/', $tie, $m4);
-check('a tie promotes nobody', $m4[1] === ORDER, $m4[1]);
-check('and badges nobody', !str_contains($tie, ':1:0:0"'), $tie);
+// A tie is not a winner: two games on the same count pins nobody extra.
+$tie = Page::grid(fakeCards(), [], false, ['spill' => 4, 'tap-duel' => 4], ALPHA, $week1);
+check('a tie pins nobody beyond the week\'s own pick', slugsIn($tie) === ALPHA, slugsIn($tie));
+check('the week\'s own tier still gets its spacer', str_contains($tie, 'hub__spacer'), $tie);
+check('and badges nobody hot', !str_contains($tie, ':1:0:0"'), $tie);
 
 // Zero is "never played", not "played least".
-$zero = Page::grid(ORDER, fakeCards(), [], false, ['ghost-tag' => 0]);
-preg_match_all('/data-slug="([^"]+)"/', $zero, $m5);
-check('zero plays is not hot', $m5[1] === ORDER, $m5[1]);
+$zero = Page::grid(fakeCards(), [], false, ['tap-duel' => 0], ALPHA, $week1);
+check('zero plays is not hot', slugsIn($zero) === ALPHA, slugsIn($zero));
 
-// Counts outlive a deleted game; promoting one would drop the badge and reorder nothing.
-$gone = Page::grid(ORDER, fakeCards(), [], false, ['a-game-that-was-deleted' => 99, 'spill' => 2]);
-preg_match_all('/data-slug="([^"]+)"/', $gone, $m6);
-check('a count for a game the build never saw is ignored', $m6[1] === ['spill', 'tap-duel', 'ghost-tag'], $m6[1]);
-
-group("the week's own game is tagged, but never moved");
+// Counts outlive a deleted game; pinning one would drop the badge and reorder nothing.
+$gone = Page::grid(fakeCards(), [], false, ['a-game-that-was-deleted' => 99, 'spill' => 2], ALPHA, $week1);
+check('a count for a game the build never saw is ignored; the real hot game still follows the week pin', slugsIn($gone) === ['ghost-tag', 'spill', 'tap-duel'], slugsIn($gone));
 
 /*
- * `$now` fixes "which week it is" so the test does not depend on the day it runs.
- * ISO week 1 of 2024 (Jan 1) picks index 0 of the alphabetical list handed in.
+ * HOT and WEEK can both be true, on the same or different slugs — the variant key just
+ * carries both bits — but a pinned game is never duplicated: shown once, with whichever
+ * bits actually apply to it.
  */
-$week1 = (int) gmdate('U', strtotime('2024-01-01T00:00:00Z'));
-$weekOrder = ['ghost-tag', 'spill', 'tap-duel']; // already alphabetical, unlike ORDER
-$withWeek = Page::grid(ORDER, fakeCards(), [], false, [], $weekOrder, $week1);
-preg_match_all('/data-slug="([^"]+)"/', $withWeek, $m7);
-check('the curated order is unchanged — WEEK does not promote', $m7[1] === ORDER, $m7[1]);
-check('the week\'s own game gets the week variant', str_contains($withWeek, 'data-slug="ghost-tag" data-key="active:0:0:1:0"'), $withWeek);
-check('the other two stay untagged', substr_count($withWeek, ':0:0:0"') === 2, $withWeek);
+$same = Page::grid(fakeCards(), [], false, ['spill' => 4], ALPHA, $week2);
+check('the shared slug appears exactly once', substr_count($same, 'data-slug="spill"') === 1, $same);
+check('wearing both bits', str_contains($same, 'data-slug="spill" data-key="active:0:1:1:0"'), $same);
+check('still leading everyone else', (slugsIn($same)[0] ?? null) === 'spill', slugsIn($same));
 
-// ISO week 2 (Jan 8) moves the index on, same list, same rule.
-$week2 = (int) gmdate('U', strtotime('2024-01-08T00:00:00Z'));
-$nextWeek = Page::grid(ORDER, fakeCards(), [], false, [], $weekOrder, $week2);
-check('a different week tags a different card', str_contains($nextWeek, 'data-slug="spill" data-key="active:0:0:1:0"'), $nextWeek);
+group('a NEW-flagged game moves to its own tier, ahead of everything else that is not pinned');
 
-// HOT and WEEK can both be true — the variant key just carries both bits — but HOT still
-// wins the front-of-shelf position, and cardState() still ranks HOT above WEEK for the badge.
-$both = Page::grid(ORDER, fakeCards(), [], false, ['ghost-tag' => 4], $weekOrder, $week1);
-preg_match_all('/data-slug="([^"]+)"/', $both, $m8);
-check('the hot game still leads even when it is also the week\'s pick', $m8[1] === ['ghost-tag', 'tap-duel', 'spill'], $m8[1]);
-check('and its variant carries both bits', str_contains($both, 'data-slug="ghost-tag" data-key="active:0:1:1:0"'), $both);
+$fresh = Page::grid(fakeCards(), ['tap-duel' => ['availability' => 'active', 'isNew' => true]], false, [], ALPHA, $week1);
+check('week still leads, then NEW, then the rest', slugsIn($fresh) === ['ghost-tag', 'tap-duel', 'spill'], slugsIn($fresh));
+check('two spacers now — one per tier boundary', substr_count($fresh, 'hub__spacer') === 2, $fresh);
+check('isNew still picks its own variant', str_contains($fresh, 'data-key="active:1:0:0:0"'), $fresh);
 
-// An empty week order — no build-time data at all — spotlights nobody, the same fail-open
-// shape gameOfWeek() itself already guarantees.
-$noWeek = Page::grid(ORDER, fakeCards(), [], false, [], [], $week1);
-check('no week order means no card is tagged', !str_contains($noWeek, ':0:1:0"') && !str_contains($noWeek, ':0:1:1"'), $noWeek);
+// Pinned always outranks NEW — a hot-and-new game is not also duplicated into the NEW tier.
+$hotAndNew = Page::grid(fakeCards(), ['tap-duel' => ['availability' => 'active', 'isNew' => true]], false, ['tap-duel' => 4], ALPHA, $week1);
+check('a pinned game is never duplicated into the NEW tier', substr_count($hotAndNew, 'data-slug="tap-duel"') === 1, $hotAndNew);
+check('it leads on its pinned rank, right behind the week\'s own pick', slugsIn($hotAndNew) === ['ghost-tag', 'tap-duel', 'spill'], slugsIn($hotAndNew));
+
+group('a not-yet-live game trails everything, in its own curated order (issue #4)');
+
+// Without a $soonOrder, nothing changes — every case above passed one implicitly by
+// never supplying it, which is the same as the build having no `soon`-status game at all.
+$withSoon = Page::grid(fakeCards(), [], false, [], ALPHA, $week1, SOON);
+check('it renders after every live tier', slugsIn($withSoon) === [...ALPHA, 'zone-rush'], slugsIn($withSoon));
+check('a spacer separates it from each non-empty live tier before it', substr_count($withSoon, 'hub__spacer') === 2, $withSoon);
+check('with no bits of its own', str_contains($withSoon, 'data-slug="zone-rush" data-key="active:0:0:0:0"'), $withSoon);
+
+$withSoonAndNew = Page::grid(fakeCards(), ['tap-duel' => ['availability' => 'active', 'isNew' => true]], false, [], ALPHA, $week1, SOON);
+check(
+    'it still trails behind every live tier, NEW included',
+    slugsIn($withSoonAndNew) === ['ghost-tag', 'tap-duel', 'spill', 'zone-rush'],
+    slugsIn($withSoonAndNew),
+);
+check('one spacer per tier boundary, three tiers deep', substr_count($withSoonAndNew, 'hub__spacer') === 3, $withSoonAndNew);
+
+// hubSections() never sees $soonOrder at all, so a play count for a not-yet-live game
+// cannot promote it — the same fail-open rule `Flags::hottest` already applies to a
+// count for a slug outside `$weekOrder` entirely.
+$noPromote = Page::grid(fakeCards(), [], false, ['zone-rush' => 99], ALPHA, $week1, SOON);
+check('a not-yet-live game earns no HOT badge no matter how many plays it has', !str_contains($noPromote, 'data-slug="zone-rush" data-key="active:0:1'), $noPromote);
+check('and stays put at the very end', slugsIn($noPromote) === [...ALPHA, 'zone-rush'], slugsIn($noPromote));
 
 group('a flag selects the variant');
 
-$grid = Page::grid(ORDER, fakeCards(), ['spill' => ['availability' => 'disabled', 'isNew' => false]], false);
+$grid = Page::grid(fakeCards(), ['spill' => ['availability' => 'disabled', 'isNew' => false]], false, [], ALPHA, $week1);
 check('a disabled game gets the disabled variant', str_contains($grid, 'data-key="disabled:0:0:0:0"'), $grid);
-check('and the others stay active', substr_count($grid, 'data-key="active:0:0:0:0"') === 2);
+check('and the others stay active', substr_count($grid, 'data-key="active:0:0:0:0"') === 1);
 
-$grid = Page::grid(ORDER, fakeCards(), ['spill' => ['availability' => 'active', 'isNew' => true]], false);
-check('isNew picks its own variant', str_contains($grid, 'data-key="active:1:0:0:0"'));
-
-$grid = Page::grid(ORDER, fakeCards(), ['spill' => ['availability' => 'active', 'isNew' => false]], true);
+$grid = Page::grid(fakeCards(), ['spill' => ['availability' => 'active', 'isNew' => false]], true, [], ALPHA, $week1);
 check('showAll picks its own variant', str_contains($grid, 'data-key="active:0:0:0:1"'));
 
 group('a hidden game is ABSENT, not merely dimmed');
 
 $flags = ['spill' => ['availability' => 'hidden', 'isNew' => false]];
-$prod = Page::grid(ORDER, fakeCards(), $flags, false);
+$prod = Page::grid(fakeCards(), $flags, false, [], ALPHA, $week1);
 // Not `display:none`, which would still put its title and its link in the document for
 // anyone who read the source — and for a crawler, which does exactly that.
 check('nothing for it reaches the document on prod', !str_contains($prod, 'data-slug="spill"'), $prod);
-check('the other two are still there', substr_count($prod, '<li ') === 2, $prod);
+check('the other two are still there', count(slugsIn($prod)) === 2, $prod);
 
-$dev = Page::grid(ORDER, fakeCards(), $flags, true);
+$dev = Page::grid(fakeCards(), $flags, true, [], ALPHA, $week1);
 check('but dev shows it, badged', str_contains($dev, 'data-key="hidden:0:0:0:1"'), $dev);
 
 group('the flags fail open, exactly as everything else does');
 
-$grid = Page::grid(ORDER, fakeCards(), ['spill' => ['availability' => 'banana']], false);
+$grid = Page::grid(fakeCards(), ['spill' => ['availability' => 'banana']], false, [], ALPHA, $week1);
 check('an availability outside the enum renders as active', str_contains($grid, 'data-key="active:0:0:0:0"'));
-check('rather than vanishing', substr_count($grid, '<li ') === 3, $grid);
+check('rather than vanishing', count(slugsIn($grid)) === 3, $grid);
 
-$grid = Page::grid(ORDER, fakeCards(), [], false);
-check('no flags at all means every game active', substr_count($grid, 'data-key="active:0:0:0:0"') === 3);
+$grid = Page::grid(fakeCards(), [], false, [], ALPHA, $week1);
+check('no flags at all means every game active, bar the week\'s own pin', substr_count($grid, 'data-key="active:0:0:0:0"') === 2);
 
-$grid = Page::grid(['tap-duel', 'a-game-the-build-never-saw'], fakeCards(), [], false);
-check('a slug with no rendered variant is skipped, not invented', substr_count($grid, '<li ') === 1, $grid);
+$grid = Page::grid(fakeCards(), [], false, [], ['tap-duel', 'a-game-the-build-never-saw'], $week1);
+check('a slug with no rendered variant is skipped, not invented', count(slugsIn($grid)) === 1, $grid);
 
 group('a reason is operator text, and is escaped where it becomes HTML');
 
 $nasty = '<img src=x onerror="alert(1)">';
-$grid = Page::grid(ORDER, fakeCards(), [
+$grid = Page::grid(fakeCards(), [
     'spill' => ['availability' => 'disabled', 'isNew' => false, 'reason' => $nasty],
-], false);
+], false, [], ALPHA, $week1);
 check('the raw tag does not reach the markup', !str_contains($grid, '<img src=x'), $grid);
 check('it is escaped', str_contains($grid, '&lt;img src=x'), $grid);
 check('and the quotes with it', str_contains($grid, '&quot;alert(1)&quot;'), $grid);
 
-$grid = Page::grid(ORDER, fakeCards(), ['spill' => ['availability' => 'disabled']], false);
+$grid = Page::grid(fakeCards(), ['spill' => ['availability' => 'disabled']], false, [], ALPHA, $week1);
 // cardState()'s own fallback word, so a disabled card with no reason still says something
 // rather than showing an empty badge.
 check('a disabled game with no reason says "paused"', str_contains($grid, '>paused</li>'), $grid);

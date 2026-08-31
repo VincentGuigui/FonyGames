@@ -40,8 +40,7 @@ if (!is_readable($generated)) {
     check('dist/_hub/cards.php was produced by the build', false, $generated);
 } else {
     $built = require $generated;
-    check('the build recorded an order', is_array($built['order'] ?? null) && count($built['order']) > 0);
-    check('and a grid wrapper', str_starts_with((string) ($built['grid']['open'] ?? ''), '<ul'), $built['grid'] ?? null);
+    check('the build recorded a grid wrapper', str_starts_with((string) ($built['grid']['open'] ?? ''), '<ul'), $built['grid'] ?? null);
 
     $wanted = [];
     foreach (Flags::STATES as $availability) {
@@ -79,7 +78,7 @@ if (!is_readable($generated)) {
 
     // The sentinel has to survive into the generated markup, or the reason substitution
     // is a no-op and every disabled card says nothing.
-    $firstSlug = $built['order'][0];
+    $firstSlug = $built['week'][0];
     check(
         'a disabled variant still carries the reason sentinel',
         str_contains((string) ($built['cards'][$firstSlug]['disabled:0:0:0:0'] ?? ''), Page::REASON_SENTINEL)
@@ -88,47 +87,55 @@ if (!is_readable($generated)) {
     );
 
     check('the build also recorded a week order', is_array($built['week'] ?? null) && count($built['week']) > 0, $built['week'] ?? null);
-
-    // And a real end-to-end assembly against the real strings.
-    $real = Page::grid($built['order'], $built['cards'], [], false);
-    check('the real cards assemble into a non-empty grid', strlen($real) > 1000, strlen($real));
-    check('and every one of them rendered', substr_count($real, '<li ') === count($built['order']), substr_count($real, '<li '));
+    check('and a soon order', is_array($built['soon'] ?? null), $built['soon'] ?? null);
 
     /*
-     * The hot card, against the real markup. `hottest()` picks the second slug, so this
-     * fails if the promotion is a no-op — and the badge check fails if the generated hot
-     * variant is the same string as the cold one, which is what a forgotten `hot` prop in
-     * ssr.mjs would produce.
+     * Real week/hot pinning, against the real markup — the failure mode HOT and WEEK
+     * each guard is the same: a forgotten `hot`/`week` prop in ssr.mjs makes the tagged
+     * variant byte-identical to the untagged one, and it is the pinning itself (issue
+     * #4: WEEK leads, then HOT) that a stale `Flags::hubSections()` port would silently
+     * stop doing.
+     *
+     * `$fixedNow` is ISO week 2 (Jan 8 2024) rather than week 1: week 1 spotlights
+     * index 0 of the alphabetical list, which is already first with nothing pinned —
+     * indistinguishable from a WEEK that pins nothing at all. Week 2 spotlights index
+     * 1, so pinning it actually moves something. Fixed rather than "now" for every
+     * call below, so none of this depends on which real day the check happens to run.
      */
-    $first = $built['order'][0];
-    $second = $built['order'][1];
-    $withHot = Page::grid($built['order'], $built['cards'], [], false, [$second => 3]);
+    $fixedNow = (int) gmdate('U', strtotime('2024-01-08T00:00:00Z'));
+    $weekOrder = $built['week'];
+    $soonOrder = $built['soon'] ?? [];
+    check('there are enough live games to tell the tiers apart', count($weekOrder) >= 3, count($weekOrder));
+    $weekSlug = $weekOrder[1];
+    $third = $weekOrder[2];
+
+    $real = Page::grid($built['cards'], [], false, [], $weekOrder, $fixedNow, $soonOrder);
+    check('the real cards assemble into a non-empty grid', strlen($real) > 1000, strlen($real));
+    preg_match_all('#href="/([a-z0-9-]+)/"#', $real, $mPlain);
+    check('every live game rendered its link', count($mPlain[1]) === count($weekOrder), count($mPlain[1]));
+    check('the week\'s own card leads with nothing else pinned', ($mPlain[1][0] ?? null) === $weekSlug, $mPlain[1]);
+    check('the week\'s own card wears the WEEK badge exactly once', substr_count($real, 'game-card__badge--week') === 1,
+        substr_count($real, 'game-card__badge--week'));
+    check('and it is on the right card', str_contains($real, "/{$weekSlug}/") && strpos($real, 'game-card__badge--week') > strpos($real, "/{$weekSlug}/"));
+    check('while nothing wears the HOT badge yet', !str_contains($real, 'game-card__badge--hot'));
+    // A not-yet-live card carries no <a href> at all (GameCardTile.tsx: a link the Worker
+    // would refuse is worse than none), so its presence is counted by the shared `<li
+    // class="game-card` prefix instead, and its position by the badge text rather than a
+    // link — this is the actual issue #4 regression this build was fixed to catch.
+    $liCount = substr_count($real, '<li class="game-card');
+    check('and every not-yet-live game rendered too, not vanished', $liCount === count($weekOrder) + count($soonOrder), $liCount);
     check(
-        'the most-played card is rendered first',
-        strpos($withHot, "/{$second}/") < strpos($withHot, "/{$first}/"),
-        ['hot' => $second, 'was first' => $first],
+        'the not-yet-live tier trails behind every live card',
+        $soonOrder === [] || strpos($real, 'game-card__badge--soon') > strrpos($real, 'href="/'),
+        $soonOrder,
     );
+
+    $withHot = Page::grid($built['cards'], [], false, [$third => 3], $weekOrder, $fixedNow, $soonOrder);
+    preg_match_all('#href="/([a-z0-9-]+)/"#', $withHot, $mHot);
+    check('the week\'s own card still leads', ($mHot[1][0] ?? null) === $weekSlug, $mHot[1]);
+    check('the most-played card follows it, ahead of everything cold', ($mHot[1][1] ?? null) === $third, $mHot[1]);
     check('and it wears the HOT badge', substr_count($withHot, 'game-card__badge--hot') === 1,
         substr_count($withHot, 'game-card__badge--hot'));
-    check('while the cold grid has none', !str_contains($real, 'game-card__badge--hot'));
-
-    /*
-     * The week's own card, against the real markup — same reasoning as the HOT check
-     * above, and the same failure mode it guards: a forgotten `week` prop in ssr.mjs
-     * would make the tagged variant byte-identical to the untagged one.
-     */
-    $weekOrder = $built['week'];
-    $weekSlug = $weekOrder[0];
-    $withWeek = Page::grid($built['order'], $built['cards'], [], false, [], $weekOrder, (int) gmdate('U', strtotime('2024-01-01T00:00:00Z')));
-    check('the week\'s own card wears the WEEK badge exactly once', substr_count($withWeek, 'game-card__badge--week') === 1,
-        substr_count($withWeek, 'game-card__badge--week'));
-    check('and it is on the right card', str_contains($withWeek, "/{$weekSlug}/") && strpos($withWeek, 'game-card__badge--week') > strpos($withWeek, "/{$weekSlug}/"));
-    // Same hrefs, same order, as the plain cold grid: WEEK tags a card in place rather
-    // than moving anything, unlike HOT.
-    preg_match_all('#href="/([a-z0-9-]+)/"#', $real, $mCold);
-    preg_match_all('#href="/([a-z0-9-]+)/"#', $withWeek, $mWeek);
-    check('WEEK never reorders the grid', $mWeek[1] === $mCold[1] && $mCold[1] !== [], $mWeek[1]);
-    check('while the cold grid has no week badge', !str_contains($real, 'game-card__badge--week'));
 }
 
 // Standalone, so it prints its own verdict. Named `ssr_check.php` rather than

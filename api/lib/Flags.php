@@ -331,18 +331,34 @@ final class Flags
     }
 
     /**
-     * The curated order with the hot game pulled to the front. Mirrors `promote()`.
+     * The hub's three tiers. Mirrors `hubSections()` in `shared/flags.ts` — see that
+     * function's own comment for why `$slugsAlphabetical` is the caller's job, why
+     * `$hot`/`$week` can be the same slug, and why the split is three lists rather
+     * than one flat order.
      *
-     * @param list<string> $order
-     * @return list<string>
+     * @param list<string> $slugsAlphabetical
+     * @param array<string, array<string, mixed>> $flags
+     * @return array{pinned: list<string>, fresh: list<string>, rest: list<string>}
      */
-    public static function promote(array $order, ?string $hot): array
+    public static function hubSections(array $slugsAlphabetical, array $flags, ?string $hot, ?string $week): array
     {
-        if ($hot === null || !in_array($hot, $order, true)) {
-            return $order;
+        $pinned = array_values(array_unique(array_filter([$week, $hot], static fn (?string $s): bool => $s !== null)));
+        $pinnedSet = array_flip($pinned);
+
+        $fresh = [];
+        $rest = [];
+        foreach ($slugsAlphabetical as $slug) {
+            if (isset($pinnedSet[$slug])) {
+                continue;
+            }
+            if (($flags[$slug]['isNew'] ?? false) === true) {
+                $fresh[] = $slug;
+            } else {
+                $rest[] = $slug;
+            }
         }
 
-        return array_merge([$hot], array_values(array_filter($order, static fn (string $s): bool => $s !== $hot)));
+        return ['pinned' => $pinned, 'fresh' => $fresh, 'rest' => $rest];
     }
 
     /**
