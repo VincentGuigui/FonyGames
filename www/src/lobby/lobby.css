@@ -777,43 +777,60 @@ a.btn {
 }
 
 /*
- * Two tabs, equal width. Equal because neither is the recommended one: someone arriving
- * from a friend's message wants Join, someone starting the evening wants Create, and the
- * layout should not push either.
+ * Two tabs, equal width, sitting flush on the panel they open into (issue
+ * #10) — no gap below the row, so `.choice__tab`'s missing bottom border and
+ * `.choice__panel`'s missing top border meet at exactly one line rather than
+ * two parallel ones. Equal width because neither is the recommended choice:
+ * someone arriving from a friend's message wants Join, someone starting the
+ * evening wants Create, and the layout should not push either.
  */
 .choice__tabs {
   display: flex;
   gap: var(--space-2);
-  margin-bottom: var(--space-5);
 }
 
 /*
- * Styled exactly like `.btn` (lobby.css above) rather than a bespoke flat
- * outline: a tab a thumb can't tell apart from a button reads as text with
- * a border around it, not as something to tap. Same surface, same border,
- * same weight — the tablist role is what makes these tabs, the look is
- * what makes them buttons.
+ * A real tab, not a toggle button: border on three sides only, rounded only
+ * on top, so the fourth side reads as open into the panel below. The border
+ * carries the on/off state (gray idle, the game's own accent once selected)
+ * rather than a background swap — `.banner--reconnecting`/`.code-card`
+ * already use exactly this "accent border, same surface" idiom for a state
+ * change on a panel-like surface.
  */
 .choice__tab {
   flex: 1 1 0;
   min-height: var(--tap-target);
   padding: 0 var(--space-3);
-  background: var(--color-surface-2);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-bottom: none;
+  border-radius: var(--radius) var(--radius) 0 0;
   color: var(--color-text-dim);
   font-size: var(--font-small);
   font-weight: 700;
 }
 
 .choice__tab--on {
-  background: var(--game-accent, var(--color-accent));
-  border-color: transparent;
-  color: var(--color-on-accent);
+  border-color: var(--game-accent, var(--color-accent));
+  color: var(--color-text);
 }
 
 .choice__tab:not(:disabled):active {
   transform: scale(0.97);
+}
+
+/*
+ * The open tab's own panel: border on the three sides the tab row does not
+ * cover, rounded only on the bottom, same surface and accent border as the
+ * tab above it so the two read as one continuous outline around whichever
+ * tab is selected.
+ */
+.choice__panel {
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--game-accent, var(--color-accent));
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
 }
 
 .choice__enter {
