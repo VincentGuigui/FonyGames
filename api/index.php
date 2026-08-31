@@ -152,7 +152,7 @@ function signedIn(): bool
 
     // The age is checked server-side against our own timestamp. A session cookie's own
     // lifetime is a hint the browser may ignore; this is not.
-    if ((int) round(microtime(true) * 1000) - $since > SESSION_TTL_MS) {
+    if ((int) round(microtime(true) * 1000) - $since > SESSION_TTL_S * 1000) {
         $_SESSION = [];
         session_destroy();
 
