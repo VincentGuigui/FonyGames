@@ -47,6 +47,10 @@ export const FIGHTER_POSES = {
   crouch: 5,
   hit: 6,
   defeated: 7,
+  /** A round lost on points, no knockout — a different reaction than `defeated`,
+   * which is reserved for a fighter whose health actually hit zero (issue #3). */
+  loss1: 8,
+  loss2: 9,
 } as const;
 
 export const ACTION_POSE = {
@@ -91,4 +95,21 @@ export const ACTION_LUNGE_FADE_END_MS = 700;
 export function idleWindupPose(sinceBeatStart: number): number {
   const frame = Math.floor(sinceBeatStart / FIGHTER_WINDUP_FRAME_MS) % 2;
   return frame === 0 ? FIGHTER_POSES.idle1 : FIGHTER_POSES.idle2;
+}
+
+/**
+ * The one-shot "sobbing" loop for a round lost on points (issue #3): loss1/
+ * loss2 alternate three times over one second, then hold on the final frame.
+ * Purely cosmetic and never needs to agree between devices, so — unlike every
+ * other pose function here — it is driven by a local timer
+ * (`TapFighterRoom.tsx`'s `useLossPose`), not the fight's authoritative clock.
+ */
+export const FIGHTER_LOSS_LOOP_MS = 1_000;
+const FIGHTER_LOSS_CYCLES = 3;
+const FIGHTER_LOSS_FRAME_MS = FIGHTER_LOSS_LOOP_MS / (FIGHTER_LOSS_CYCLES * 2);
+
+export function lossLoopPose(sinceLossStart: number): number {
+  if (sinceLossStart >= FIGHTER_LOSS_LOOP_MS) return FIGHTER_POSES.loss2;
+  const frame = Math.floor(sinceLossStart / FIGHTER_LOSS_FRAME_MS) % 2;
+  return frame === 0 ? FIGHTER_POSES.loss1 : FIGHTER_POSES.loss2;
 }
