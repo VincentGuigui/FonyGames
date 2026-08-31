@@ -472,16 +472,38 @@ async function loadIpInfoDiagnostic(panel: HTMLElement): Promise<void> {
   }
   const diagnostic = (data['diagnostic'] ?? {}) as { status?: number | null; ok?: boolean; raw?: string | null; error?: string | null; result?: Record<string, unknown> | null };
   panel.append(el('p', 'ops__note', `IPinfo response: ${diagnostic.status ?? 'not queried'} (${diagnostic.ok ? 'ok' : 'unavailable'})${diagnostic.error ? ` — ${diagnostic.error}` : ''}`));
-  const raw = el('pre', 'ops__diagnostic-result');
-  raw.textContent = diagnostic.raw ?? '(empty response)';
-  panel.append(raw);
+
   if (!diagnostic.result || Object.keys(diagnostic.result).length === 0) {
     panel.append(el('p', 'ops__note', 'No parsed lookup result.'));
+    const raw = el('pre', 'ops__diagnostic-result');
+    raw.textContent = diagnostic.raw ?? '(empty response)';
+    panel.append(raw);
     return;
   }
+
   const result = el('pre', 'ops__diagnostic-result');
   result.textContent = JSON.stringify(diagnostic.result, null, 2);
   panel.append(result);
+
+  // `result` is `raw` parsed and passed through the same depth/length truncation the
+  // real Analytics collector applies (`Analytics::diagnostic()`) — identical to `raw`
+  // for a normal, shallow ipinfo lookup. Showing both then was two blocks of the same
+  // data back to back; the raw block is only worth a second look when that truncation,
+  // or a parse failure, actually changed something.
+  const rawMatchesResult = ((): boolean => {
+    if (diagnostic.raw == null) return true;
+    try {
+      return JSON.stringify(JSON.parse(diagnostic.raw)) === JSON.stringify(diagnostic.result);
+    } catch {
+      return false;
+    }
+  })();
+  if (!rawMatchesResult) {
+    panel.append(el('p', 'ops__note', 'Raw response (differs from the parsed result above):'));
+    const raw = el('pre', 'ops__diagnostic-result');
+    raw.textContent = diagnostic.raw ?? '(empty response)';
+    panel.append(raw);
+  }
 }
 
 /**
