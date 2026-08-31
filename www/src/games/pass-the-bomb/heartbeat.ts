@@ -81,10 +81,11 @@ function triggerThud(ctx: AudioContext, time: number, pitch: number, duration: n
 }
 
 function playHeartbeat(ctx: AudioContext, at: number): void {
-  // "Lub" — lower pitch, slightly longer.
-  triggerThud(ctx, at, 100, 0.12);
-  // "Dub" — higher pitch, shorter, delayed.
-  triggerThud(ctx, at + 0.18, 130, 0.09);
+  // "Lub" — lower pitch, slightly longer. Low enough to read as a body thud rather
+  // than a beep even on a small phone speaker, which is where 100 Hz still sounded thin.
+  triggerThud(ctx, at, 60, 0.12);
+  // "Dub" — higher pitch, shorter, delayed — but still bass, not a chirp.
+  triggerThud(ctx, at + 0.18, 80, 0.09);
 }
 
 let timer: number | null = null;
