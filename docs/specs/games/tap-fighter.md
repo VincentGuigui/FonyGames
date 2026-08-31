@@ -108,9 +108,10 @@ Every mode shares the core loop. A mode that does not is a different game.
 
 ## 4. Screens
 
-- **Lobby:** shared lobby, exactly two players, blue/green seat labels and the
-  normal one-time Ready gate. The host may swap the two colours. No readiness
-  is requested again between rounds.
+- **Lobby:** shared lobby, exactly two players, the normal one-time Ready gate,
+  no seat-colour tag in the players list (issue #3) — blue/green is only
+  assigned once the match actually starts. The host may swap the two colours.
+  No readiness is requested again between rounds.
 - **Plan:** the player's fighter stands above four illustrated action tiles.
   Six numbered slots show the private sequence. A selected slot can be removed
   or replaced before locking. Fight is disabled until all six slots are full.
@@ -120,9 +121,10 @@ Every mode shares the core loop. A mode that does not is a different game.
   one another and animate idle, punch, kick, jump, crouch, hit and knockout
   states. The current pair of actions is labelled. Health bars sit at the
   bottom of the scene, immediately above each player's name and round pips.
-- **Round overlay:** after the sixth animation settles, a retro panel overlays
-  the scene with “<nickname> wins” / “<nickname> gagne” or “Draw” / “Match nul”.
-  The host gets **Next round**; the guest sees that the host is continuing.
+- **Round overlay:** after the last animation settles — the sixth beat, or
+  earlier on a knockout (issue #3) — a retro panel overlays the scene with
+  “<nickname> wins” / “<nickname> gagne” or “Draw” / “Match nul”. The host gets
+  **Next round**; the guest sees that the host is continuing.
 - **Match result:** after a player's third round win, the shared match result
   screen names the winner and offers Play again / Leave game. Play again clears
   both players' round-win pips.
@@ -142,6 +144,25 @@ that fighter (issue #9), derived purely from the already-resolved `beats`
 timeline — no extra wire state. It reveals at the same instant as the hit pose
 and health-bar change (contact, never the start of the beat) and only for the
 beat that keeps the streak alive; taking a hit resets it to zero.
+
+Health starts at 100 and drops 20 per landed hit — never proportional to how
+many hits either side actually lands, so a fighter's own health always reads
+the same way round to round (issue #3). A knockout (health reaches zero) ends
+the round the instant it happens rather than waiting out the remaining beats;
+the referee stops resolving beats there, and the client's beat playback simply
+holds the fight's last resolved beat once it runs out. The loser gets a "K.O.!"
+callout above them (the same floating-label mechanism as Combo!); a winner who
+took no hits at all across the round — whether it went the full six beats or
+ended in a knockout — gets "Perfect" above them instead. The two are
+independent and can both show in the same round. Deciding a round that reaches
+all six beats without a knockout is unchanged in spirit — more health remaining
+(equivalently, fewer hits received) wins, draw on a tie — just derived from the
+new fixed-damage health rather than a proportional one.
+
+The loss pose (two further frames beyond today's seven, looped for a beat) is
+specified but not yet built: the sprite sheets (`art/fighter1.png`,
+`art/fighter2.png`) do not have that art yet, and this is the maintainer's own
+follow-up, not guessed at here.
 
 ### 4.1 Rendering decision
 

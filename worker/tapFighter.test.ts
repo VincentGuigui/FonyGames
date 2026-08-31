@@ -15,7 +15,29 @@ const resolved = resolveFight(
   ['jump', 'jump', 'jump', 'punch', 'kick', 'crouch'],
 );
 check('fewer received impacts wins', resolved.winner === 'blue');
-check('loser reaches zero health', resolved.beats.at(-1)?.greenHealth === 0);
+check('the loser takes twenty damage per hit, four hits deep', resolved.beats.at(-1)?.greenHealth === 20);
+check('the winner takes none', resolved.beats.at(-1)?.blueHealth === 100);
+check('all six beats play when nobody is knocked out', resolved.beats.length === 6);
+
+/*
+ * Five unanswered kicks is a knockout at fixed 20-damage-per-hit (issue #3):
+ * health hits zero and the fight stops there rather than always playing out
+ * all six beats.
+ */
+const ko = resolveFight(
+  ['kick', 'kick', 'kick', 'kick', 'kick', 'crouch'],
+  ['crouch', 'crouch', 'crouch', 'crouch', 'crouch', 'crouch'],
+);
+check('a knockout stops the fight before the sixth beat', ko.beats.length === 5);
+check('the knocked-out fighter reaches exactly zero', ko.beats.at(-1)?.greenHealth === 0);
+check('the unanswered attacker is the winner', ko.winner === 'blue');
+check('and never took a hit themselves', ko.beats.every((beat) => !beat.blueHit));
+
+const mutualKo = resolveFight(
+  ['kick', 'kick', 'kick', 'kick', 'kick', 'crouch'],
+  ['kick', 'kick', 'kick', 'kick', 'kick', 'crouch'],
+);
+check('reaching zero together on the same beat is a draw', mutualKo.winner === null && mutualKo.draw);
 
 /*
  * Blue lands three unanswered punches, then swaps to jump right as green swaps

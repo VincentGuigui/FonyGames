@@ -14,7 +14,13 @@
 .fighter-stage { grid-template-columns: 1fr 1fr 1fr; }
 .fighter-side { align-self: start; margin-top: .5rem; grid-column: 1; }
 .fighter-side--green { grid-column: 3; }
-.fighter-versus, .fighter-countdown, .fighter-go { grid-column: 2; }
+/* `min-width: 0` here, not on `.fighter-side` (already set): the reveal text is
+   the one whose own content (especially "FIGHT!", the widest of the three) can
+   force this middle 1fr track past an equal third — and since all three tracks
+   share one fixed row width, that squeezed the two health-bar columns the
+   instant FIGHT! appeared, then let them spring back once it was gone (issue
+   #3's "health bar width changes when the game starts"). */
+.fighter-versus, .fighter-countdown, .fighter-go { grid-column: 2; min-width: 0; }
 .fighter-health > div { width: 100%; }
 
 /* The VS callout: full opacity for 2s, then a 500ms fade, then stays gone. */
@@ -23,13 +29,19 @@
 @media (prefers-reduced-motion: reduce) { .fighter-versus { animation: none; } }
 
 /* 3, 2, 1, FIGHT! — one element per step, each a fresh pop-in (the step's own React
-   key remounts it), same arcade-callout look as the VS text it follows. */
+   key remounts it), same arcade-callout look as the VS text it follows. A black
+   outline (stacked directional shadows, not `-webkit-text-stroke` — inconsistent
+   cross-browser rendering at this weight) keeps it legible over a bright photo
+   stage background (issue #3), the red drop shadow layered on top unchanged. */
 .fighter-countdown, .fighter-go {
   align-self: center;
   z-index: 3;
   color: #facc15;
   font: 900 3rem monospace;
-  text-shadow: 3px 3px #dc2626;
+  text-shadow:
+    -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000,
+    0 -2px 0 #000, 0 2px 0 #000, -2px 0 0 #000, 2px 0 0 #000,
+    3px 3px #dc2626;
   animation: fighter-countdown-pop .3s ease;
 }
 @keyframes fighter-countdown-pop { 0% { transform: scale(1.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }

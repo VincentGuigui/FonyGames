@@ -63,10 +63,10 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
   const start = () => client?.send({ t: 'start', d: { mode: 'fighter', solo } });
 
   if (!state) {
+    // No seat-colour tag in the players list (issue #3).
     return <GameLobby card={game} code={code} joinUrl={connection.joinUrl} room={room} copied={connection.copied} showQr={connection.showQr} onShare={connection.share} onToggleQr={connection.toggleQr}
       canStart={room.isHost && enoughToStart(room.connected, [2, 2], solo)} startLabel={t.common.startRound} onStart={start}
-      note={room.isHost ? text({ en: 'Two fighters. Six secret moves each.', fr: 'Deux combattants. Six attaques secrètes chacun.' }) : text({ en: 'The host starts the match.', fr: 'L’hôte démarre le match.' })}
-      playerTag={(id) => players.findIndex((player) => player.id === id) === 0 ? text({ en: 'Blue', fr: 'Bleu' }) : text({ en: 'Green', fr: 'Vert' })} />;
+      note={room.isHost ? text({ en: 'Two fighters. Six secret moves each.', fr: 'Deux combattants. Six attaques secrètes chacun.' }) : text({ en: 'The host starts the match.', fr: 'L’hôte démarre le match.' })} />;
   }
 
   if (state.phase === 'match-over') {
@@ -147,8 +147,20 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   };
   // "Combo" reveals at the same instant the hit pose and health bar do — contact,
   // never the start of the beat — and only for as long as this exact beat is the
-  // one showing (issue #9: three landed hits in a row with none received).
-  const comboActive = (seat: FighterSeat) => contact && beatIndex >= 0 && comboStreak(state.beats, beatIndex, seat) >= COMBO_STREAK;
+  // one showing (issue #9: three landed hits in a row with none received). Gated
+  // on `fighting` so it cannot linger into round-over and collide with the K.O./
+  // Perfect callouts below, which share the same floating-label spot.
+  const comboActive = (seat: FighterSeat) => state.phase === 'fighting' && contact && beatIndex >= 0 && comboStreak(state.beats, beatIndex, seat) >= COMBO_STREAK;
+  // K.O. above whoever's health hit exactly zero; Perfect above a winner who
+  // never took a hit across the whole (possibly knockout-shortened) beat
+  // timeline (issue #3). Both read the same `beats` the referee already
+  // resolved — no separate wire state, and both can fire in the same round.
+  const finalBeat = state.beats.at(-1);
+  const loser: FighterSeat | null = state.roundWinner ? (state.roundWinner === BLUE ? GREEN : BLUE) : null;
+  const knockedOut = state.phase !== 'fighting' && loser !== null
+    && finalBeat?.[loser === 'blue' ? 'blueHealth' : 'greenHealth'] === 0;
+  const flawless = state.phase !== 'fighting' && state.roundWinner !== null
+    && state.beats.every((oneBeat) => !oneBeat[state.roundWinner === 'blue' ? 'blueHit' : 'greenHit']);
   // The reveal: a VS callout, then 3-2-1, then FIGHT — computed straight from `elapsed`
   // so it can never drift from `REVEAL_LEAD_MS`, the same number the worker used to
   // decide when the first beat actually lands.
@@ -171,6 +183,8 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
       {introStep?.kind === 'fight' && <div class="fighter-go">{text({ en: 'FIGHT!', fr: 'COMBAT !' })}</div>}
       {comboActive(BLUE) && <div class="fighter-combo is-blue" key={beatIndex}>{text({ en: 'COMBO!', fr: 'COMBO !' })}</div>}
       {comboActive(GREEN) && <div class="fighter-combo is-green" key={beatIndex}>{text({ en: 'COMBO!', fr: 'COMBO !' })}</div>}
+      {knockedOut && loser && <div class={`fighter-combo is-${loser}`}>{text({ en: 'K.O.!', fr: 'K.O. !' })}</div>}
+      {flawless && state.roundWinner && <div class={`fighter-combo is-${state.roundWinner}`}>{text({ en: 'PERFECT', fr: 'PARFAIT' })}</div>}
       <div class="fighter-side fighter-side--green"><HealthBar value={health.green} seat={GREEN} name={nameOf(GREEN)} /></div>
       {state.phase !== 'fighting' && <div class="fighter-round-overlay"><strong>{roundHeadline}</strong>{isHost ? <button type="button" onClick={onNext}>{text({ en: 'Next round', fr: 'Manche suivante' })}</button> : <p>{text({ en: 'Waiting for the host…', fr: 'En attente de l’hôte…' })}</p>}</div>}
     </section>
