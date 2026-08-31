@@ -137,6 +137,12 @@ own halfway point), never at the start of the beat. The same 1-second wind-up, a
 the same 0.25 s-a-pose speed, also fills the pre-fight countdown (3-2-1-FIGHT,
 still 1 s a step — 4 s in total).
 
+Landing three hits in a row with none received earns a "Combo!" callout above
+that fighter (issue #9), derived purely from the already-resolved `beats`
+timeline — no extra wire state. It reveals at the same instant as the hit pose
+and health-bar change (contact, never the start of the beat) and only for the
+beat that keeps the streak alive; taking a hit resets it to zero.
+
 ### 4.1 Rendering decision
 
 Tap Fighter uses original SVG sprite sheets plus CSS pose/impact animation. Two

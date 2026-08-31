@@ -73,3 +73,25 @@ export function resolveFight(blue: readonly FighterAction[], green: readonly Fig
 export function validFighterPlan(value: unknown): value is FighterAction[] {
   return Array.isArray(value) && value.length === 6 && value.every((action) => typeof action === 'string' && FIGHTER_ACTIONS.includes(action as FighterAction));
 }
+
+/** Consecutive landed hits with none received earns the "Combo" callout (issue #9). */
+export const COMBO_STREAK = 3;
+
+/**
+ * How many beats up to and including `uptoIndex` this seat has landed a hit on the
+ * other without taking one back, counting backwards until the streak breaks. A pure
+ * function of the already-resolved `beats` timeline, so both clients derive the
+ * identical answer from the identical server data — nothing here is guessed ahead
+ * of what the referee decided.
+ */
+export function comboStreak(beats: readonly FighterBeat[], uptoIndex: number, seat: FighterSeat): number {
+  const landed = seat === 'blue' ? 'greenHit' : 'blueHit';
+  const received = seat === 'blue' ? 'blueHit' : 'greenHit';
+  let streak = 0;
+  for (let index = uptoIndex; index >= 0; index -= 1) {
+    const beat = beats[index];
+    if (!beat || !beat[landed] || beat[received]) break;
+    streak += 1;
+  }
+  return streak;
+}

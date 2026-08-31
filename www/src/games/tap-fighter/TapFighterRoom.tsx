@@ -10,6 +10,8 @@ import { useGameText } from '../../core/i18n/gameText';
 import { useSoloTesting } from '../../core/useSolo';
 import { enoughToStart } from '../../../../shared/players';
 import {
+  COMBO_STREAK,
+  comboStreak,
   FIGHT_COUNTDOWN_STEP_MS,
   FIGHT_COUNTDOWN_STEPS,
   FIGHT_VS_FADE_MS,
@@ -143,6 +145,10 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     const reacting = contact && beat?.[seat === 'blue' ? 'blueHit' : 'greenHit'];
     return reacting ? FIGHTER_POSES.hit : ACTION_POSE[action];
   };
+  // "Combo" reveals at the same instant the hit pose and health bar do — contact,
+  // never the start of the beat — and only for as long as this exact beat is the
+  // one showing (issue #9: three landed hits in a row with none received).
+  const comboActive = (seat: FighterSeat) => contact && beatIndex >= 0 && comboStreak(state.beats, beatIndex, seat) >= COMBO_STREAK;
   // The reveal: a VS callout, then 3-2-1, then FIGHT — computed straight from `elapsed`
   // so it can never drift from `REVEAL_LEAD_MS`, the same number the worker used to
   // decide when the first beat actually lands.
@@ -163,6 +169,8 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
       {introStep?.kind === 'vs' && <div class="fighter-versus">{nameOf(BLUE)} {text({ en: 'VS', fr: 'VS' })} {nameOf(GREEN)}</div>}
       {introStep?.kind === 'count' && <div class="fighter-countdown" key={introStep.n}>{introStep.n}</div>}
       {introStep?.kind === 'fight' && <div class="fighter-go">{text({ en: 'FIGHT!', fr: 'COMBAT !' })}</div>}
+      {comboActive(BLUE) && <div class="fighter-combo is-blue" key={beatIndex}>{text({ en: 'COMBO!', fr: 'COMBO !' })}</div>}
+      {comboActive(GREEN) && <div class="fighter-combo is-green" key={beatIndex}>{text({ en: 'COMBO!', fr: 'COMBO !' })}</div>}
       <div class="fighter-side fighter-side--green"><HealthBar value={health.green} seat={GREEN} name={nameOf(GREEN)} /></div>
       {state.phase !== 'fighting' && <div class="fighter-round-overlay"><strong>{roundHeadline}</strong>{isHost ? <button type="button" onClick={onNext}>{text({ en: 'Next round', fr: 'Manche suivante' })}</button> : <p>{text({ en: 'Waiting for the host…', fr: 'En attente de l’hôte…' })}</p>}</div>}
     </section>

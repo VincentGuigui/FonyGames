@@ -1,4 +1,4 @@
-import { confront, resolveFight } from '../shared/tapFighter';
+import { comboStreak, confront, resolveFight } from '../shared/tapFighter';
 import { onFighterLock, startTapFighter, tick, type TapFighter } from './tapFighter';
 import type { ServerMessage } from '../shared/protocol';
 
@@ -16,6 +16,20 @@ const resolved = resolveFight(
 );
 check('fewer received impacts wins', resolved.winner === 'blue');
 check('loser reaches zero health', resolved.beats.at(-1)?.greenHealth === 0);
+
+/*
+ * Blue lands three unanswered punches, then swaps to jump right as green swaps
+ * to punch — breaking blue's streak and starting green's own (issue #9).
+ */
+const comboFight = resolveFight(
+  ['punch', 'punch', 'punch', 'jump', 'jump', 'jump'],
+  ['jump', 'jump', 'jump', 'punch', 'punch', 'punch'],
+);
+check('one landed hit is a streak of one', comboStreak(comboFight.beats, 0, 'blue') === 1);
+check('a second unanswered hit extends it', comboStreak(comboFight.beats, 1, 'blue') === 2);
+check('a third earns the combo', comboStreak(comboFight.beats, 2, 'blue') === 3);
+check('taking a hit resets the streak to zero', comboStreak(comboFight.beats, 3, 'blue') === 0);
+check('the other fighter starts their own streak from the same beat', comboStreak(comboFight.beats, 3, 'green') === 1);
 
 let now = 1_000;
 let state: TapFighter | null = null;

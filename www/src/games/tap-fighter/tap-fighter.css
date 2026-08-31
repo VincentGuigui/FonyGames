@@ -49,3 +49,26 @@
    file never names an asset). `cover` + centred: the stage's own box is never
    exactly the photo's 9:16, so it crops rather than distorts. */
 .fighter-stage { background-image: var(--fighter-bg); background-size: cover; background-position: center; }
+
+/* "Combo!" floats above whichever fighter is riding a 3+ hit streak (issue #9).
+   Absolutely positioned rather than a grid child — it needs to sit over the
+   canvas-drawn fighter's own idle stance, not share a track with the health
+   bars pinned to the top. 23%/77% matches FightCanvas.tsx's own leftIdle/
+   rightIdle math (idleGap = width * 0.54), so it floats above the fighter it
+   is actually about rather than just "their side" of the stage. */
+.fighter-combo {
+  position: absolute;
+  z-index: 3;
+  bottom: 30%;
+  transform: translateX(-50%);
+  color: #facc15;
+  font: 900 1.1rem monospace;
+  text-transform: uppercase;
+  text-shadow: 2px 2px #dc2626;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: fighter-countdown-pop .3s ease;
+}
+.fighter-combo.is-blue { left: 23%; }
+.fighter-combo.is-green { left: 77%; }
+@media (prefers-reduced-motion: reduce) { .fighter-combo { animation: none; } }
