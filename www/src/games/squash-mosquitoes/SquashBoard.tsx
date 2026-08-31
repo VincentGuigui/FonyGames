@@ -11,6 +11,8 @@ import {
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard, type ScoreRow } from '../../core/ui/Scoreboard';
 import { RulesPanel } from '../../core/ui/RulesPanel';
+import { SoundToggle } from '../../core/ui/SoundToggle';
+import { startBuzzLoop, stopBuzzLoop } from './buzz';
 import { useGameText } from '../../core/i18n/gameText';
 import {
   entryOffset,
@@ -64,6 +66,8 @@ export function SquashBoard({
   accent,
   clock,
   onTap,
+  sound,
+  onSound,
 }: {
   game: SquashGame;
   players: Player[];
@@ -76,10 +80,24 @@ export function SquashBoard({
   clock: () => number;
   /** One tap. The referee counts it; this only reports the cell (spec §6). */
   onTap: (position: number) => void;
+  /** Whether the swarm's ambient buzz is on. */
+  sound: boolean;
+  onSound: (on: boolean) => void;
 }): JSX.Element {
   const text = useGameText();
   const state = game.state;
   const pattern = state?.pattern ?? [];
+
+  /*
+   * The buzz runs for exactly as long as this board is mounted — which is exactly the
+   * running round (`SquashRoom.tsx` only renders `SquashBoard` while `phase === 'running'`)
+   * — rather than being tied to any per-mosquito state. It is one continuous tone, not a
+   * cue retriggered per squash, so mount/unmount is the whole lifecycle it needs.
+   */
+  useEffect(() => {
+    if (sound) startBuzzLoop();
+    return () => stopBuzzLoop();
+  }, [sound]);
 
   const refs = useRef(new Map<number, HTMLButtonElement>());
   const motion = useRef(new Map<number, { x: number; y: number; spawnedAt: number; facing: 1 | -1 }>());
@@ -180,7 +198,17 @@ export function SquashBoard({
           title={title}
           concept={concept}
           rules={rules}
-        />
+        >
+          <SoundToggle
+            on={sound}
+            onChange={onSound}
+            heading={text({ en: 'Sound', fr: 'Son' })}
+            onLabel={text({ en: 'Buzzing', fr: 'Bourdonnement' })}
+            offLabel={text({ en: 'Silent', fr: 'Silencieux' })}
+            className="squash__sound"
+            activeClassName="squash__sound--on"
+          />
+        </StatusBar>
       </div>
 
       <div class="squash__grid" role="group" aria-label={text({ en: 'The swarm', fr: 'L’essaim' })}>
