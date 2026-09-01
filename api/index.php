@@ -426,14 +426,11 @@ switch ($action) {
         requireSchema($app);
         $in = body();
         $patch = [];
-        // Only the three fields, only the right types. Everything else is dropped
+        // Only the two fields, only the right types. Everything else is dropped
         // rather than rejected: the caller is a form, and Flags::apply() treats a
         // partial patch as a merge (spec §5).
-        if (isset($in['availability']) && is_string($in['availability'])) {
-            $patch['availability'] = $in['availability'];
-        }
-        if (isset($in['isNew']) && is_bool($in['isNew'])) {
-            $patch['isNew'] = $in['isNew'];
+        if (isset($in['state']) && is_string($in['state'])) {
+            $patch['state'] = $in['state'];
         }
         if (array_key_exists('reason', $in)) {
             $patch['reason'] = is_string($in['reason']) ? $in['reason'] : null;

@@ -20,12 +20,13 @@ declare(strict_types=1);
  */
 final class Flags
 {
+    public const NEW = 'new';
     public const ACTIVE = 'active';
-    public const DISABLED = 'disabled';
+    public const SOON = 'soon';
     public const HIDDEN = 'hidden';
 
     /** Matches `FlagState` in shared/flags.ts. */
-    public const STATES = [self::ACTIVE, self::DISABLED, self::HIDDEN];
+    public const STATES = [self::NEW, self::ACTIVE, self::SOON, self::HIDDEN];
 
     /** Same cap the Worker's `/admin/flags` route used. A reason is a note, not prose. */
     public const REASON_MAX = 120;
@@ -51,19 +52,26 @@ final class Flags
         return preg_match('/^[a-z][a-z0-9-]{0,31}$/D', $raw) === 1 ? $raw : null;
     }
 
+    /** Whether the Worker opens a room for this state. `new` is playable-plus-a-badge,
+     *  same as `active`. */
+    public static function isPlayable(string $state): bool
+    {
+        return $state === self::ACTIVE || $state === self::NEW;
+    }
+
     /** The shape a slug gets when nothing has ever been set for it. */
     public static function default(): array
     {
-        return ['availability' => self::ACTIVE, 'isNew' => false];
+        return ['state' => self::ACTIVE];
     }
 
     /**
      * Apply an operator's patch to one slug's flag, returning the whole new map.
      *
-     * A patch is partial on purpose: the admin page toggles availability without
-     * having to restate `isNew`, and vice versa. Unknown keys and wrong types are
-     * dropped rather than rejected — the caller is a form, and a form that silently
-     * sends `isNew: "true"` should not 500.
+     * A patch is partial on purpose: the admin page can send `reason` without having
+     * to restate `state`, and vice versa. Unknown keys and wrong types are dropped
+     * rather than rejected — the caller is a form, and a form that silently sends a
+     * malformed value should not 500.
      *
      * `reason` is **absent, never empty**, matching `GameFlag` in shared/flags.ts
      * where the field is `reason?: string`. An empty string would render as a blank
@@ -77,12 +85,8 @@ final class Flags
     {
         $current = $flags[$slug] ?? self::default();
 
-        if (isset($patch['availability']) && in_array($patch['availability'], self::STATES, true)) {
-            $current['availability'] = $patch['availability'];
-        }
-
-        if (isset($patch['isNew']) && is_bool($patch['isNew'])) {
-            $current['isNew'] = $patch['isNew'];
+        if (isset($patch['state']) && in_array($patch['state'], self::STATES, true)) {
+            $current['state'] = $patch['state'];
         }
 
         if (array_key_exists('reason', $patch)) {
@@ -351,7 +355,7 @@ final class Flags
             if (isset($pinnedSet[$slug])) {
                 continue;
             }
-            if (($flags[$slug]['isNew'] ?? false) === true) {
+            if (($flags[$slug]['state'] ?? self::ACTIVE) === self::NEW) {
                 $fresh[] = $slug;
             } else {
                 $rest[] = $slug;
@@ -438,12 +442,11 @@ final class Flags
                 continue;
             }
 
-            $availability = $flag['availability'] ?? self::ACTIVE;
+            $state = $flag['state'] ?? self::ACTIVE;
             $clean = [
-                'availability' => in_array($availability, self::STATES, true)
-                    ? $availability
+                'state' => in_array($state, self::STATES, true)
+                    ? $state
                     : self::ACTIVE,
-                'isNew' => ($flag['isNew'] ?? false) === true,
             ];
 
             if (isset($flag['reason']) && is_string($flag['reason']) && trim($flag['reason']) !== '') {

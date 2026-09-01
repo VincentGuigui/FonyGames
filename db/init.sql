@@ -26,11 +26,13 @@
 CREATE TABLE IF NOT EXISTS games (
   -- The same shape worker/router.ts and Flags::slug() enforce: ^[a-z][a-z0-9-]{0,31}$
   slug         VARCHAR(32)  NOT NULL,
-  -- Deliberately NOT an ENUM. Adding a fourth state to an ENUM is a schema
-  -- migration; here it is a code change, and the reader already fails open on a
-  -- value it does not recognise.
+  -- One of `new`/`active`/`soon`/`hidden` (GameFlag.state in shared/flags.ts) — a
+  -- game is exactly one of these, never two. Column name predates that: it held
+  -- `active`/`disabled`/`hidden` before `is_new` folded in as `new`
+  -- (db/migrations/0005_flag_state.sql). Deliberately NOT an ENUM. Adding a
+  -- fourth state to an ENUM is a schema migration; here it was a code change,
+  -- and the reader already fails open on a value it does not recognise.
   availability VARCHAR(16)  NOT NULL DEFAULT 'active',
-  is_new       TINYINT(1)   NOT NULL DEFAULT 0,
   -- NULL, never ''. GameFlag.reason is optional in shared/flags.ts, and an empty
   -- string would render as a blank badge.
   reason       VARCHAR(120)     NULL DEFAULT NULL,
@@ -53,7 +55,6 @@ CREATE TABLE IF NOT EXISTS flag_audit (
   id           BIGINT       NOT NULL AUTO_INCREMENT,
   slug         VARCHAR(32)  NOT NULL,
   availability VARCHAR(16)  NOT NULL,
-  is_new       TINYINT(1)   NOT NULL DEFAULT 0,
   reason       VARCHAR(120)     NULL DEFAULT NULL,
   at           BIGINT       NOT NULL,
   PRIMARY KEY (id),

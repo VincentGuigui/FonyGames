@@ -63,10 +63,11 @@ export function GameCardTile({
   /*
    * Which badge, and why it is one field rather than two.
    *
-   * `view.badge` already folds together build-time `status` and the runtime flag on the
-   * stricter reading — a `soon` game says `soon` whatever the flag says, and a disabled
-   * one says its reason. The class only needs to know whether to shout: HOT and NEW are
-   * invitations, the rest are caveats.
+   * `view.badge` already folds together build-time `status` and the runtime flag state
+   * on the stricter reading — a `soon` game says `soon` whatever the flag says, and a
+   * `soon`-state game with a reason says the reason instead. The class only needs to
+   * know whether to shout: HOT and NEW are invitations, the rest are caveats, so a
+   * custom reason gets the same visual treatment as the literal word "soon".
    */
   const badgeKind =
     view.badge === 'hot'
@@ -75,13 +76,13 @@ export function GameCardTile({
         ? 'week'
         : view.badge === 'new'
           ? 'new'
-          : view.badge === 'soon'
-            ? 'soon'
-            : 'paused';
+          : view.badge === 'hidden'
+            ? 'hidden'
+            : 'soon';
 
   /*
-   * `hot`/`week`/`new`/`soon`/`disabled`/`hidden` are the fixed tokens `cardState` can
-   * return, and each has a translation. Anything else is a paused game's own reason
+   * `hot`/`week`/`new`/`soon`/`hidden` are the fixed tokens `cardState` can return, and
+   * each has a translation. Anything else is a `soon`-state game's own reason
    * (`flag.reason`) — the operator's free text, not a constant, so it passes through as-is
    * rather than through this table.
    */
@@ -92,9 +93,7 @@ export function GameCardTile({
           view.badge === 'week' ||
           view.badge === 'new' ||
           view.badge === 'soon' ||
-          view.badge === 'disabled' ||
-          view.badge === 'hidden' ||
-          view.badge === 'paused'
+          view.badge === 'hidden'
         ? t.badge[view.badge]
         : view.badge;
 

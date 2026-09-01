@@ -43,13 +43,11 @@ if (!is_readable($generated)) {
     check('the build recorded a grid wrapper', str_starts_with((string) ($built['grid']['open'] ?? ''), '<ul'), $built['grid'] ?? null);
 
     $wanted = [];
-    foreach (Flags::STATES as $availability) {
-        foreach ([false, true] as $isNew) {
-            foreach ([false, true] as $hot) {
-                foreach ([false, true] as $week) {
-                    foreach ([false, true] as $showAll) {
-                        $wanted[] = Page::variantKey($availability, $isNew, $hot, $week, $showAll);
-                    }
+    foreach (Flags::STATES as $state) {
+        foreach ([false, true] as $hot) {
+            foreach ([false, true] as $week) {
+                foreach ([false, true] as $showAll) {
+                    $wanted[] = Page::variantKey($state, $hot, $week, $showAll);
                 }
             }
         }
@@ -77,13 +75,13 @@ if (!is_readable($generated)) {
     check('and no keys PHP would never ask for', $extra === [], array_slice($extra, 0, 5));
 
     // The sentinel has to survive into the generated markup, or the reason substitution
-    // is a no-op and every disabled card says nothing.
+    // is a no-op and every soon card says nothing.
     $firstSlug = $built['week'][0];
     check(
-        'a disabled variant still carries the reason sentinel',
-        str_contains((string) ($built['cards'][$firstSlug]['disabled:0:0:0:0'] ?? ''), Page::REASON_SENTINEL)
-            || ($built['cards'][$firstSlug]['disabled:0:0:0:0'] ?? '') === '',
-        $built['cards'][$firstSlug]['disabled:0:0:0:0'] ?? null,
+        'a soon variant still carries the reason sentinel',
+        str_contains((string) ($built['cards'][$firstSlug]['soon:0:0:0'] ?? ''), Page::REASON_SENTINEL)
+            || ($built['cards'][$firstSlug]['soon:0:0:0'] ?? '') === '',
+        $built['cards'][$firstSlug]['soon:0:0:0'] ?? null,
     );
 
     check('the build also recorded a week order', is_array($built['week'] ?? null) && count($built['week']) > 0, $built['week'] ?? null);

@@ -54,7 +54,7 @@ play something in under ten seconds.
   published `flags.json` ([backoffice.md](backoffice.md) §7) — and **replaces
   NEW** on that card: there is one badge slot, so the two are ranked rather than
   stacked. NEW says nobody has tried this yet, HOT says everybody has, and a
-  card claiming both says nothing. A paused or unbuilt game never wears it —
+  card claiming both says nothing. A `soon`-state or unbuilt game never wears it —
   those badges are caveats, and a caveat outranks a boast.
 - **A tie badges nobody**, and pins nobody. Two games on the same count means
   there is no single most-played game, and picking one by slug order would make
@@ -83,12 +83,13 @@ play something in under ten seconds.
   list (`soonOrder()` in `scripts/ssr.mjs`, the `soon`-status games in
   `HubGrid.tsx`) appended verbatim after it: a `soon` card cannot be hot,
   spotlighted, or NEW, so it plays no part in that sort at all.
-- **Runtime feature flags** can additionally grey out or hide a card; see
-  [backoffice.md](backoffice.md) §2b. They are orthogonal to `status`, and the
-  first paint is **already correct**: PHP applies them while rendering the page and
-  inlines them for the client, so there is no fetch to wait for and no second
-  render ([seo.md](seo.md) §4). An earlier design painted the compiled registry and
-  reconciled afterwards, which briefly showed a disabled game as playable.
+- **Runtime feature flags** can additionally badge a card NEW, grey it out, or
+  hide it; see [backoffice.md](backoffice.md) §2b. They are a different axis from
+  `status`, and the first paint is **already correct**: PHP applies them while
+  rendering the page and inlines them for the client, so there is no fetch to wait
+  for and no second render ([seo.md](seo.md) §4). An earlier design painted the
+  compiled registry and reconciled afterwards, which briefly showed a `soon`-state
+  game as playable.
 - Illustrations are lazy-loaded: `loading="lazy"` on an `<img>` with intrinsic
   `width`/`height`, so the box is reserved even if the stylesheet is late. The
   placeholder is the game's accent at 14%, painted by the element — it stays

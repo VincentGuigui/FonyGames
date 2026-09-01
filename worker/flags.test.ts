@@ -3,7 +3,7 @@
  *
  * The interesting cases are all failures, because the failures are what decide
  * whether a bad flags file can take the catalogue down. A test suite here that only
- * proved "a disabled game reads as disabled" would have missed every one of them.
+ * proved "a soon game reads as soon" would have missed every one of them.
  */
 
 import {
@@ -52,15 +52,14 @@ function clock(start = 1_000): { now: () => number; advance: (ms: number) => voi
 async function parsing(): Promise<void> {
   console.log('\nparsing the published document');
 
-  const good = parseFlags({ flags: { spill: { availability: 'disabled', isNew: true } } });
-  check('a well-formed flag survives', good['spill']?.availability === 'disabled', good);
-  check('and its badge', good['spill']?.isNew === true);
+  const good = parseFlags({ flags: { spill: { state: 'soon' } } });
+  check('a well-formed flag survives', good['spill']?.state === 'soon', good);
 
-  const reason = parseFlags({ flags: { spill: { availability: 'disabled', reason: '  back Friday ' } } });
+  const reason = parseFlags({ flags: { spill: { state: 'soon', reason: '  back Friday ' } } });
   check('a reason is trimmed', reason['spill']?.reason === 'back Friday', reason);
   check(
     'a blank reason is absent, not empty',
-    !('reason' in (parseFlags({ flags: { spill: { availability: 'disabled', reason: '   ' } } })['spill'] ?? {})),
+    !('reason' in (parseFlags({ flags: { spill: { state: 'soon', reason: '   ' } } })['spill'] ?? {})),
   );
 
   check('a missing flags key is an empty map', Object.keys(parseFlags({})).length === 0);
@@ -72,42 +71,44 @@ async function parsing(): Promise<void> {
 
   const bad = parseFlags({
     flags: {
-      '../etc/passwd': { availability: 'hidden', isNew: false },
-      '//evil.test': { availability: 'hidden', isNew: false },
-      spill: { availability: 'hidden', isNew: false },
+      '../etc/passwd': { state: 'hidden' },
+      '//evil.test': { state: 'hidden' },
+      spill: { state: 'hidden' },
     },
   });
   check('a slug that is not a slug is dropped', Object.keys(bad).join() === 'spill', bad);
-  check('and the good one beside it survives', bad['spill']?.availability === 'hidden');
+  check('and the good one beside it survives', bad['spill']?.state === 'hidden');
 
-  const weird = parseFlags({ flags: { spill: { availability: 'banana', isNew: 1 } } });
-  check('an availability outside the enum falls back to active', weird['spill']?.availability === 'active', weird);
-  check('a truthy non-boolean isNew is not trusted', weird['spill']?.isNew === false, weird);
+  const weird = parseFlags({ flags: { spill: { state: 'banana' } } });
+  check('a state outside the enum falls back to active', weird['spill']?.state === 'active', weird);
+
+  const news = parseFlags({ flags: { spill: { state: 'new' } } });
+  check('the new state survives too', news['spill']?.state === 'new', news);
 }
 
 async function caching(): Promise<void> {
   console.log('\ncaching');
 
   const c = clock();
-  const s = scripted([ok({ spill: { availability: 'disabled', isNew: false } })]);
+  const s = scripted([ok({ spill: { state: 'soon' } })]);
   const reader = makeFlagsReader({ url: URL_, now: c.now, fetcher: s.fetcher });
 
-  check('the first read fetches', (await reader.availabilityOf('spill')) === 'disabled');
+  check('the first read fetches', (await reader.stateOf('spill')) === 'soon');
   check('once', s.count() === 1, s.count());
 
-  await reader.availabilityOf('spill');
-  await reader.availabilityOf('tap-duel');
+  await reader.stateOf('spill');
+  await reader.stateOf('tap-duel');
   check('further reads inside the TTL do not', s.count() === 1, s.count());
 
   c.advance(59_000);
-  await reader.availabilityOf('spill');
+  await reader.stateOf('spill');
   check('still not at 59 s', s.count() === 1, s.count());
 
   c.advance(2_000);
-  await reader.availabilityOf('spill');
+  await reader.stateOf('spill');
   check('and refetches once past 60 s', s.count() === 2, s.count());
 
-  check('an unknown slug is active', (await reader.availabilityOf('ghost-tag')) === 'active');
+  check('an unknown slug is active', (await reader.stateOf('ghost-tag')) === 'active');
   check('the timeout is passed to the fetcher', s.calls[0]?.timeoutMs === FLAGS_TIMEOUT_MS, s.calls[0]);
 }
 
@@ -127,7 +128,7 @@ async function coalescing(): Promise<void> {
   const fetcher: Fetcher = async () => {
     calls++;
     await gate;
-    return new Response(JSON.stringify({ flags: { spill: { availability: 'hidden' } } }), {
+    return new Response(JSON.stringify({ flags: { spill: { state: 'hidden' } } }), {
       status: 200,
     });
   };
@@ -136,7 +137,7 @@ async function coalescing(): Promise<void> {
 
   // Twenty joins arriving on a cold isolate. Without coalescing this is twenty
   // requests to the web host, all for the same 200-byte file.
-  const all = Promise.all(Array.from({ length: 20 }, () => reader.availabilityOf('spill')));
+  const all = Promise.all(Array.from({ length: 20 }, () => reader.stateOf('spill')));
   release();
   const answers = await all;
 
@@ -157,7 +158,7 @@ async function failing(): Promise<void> {
       throw new Error('ECONNREFUSED');
     },
   });
-  check('a dead host means every game is active', (await dead.availabilityOf('spill')) === 'active');
+  check('a dead host means every game is active', (await dead.stateOf('spill')) === 'active');
   check('and it does not reject', true);
 
   const c2 = clock();
@@ -166,15 +167,15 @@ async function failing(): Promise<void> {
     now: c2.now,
     fetcher: async () => new Response('nope', { status: 404 }),
   });
-  check('a 404 means active', (await notFound.availabilityOf('spill')) === 'active');
+  check('a 404 means active', (await notFound.stateOf('spill')) === 'active');
 
   const c3 = clock();
   const garbage = makeFlagsReader({
     url: URL_,
     now: c3.now,
-    fetcher: async () => new Response('{"flags":{"spill":{"availab', { status: 200 }),
+    fetcher: async () => new Response('{"flags":{"spill":{"stat', { status: 200 }),
   });
-  check('half a document means active', (await garbage.availabilityOf('spill')) === 'active');
+  check('half a document means active', (await garbage.stateOf('spill')) === 'active');
 
   // No URL configured at all — the state of a Worker deployed before the PHP side
   // exists. It must not fetch, and it must not break.
@@ -185,7 +186,7 @@ async function failing(): Promise<void> {
       throw new Error('should not be called');
     },
   });
-  check('an unconfigured URL means active, with no request', (await unset.availabilityOf('spill')) === 'active');
+  check('an unconfigured URL means active, with no request', (await unset.stateOf('spill')) === 'active');
 }
 
 async function staleness(): Promise<void> {
@@ -197,32 +198,32 @@ async function staleness(): Promise<void> {
   const fetcher: Fetcher = async () => {
     calls++;
     if (mode === 'fail') throw new Error('gone');
-    return new Response(JSON.stringify({ flags: { spill: { availability: 'disabled' } } }), {
+    return new Response(JSON.stringify({ flags: { spill: { state: 'soon' } } }), {
       status: 200,
     });
   };
 
   const reader = makeFlagsReader({ url: URL_, now: c.now, fetcher });
-  check('a good copy is read', (await reader.availabilityOf('spill')) === 'disabled');
+  check('a good copy is read', (await reader.stateOf('spill')) === 'soon');
 
   mode = 'fail';
   c.advance(10 * 60_000);
 
   // The decisive one. Ten minutes past the TTL with the host down, the last good
-  // answer still stands — a *disabled* game stays disabled rather than silently
-  // becoming playable because the flags file went away.
-  check('ten minutes later, with the host down, the old answer stands', (await reader.availabilityOf('spill')) === 'disabled');
+  // answer still stands — a *soon* game stays soon rather than silently becoming
+  // playable because the flags file went away.
+  check('ten minutes later, with the host down, the old answer stands', (await reader.stateOf('spill')) === 'soon');
   check('and it kept trying rather than giving up', calls === 2, calls);
 
   c.advance(10 * 60_000);
-  await reader.availabilityOf('spill');
+  await reader.stateOf('spill');
   check('it tries again on the next expiry, not on every read', calls === 3, calls);
 
   // And a failed refresh must not wedge the reader: once the host is back, the next
   // read past the TTL picks up the new answer.
   mode = 'ok';
   c.advance(10 * 60_000);
-  check('recovery needs no restart', (await reader.availabilityOf('spill')) === 'disabled');
+  check('recovery needs no restart', (await reader.stateOf('spill')) === 'soon');
   check('and the fetch happened', calls === 4, calls);
 }
 

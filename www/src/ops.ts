@@ -2,7 +2,7 @@
  * The admin centre.
  * Spec: docs/specs/backoffice.md §2b, §4
  *
- * Plain DOM, no Preact. Not a style preference — this page has one user, three
+ * Plain DOM, no Preact. Not a style preference — this page has one user, four
  * controls per game and no shared state worth a component tree, and keeping it off the
  * hub's dependency graph means the admin can never accidentally grow into the
  * catalogue's bundle.
@@ -23,7 +23,7 @@ const API = '/api/index.php';
 
 type State = {
   flags: Record<string, GameFlag>;
-  history: Array<{ slug: string; availability: string; isNew: boolean; reason: string | null; at: number }>;
+  history: Array<{ slug: string; state: string; reason: string | null; at: number }>;
   revision: string | null;
 };
 
@@ -233,7 +233,7 @@ function render(state: State): void {
     name.append(
       el(
         'span',
-        `ops__badge ops__badge--${flag.availability}`,
+        `ops__badge ops__badge--${flag.state}`,
         `player sees: ${view.badge ?? (view.playable ? 'playable' : 'not playable')}`,
       ),
     );
@@ -248,40 +248,22 @@ function render(state: State): void {
 
     const controls = el('div', 'ops__controls');
 
-    for (const value of ['active', 'disabled', 'hidden'] as FlagState[]) {
+    for (const value of ['new', 'active', 'soon', 'hidden'] as FlagState[]) {
       const b = el('button', 'ops__choice', value);
-      if (flag.availability === value) b.classList.add('is-on');
+      if (flag.state === value) b.classList.add('is-on');
       b.disabled = buildTimeSoon;
       b.addEventListener('click', () => {
-        void write({ slug: game.slug, availability: value });
+        void write({ slug: game.slug, state: value });
       });
       controls.append(b);
     }
 
-    /*
-     * A toggle, labelled with what it controls rather than with its own state.
-     *
-     * It used to read "NEW flag on" / "NEW flag off", which is ambiguous on a button —
-     * is that the current state or the thing pressing it will do? The availability
-     * buttons beside it already answer that by naming the value and lighting up the
-     * one in force, so this matches them. `aria-pressed` carries the state for anyone
-     * who cannot see the highlight.
-     */
-    const isNew = el('button', 'ops__choice', 'NEW');
-    if (flag.isNew) isNew.classList.add('is-on');
-    isNew.setAttribute('aria-pressed', String(flag.isNew));
-    isNew.disabled = buildTimeSoon;
-    isNew.addEventListener('click', () => {
-      void write({ slug: game.slug, isNew: !flag.isNew });
-    });
-    controls.append(isNew);
-
-    // Only where it can be seen. A reason is rendered beside a *disabled* card, so on
+    // Only where it can be seen. A reason is rendered beside a `soon`-state card, so on
     // an active one the field is an invitation to type something nobody will ever read.
-    if (flag.availability === 'disabled') {
+    if (flag.state === 'soon') {
       const reason = el('input', 'ops__reason');
       reason.type = 'text';
-      reason.placeholder = 'reason, shown beside the disabled card';
+      reason.placeholder = 'reason, shown beside the soon card';
       reason.value = flag.reason ?? '';
       reason.maxLength = 120;
       // On change rather than on every keystroke: each save is a database write, an
@@ -305,7 +287,7 @@ function render(state: State): void {
     for (const h of state.history) {
       const when = new Date(h.at).toISOString().replace('T', ' ').slice(0, 16);
       items.append(
-        el('li', undefined, `${when}  ${h.slug} → ${h.availability}${h.isNew ? ' +NEW' : ''}${h.reason ? ` (${h.reason})` : ''}`),
+        el('li', undefined, `${when}  ${h.slug} → ${h.state}${h.reason ? ` (${h.reason})` : ''}`),
       );
     }
     log.append(items);

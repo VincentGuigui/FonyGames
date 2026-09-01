@@ -24,7 +24,7 @@ final class Page
     /** The marker `ssr.mjs` leaves where the grid goes. */
     public const GRID_MARKER = '<fony-grid></fony-grid>';
 
-    /** The sentinel a disabled card's badge carries until a real reason replaces it. */
+    /** The sentinel a `soon` card's badge carries until a real reason replaces it. */
     public const REASON_SENTINEL = '%%REASON%%';
 
     /**
@@ -43,9 +43,9 @@ final class Page
      * one coupling between them, and `page_test.php` asserts every key the renderer emits
      * is one this function can ask for.
      */
-    public static function variantKey(string $availability, bool $isNew, bool $hot, bool $week, bool $showAll): string
+    public static function variantKey(string $state, bool $hot, bool $week, bool $showAll): string
     {
-        return $availability . ':' . ($isNew ? '1' : '0') . ':' . ($hot ? '1' : '0') . ':' . ($week ? '1' : '0') . ':' . ($showAll ? '1' : '0');
+        return $state . ':' . ($hot ? '1' : '0') . ':' . ($week ? '1' : '0') . ':' . ($showAll ? '1' : '0');
     }
 
     /**
@@ -105,15 +105,14 @@ final class Page
                 }
 
                 $flag = $flags[$slug] ?? Flags::default();
-                $availability = in_array($flag['availability'] ?? null, Flags::STATES, true)
-                    ? (string) $flag['availability']
+                $state = in_array($flag['state'] ?? null, Flags::STATES, true)
+                    ? (string) $flag['state']
                     // Fail open, the same rule as everywhere: an unreadable flag means the
                     // game is playable, never that it vanishes.
                     : Flags::ACTIVE;
 
                 $html = $variants[self::variantKey(
-                    $availability,
-                    ($flag['isNew'] ?? false) === true,
+                    $state,
                     $slug === $hot,
                     $slug === $week,
                     $showAll,
@@ -127,9 +126,9 @@ final class Page
 
                 $reason = isset($flag['reason']) && is_string($flag['reason']) && trim($flag['reason']) !== ''
                     ? trim($flag['reason'])
-                    // `cardState` falls back to "paused"; that fallback lives in TypeScript,
+                    // `cardState` falls back to "soon"; that fallback lives in TypeScript,
                     // so the only thing to do here is supply the same word.
-                    : 'paused';
+                    : 'soon';
 
                 $out .= str_replace(
                     self::REASON_SENTINEL,

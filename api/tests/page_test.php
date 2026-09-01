@@ -24,19 +24,17 @@ function fakeCards(): array
 {
     $cards = [];
     foreach (['tap-duel', 'spill', 'ghost-tag', 'zone-rush'] as $slug) {
-        foreach (['active', 'disabled', 'hidden'] as $availability) {
-            foreach ([0, 1] as $isNew) {
-                foreach ([0, 1] as $hot) {
-                    foreach ([0, 1] as $week) {
-                        foreach ([0, 1] as $showAll) {
-                            $key = "{$availability}:{$isNew}:{$hot}:{$week}:{$showAll}";
-                            // A hidden game is absent on prod and present on dev, which is what
-                            // cardState() decides and what ssr.mjs bakes in.
-                            $absent = $availability === 'hidden' && $showAll === 0;
-                            $cards[$slug][$key] = $absent
-                                ? ''
-                                : "<li data-slug=\"{$slug}\" data-key=\"{$key}\">%%REASON%%</li>";
-                        }
+        foreach (['new', 'active', 'soon', 'hidden'] as $state) {
+            foreach ([0, 1] as $hot) {
+                foreach ([0, 1] as $week) {
+                    foreach ([0, 1] as $showAll) {
+                        $key = "{$state}:{$hot}:{$week}:{$showAll}";
+                        // A hidden game is absent on prod and present on dev, which is what
+                        // cardState() decides and what ssr.mjs bakes in.
+                        $absent = $state === 'hidden' && $showAll === 0;
+                        $cards[$slug][$key] = $absent
+                            ? ''
+                            : "<li data-slug=\"{$slug}\" data-key=\"{$key}\">%%REASON%%</li>";
                     }
                 }
             }
@@ -81,7 +79,7 @@ group("the week's own game always leads — gameOfWeek never spotlights nobody")
 $plain = Page::grid(fakeCards(), [], false, [], ALPHA, $week1);
 check('week 1 pins the already-first card, so the order is untouched', slugsIn($plain) === ALPHA, slugsIn($plain));
 check('a spacer still marks the pinned tier, even though nothing visibly moved', str_contains($plain, 'hub__spacer'), $plain);
-check('it still wears the WEEK variant', str_contains($plain, 'data-slug="ghost-tag" data-key="active:0:0:1:0"'), $plain);
+check('it still wears the WEEK variant', str_contains($plain, 'data-slug="ghost-tag" data-key="active:0:1:0"'), $plain);
 
 group('a single-game catalogue has nothing left to separate a spacer from');
 
@@ -94,7 +92,7 @@ group("the week's own game moves the order when it isn't already first");
 $withWeek = Page::grid(fakeCards(), [], false, [], ALPHA, $week2);
 check('week 2 pins a different card, which now visibly leads', slugsIn($withWeek) === ['spill', 'ghost-tag', 'tap-duel'], slugsIn($withWeek));
 check('a spacer separates it from the rest', str_contains($withWeek, 'hub__spacer'), $withWeek);
-check('the week\'s own game gets the week variant', str_contains($withWeek, 'data-slug="spill" data-key="active:0:0:1:0"'), $withWeek);
+check('the week\'s own game gets the week variant', str_contains($withWeek, 'data-slug="spill" data-key="active:0:1:0"'), $withWeek);
 check('the other two stay untagged', substr_count($withWeek, ':0:0:0"') === 2, $withWeek);
 
 group('an empty week order is a fail-open empty grid, not an error');
@@ -116,8 +114,8 @@ group('the most-played game is pinned right behind the week\'s own pick');
 $hot = Page::grid(fakeCards(), [], false, ['tap-duel' => 4], ALPHA, $week1);
 check('week leads, the hot game jumps up right behind it', slugsIn($hot) === ['ghost-tag', 'tap-duel', 'spill'], slugsIn($hot));
 check('a spacer separates the pinned tier from the rest', str_contains($hot, 'hub__spacer'), $hot);
-check('and it gets the hot variant', str_contains($hot, 'data-slug="tap-duel" data-key="active:0:1:0:0"'), $hot);
-check('while the week\'s own pick keeps only its own bit', str_contains($hot, 'data-slug="ghost-tag" data-key="active:0:0:1:0"'), $hot);
+check('and it gets the hot variant', str_contains($hot, 'data-slug="tap-duel" data-key="active:1:0:0"'), $hot);
+check('while the week\'s own pick keeps only its own bit', str_contains($hot, 'data-slug="ghost-tag" data-key="active:0:1:0"'), $hot);
 
 // A tie is not a winner: two games on the same count pins nobody extra.
 $tie = Page::grid(fakeCards(), [], false, ['spill' => 4, 'tap-duel' => 4], ALPHA, $week1);
@@ -140,18 +138,18 @@ check('a count for a game the build never saw is ignored; the real hot game stil
  */
 $same = Page::grid(fakeCards(), [], false, ['spill' => 4], ALPHA, $week2);
 check('the shared slug appears exactly once', substr_count($same, 'data-slug="spill"') === 1, $same);
-check('wearing both bits', str_contains($same, 'data-slug="spill" data-key="active:0:1:1:0"'), $same);
+check('wearing both bits', str_contains($same, 'data-slug="spill" data-key="active:1:1:0"'), $same);
 check('still leading everyone else', (slugsIn($same)[0] ?? null) === 'spill', slugsIn($same));
 
 group('a NEW-flagged game moves to its own tier, ahead of everything else that is not pinned');
 
-$fresh = Page::grid(fakeCards(), ['tap-duel' => ['availability' => 'active', 'isNew' => true]], false, [], ALPHA, $week1);
+$fresh = Page::grid(fakeCards(), ['tap-duel' => ['state' => 'new']], false, [], ALPHA, $week1);
 check('week still leads, then NEW, then the rest', slugsIn($fresh) === ['ghost-tag', 'tap-duel', 'spill'], slugsIn($fresh));
 check('two spacers now — one per tier boundary', substr_count($fresh, 'hub__spacer') === 2, $fresh);
-check('isNew still picks its own variant', str_contains($fresh, 'data-key="active:1:0:0:0"'), $fresh);
+check('the new state picks its own variant', str_contains($fresh, 'data-key="new:0:0:0"'), $fresh);
 
 // Pinned always outranks NEW — a hot-and-new game is not also duplicated into the NEW tier.
-$hotAndNew = Page::grid(fakeCards(), ['tap-duel' => ['availability' => 'active', 'isNew' => true]], false, ['tap-duel' => 4], ALPHA, $week1);
+$hotAndNew = Page::grid(fakeCards(), ['tap-duel' => ['state' => 'new']], false, ['tap-duel' => 4], ALPHA, $week1);
 check('a pinned game is never duplicated into the NEW tier', substr_count($hotAndNew, 'data-slug="tap-duel"') === 1, $hotAndNew);
 check('it leads on its pinned rank, right behind the week\'s own pick', slugsIn($hotAndNew) === ['ghost-tag', 'tap-duel', 'spill'], slugsIn($hotAndNew));
 
@@ -162,9 +160,9 @@ group('a not-yet-live game trails everything, in its own curated order (issue #4
 $withSoon = Page::grid(fakeCards(), [], false, [], ALPHA, $week1, SOON);
 check('it renders after every live tier', slugsIn($withSoon) === [...ALPHA, 'zone-rush'], slugsIn($withSoon));
 check('a spacer separates it from each non-empty live tier before it', substr_count($withSoon, 'hub__spacer') === 2, $withSoon);
-check('with no bits of its own', str_contains($withSoon, 'data-slug="zone-rush" data-key="active:0:0:0:0"'), $withSoon);
+check('with no bits of its own', str_contains($withSoon, 'data-slug="zone-rush" data-key="active:0:0:0"'), $withSoon);
 
-$withSoonAndNew = Page::grid(fakeCards(), ['tap-duel' => ['availability' => 'active', 'isNew' => true]], false, [], ALPHA, $week1, SOON);
+$withSoonAndNew = Page::grid(fakeCards(), ['tap-duel' => ['state' => 'new']], false, [], ALPHA, $week1, SOON);
 check(
     'it still trails behind every live tier, NEW included',
     slugsIn($withSoonAndNew) === ['ghost-tag', 'tap-duel', 'spill', 'zone-rush'],
@@ -176,21 +174,21 @@ check('one spacer per tier boundary, three tiers deep', substr_count($withSoonAn
 // cannot promote it — the same fail-open rule `Flags::hottest` already applies to a
 // count for a slug outside `$weekOrder` entirely.
 $noPromote = Page::grid(fakeCards(), [], false, ['zone-rush' => 99], ALPHA, $week1, SOON);
-check('a not-yet-live game earns no HOT badge no matter how many plays it has', !str_contains($noPromote, 'data-slug="zone-rush" data-key="active:0:1'), $noPromote);
+check('a not-yet-live game earns no HOT badge no matter how many plays it has', !str_contains($noPromote, 'data-slug="zone-rush" data-key="active:1'), $noPromote);
 check('and stays put at the very end', slugsIn($noPromote) === [...ALPHA, 'zone-rush'], slugsIn($noPromote));
 
 group('a flag selects the variant');
 
-$grid = Page::grid(fakeCards(), ['spill' => ['availability' => 'disabled', 'isNew' => false]], false, [], ALPHA, $week1);
-check('a disabled game gets the disabled variant', str_contains($grid, 'data-key="disabled:0:0:0:0"'), $grid);
-check('and the others stay active', substr_count($grid, 'data-key="active:0:0:0:0"') === 1);
+$grid = Page::grid(fakeCards(), ['spill' => ['state' => 'soon']], false, [], ALPHA, $week1);
+check('a soon game gets the soon variant', str_contains($grid, 'data-key="soon:0:0:0"'), $grid);
+check('and the others stay active', substr_count($grid, 'data-key="active:0:0:0"') === 1);
 
-$grid = Page::grid(fakeCards(), ['spill' => ['availability' => 'active', 'isNew' => false]], true, [], ALPHA, $week1);
-check('showAll picks its own variant', str_contains($grid, 'data-key="active:0:0:0:1"'));
+$grid = Page::grid(fakeCards(), ['spill' => ['state' => 'active']], true, [], ALPHA, $week1);
+check('showAll picks its own variant', str_contains($grid, 'data-key="active:0:0:1"'));
 
 group('a hidden game is ABSENT, not merely dimmed');
 
-$flags = ['spill' => ['availability' => 'hidden', 'isNew' => false]];
+$flags = ['spill' => ['state' => 'hidden']];
 $prod = Page::grid(fakeCards(), $flags, false, [], ALPHA, $week1);
 // Not `display:none`, which would still put its title and its link in the document for
 // anyone who read the source — and for a crawler, which does exactly that.
@@ -198,16 +196,16 @@ check('nothing for it reaches the document on prod', !str_contains($prod, 'data-
 check('the other two are still there', count(slugsIn($prod)) === 2, $prod);
 
 $dev = Page::grid(fakeCards(), $flags, true, [], ALPHA, $week1);
-check('but dev shows it, badged', str_contains($dev, 'data-key="hidden:0:0:0:1"'), $dev);
+check('but dev shows it, badged', str_contains($dev, 'data-key="hidden:0:0:1"'), $dev);
 
 group('the flags fail open, exactly as everything else does');
 
-$grid = Page::grid(fakeCards(), ['spill' => ['availability' => 'banana']], false, [], ALPHA, $week1);
-check('an availability outside the enum renders as active', str_contains($grid, 'data-key="active:0:0:0:0"'));
+$grid = Page::grid(fakeCards(), ['spill' => ['state' => 'banana']], false, [], ALPHA, $week1);
+check('a state outside the enum renders as active', str_contains($grid, 'data-key="active:0:0:0"'));
 check('rather than vanishing', count(slugsIn($grid)) === 3, $grid);
 
 $grid = Page::grid(fakeCards(), [], false, [], ALPHA, $week1);
-check('no flags at all means every game active, bar the week\'s own pin', substr_count($grid, 'data-key="active:0:0:0:0"') === 2);
+check('no flags at all means every game active, bar the week\'s own pin', substr_count($grid, 'data-key="active:0:0:0"') === 2);
 
 $grid = Page::grid(fakeCards(), [], false, [], ['tap-duel', 'a-game-the-build-never-saw'], $week1);
 check('a slug with no rendered variant is skipped, not invented', count(slugsIn($grid)) === 1, $grid);
@@ -216,21 +214,21 @@ group('a reason is operator text, and is escaped where it becomes HTML');
 
 $nasty = '<img src=x onerror="alert(1)">';
 $grid = Page::grid(fakeCards(), [
-    'spill' => ['availability' => 'disabled', 'isNew' => false, 'reason' => $nasty],
+    'spill' => ['state' => 'soon', 'reason' => $nasty],
 ], false, [], ALPHA, $week1);
 check('the raw tag does not reach the markup', !str_contains($grid, '<img src=x'), $grid);
 check('it is escaped', str_contains($grid, '&lt;img src=x'), $grid);
 check('and the quotes with it', str_contains($grid, '&quot;alert(1)&quot;'), $grid);
 
-$grid = Page::grid(fakeCards(), ['spill' => ['availability' => 'disabled']], false, [], ALPHA, $week1);
-// cardState()'s own fallback word, so a disabled card with no reason still says something
+$grid = Page::grid(fakeCards(), ['spill' => ['state' => 'soon']], false, [], ALPHA, $week1);
+// cardState()'s own fallback word, so a soon card with no reason still says something
 // rather than showing an empty badge.
-check('a disabled game with no reason says "paused"', str_contains($grid, '>paused</li>'), $grid);
+check('a soon game with no reason says "soon"', str_contains($grid, '>soon</li>'), $grid);
 
 group('the inlined payload cannot break out of its script element');
 
 $script = Page::flagsScript([
-    'spill' => ['availability' => 'disabled', 'isNew' => false, 'reason' => '</script><img src=x onerror=alert(1)>'],
+    'spill' => ['state' => 'soon', 'reason' => '</script><img src=x onerror=alert(1)>'],
 ], false);
 // `</script` ends the element wherever it appears, INCLUDING inside a JSON string, and
 // JSON escaping alone does not touch it. JSON_HEX_TAG is what closes that.

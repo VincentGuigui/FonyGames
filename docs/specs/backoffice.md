@@ -85,13 +85,15 @@ outbound calls from PHP, with no new credential and nothing to keep in step.
 
 ## 2b. Feature flags — turning games on and off
 
-The operator can switch each game between three states **at runtime**, without a
-commit or a deploy.
+The operator can switch each game between four states **at runtime**, without a
+commit or a deploy. A game is exactly one of these — never two at once (see §5,
+"One state, not two fields").
 
 | State | On **prod** | On **dev** |
 | --- | --- | --- |
+| `new` | Shown and playable, badged *new* (or HOT/WEEK if either applies) | Same |
 | `active` | Normal: shown and playable | Shown and playable |
-| `disabled` | Shown, **greyed out, not playable**, optional short reason | **Shown and playable**, with a badge reading *disabled* |
+| `soon` | Shown, **greyed out, not playable**, optional short reason | **Shown and playable**, with a badge reading *soon* (or the reason, once set) |
 | `hidden` | **Absent from the hub** entirely, and not reachable | **Shown**, with a badge reading *hidden* |
 
 **dev always shows everything**, with the badge stating what prod would do.
@@ -111,12 +113,15 @@ state is enforced in **two places**, and the Worker is the one that counts:
 | Hub | Presentation — hides or greys the card |
 | **Worker** | **Enforcement** — refuses to open a room for a non-active game |
 
-### Flags are orthogonal to `status`
+### The flag and `status` are different axes
 
 `status` (`soon` / `beta` / `live`) is build-time intent: *how finished is this
-game*. The flag is runtime availability: *may it be played right now*. They do
-not override each other — a `beta` game can be `active`, and a `live` game can
-be `disabled` for maintenance. The card renders on the stricter of the two.
+game*. The flag is runtime state: *may it be played right now*. They do not
+override each other — a `beta` game can be `active`, and a `live` game's flag can
+be set to `soon` for maintenance. The card renders on the stricter of the two
+(`cardState` in `shared/flags.ts`) — which is also why the runtime state reuses
+the word `soon` rather than keeping the old `disabled`: both are the same kind of
+caveat to a player, whether the code doesn't exist yet or the operator paused it.
 
 ### Where the flags live
 
@@ -390,20 +395,40 @@ reason it stays.
 MailChannels was not chosen: it was the free default for Workers and is believed to
 have ended that in 2024. Now moot, since nothing sends from a Worker.
 
-### Availability and novelty are separate fields
+### One state, not two fields
 
-`availability` is `active` / `disabled` / `hidden` and is what the **Worker
-enforces**. `isNew` is its own runtime flag and only drives the NEW badge.
+**This supersedes the "Availability and novelty are separate fields" decision
+below (superseded 2026-09-01).** That design kept `availability`
+(`active`/`disabled`/`hidden`, what the Worker enforces) and `isNew` (its own
+runtime flag, driving only the NEW badge) as two independent fields, specifically
+so a game could be "new and disabled" at once. The operator asked instead for the
+simpler mental model — a game is exactly one of `new` / `active` / `soon` /
+`hidden`, never two at once — at the cost of that one combination. `disabled` is
+renamed `soon` in the same change, to read the same as the build-time "not built
+yet" `status` value that the stricter-of-the-two rule already treated as the same
+kind of caveat (§2b).
 
-Two fields rather than a four-value enum, for the same reason §2b already separates
-the flag from build-time `status`: a game can be **new and disabled** at once, and
-folding novelty into the enum would make `new` silently mean "playable" — mixing
-presentation into the one thing that is a control.
+The migration is lossless for anything a player could ever see: `cardState()`
+never surfaced the NEW badge for a `disabled` or `hidden` game in the old model —
+only `active` + `isNew` ever produced a visible badge, and that combination
+becomes `new` in the new one (`db/migrations/0005_flag_state.sql`).
 
-It also makes novelty settable without a deploy, which is the point. Today
-`status: 'new'` is compiled into `card.ts`, so clearing a badge needs a release.
-Build-time `status` stays as intent; the runtime flag wins where they disagree, on
-the stricter reading.
+**What follows is the original reasoning, kept for the record rather than
+rewritten:**
+
+`availability` was `active` / `disabled` / `hidden` and was what the **Worker
+enforced**. `isNew` was its own runtime flag and only drove the NEW badge.
+
+Two fields rather than a four-value enum, for the same reason §2b separated
+the flag from build-time `status`: a game could be **new and disabled** at once,
+and folding novelty into the enum would make `new` silently mean "playable" —
+mixing presentation into the one thing that is a control.
+
+It also made novelty settable without a deploy, which was the point. Before that,
+`status: 'new'` was compiled into `card.ts`, so clearing a badge needed a release.
+Build-time `status` stayed as intent; the runtime flag won where they disagreed, on
+the stricter reading — a rule that still holds today, just over one field instead
+of two.
 
 ### Still genuinely open, not blocking
 

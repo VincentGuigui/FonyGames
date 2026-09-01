@@ -138,12 +138,14 @@
 }
 
 /*
- * A paused game's badge carries the OPERATOR'S OWN SENTENCE — "back Friday", not a
- * state word — so this is the one badge that must not be uppercased or letter-spaced.
- * Amber rather than dim, because "you cannot play this right now" is information the
- * player needs before they tap, not a footnote.
+ * A `soon`-state game's badge can carry the OPERATOR'S OWN SENTENCE — "back Friday",
+ * not a state word — so this is the one badge that must not be uppercased or
+ * letter-spaced. Amber rather than dim, because "you cannot play this right now" is
+ * information the player needs before they tap, not a footnote. The same class covers
+ * the plain "Soon" word too, whether from a `soon`-state flag with no reason or a
+ * build-time not-yet-live card — both are the same caveat to a player.
  */
-.game-card__badge--paused {
+.game-card__badge--soon {
   text-transform: none;
   letter-spacing: normal;
   font-weight: 600;

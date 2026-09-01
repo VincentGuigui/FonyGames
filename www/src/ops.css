@@ -95,8 +95,8 @@ body {
 
 .ops__badge {
   font-size: 0.7rem;
-  /* NOT uppercased. The badge carries the operator's own `reason` prose for a disabled
-     game — "BALANCE PASS IN PROGRESS" shouts, and a long reason shouts wider. */
+  /* NOT uppercased. The badge carries the operator's own `reason` prose for a
+     soon-state game — "BALANCE PASS IN PROGRESS" shouts, and a long reason shouts wider. */
   letter-spacing: 0.02em;
   padding: 0.1rem 0.4rem;
   border-radius: 0.25rem;
@@ -105,7 +105,7 @@ body {
 
 /* Colour carries meaning here, so the label always says it too — the badge text is the
  * state, not a decoration beside it. */
-.ops__badge--disabled {
+.ops__badge--soon {
   background: #4a3410;
   color: #ffd08a;
 }
