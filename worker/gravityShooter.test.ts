@@ -111,6 +111,15 @@ async function starting(): Promise<void> {
     check('and within the stated radius range', planet.r >= GRAVITY_PLANET_R_MIN && planet.r <= GRAVITY_PLANET_R_MAX, planet.r);
   }
 
+  // Never both left or both right — a board with nothing to curve a shot on
+  // one whole side of it.
+  const [first, second] = g?.planets ?? [];
+  check(
+    'the two planets are never on the same side of the screen',
+    !!first && !!second && (first.x < 0.5) !== (second.x < 0.5),
+    g?.planets,
+  );
+
   // The same seed rolls the same planets — a phone cannot be the fairest source
   // of a board it is also playing, so the referee's own random() decides it once.
   const h2 = harness();

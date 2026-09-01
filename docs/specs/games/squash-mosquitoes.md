@@ -119,10 +119,15 @@ on a game this short would be ceremony nobody asked for.
   nothing is layered behind it in CSS. `StatusBar` carries your own squashed
   count — in red rather than `StatusBar`'s usual accent-on-the-number default,
   since the count here IS the blood; the accent (purple) moves to the label
-  instead. The `Scoreboard` panel (bottom-right, `best="high"`, same corner as
-  Pass the Bomb) carries
+  instead. The `Scoreboard` panel (bottom-right, `best="high"`) carries
   everyone else's, which is the entire live social read on the round — you
   cannot see anyone else's board, only how far along they are.
+
+  **The swarm has a sound**: a continuous mid-pitched buzz, on for as long as the round
+  is (`www/src/games/squash-mosquitoes/buzz.ts` — one sawtooth oscillator under a slow
+  vibrato, so it reads as a wingbeat rather than a synth tone), toggled from the same
+  `SoundToggle` idiom as Shake Rush's own tune. Purely ambient: it carries no state and
+  is never retriggered per squash, unlike a per-tap cue would be.
 - **Results**: the shared end screen ([../../design/game-chrome.md](../../design/game-chrome.md) §8) —
   the winner's avatar, everyone's count out of 66.
 

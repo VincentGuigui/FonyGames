@@ -67,6 +67,21 @@
   }
 }
 
+/*
+ * The break between the hub's three tiers (issue #4: pinned week/hot, then NEW,
+ * then everything else) — a full-width divider rather than a second `<ul>`, so
+ * `scripts/ssr.mjs`'s `gridShell()` still finds exactly one grid to derive its
+ * open/close tags from. `HubGrid.tsx` only emits one of these between two
+ * non-empty tiers, never at either end.
+ */
+.hub__spacer {
+  grid-column: 1 / -1;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--color-border);
+}
+
 .game-card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);

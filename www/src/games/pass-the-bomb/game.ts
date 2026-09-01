@@ -45,6 +45,14 @@ export type BombView = {
    * dropping a stale frame is a decision about the state, and a test has to be able to set it up.
    */
   seq: number;
+  /**
+   * How many times the bomb has changed hands so far this round — the first holder is 0, not
+   * a pass. Counts a fuse-survivor reassignment the same as a bump or a tap: from any phone's
+   * point of view the bomb just moved again, which is the only thing the rising heartbeat
+   * (issue #12) cares about. Reset to 0 by a fresh `roundId`, never by the fuse itself — see
+   * `game.ts`'s own rule against inferring time here.
+   */
+  passes: number;
 };
 
 /** Nothing yet, or the state after one frame. */
@@ -85,6 +93,7 @@ export function applyBomb(state: BombState, msg: ServerMessage, now: number): Bo
         winner: null,
         match: msg.d.match,
         seq: msg.s,
+        passes: fresh ? 0 : (state?.passes ?? 0) + 1,
       };
     }
 

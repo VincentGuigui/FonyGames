@@ -17,6 +17,7 @@ import { useGameText, type GameText } from '../../core/i18n/gameText';
 import { useSoloTesting } from '../../core/useSolo';
 import { SquashBoard } from './SquashBoard';
 import { SquashGame } from './game';
+import { prepareBuzzAudio, soundOn, setSoundOn } from './buzz';
 
 /**
  * Squash Mosquitoes' room. Spec: docs/specs/games/squash-mosquitoes.md
@@ -37,6 +38,15 @@ function SquashRoomInner({ game: card, code }: { game: GameCard; code: string })
   const t = useT();
   const text = useGameText();
   const [, redraw] = useState(0);
+  const [sound, setSound] = useState(soundOn);
+
+  useEffect(() => {
+    prepareBuzzAudio();
+  }, []);
+
+  useEffect(() => {
+    setSoundOn(sound);
+  }, [sound]);
 
   // Created before the socket, because the first `squash` frame can arrive before
   // this component has ever rendered — the same reasoning Spill's room gives.
@@ -81,6 +91,8 @@ function SquashRoomInner({ game: card, code }: { game: GameCard; code: string })
           if (!client) return;
           client.send({ t: 'squash-tap', d: { roundId: state.roundId, position } });
         }}
+        sound={sound}
+        onSound={setSound}
       />
     );
   }

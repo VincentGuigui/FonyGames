@@ -49,6 +49,17 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
   if (!gameRef.current) gameRef.current = new GravityGame();
   const game = gameRef.current;
 
+  /*
+   * The referee's own lives, held back from the screen until the shot that
+   * changed them has actually been watched — the referee decides a hit (and
+   * broadcasts the new count) the instant a `gravity-shot` arrives, seconds
+   * before the missile's own flight finishes animating on either phone. Read
+   * straight from `state.lives`, the pips gave the result away mid-flight.
+   * Reset only when a fresh match starts; every life lost within one is
+   * revealed by `onFlightEnd` below, exactly when the flight is done.
+   */
+  const [displayedLives, setDisplayedLives] = useState<Record<string, number>>({});
+
   const onGame = useCallback(
     (msg: ServerMessage) => {
       game.apply(msg);
@@ -60,10 +71,15 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
   const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
   const client = room.client;
   const myId = room.me?.id;
+  const roundId = game.state?.roundId;
 
   useEffect(() => {
     if (client && myId) game.identify(myId, () => client.now());
   }, [game, client, myId]);
+
+  useEffect(() => {
+    if (game.state) setDisplayedLives(game.state.lives);
+  }, [game, roundId]);
 
   const addBurst = useCallback((kind: Burst['kind'], pos: { x: number; y: number }): void => {
     const id = ++burstId.current;
@@ -73,15 +89,19 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
 
   const onFlightEnd = useCallback(
     (end: FlightEnd) => {
-      if (!end.hit) return;
-      addBurst('missile', end.local);
-      // The referee's own broadcast — which decides `phase`/`winner` — arrives
-      // well before a 3-second flight animation finishes, so by the time the
-      // flight ends `game.state` already knows whether this was the killing
-      // blow (spec §4).
-      if (game.state?.phase === 'done') {
-        setTimeout(() => addBurst('explosion', end.local), 200);
+      if (end.hit) {
+        addBurst('missile', end.local);
+        // The referee's own broadcast — which decides `phase`/`winner` — arrives
+        // well before the flight animation finishes, so by the time the flight
+        // ends `game.state` already knows whether this was the killing blow
+        // (spec §4).
+        if (game.state?.phase === 'done') {
+          setTimeout(() => addBurst('explosion', end.local), 200);
+        }
       }
+      // The flight this phone has been watching is over — only now does the
+      // outcome it decided become visible.
+      if (game.state) setDisplayedLives(game.state.lives);
     },
     [game, addBurst],
   );
@@ -99,7 +119,13 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
   const nameOf = (id: string): string => players.find((p) => p.id === id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' });
   const avatarOf = (id: string): string => players.find((p) => p.id === id)?.avatar ?? '🙂';
 
-  if (state && state.phase === 'done') {
+  // A match-ending shot still has to be watched: the referee decides `phase:
+  // 'done'` the instant the shot lands, but the missile carrying that news is
+  // still flying (or the impact GIF is still playing) on this phone. Cutting
+  // straight to the results screen would skip the very shot that won it.
+  const stillAnimating = game.activeShot !== null;
+
+  if (state && state.phase === 'done' && !stillAnimating) {
     return (
       <GameOverScreen
         room={room}
@@ -122,17 +148,23 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
     );
   }
 
-  if (state && state.phase === 'running') {
+  if (state && (state.phase === 'running' || stillAnimating)) {
     const mySeat = game.mySeat;
-    const myLives = mySeat !== null ? (state.lives[state.seats[mySeat]] ?? 0) : 0;
+    const myLives = mySeat !== null ? (displayedLives[state.seats[mySeat]] ?? 0) : 0;
     const otherSeatIndex = mySeat === 0 ? 1 : 0;
-    const opponentLives = mySeat !== null ? (state.lives[state.seats[otherSeatIndex]] ?? 0) : 0;
+    const opponentLives = mySeat !== null ? (displayedLives[state.seats[otherSeatIndex]] ?? 0) : 0;
     const isMyTurn = game.isMyTurn;
 
     return (
       <div class="gravity" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
         <StatusBar
-          status={isMyTurn ? text({ en: 'Your turn', fr: 'À vous' }) : text({ en: 'Their turn', fr: 'Au tour adverse' })}
+          status={
+            state.phase === 'done'
+              ? text({ en: 'That was the winning shot…', fr: 'Voici le tir décisif…' })
+              : isMyTurn
+                ? text({ en: 'Your turn', fr: 'À vous' })
+                : text({ en: 'Their turn', fr: 'Au tour adverse' })
+          }
           title={card.title}
           concept={card.concept}
           rules={card.rules}
@@ -191,5 +223,5 @@ function note(isHost: boolean, connected: number, text: GameText): string {
   if (!isHost) return text({ en: 'The host starts the match.', fr: "L’hôte démarre la partie." });
   if (connected < GRAVITY_MAX_PLAYERS) return text({ en: 'Waiting for your opponent…', fr: 'En attente de votre adversaire…' });
   if (connected > GRAVITY_MAX_PLAYERS) return text({ en: 'Gravity Shooter is exactly two players.', fr: 'Gravity Shooter se joue exactement à deux.' });
-  return text({ en: 'Pull back from your ship, let go, and let the planets bend your shot.', fr: 'Tirez sur votre vaisseau, lâchez, et laissez les planètes courber votre tir.' });
+  return text({ en: 'Touch above your ship to aim, let go, and let the planets bend your shot.', fr: 'Touchez au-dessus de votre vaisseau pour viser, lâchez, et laissez les planètes courber votre tir.' });
 }

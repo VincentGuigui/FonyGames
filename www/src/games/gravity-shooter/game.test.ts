@@ -1,7 +1,7 @@
 import type { GravityPlanet } from '../../../../shared/protocol';
 import {
-  GRAVITY_MAX_PULL,
-  aimFromPull,
+  GRAVITY_MAX_AIM_DISTANCE,
+  aimFromFinger,
   localAimToWorldVelocity,
   shipPosition,
   simulateShot,
@@ -57,23 +57,23 @@ function viewFlip(): void {
   check('and flipping twice is the identity', near(back.x, p.x) && near(back.y, p.y), back);
 }
 
-function pull(): void {
-  console.log('\na pull becomes an angle and a strength');
+function aiming(): void {
+  console.log('\na finger position becomes an angle and a strength');
 
-  check('nothing pulled is not a shot', aimFromPull(0, 0).strength === 0);
+  check('no finger offset is not a shot', aimFromFinger(0, 0).strength === 0);
 
-  // Pulled straight back (down, away from the opponent) fires straight up.
-  const straight = aimFromPull(0, GRAVITY_MAX_PULL);
-  check('a full pull straight back is full strength', straight.strength === 1, straight.strength);
+  // A finger straight above the ship (negative local y) fires straight up.
+  const straight = aimFromFinger(0, -GRAVITY_MAX_AIM_DISTANCE);
+  check('a finger at the full aim distance is full strength', straight.strength === 1, straight.strength);
   check('and fires straight up', Math.abs(straight.angle) < 1e-9, straight.angle);
 
-  // Pulled to the right fires to the left — a slingshot, not a shove.
-  const sideways = aimFromPull(GRAVITY_MAX_PULL, 0);
-  check('pulling right fires left', sideways.angle < 0, sideways.angle);
+  // A finger to the right fires to the right — a targeting reticle, not a slingshot.
+  const sideways = aimFromFinger(GRAVITY_MAX_AIM_DISTANCE, 0);
+  check('a finger to the right fires right', sideways.angle > 0, sideways.angle);
 
-  // A pull past the cap is clamped, not amplified.
-  const over = aimFromPull(0, GRAVITY_MAX_PULL * 5);
-  check('an over-pull is clamped to full strength', over.strength === 1, over.strength);
+  // A finger past the cap is clamped, not amplified.
+  const over = aimFromFinger(0, -GRAVITY_MAX_AIM_DISTANCE * 5);
+  check('a finger past the cap is clamped to full strength', over.strength === 1, over.strength);
 }
 
 function velocity(): void {
@@ -126,7 +126,7 @@ function targets(): void {
   check('both centred on x', seat0.x === 0.5 && seat1.x === 0.5);
 }
 
-for (const t of [viewFlip, pull, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets]) {
+for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets]) {
   t();
 }
 

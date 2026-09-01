@@ -10,7 +10,7 @@ import missileArt from './art/missile.png?url&no-inline';
 import {
   GRAVITY_STEP_MS,
   GravityGame,
-  aimFromPull,
+  aimFromFinger,
   shipPosition,
   simulateShot,
   viewTransform,
@@ -205,7 +205,7 @@ function simulatePreviewPath(game: GravityGame, aim: Vec): Vec[] {
   const seat = game.mySeat;
   if (!state || seat === null) return [];
   if (aim.x === 0 && aim.y === 0) return [shipPosition(seat)];
-  const { angle, strength } = aimFromPull(aim.x, aim.y);
+  const { angle, strength } = aimFromFinger(aim.x, aim.y);
   return simulateShot(state.planets, seat, angle, strength).path;
 }
 

@@ -121,6 +121,13 @@ Every mode shares the core loop. A mode that does not is a different game.
   one another and animate idle, punch, kick, jump, crouch, hit and knockout
   states. The current pair of actions is labelled. Health bars sit at the
   bottom of the scene, immediately above each player's name and round pips.
+  **The pips never spoil the round they are showing.** The referee resolves a
+  round and increments `roundWins` the instant both plans lock in — before
+  either phone has watched a single beat — so the pip count a client renders
+  is held back to the PREVIOUS tally for as long as `phase` is `fighting`,
+  and only jumps to the real one once the round overlay appears. Showing the
+  live count instead gave away who wins during the reveal countdown, seconds
+  before the fight it was the result of.
 - **Round overlay:** after the last animation settles — the sixth beat, or
   earlier on a knockout (issue #3) — a retro panel overlays the scene with
   “<nickname> wins” / “<nickname> gagne” or “Draw” / “Match nul”. The host gets
@@ -159,15 +166,19 @@ all six beats without a knockout is unchanged in spirit — more health remainin
 (equivalently, fewer hits received) wins, draw on a tie — just derived from the
 new fixed-damage health rather than a proportional one.
 
-The loss pose (two further frames beyond today's seven, looped for a beat) is
-specified but not yet built: the sprite sheets (`art/fighter1.png`,
-`art/fighter2.png`) do not have that art yet, and this is the maintainer's own
-follow-up, not guessed at here.
+A round lost on points — health above zero, just less than the winner's — gets
+its own reaction distinct from a real knockout: the sprite sheets' eighth and
+ninth frames alternate at three cycles per second, for as long as the
+round-over panel is showing — it does not freeze after one pass, since a host
+can leave that panel open as long as they like before starting the next
+round. Purely cosmetic and local to each device (no wire state, no need to
+agree beat-for-beat the way the fight itself does), unlike `defeated` (frame
+seven), which is reserved for health actually reaching zero.
 
 ### 4.1 Rendering decision
 
 Tap Fighter uses original SVG sprite sheets plus CSS pose/impact animation. Two
-fighters, seven discrete poses and six fixed beats need neither a scene graph
+fighters, ten discrete poses and six fixed beats need neither a scene graph
 nor a physics engine. PixiJS's previously measured minimal import (~221 KB
 gzipped in this repository) exceeds the per-game budget by itself; Phaser is
 larger and adds a game loop, input system and physics abstractions this design

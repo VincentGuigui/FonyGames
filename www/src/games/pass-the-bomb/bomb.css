@@ -7,22 +7,7 @@
   min-height: 100dvh;
   padding: var(--space-4);
   padding-top: max(var(--space-4), env(safe-area-inset-top));
-  /*
-   * The bottom of the screen belongs to the player list.
-   *
-   * That panel is `position: fixed` in the bottom right corner (it moved there when the
-   * holder's status bar stopped saying "You have it") and it grows a row per player, so at
-   * eight it is a quarter of the screen tall. Nothing in this layout can see it, and the
-   * first thing to find that out was "Knock your phone against someone else's", printed
-   * straight through the list.
-   *
-   * `--roster` is the player count, set on the root by BombScreen. Reserving the space is
-   * the only honest option: the panel's height is a fact about the room, not about the CSS,
-   * and a fixed allowance would be too much at two players and not enough at eight.
-   */
-  padding-bottom: calc(
-    max(var(--space-5), env(safe-area-inset-bottom)) + var(--roster, 0) * 1.35rem + var(--space-4)
-  );
+  padding-bottom: max(var(--space-5), env(safe-area-inset-bottom));
   text-align: center;
 }
 
@@ -273,4 +258,23 @@
   margin: 0;
   color: var(--color-text);
   font-size: var(--font-small);
+}
+
+/* --- the heartbeat's toggle, in the menu (issue #12) ---------------------- */
+
+/*
+ * Reads as its own state, not as a button that might do something — the same idiom as
+ * Shake Rush's own `.rush__sound`: on wears the game's accent, off is a plain outline.
+ */
+.bomb__sound {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  justify-content: center;
+}
+
+.bomb__sound--on {
+  border-color: var(--game-accent, var(--color-accent));
+  color: var(--game-accent, var(--color-accent));
 }

@@ -101,12 +101,25 @@ export async function startTilesSurfer(
   return true;
 }
 
-/**
- * A phone's own periodic or terminal report (spec §6). Everything here is
- * stored as claimed, past a cheap range clamp — not validated against
- * anything of the referee's own, because there is nothing here for the
- * referee to check it against (spec §8).
- */
+/** Stored as claimed, past a cheap range clamp — not validated against
+ *  anything of the referee's own, because there is nothing here for the
+ *  referee to check it against (spec §8). */
+function applyReport(
+  p: TilesSurferPlayer,
+  score: number,
+  lives: number,
+  perfects: number,
+  longestStreak: number,
+  avgReactionMs: number,
+): void {
+  if (Number.isFinite(score) && score >= 0) p.score = score;
+  if (Number.isFinite(lives) && lives >= 0) p.lives = Math.min(TILES_LIVES, Math.trunc(lives));
+  if (Number.isFinite(perfects) && perfects >= 0) p.perfects = Math.trunc(perfects);
+  if (Number.isFinite(longestStreak) && longestStreak >= 0) p.longestStreak = Math.trunc(longestStreak);
+  if (Number.isFinite(avgReactionMs) && avgReactionMs >= 0) p.avgReactionMs = avgReactionMs;
+}
+
+/** A phone's own periodic or terminal report (spec §6). */
 export async function onTilesReport(
   ctx: Ctx,
   playerId: PlayerId,
@@ -118,16 +131,34 @@ export async function onTilesReport(
   avgReactionMs: number,
 ): Promise<void> {
   const s = await ctx.load();
-  if (!s || s.phase !== 'running' || s.roundId !== roundId) return;
-  if (!s.alive.includes(playerId)) return;
+  if (!s || s.roundId !== roundId) return;
+
+  /*
+   * The declared winner's own lives never reach zero — by definition they are
+   * still going when the round ends around them — so their own report of it
+   * (`TilesRoom.tsx`'s "the winner never sends their own closing report by
+   * running out of lives" effect) always arrives after `finish()` below has
+   * already set `phase` to 'done'. Rejecting every post-done report outright
+   * left the winner's own numbers frozen at whatever their last 100-point
+   * checkpoint said — invisible in most multiplayer matches, where someone
+   * else's own correct terminal report usually reads at least as high, but
+   * the ONLY number ever recorded in a solo round, where there is nobody
+   * else's report to fall back on (issue #8: "longest-streak stayed at 0").
+   */
+  if (s.phase === 'done') {
+    if (s.winner !== playerId) return;
+    const p = s.players[playerId];
+    if (!p) return;
+    applyReport(p, score, lives, perfects, longestStreak, avgReactionMs);
+    await ctx.save(s);
+    broadcast(ctx, s);
+    return;
+  }
+
+  if (s.phase !== 'running' || !s.alive.includes(playerId)) return;
   const p = s.players[playerId];
   if (!p) return;
-
-  if (Number.isFinite(score) && score >= 0) p.score = score;
-  if (Number.isFinite(lives) && lives >= 0) p.lives = Math.min(TILES_LIVES, Math.trunc(lives));
-  if (Number.isFinite(perfects) && perfects >= 0) p.perfects = Math.trunc(perfects);
-  if (Number.isFinite(longestStreak) && longestStreak >= 0) p.longestStreak = Math.trunc(longestStreak);
-  if (Number.isFinite(avgReactionMs) && avgReactionMs >= 0) p.avgReactionMs = avgReactionMs;
+  applyReport(p, score, lives, perfects, longestStreak, avgReactionMs);
 
   if (p.lives <= 0) {
     await eliminate(ctx, s, playerId, ctx.now());

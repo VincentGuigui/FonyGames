@@ -34,6 +34,7 @@ import {
   FIGHTER_SPRITE_MIRRORED,
   FIGHTER_WINDUP_MS,
   idleWindupPose,
+  lossLoopPose,
 } from './game';
 import { FightCanvas } from './FightCanvas';
 import { backgroundFor } from './art/backgrounds';
@@ -128,8 +129,18 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   const contact = elapsed >= 0 && actionElapsed >= halfBeat;
   const previous = beatIndex > 0 ? state.beats[beatIndex - 1] : undefined;
   const health = state.phase === 'fighting' && !contact ? { blue: previous?.blueHealth ?? 100, green: previous?.greenHealth ?? 100 } : { blue: beat?.blueHealth ?? 100, green: beat?.greenHealth ?? 100 };
+  // K.O. above whoever's health hit exactly zero; a "loser" who reached round-over
+  // with health still above zero lost on points, not a knockout, and gets the
+  // sobbing loss loop instead of the `defeated` pose (issue #3). Both read the
+  // same `beats` the referee already resolved — no separate wire state.
+  const finalBeat = state.beats.at(-1);
+  const loser: FighterSeat | null = state.roundWinner ? (state.roundWinner === BLUE ? GREEN : BLUE) : null;
+  const knockedOut = state.phase !== 'fighting' && loser !== null
+    && finalBeat?.[loser === 'blue' ? 'blueHealth' : 'greenHealth'] === 0;
+  const lossPose = useLossPose(state.phase !== 'fighting' && loser !== null && !knockedOut);
   const pose = (seat: FighterSeat) => {
     if (state.phase !== 'fighting' && health[seat] <= 0) return FIGHTER_POSES.defeated;
+    if (state.phase !== 'fighting' && loser === seat) return lossPose;
     const action = beat?.[seat === 'blue' ? 'blueAction' : 'greenAction'];
     if (!action) {
       // The countdown (3-2-1-FIGHT, 4 steps) gets the same idle wind-up as every
@@ -151,14 +162,9 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   // on `fighting` so it cannot linger into round-over and collide with the K.O./
   // Perfect callouts below, which share the same floating-label spot.
   const comboActive = (seat: FighterSeat) => state.phase === 'fighting' && contact && beatIndex >= 0 && comboStreak(state.beats, beatIndex, seat) >= COMBO_STREAK;
-  // K.O. above whoever's health hit exactly zero; Perfect above a winner who
-  // never took a hit across the whole (possibly knockout-shortened) beat
-  // timeline (issue #3). Both read the same `beats` the referee already
-  // resolved — no separate wire state, and both can fire in the same round.
-  const finalBeat = state.beats.at(-1);
-  const loser: FighterSeat | null = state.roundWinner ? (state.roundWinner === BLUE ? GREEN : BLUE) : null;
-  const knockedOut = state.phase !== 'fighting' && loser !== null
-    && finalBeat?.[loser === 'blue' ? 'blueHealth' : 'greenHealth'] === 0;
+  // Perfect above a winner who never took a hit across the whole (possibly
+  // knockout-shortened) beat timeline (issue #3) — independent of K.O./loss
+  // above, and can fire alongside either.
   const flawless = state.phase !== 'fighting' && state.roundWinner !== null
     && state.beats.every((oneBeat) => !oneBeat[state.roundWinner === 'blue' ? 'blueHit' : 'greenHit']);
   // The reveal: a VS callout, then 3-2-1, then FIGHT — computed straight from `elapsed`
@@ -166,6 +172,19 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   // decide when the first beat actually lands.
   const introStep = elapsed < 0 ? introStepAt(elapsed + REVEAL_LEAD_MS) : null;
   const nameOf = (seat: FighterSeat) => players.find((player) => player.id === state.seats[seat])?.name ?? text({ en: seat === 'blue' ? 'Blue' : 'Green', fr: seat === 'blue' ? 'Bleu' : 'Vert' });
+  /**
+   * `state.roundWins` already carries THIS round's own outcome the instant `phase`
+   * becomes `fighting` — the referee resolves the fight and increments it in the same
+   * update (`worker/tapFighter.ts`'s `onFighterLock`), before either phone has watched
+   * a single beat. Showing it as-is spoiled the round: the pip count at the top of the
+   * screen changed during the reveal countdown, seconds before the fight it is
+   * supposedly the result of. Subtracting the pending win back out for as long as
+   * `fighting` lasts holds the pips at the PREVIOUS round's tally until the round is
+   * actually over, exactly like `roundHeadline`/`flawless`/the loss pose below already
+   * withhold everything else about the outcome until then.
+   */
+  const displayedWins = (seat: FighterSeat) =>
+    state.phase === 'fighting' && state.roundWinner === seat ? state.roundWins[seat] - 1 : state.roundWins[seat];
   const roundHeadline = state.draw ? text({ en: 'DRAW', fr: 'MATCH NUL' }) : text({ en: `${nameOf(state.roundWinner ?? 'blue')} wins`, fr: `${nameOf(state.roundWinner ?? 'blue')} gagne` });
   useEffect(() => {
     if (state.phase !== 'round-over' || !state.roundWinner || !me) return;
@@ -174,7 +193,7 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   const backgroundUrl = backgroundFor(state.roundId);
   return <main class="fighter-game" style={{ '--fighter-blue': FIGHTER_COLORS.blue, '--fighter-green': FIGHTER_COLORS.green, ...(backgroundUrl ? { '--fighter-bg': `url(${backgroundUrl})` } : {}) } as JSX.CSSProperties}>
     <StatusBar status={text({ en: `Round ${state.matchRound}`, fr: `Manche ${state.matchRound}` })} title={game.title} concept={game.concept} rules={game.rules} />
-    <div class="fighter-score"><span>{nameOf(BLUE)} {pips(state.roundWins.blue)}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(state.roundWins.green)} {nameOf(GREEN)}</span></div>
+    <div class="fighter-score"><span>{nameOf(BLUE)} {pips(displayedWins(BLUE))}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(displayedWins(GREEN))} {nameOf(GREEN)}</span></div>
     <section class="fighter-stage">
       <FightCanvas bluePose={pose(BLUE)} greenPose={pose(GREEN)} blueAttacking={Boolean(beat?.blueAction && actionElapsed >= 0 && actionElapsed < ACTION_LUNGE_FADE_END_MS)} greenAttacking={Boolean(beat?.greenAction && actionElapsed >= 0 && actionElapsed < ACTION_LUNGE_FADE_END_MS)} beatTime={actionElapsed} />
       <div class="fighter-side"><HealthBar value={health.blue} seat={BLUE} name={nameOf(BLUE)} /></div>
@@ -231,6 +250,28 @@ function useIdleRhythm(): number {
   return pose;
 }
 
+/**
+ * The "sobbing" loop for a round lost on points, not a knockout — its own
+ * small timer, like the idle rhythm above, rather than the fight's
+ * server-driven clock: purely cosmetic, so it never needs to agree between
+ * devices. Keeps running for as long as `active` stays true — the loser
+ * keeps sobbing through the whole round-over panel, not just its first
+ * second, since a host can leave that panel open as long as they like
+ * before starting the next round.
+ */
+function useLossPose(active: boolean): number {
+  const [pose, setPose] = useState<number>(FIGHTER_POSES.loss1);
+  useEffect(() => {
+    if (!active) { setPose(FIGHTER_POSES.loss1); return; }
+    const start = Date.now();
+    const timer = window.setInterval(() => {
+      setPose(lossLoopPose(Date.now() - start));
+    }, 50);
+    return () => window.clearInterval(timer);
+  }, [active]);
+  return pose;
+}
+
 type IntroStep = { kind: 'vs' } | { kind: 'count'; n: number } | { kind: 'fight' };
 
 /** Which step of the reveal is showing, `sincePhaseStart` ms after both plans locked in. */
@@ -252,5 +293,15 @@ function useFightClock(running: boolean, clock: () => number): number {
 
 function pips(value: number): string { return `${'●'.repeat(value)}${'○'.repeat(Math.max(0, 3 - value))}`; }
 function seatRows(state: TapFighterState, players: Player[], text: ReturnType<typeof useGameText>) {
-  return (['blue', 'green'] as const).map((seat) => { const player = players.find((item) => item.id === state.seats[seat]); return { id: state.seats[seat], avatar: player?.avatar ?? '🥊', name: player?.name ?? seat, value: state.roundWins[seat], unit: text({ en: 'rounds', fr: 'manches' }) }; });
+  return (['blue', 'green'] as const).map((seat) => {
+    const player = players.find((item) => item.id === state.seats[seat]);
+    const n = state.roundWins[seat];
+    return {
+      id: state.seats[seat],
+      avatar: player?.avatar ?? '🥊',
+      name: player?.name ?? seat,
+      value: n,
+      unit: n === 1 ? text({ en: 'round', fr: 'manche' }) : text({ en: 'rounds', fr: 'manches' }),
+    };
+  });
 }

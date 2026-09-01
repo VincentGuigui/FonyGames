@@ -161,3 +161,22 @@
 .squash__mosquito:disabled {
   cursor: default;
 }
+
+/* --- the swarm's buzz toggle, in the menu --------------------------------- */
+
+/*
+ * Reads as its own state, not as a button that might do something — the same idiom as
+ * Shake Rush's own `.rush__sound`: on wears the game's accent, off is a plain outline.
+ */
+.squash__sound {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  justify-content: center;
+}
+
+.squash__sound--on {
+  border-color: var(--game-accent, var(--color-accent));
+  color: var(--game-accent, var(--color-accent));
+}

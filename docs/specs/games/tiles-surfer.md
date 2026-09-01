@@ -205,7 +205,14 @@ definition they are still playing when the second-to-last player's own
 `lives: 0` report arrives. The referee's own broadcast of `phase: 'done'`
 is their cue to send one closing `tiles-report` immediately, so the
 results panel shows their real final numbers rather than whatever their
-last 100-point checkpoint happened to be.
+last 100-point checkpoint happened to be — the referee accepts exactly
+this one late report, from the declared winner only, once the round is
+already `done` (issue #8: rejecting it outright, as every other post-done
+report still is, left the winner's own numbers frozen at their last
+checkpoint. Invisible in most multiplayer matches, where a loser's own
+correct terminal report usually reads at least as high, but the only
+number ever recorded in a solo round, where there is nobody else's report
+to fall back on — "longest-streak stayed at 0").
 
 ## 7. Failure & edge cases
 
