@@ -36,12 +36,12 @@ import type { GameTag } from '../core/types';
  * two different sets of titles. The same alphabetical list also decides the NEW and
  * "everything else" tiers, so there is only ever the one sort to keep in step.
  *
- * `tags`, unlike everything above, is a purely client-side narrowing: it never
- * changes which tier a slug belongs to (so hot/week/NEW stay stable while a filter
- * is toggled on and off), only whether that slug is skipped when a tier renders.
- * Starts empty on both the server's shell render and the client's first paint —
- * hydration is unaffected — and only ever changes after a visitor taps a chip
- * (`HubFilters.tsx`, `Hub.tsx`).
+ * `tag`/`players`, unlike everything above, are a purely client-side narrowing:
+ * neither ever changes which tier a slug belongs to (so hot/week/NEW stay stable
+ * while a filter changes), only whether that slug is skipped when a tier renders.
+ * Both start `null` on the server's shell render and the client's first paint —
+ * hydration is unaffected — and only ever change after a visitor picks something
+ * in `HubFilters.tsx`'s selects (`Hub.tsx` owns the state).
  */
 export function HubGrid({
   flags,
@@ -53,15 +53,18 @@ export function HubGrid({
    * client re-renders with the real locale once `LocaleProvider` mounts.
    */
   locale = 'en',
-  /** Selected filter chips (`HubFilters.tsx`). Empty means no filter, show everything. */
-  tags,
+  /** The type select's value (`HubFilters.tsx`). `null` means no filter. */
+  tag,
+  /** The player-count select's value. `null` means no filter, any count shows. */
+  players,
 }: {
   flags: Record<string, GameFlag>;
   /** Rounds played per slug, from the published file. Absent until something is counted. */
   plays?: Record<string, number> | undefined;
   showAll: boolean;
   locale?: Locale;
-  tags?: ReadonlySet<GameTag>;
+  tag?: GameTag | null;
+  players?: number | null;
 }): JSX.Element {
   const raw = catalogue();
   const games = raw.map((g) => localizeCard(g, locale));
@@ -77,8 +80,13 @@ export function HubGrid({
   const { pinned, fresh, rest } = hubSections(alphabetical, flags, hot, week);
   const soon = raw.filter((g) => g.status !== 'live').map((g) => g.slug);
 
-  const matchesFilter = (slug: string): boolean =>
-    !tags || tags.size === 0 || (bySlug.get(slug)?.tags ?? []).some((tag) => tags.has(tag));
+  const matchesFilter = (slug: string): boolean => {
+    const game = bySlug.get(slug);
+    if (!game) return true;
+    const tagOk = !tag || game.tags.includes(tag);
+    const playersOk = !players || (game.players[0] <= players && players <= game.players[1]);
+    return tagOk && playersOk;
+  };
 
   const tile = (slug: string): JSX.Element | null => {
     const game = bySlug.get(slug);

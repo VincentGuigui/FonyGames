@@ -17,9 +17,12 @@ export interface UiStrings {
      */
     privacy: string;
     sourceLink: string;
-    /** The filter chip row's own label, and the chip that clears every selection. */
+    /** The type select's own visible label, and its "no filter" option. */
     filterLabel: string;
     filterAll: string;
+    /** The player-count select's own visible label, and its "no filter" option. */
+    playersLabel: string;
+    playersAny: string;
     /**
      * The dev-only, admin-only pair naming the two states of the "how does this
      * look on prod" switch — two named-state buttons rather than one ambiguous
@@ -170,8 +173,10 @@ const en: UiStrings = {
     privacy:
       "No install, no account. Positions and sensor readings never leave the room you're playing in. A little activity — what you tapped, roughly where from — is recorded to see how the site's actually used.",
     sourceLink: 'Source on GitHub',
-    filterLabel: 'Filter games',
+    filterLabel: 'Type',
     filterAll: 'All',
+    playersLabel: 'Players',
+    playersAny: 'Any',
     previewAll: 'All games',
     previewProd: 'Prod preview',
   },
@@ -296,8 +301,10 @@ const fr: UiStrings = {
     privacy:
       "Aucune installation, aucun compte. Les positions et données de capteurs ne sortent jamais de la salle où vous jouez. Un peu d'activité — ce que vous avez tapé, votre origine approximative — est enregistré pour voir comment le site est réellement utilisé.",
     sourceLink: 'Code source sur GitHub',
-    filterLabel: 'Filtrer les jeux',
+    filterLabel: 'Type',
     filterAll: 'Tous',
+    playersLabel: 'Joueurs',
+    playersAny: 'Indifférent',
     previewAll: 'Tous les jeux',
     previewProd: 'Aperçu prod',
   },
