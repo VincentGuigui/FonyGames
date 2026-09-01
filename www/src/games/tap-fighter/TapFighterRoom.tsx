@@ -132,15 +132,19 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   // K.O. above whoever's health hit exactly zero; a "loser" who reached round-over
   // with health still above zero lost on points, not a knockout, and gets the
   // sobbing loss loop instead of the `defeated` pose (issue #3). Both read the
-  // same `beats` the referee already resolved — no separate wire state.
+  // same `beats` the referee already resolved — no separate wire state. A draw
+  // can itself be a mutual knockout (both hit zero on the same beat) or a points
+  // draw with both fighters still standing — the latter sobs too, on both sides,
+  // since neither one won. `finalBeat.blueHealth` alone tells the two apart on a
+  // draw, because a draw's own definition (`resolveFight`) is equal health.
   const finalBeat = state.beats.at(-1);
   const loser: FighterSeat | null = state.roundWinner ? (state.roundWinner === BLUE ? GREEN : BLUE) : null;
-  const knockedOut = state.phase !== 'fighting' && loser !== null
-    && finalBeat?.[loser === 'blue' ? 'blueHealth' : 'greenHealth'] === 0;
-  const lossPose = useLossPose(state.phase !== 'fighting' && loser !== null && !knockedOut);
+  const knockedOut = state.phase !== 'fighting' && (loser !== null || state.draw)
+    && (loser !== null ? finalBeat?.[loser === 'blue' ? 'blueHealth' : 'greenHealth'] : finalBeat?.blueHealth) === 0;
+  const lossPose = useLossPose(state.phase !== 'fighting' && (loser !== null || state.draw) && !knockedOut);
   const pose = (seat: FighterSeat) => {
     if (state.phase !== 'fighting' && health[seat] <= 0) return FIGHTER_POSES.defeated;
-    if (state.phase !== 'fighting' && loser === seat) return lossPose;
+    if (state.phase !== 'fighting' && (loser === seat || state.draw)) return lossPose;
     const action = beat?.[seat === 'blue' ? 'blueAction' : 'greenAction'];
     if (!action) {
       // The countdown (3-2-1-FIGHT, 4 steps) gets the same idle wind-up as every
