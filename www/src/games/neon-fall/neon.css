@@ -82,26 +82,6 @@
   background: #f72585;
 }
 
-.neon__ammo {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  margin-left: 0.5rem;
-  font-size: 0.75rem;
-  color: var(--color-text-dim);
-}
-
-.neon__ammo-pip {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 999px;
-  background: #f72585;
-}
-
-.neon__ammo-cooling {
-  white-space: nowrap;
-}
-
 /* The glider's fallback when tilt is unavailable: two large held zones, left
    and right half of the screen, sitting UNDER the canvas visually — they are
    the whole lower two-thirds of the play surface, not a bottom bar, so the

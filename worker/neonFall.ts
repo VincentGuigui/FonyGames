@@ -2,15 +2,17 @@ import {
   NEON_BOLT_MS,
   NEON_BOUNCE_MS,
   NEON_BOUNCE_RISE,
-  NEON_BURST_SIZE,
-  NEON_COOLDOWN_MS,
   NEON_FALL_SPEED,
   NEON_LANES,
+  NEON_LANE_COOLDOWN_MS,
+  NEON_LANE_MAGNET_GAIN,
   NEON_LANE_SPEED,
   NEON_LIVES,
+  NEON_MAX_BOLTS,
   NEON_MAX_PLAYERS,
   NEON_MIN_PLAYERS,
   NEON_ROUND_CAP_MS,
+  NEON_STEER_DEADZONE,
   NEON_TICK_MS,
   preroundFor,
   type NeonBolt,
@@ -52,9 +54,9 @@ export type NeonFall = {
   bounceTo: { lane: number; y: number } | null;
   /** Server time the bounce ends. 0 when not bouncing. */
   bounceUntil: number;
-  ammo: number;
-  /** Server time ammo refills. 0 when not cooling down. */
-  cooldownUntil: number;
+  /** One entry per lane: the server time it next becomes available to fire —
+   *  no shared ammo pool, each trigger cools down on its own (spec §2.2). */
+  laneReadyAt: number[];
   bolts: NeonBolt[];
   /** Server time of the last tick actually simulated, for `dt` (spec §6). */
   lastTickAt: number;
@@ -101,8 +103,7 @@ export function toState(s: NeonFall): NeonFallState {
     y: Math.round(s.y * 1000) / 1000,
     lives: s.lives,
     bounceUntil: s.bounceUntil,
-    ammo: s.ammo,
-    cooldownUntil: s.cooldownUntil,
+    laneReadyAt: [...s.laneReadyAt],
     bolts: s.bolts.map((b) => ({ lane: b.lane, resolvesAt: b.resolvesAt })),
     winner: s.winner,
     phase: s.phase,
@@ -166,8 +167,7 @@ export async function startNeon(
     bounceFrom: null,
     bounceTo: null,
     bounceUntil: 0,
-    ammo: NEON_BURST_SIZE,
-    cooldownUntil: 0,
+    laneReadyAt: Array<number>(NEON_LANES).fill(0),
     bolts: [],
     lastTickAt: startsAt,
     nextFrameAt: startsAt,
@@ -202,18 +202,12 @@ export async function onSteer(
   await ctx.save(s);
 }
 
-/** Refills a spent burst once its cooldown has elapsed. Checked lazily, on read. */
-function refillAmmo(s: NeonFall, now: number): void {
-  if (s.cooldownUntil > 0 && now >= s.cooldownUntil) {
-    s.ammo = NEON_BURST_SIZE;
-    s.cooldownUntil = 0;
-  }
-}
-
 /**
- * A trigger tap. Ammo and cooldown are tracked here, server-side, so a modified
- * protector client claiming a fourth shot with no cooldown elapsed simply is not
- * given one (spec §8).
+ * A trigger tap. Each lane's own cooldown is tracked here, server-side, so a
+ * modified protector client claiming a shot before its lane's own cooldown
+ * elapses simply is not given one (spec §8) — likewise a shot once
+ * `NEON_MAX_BOLTS` are already in flight, the real limiter now that no
+ * shared ammo pool caps how many lanes can fire close together.
  *
  * Broadcasts immediately, unlike `onSteer` — the bolt has to be telegraphed from
  * the instant it fires, or the glider's whole `NEON_BOLT_MS` reaction window is
@@ -232,26 +226,37 @@ export async function onShoot(
 
   const now = ctx.now();
   if (now < s.startsAt) return;
+  if (now < (s.laneReadyAt[lane] ?? 0)) return;
+  if (s.bolts.length >= NEON_MAX_BOLTS) return;
 
-  refillAmmo(s, now);
-  if (s.ammo <= 0) return;
-
-  s.ammo--;
+  s.laneReadyAt[lane] = now + NEON_LANE_COOLDOWN_MS;
   s.bolts.push({ lane, resolvesAt: now + NEON_BOLT_MS });
-  if (s.ammo === 0) s.cooldownUntil = now + NEON_COOLDOWN_MS;
 
   await ctx.save(s);
   broadcastState(ctx, s);
 }
 
 /**
- * Advance the fall by `dt` — the glider's own lane drift toward `steer`, and
- * the ever-advancing fall progress. Not run while bouncing; the arc owns
+ * Advance the fall by `dt` — the glider's own lane drift, and the
+ * ever-advancing fall progress. Not run while bouncing; the arc owns
  * position for that window instead (`stepBounce`).
+ *
+ * Lane drift is two forces summed (spec §2.4): `steer` at `NEON_LANE_SPEED`,
+ * same as ever, plus a spring pulling toward the centre of whichever lane is
+ * currently closest — so an idle glider settles into a lane instead of
+ * drifting wherever the last tilt left it. The pull is dropped outright
+ * whenever `steer` points toward a *different* lane past
+ * `NEON_STEER_DEADZONE`: a deliberate tilt away from the current lane must
+ * actually cross it, not be held back by that lane's own magnetism.
  */
 function stepFalling(s: NeonFall, dt: number): void {
   const seconds = dt / 1000;
-  s.lane = clamp(s.lane + s.steer * NEON_LANE_SPEED * seconds, 0, NEON_LANES - 1);
+  const nearestLane = Math.round(s.lane);
+  const pull = nearestLane - s.lane;
+  const pullSign = Math.sign(pull);
+  const opposing = pullSign !== 0 && Math.sign(s.steer) === -pullSign && Math.abs(s.steer) > NEON_STEER_DEADZONE;
+  const magnet = opposing ? 0 : pull * NEON_LANE_MAGNET_GAIN;
+  s.lane = clamp(s.lane + (s.steer * NEON_LANE_SPEED + magnet) * seconds, 0, NEON_LANES - 1);
   s.y = clamp(s.y + NEON_FALL_SPEED * seconds, 0, 1);
 }
 
@@ -321,8 +326,6 @@ export async function tick(ctx: Ctx): Promise<boolean> {
     await ctx.setAlarm(nextDeadline(s));
     return false;
   }
-
-  refillAmmo(s, now);
 
   if (now < s.bounceUntil) {
     stepBounce(s, now);

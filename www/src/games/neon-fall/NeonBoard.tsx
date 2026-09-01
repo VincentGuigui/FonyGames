@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
-import { NEON_LANES, NEON_TICK_MS, type Player, type PlayerId } from '../../../../shared/protocol';
+import { NEON_LANES, NEON_MAX_BOLTS, NEON_TICK_MS, type Player, type PlayerId } from '../../../../shared/protocol';
 import type { RoomClient } from '../../core/room/client';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { useT } from '../../core/i18n/strings';
@@ -115,7 +115,7 @@ export function NeonBoard({
           score={
             iAmGlider
               ? { value: myLives, label: t.common.lives }
-              : { value: state?.ammo ?? 0, label: text({ en: 'shots', fr: 'tirs' }) }
+              : { value: `${state?.bolts.length ?? 0}/${NEON_MAX_BOLTS}`, label: text({ en: 'in flight', fr: 'en vol' }) }
           }
           status={otherId ? `${name(otherId)}: ${otherRole}` : undefined}
           title={title}
@@ -125,49 +125,63 @@ export function NeonBoard({
       </div>
 
       {iAmProtector && running && state && (
-        <Triggers ammo={state.ammo} cooling={state.cooldownUntil > 0} onShoot={shoot} />
+        <Triggers
+          laneReadyAt={state.laneReadyAt}
+          boltsInFlight={state.bolts.length}
+          now={client?.now() ?? Date.now()}
+          onShoot={shoot}
+        />
       )}
       {iAmGlider && running && !orientationOn && <TapZones heldRef={heldRef} />}
     </div>
   );
 }
 
-/** The protector's five lane-aligned triggers. Real buttons, same reasoning as
- *  Squash Mosquitoes' always-mounted cells: native tap targets, no hand-rolled
- *  hit-testing. */
+/**
+ * The protector's five lane-aligned triggers. Real buttons, same reasoning as
+ * Squash Mosquitoes' always-mounted cells: native tap targets, no hand-rolled
+ * hit-testing.
+ *
+ * No shared ammo pool any more (spec §2.2): each trigger cools down on its
+ * own for `NEON_LANE_COOLDOWN_MS` after firing, dimmed exactly like the old
+ * empty-ammo state was. `boltsInFlight` reaching `NEON_MAX_BOLTS` disables
+ * every trigger at once regardless of any one lane's own cooldown — the real
+ * limiter now that lanes no longer share ammo to ration.
+ */
 function Triggers({
-  ammo,
-  cooling,
+  laneReadyAt,
+  boltsInFlight,
+  now,
   onShoot,
 }: {
-  ammo: number;
-  cooling: boolean;
+  laneReadyAt: number[];
+  boltsInFlight: number;
+  now: number;
   onShoot: (lane: number) => void;
 }): JSX.Element {
   const text = useGameText();
+  const atCap = boltsInFlight >= NEON_MAX_BOLTS;
   return (
     <div class="neon__triggers" role="group" aria-label={text({ en: 'Fire', fr: 'Tirer' })}>
-      {Array.from({ length: NEON_LANES }, (_, lane) => (
-        <button
-          key={lane}
-          type="button"
-          class="neon__trigger"
-          disabled={ammo <= 0}
-          aria-label={text({ en: `Lane ${lane + 1}${ammo <= 0 ? ': reloading' : ''}`, fr: `Voie ${lane + 1}${ammo <= 0 ? ' : rechargement' : ''}` })}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            onShoot(lane);
-          }}
-        >
-          <span class="neon__trigger-dot" aria-hidden="true" />
-        </button>
-      ))}
-      <div class="neon__ammo" aria-hidden="true">
-        {Array.from({ length: ammo }, (_, i) => (
-          <span key={i} class="neon__ammo-pip" />
-        ))}
-        {cooling && <span class="neon__ammo-cooling">{text({ en: 'reloading…', fr: 'rechargement…' })}</span>}
-      </div>
+      {Array.from({ length: NEON_LANES }, (_, lane) => {
+        const cooling = now < (laneReadyAt[lane] ?? 0);
+        const disabled = cooling || atCap;
+        return (
+          <button
+            key={lane}
+            type="button"
+            class="neon__trigger"
+            disabled={disabled}
+            aria-label={text({ en: `Lane ${lane + 1}${disabled ? ': reloading' : ''}`, fr: `Voie ${lane + 1}${disabled ? ' : rechargement' : ''}` })}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              onShoot(lane);
+            }}
+          >
+            <span class="neon__trigger-dot" aria-hidden="true" />
+          </button>
+        );
+      })}
     </div>
   );
 }

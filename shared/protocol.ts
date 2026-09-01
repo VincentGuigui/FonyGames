@@ -434,10 +434,9 @@ export type NeonFallState = {
   lives: number;
   /** Server time the glider stops blinking and becomes hittable again. 0 when not bouncing. */
   bounceUntil: number;
-  /** Shots left in the current burst. */
-  ammo: number;
-  /** Server time ammo refills to a full burst. 0 when not cooling down. */
-  cooldownUntil: number;
+  /** One entry per lane (spec §2.2): the server time it next becomes available
+   *  to fire, 0 (or already past) meaning ready now. No shared ammo pool. */
+  laneReadyAt: number[];
   bolts: NeonBolt[];
   winner: PlayerId | null;
   phase: 'running' | 'done';
@@ -1909,6 +1908,22 @@ export const NEON_TICK_MS = 50;
 export const NEON_LANE_SPEED = 6;
 
 /**
+ * How strongly the glider is pulled toward the centre of whichever lane it is
+ * currently closest to, in lanes/second per lane of offset — a spring, not a
+ * fixed speed, so it settles into the lane rather than overshooting and
+ * oscillating around it (spec §2.4). Overridden outright whenever `steer`
+ * points toward a *different* lane past `NEON_STEER_DEADZONE`, which is what
+ * lets a deliberate tilt actually cross a lane rather than being held back by
+ * its own starting lane's pull. A guess (spec §12), needs a playtest.
+ */
+export const NEON_LANE_MAGNET_GAIN = 4;
+
+/** Steer this small or smaller does not count as "pulling toward a different
+ *  lane" (spec §2.4) — sensor noise near neutral must not cancel the magnet
+ *  pull that centres an idle glider. */
+export const NEON_STEER_DEADZONE = 0.15;
+
+/**
  * Fall progress per second, 0 (top) .. 1 (floor). A guess (spec §12) tuned so a
  * hitless fall takes roughly 20 s — comfortably inside the round-length band in
  * AGENTS.md §4 even with a few bounces added on top.
@@ -1917,12 +1932,16 @@ export const NEON_FALL_SPEED = 1 / 20;
 
 export const NEON_LIVES = 3;
 
-/** Ammo depletes to zero, then refills to a full burst in one go — not a trickle
- *  (spec §2.2). */
-export const NEON_BURST_SIZE = 3;
+/** Every lane fires independently — no shared ammo pool (spec §2.2). A shot
+ *  from lane N only ever waits on lane N's own cooldown. A guess (spec §12),
+ *  "short" per the pitch, needs a playtest. */
+export const NEON_LANE_COOLDOWN_MS = 1_000;
 
-/** A guess (spec §12) — "short" per the pitch, needs a playtest. */
-export const NEON_COOLDOWN_MS = 1_500;
+/** How many bolts may be in flight at once, across all five lanes combined —
+ *  the real limiter now that each lane cools down on its own (spec §2.2):
+ *  without it, five lanes firing on independent 1s cooldowns could keep the
+ *  sky permanently full of bolts. */
+export const NEON_MAX_BOLTS = 4;
 
 /**
  * How long a fired bolt takes to reach the glider's lane.

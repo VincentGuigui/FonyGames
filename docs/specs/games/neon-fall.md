@@ -35,11 +35,14 @@ two ways, and both players watching the same lanes for opposite reasons.
    ([../../design/game-chrome.md](../../design/game-chrome.md) §4).
 3. The glider starts at the top, in the centre lane, and begins falling at a
    constant rate. Tilting the phone left or right smoothly slides it toward
-   the neighbouring lane (§5) — never an instant snap.
+   the neighbouring lane (§5); left alone, it settles into whichever lane it
+   is currently closest to rather than drifting wherever the last tilt left
+   it (§2.4).
 4. The protector has five triggers, one aligned under each lane. Tapping one
    fires a bolt that rises up that lane, visible on both screens, and takes
-   `NEON_BOLT_MS` to reach the top. Three taps in a row exhaust the protector's
-   ammo; a `NEON_COOLDOWN_MS` pause refills it (§2.2).
+   `NEON_BOLT_MS` to reach the top. Each lane cools down on its own for
+   `NEON_LANE_COOLDOWN_MS` after firing; up to `NEON_MAX_BOLTS` may be in
+   flight at once, across all five lanes combined (§2.2).
 5. **A bolt hits if the glider is still in that bolt's lane when the bolt
    arrives.** The glider can juke by changing lanes while the bolt is in
    flight — the travel time is what makes tilting a lane an actual dodge and
@@ -67,15 +70,19 @@ the glider and the bolts. This is a UX call, not a rules change, and it is
 flagged as one in §13 in case the maintainer wants the lanes kept literally
 invisible for the atmosphere instead.
 
-### 2.2 Ammo is a burst, not a rate
+### 2.2 Every lane cools down on its own
 
-`NEON_BURST_SIZE` (3) shots deplete the protector's ammo to zero; only then
-does `NEON_COOLDOWN_MS` start, and it refills to a full burst in one go once
-it elapses — not a slow trickle. This is what makes "three in a row" a real
-constraint rather than a rate limit dressed up as one: a protector who
-spaces their shots out gets no benefit from doing so, which is deliberate —
-the interesting decision is when to spend the whole burst, not how to pace
-it.
+No shared ammo pool: each of the five triggers has its own
+`NEON_LANE_COOLDOWN_MS` cooldown, started the instant that lane fires and
+nobody else's business. A protector can therefore fire two different lanes
+back to back with no penalty — the decision that matters is which lane, not
+how to ration a shared burst.
+
+The real limiter is `NEON_MAX_BOLTS`: at most that many bolts may be in
+flight at once, summed across every lane. Without it, five lanes each
+cooling down independently every second could keep the sky permanently
+full — this is what stops a protector from just holding all five lanes
+down.
 
 ### 2.3 The bounce is protection, not punishment
 
@@ -95,6 +102,23 @@ volley end the round in a blink, so a hit forces:
 Tilt is still read during the bounce, so the glider is not steering blind —
 the moment the bounce ends, the current tilt takes over from wherever the
 scripted arc put it down, same as landing after a jump.
+
+### 2.4 The glider is pulled toward the lane it is closest to
+
+Tilt is a velocity, not a position — nothing before this section stops a
+glider that lets go of the tilt from just sitting between two lanes,
+half in each. So idle drift is not "nothing," it is a spring: whichever
+lane the glider currently sits closest to pulls it toward that lane's own
+centre, proportional to how far off it is, so it settles rather than
+overshoots and oscillates around the centre.
+
+That pull is dropped outright — not just outweighed — the moment the tilt
+itself points toward a *different* lane past a small deadzone
+(`NEON_STEER_DEADZONE`, so sensor noise near neutral cannot cancel it by
+accident). A deliberate tilt away from the current lane has to actually
+cross it undiminished; the lane's own magnetism only ever helps a glider
+settle into a lane, never traps it in one against the player's own intent.
+A guess (spec §12) for both new constants, needs a playtest.
 
 ## 3. Modes / variations
 
@@ -123,9 +147,11 @@ Only `classic` at launch. Recorded, not built:
   neon shots (cosmetic variety only — no shape carries meaning) rising from
   the bottom. Same device Cat and Mouse's floor uses: one board, everyone
   sees the same thing, roles change what you do with it, not what you see of
-  it. Lives (3, as pips **and** a number) and the protector's ammo (pips) sit
-  top-corner, one per role, so neither player's HUD is cluttered with a
-  number that is not theirs to watch.
+  it. Lives (3, as pips **and** a number) sit top-corner for the glider; the
+  protector's own corner instead shows how many bolts are currently in
+  flight out of `NEON_MAX_BOLTS` — there is no ammo count left to show now
+  that no shared pool exists (§2.2), and each trigger dims on its own the
+  instant it fires, back to normal `NEON_LANE_COOLDOWN_MS` later.
 - **A bolt in flight**: telegraphed the instant it is fired — both screens
   show it rising immediately, giving the glider the full `NEON_BOLT_MS` to
   react. A bolt with no warning would not be a dodge, it would be a coin
@@ -174,8 +200,8 @@ never the outcome.
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
 | `neon-steer` | glider → server | `{roundId, steer}` (−1..1) | Calibrated, filtered tilt (or held tap zone) intent, sent every tick regardless of change |
-| `neon-shoot` | protector → server | `{roundId, lane}` (0–4) | A trigger tap; the server checks ammo and cooldown itself |
-| `neon` | server → both | `{roundId, startsAt, endsAt, gliderId, protectorId, lane, y, lives, bounceUntil, ammo, cooldownUntil, bolts, winner, phase}` | The whole round, every tick — same call as `GridState`/`SquashState`: small enough to send whole, so there is nothing to diff |
+| `neon-shoot` | protector → server | `{roundId, lane}` (0–4) | A trigger tap; the server checks that lane's own cooldown and the shared `NEON_MAX_BOLTS` cap itself |
+| `neon` | server → both | `{roundId, startsAt, endsAt, gliderId, protectorId, lane, y, lives, bounceUntil, laneReadyAt, bolts, winner, phase}` | The whole round, every tick — same call as `GridState`/`SquashState`: small enough to send whole, so there is nothing to diff. `laneReadyAt` is five server times, one per lane, replacing the old shared `ammo`/`cooldownUntil` pair |
 
 As built, this collapsed to three messages rather than the six first sketched
 here: `bounceUntil` (an absolute server time, like every other deadline on
@@ -195,7 +221,7 @@ ever renders, never a client-reported position the server takes on faith.
 | --- | --- |
 | Protector disconnects | No one left to shoot; the glider falls unopposed and wins when it lands — there is no game without a protector |
 | Glider disconnects | The protector wins by default — there is no game without a glider |
-| Tab backgrounded, glider | Tilt events stop → the server just holds the last reported steer, so the glider sits in whatever lane it was in — an easy target, the honest outcome, same call Cat and Mouse makes for a mouse that stops |
+| Tab backgrounded, glider | Tilt events stop → the server just holds the last reported steer. A near-zero steer lets the magnet (§2.4) settle it into whichever lane it was closest to; a held, opposing steer keeps carrying it same as it would have moving. Either way an easy target, the honest outcome, same call Cat and Mouse makes for a mouse that stops |
 | Tab backgrounded, protector | Triggers simply cannot be tapped; the fall continues regardless |
 | A hit lands during the bounce's invulnerability | Impossible by construction — the server ignores any bolt whose `resolvesAt` falls inside a glider's own `bounceUntil` window |
 | The glider reaches the floor on the same tick a bolt resolves against it | The bolt resolves first. It was fired, and in flight, before the glider actually crossed the line — causally it arrives in time to stop the landing, so the protector wins the tie |
@@ -216,9 +242,11 @@ stated plainly rather than implied:
   lane and invulnerability state — never against whatever the protector's or
   the glider's client claims. Neither client can award or refuse its own
   hit.
-- **Ammo and cooldown are tracked server-side.** A protector client claiming
-  a fourth shot with no cooldown elapsed is simply not given one; the server
-  owns the count, not the client's UI state.
+- **Every lane's own cooldown, and the shared in-flight cap, are tracked
+  server-side.** A protector client claiming a shot before that lane's own
+  `NEON_LANE_COOLDOWN_MS` has elapsed, or once `NEON_MAX_BOLTS` are already
+  up, is simply not given one; the server owns both counts, not the
+  client's UI state.
 
 ## 9. Safety
 
@@ -237,8 +265,8 @@ never a position. Room memory only, for the life of the round.
 - **The tilt fallback is real, not a token one** (§5): two held zones drive
   the same eased lane-to-lane movement tilting does. A player who cannot or
   would rather not tilt their phone loses nothing structural.
-- Lives and ammo are **numbers as well as pips** — never colour or count
-  alone.
+- Lives are **numbers as well as pips** — never colour or count alone; the
+  protector's own in-flight count (§4) is likewise plain text.
 - The glider and the bolts differ in **shape as well as colour** (a
   consistent glider silhouette against randomly-shaped bolts), so the two
   roles read apart for a colourblind player without relying on cyan vs
@@ -251,7 +279,8 @@ never a position. Room memory only, for the life of the round.
 ## 12. Open questions
 
 - **Every numeric constant here is a guess** — `NEON_LANE_SPEED`,
-  `NEON_FALL_SPEED`, `NEON_COOLDOWN_MS`, `NEON_BOLT_MS`, and
+  `NEON_LANE_MAGNET_GAIN`, `NEON_STEER_DEADZONE`, `NEON_FALL_SPEED`,
+  `NEON_LANE_COOLDOWN_MS`, `NEON_MAX_BOLTS`, `NEON_BOLT_MS`, and
   `NEON_BOUNCE_RISE` all need a playtest, the same honest flag Steady Hand's
   §2.1 raises for its own numbers. In particular `NEON_BOLT_MS` is a real
   balance lever: too short and dodging is unfair to the glider, too long and

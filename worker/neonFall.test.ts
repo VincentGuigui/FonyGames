@@ -1,11 +1,12 @@
 import {
   NEON_BOLT_MS,
   NEON_BOUNCE_MS,
-  NEON_BURST_SIZE,
-  NEON_COOLDOWN_MS,
+  NEON_LANE_COOLDOWN_MS,
   NEON_LANES,
   NEON_LIVES,
+  NEON_MAX_BOLTS,
   NEON_ROUND_CAP_MS,
+  NEON_STEER_DEADZONE,
   NEON_TICK_MS,
   PREROUND_MS,
   type ServerMessage,
@@ -117,7 +118,7 @@ async function seating(): Promise<void> {
   check('roles were filled: a glider', s.gliderId === A);
   check('and a protector', s.protectorId === B);
   check('lives start at the pitch\'s three', s.lives === NEON_LIVES);
-  check('ammo starts full', s.ammo === NEON_BURST_SIZE);
+  check('every lane starts ready', s.laneReadyAt.every((t) => t === 0), s.laneReadyAt);
   check('nothing has fallen yet', s.y === 0);
   check('starts centred', s.lane === (NEON_LANES - 1) / 2);
 }
@@ -175,30 +176,51 @@ async function falling(): Promise<void> {
 }
 
 async function shooting(): Promise<void> {
-  console.log('\nammo: a burst, not a rate');
+  console.log('\nevery lane cools down on its own, no shared ammo');
   const h = await running();
 
   await onShoot(h.ctx, B, 1, 2);
-  await onShoot(h.ctx, B, 1, 2);
-  await onShoot(h.ctx, B, 1, 2);
-  check('three shots spend the whole burst', h.state()!.ammo === 0);
-  check('and three bolts are in flight', h.state()!.bolts.length === 3);
+  check('lane 2 is now cooling down', h.state()!.laneReadyAt[2]! > h.at());
+  check('the other lanes are untouched', h.state()!.laneReadyAt[0] === 0 && h.state()!.laneReadyAt[1] === 0);
 
-  const before = h.state()!.bolts.length;
+  const beforeSameLane = h.state()!.bolts.length;
   await onShoot(h.ctx, B, 1, 2);
-  check('a fourth shot is refused while cooling down', h.state()!.bolts.length === before);
-  check('cooldown is set', h.state()!.cooldownUntil > h.at());
+  check('the same lane is refused while it is still cooling down', h.state()!.bolts.length === beforeSameLane);
 
-  const spent = h.state()!.ammo;
+  await onShoot(h.ctx, B, 1, 0);
+  check('a different lane fires immediately — no shared pool to deplete', h.state()!.bolts.length === beforeSameLane + 1);
+
+  const spent = h.state()!.laneReadyAt[2];
   await onShoot(h.ctx, A, 1, 1);
-  check('the glider cannot fire the protector\'s trigger', h.state()!.ammo === spent);
+  check('the glider cannot fire the protector\'s trigger', h.state()!.laneReadyAt[2] === spent && h.state()!.bolts.length === beforeSameLane + 1);
 
-  h.advance(NEON_COOLDOWN_MS + 1);
+  h.advance(NEON_LANE_COOLDOWN_MS + 1);
   await onShoot(h.ctx, B, 1, 2);
-  check('after the cooldown, the burst is whole again — minus this shot', h.state()!.ammo === NEON_BURST_SIZE - 1);
+  check('lane 2 fires again once its own cooldown elapses', h.state()!.bolts.length === beforeSameLane + 2);
 
   const shot = h.last();
   check('a shot is telegraphed the instant it fires, not on the next tick', shot?.t === 'neon');
+}
+
+async function bringingItAllInFlight(): Promise<void> {
+  console.log('\nthe real limiter now: how many bolts may share the sky');
+  const h = await running();
+
+  // Every lane has its own cooldown, so NEON_MAX_BOLTS lanes can all fire back
+  // to back with nothing standing in the way but the shared cap.
+  for (let lane = 0; lane < NEON_MAX_BOLTS; lane++) await onShoot(h.ctx, B, 1, lane);
+  check(`${NEON_MAX_BOLTS} lanes filled the sky`, h.state()!.bolts.length === NEON_MAX_BOLTS);
+
+  const before = h.state()!.bolts.length;
+  await onShoot(h.ctx, B, 1, NEON_MAX_BOLTS); // a lane that has never fired, still ready
+  check('a fresh, ready lane is refused once the cap is reached', h.state()!.bolts.length === before);
+
+  h.advance(NEON_BOLT_MS + 10);
+  await tick(h.ctx); // the in-flight bolts resolve and clear
+  check('the sky is clear again', h.state()!.bolts.length === 0);
+
+  await onShoot(h.ctx, B, 1, NEON_MAX_BOLTS);
+  check('and a shot is accepted again', h.state()!.bolts.length === 1);
 }
 
 async function hitting(): Promise<void> {
@@ -245,7 +267,10 @@ async function invulnerability(): Promise<void> {
   check('the first hit landed', afterFirst === NEON_LIVES - 1);
 
   // Fire at whatever lane the bounce landed the glider on — it should still be
-  // untouchable for the rest of the bounce window.
+  // untouchable for the rest of the bounce window. Only enough of a wait to
+  // clear lane 2's own cooldown from the first shot, not so much that this
+  // second bolt would resolve after the bounce itself has already ended.
+  h.advance(NEON_LANE_COOLDOWN_MS - (NEON_BOLT_MS + 10) + 1);
   const landedLane = Math.round(h.state()!.lane);
   await onShoot(h.ctx, B, 1, landedLane);
   h.advance(NEON_BOLT_MS + 10);
@@ -324,6 +349,39 @@ async function playerGone(): Promise<void> {
   check('a stranger leaving does nothing — there is no third seat', bystander.state()!.phase === 'running');
 }
 
+async function magnetism(): Promise<void> {
+  console.log('\nan idle glider settles into the closest lane');
+  const h = await running();
+
+  // A single tick's nudge, short of the next lane's own halfway point.
+  await onSteer(h.ctx, A, 1, 1);
+  await ticks(h, 1);
+  const nudged = h.state()!.lane;
+  check('a brief tilt moved it off centre, short of the next lane', nudged > 2 && nudged < 2.5, nudged);
+
+  await onSteer(h.ctx, A, 1, 0);
+  await ticks(h, 40); // plenty of time for the spring to settle
+  check('with no more tilt, it drifted back to the lane it started in', Math.abs(h.state()!.lane - 2) < 0.01, h.state()!.lane);
+
+  // A deliberate, sustained tilt must still be able to cross into the next
+  // lane — the magnet pulling it back toward lane 2 must not be able to trap
+  // it there once the tilt actively opposes that pull.
+  await onSteer(h.ctx, A, 1, 1);
+  await ticks(h, 5);
+  check('a held tilt still crosses past the halfway point', h.state()!.lane > 2.5, h.state()!.lane);
+
+  // A steer too small to count as "pulling the other way" must not cancel the
+  // magnet outright — it still nudges the lane a little on its own (that part
+  // of steer is unconditional), but the magnet keeps fighting it the whole
+  // time rather than switching off, so it settles near its lane rather than
+  // drifting all the way to the next one.
+  const settled = await running();
+  await onSteer(settled.ctx, A, 1, 0.05);
+  check('a steer inside the deadzone is not enough to fight the magnet', 0.05 < NEON_STEER_DEADZONE);
+  await ticks(settled, 40);
+  check('the glider settles near its own lane, not the next one', Math.abs(settled.state()!.lane - 2) < 0.2, settled.state()!.lane);
+}
+
 async function cheating(): Promise<void> {
   console.log('\nstale rounds and out-of-range input');
   const h = await running();
@@ -346,9 +404,11 @@ for (const t of [
   steering,
   falling,
   shooting,
+  bringingItAllInFlight,
   hitting,
   juking,
   invulnerability,
+  magnetism,
   winningByFloor,
   winningByLives,
   safetyCap,
