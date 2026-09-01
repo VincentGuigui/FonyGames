@@ -100,7 +100,10 @@ commit or a deploy. A game is exactly one of these — never two at once (see §
 That makes dev a preview of the catalogue rather than a copy of prod's
 restrictions — deliberately so, since dev exists to try things. The cost is
 that dev does not reproduce prod's blocking behaviour; if you need to verify
-the block itself, check prod or read the Worker logs.
+the block itself, check prod or read the Worker logs — or, signed in as the
+admin on dev, flip the hub's own `Prod preview` chip (docs/specs/hub.md §3),
+which asks nothing of the server and only changes what this one browser tab
+renders.
 
 ### Why the hub cannot enforce this on its own
 

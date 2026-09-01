@@ -37,6 +37,7 @@ export const CARD: GameCard = {
   players: PLAYERS['squash-mosquitoes'],
   duration: '1–2 min',
   inputs: ['touch'],
+  tags: ['party', 'arcade', 'intense'],
   modes: [],
   status: 'live',
 };

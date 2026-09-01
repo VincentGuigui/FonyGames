@@ -27,6 +27,7 @@ export const CARD: GameCard = {
   players: PLAYERS['ghost-tag'],
   duration: '10 min',
   inputs: ['gps', 'motion'],
+  tags: ['physical', 'outdoors'],
   modes: [],
   status: 'soon',
 };

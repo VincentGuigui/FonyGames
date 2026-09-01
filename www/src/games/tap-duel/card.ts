@@ -39,6 +39,7 @@ export const CARD: GameCard = {
   players: PLAYERS['tap-duel'],
   duration: '1 min',
   inputs: ['touch'],
+  tags: ['party'],
   modes: [
     { id: 'pistol', name: 'Pistol', blurb: 'Tap on the signal — false start loses' },
     { id: 'sprint', name: 'Sprint', blurb: 'Most taps before the buzzer' },

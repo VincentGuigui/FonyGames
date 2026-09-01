@@ -17,6 +17,17 @@ export interface UiStrings {
      */
     privacy: string;
     sourceLink: string;
+    /** The filter chip row's own label, and the chip that clears every selection. */
+    filterLabel: string;
+    filterAll: string;
+    /**
+     * The dev-only, admin-only pair naming the two states of the "how does this
+     * look on prod" switch — two named-state buttons rather than one ambiguous
+     * toggle, the same reasoning `ops.ts`'s flag-state buttons already settled on.
+     * Gated on the server's own `showAll`, so this never renders on prod at all.
+     */
+    previewAll: string;
+    previewProd: string;
   };
   common: {
     howToPlay: string;
@@ -110,6 +121,23 @@ export interface UiStrings {
     soon: string;
     hidden: string;
   };
+  /**
+   * The hub's filter chip words. Keyed by `GameTag` (`core/types.ts`) — a closed,
+   * hand-picked set, unlike `inputs`, which a game earns automatically from what
+   * sensors its code touches.
+   */
+  tag: {
+    party: string;
+    duel: string;
+    physical: string;
+    outdoors: string;
+    strategy: string;
+    arcade: string;
+    'augmented-reality': string;
+    luck: string;
+    music: string;
+    intense: string;
+  };
   parts: {
     connecting: string;
     reconnecting: string;
@@ -142,6 +170,10 @@ const en: UiStrings = {
     privacy:
       "No install, no account. Positions and sensor readings never leave the room you're playing in. A little activity — what you tapped, roughly where from — is recorded to see how the site's actually used.",
     sourceLink: 'Source on GitHub',
+    filterLabel: 'Filter games',
+    filterAll: 'All',
+    previewAll: 'All games',
+    previewProd: 'Prod preview',
   },
   common: {
     howToPlay: 'How to play',
@@ -220,6 +252,18 @@ const en: UiStrings = {
     soon: 'Soon',
     hidden: 'Hidden',
   },
+  tag: {
+    party: 'Party',
+    duel: 'Duel',
+    physical: 'Physical',
+    outdoors: 'Outdoors',
+    strategy: 'Strategy',
+    arcade: 'Arcade',
+    'augmented-reality': 'AR',
+    luck: 'Luck',
+    music: 'Music',
+    intense: 'Intense',
+  },
   parts: {
     connecting: 'Connecting…',
     reconnecting: 'Connection lost — reconnecting…',
@@ -252,6 +296,10 @@ const fr: UiStrings = {
     privacy:
       "Aucune installation, aucun compte. Les positions et données de capteurs ne sortent jamais de la salle où vous jouez. Un peu d'activité — ce que vous avez tapé, votre origine approximative — est enregistré pour voir comment le site est réellement utilisé.",
     sourceLink: 'Code source sur GitHub',
+    filterLabel: 'Filtrer les jeux',
+    filterAll: 'Tous',
+    previewAll: 'Tous les jeux',
+    previewProd: 'Aperçu prod',
   },
   common: {
     howToPlay: 'Comment jouer',
@@ -330,6 +378,18 @@ const fr: UiStrings = {
     new: 'Nouveau',
     soon: 'À venir',
     hidden: 'Masqué',
+  },
+  tag: {
+    party: 'Ambiance',
+    duel: 'Duel',
+    physical: 'Physique',
+    outdoors: 'Extérieur',
+    strategy: 'Stratégie',
+    arcade: 'Arcade',
+    'augmented-reality': 'RA',
+    luck: 'Chance',
+    music: 'Musique',
+    intense: 'Intense',
   },
   parts: {
     connecting: 'Connexion…',

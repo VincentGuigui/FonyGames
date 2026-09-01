@@ -75,6 +75,11 @@ final class Page
      * reasoning `Flags::gameOfWeek()` itself is written that way: a test has to be able
      * to ask "what does the grid look like in week 1" without waiting for it.
      *
+     * No `GRID_SPACER` between `pinned` and `fresh` specifically: hot/week and NEW are
+     * both "look at this one" tiers, and a rule between them read as a boundary that
+     * was not there for any other adjacent pair (`HubGrid.tsx` carries the identical
+     * exception).
+     *
      * @param array<string, array<string, string>> $cards
      * @param array<string, array<string, mixed>> $flags
      * @param array<string, int> $plays
@@ -87,18 +92,25 @@ final class Page
         $week = Flags::gameOfWeek($weekOrder, $now ?? time());
         $sections = Flags::hubSections($weekOrder, $flags, $hot, $week);
 
-        $groups = array_values(array_filter(
-            [$sections['pinned'], $sections['fresh'], $sections['rest'], $soonOrder],
-            static fn (array $group): bool => count($group) > 0,
+        $tiers = array_values(array_filter(
+            [
+                ['key' => 'pinned', 'slugs' => $sections['pinned']],
+                ['key' => 'fresh', 'slugs' => $sections['fresh']],
+                ['key' => 'rest', 'slugs' => $sections['rest']],
+                ['key' => 'soon', 'slugs' => $soonOrder],
+            ],
+            static fn (array $tier): bool => count($tier['slugs']) > 0,
         ));
 
         $out = '';
-        foreach ($groups as $index => $slugs) {
-            if ($index > 0) {
+        foreach ($tiers as $index => $tier) {
+            $previous = $tiers[$index - 1] ?? null;
+            // The one adjacency with no spacer: hot/week leading straight into NEW.
+            if ($index > 0 && !($tier['key'] === 'fresh' && $previous !== null && $previous['key'] === 'pinned')) {
                 $out .= self::GRID_SPACER;
             }
 
-            foreach ($slugs as $slug) {
+            foreach ($tier['slugs'] as $slug) {
                 $variants = $cards[$slug] ?? null;
                 if (!is_array($variants)) {
                     continue;

@@ -37,6 +37,7 @@ export const CARD: GameCard = {
   players: PLAYERS['shake-rush'],
   duration: '1 min',
   inputs: ['motion'],
+  tags: ['physical'],
   modes: [],
   status: 'live',
 };

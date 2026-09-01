@@ -44,6 +44,43 @@
   font-size: var(--font-small);
 }
 
+/* --- filters (docs/specs/hub.md §3) ------------------------------------- */
+
+.hub__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+}
+
+.hub__filter-chip {
+  font: inherit;
+  font-size: var(--font-small);
+  /* Tall enough for a thumb, same reasoning as every other tappable chip in
+     the app (ops.css's own `.ops__choice`). */
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-dim);
+  cursor: pointer;
+}
+
+.hub__filter-chip.is-on {
+  background: var(--color-text);
+  color: var(--color-bg);
+  border-color: var(--color-text);
+}
+
+/* The dev-only preview switch reuses the chip look, set apart by a dashed rule —
+   the same visual device `.hub__notice` already uses for "this is not the real
+   thing", since a dev host's own hub chrome is exactly that. */
+.hub__admin-preview {
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px dashed var(--color-border);
+}
+
 /* --- catalogue ---------------------------------------------------------- */
 
 .hub__grid {

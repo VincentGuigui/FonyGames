@@ -1,8 +1,11 @@
 import type { JSX, VNode } from 'preact';
-import { useEffect } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { catalogue } from '../games/registry';
 import { HubGrid } from './HubGrid';
+import { HubFilters } from './HubFilters';
+import { HubAdminPreview, useAdminPreview } from './HubAdminPreview';
 import { cardState, flagFor, type GameFlag } from '../../../shared/flags';
+import type { GameTag } from '../core/types';
 import { JoinByCode } from '../core/ui/JoinByCode';
 import { LocalePicker } from '../core/ui/LocalePicker';
 import { useLocale } from '../core/i18n/LocaleContext';
@@ -36,10 +39,21 @@ export function Hub({
   const games = catalogue();
   const { locale } = useLocale();
   const t = useT();
+  const [selectedTags, setSelectedTags] = useState<Set<GameTag>>(new Set());
+  const { isAdmin, effectiveShowAll, previewProd, setPreviewProd } = useAdminPreview(showAll);
+
+  const toggleTag = (tag: GameTag): void => {
+    setSelectedTags((current) => {
+      const next = new Set(current);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
+      return next;
+    });
+  };
 
   // "Nothing is playable yet" has to account for the flags, not just build-time status:
   // with every built game disabled, the shell notice is the honest thing to show.
-  const anyPlayable = games.some((g) => cardState(g.status, flagFor(flags, g.slug), showAll).playable);
+  const anyPlayable = games.some((g) => cardState(g.status, flagFor(flags, g.slug), effectiveShowAll).playable);
 
   /*
    * Once per real page load. This runs only on the client — Preact effects never fire
@@ -60,9 +74,16 @@ export function Hub({
 
       <JoinByCode />
 
+      {/* Dev-only, admin-only — `useAdminPreview` never even asks on prod (§ its own doc). */}
+      {isAdmin && <HubAdminPreview previewProd={previewProd} onChange={setPreviewProd} />}
+
+      <HubFilters games={games} selected={selectedTags} onToggle={toggleTag} onClear={() => setSelectedTags(new Set())} />
+
       {!anyPlayable && <p class="hub__notice">{t.hub.shellNotice}</p>}
 
-      {grid ?? <HubGrid flags={flags} plays={plays} showAll={showAll} locale={locale} />}
+      {grid ?? (
+        <HubGrid flags={flags} plays={plays} showAll={effectiveShowAll} locale={locale} tags={selectedTags} />
+      )}
 
       <footer class="hub__footer">
         <p>{t.hub.privacy}</p>

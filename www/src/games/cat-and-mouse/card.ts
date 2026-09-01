@@ -37,6 +37,7 @@ export const CARD: GameCard = {
   players: PLAYERS['cat-and-mouse'],
   duration: '60–90 s',
   inputs: ['touch'],
+  tags: ['strategy'],
   modes: [
     { id: 'chase', name: 'Chase', blurb: 'One cat, three lives each, beat the clock' },
   ],

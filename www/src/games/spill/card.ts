@@ -37,6 +37,7 @@ export const CARD: GameCard = {
   players: PLAYERS['spill'],
   duration: '1–3 min',
   inputs: ['touch'],
+  tags: ['party'],
   modes: [
     { id: 'ring', name: 'Ring', blurb: 'Phones flat on the table, aim across the room' },
   ],

@@ -37,6 +37,7 @@ export const CARD: GameCard = {
   players: PLAYERS['ufo-hunt'],
   duration: '2 min',
   inputs: ['orientation', 'camera', 'touch'],
+  tags: ['arcade', 'augmented-reality'],
   modes: [],
   status: 'live',
 };

@@ -41,6 +41,7 @@ export const CARD: GameCard = {
   players: PLAYERS['hundred-taps'],
   duration: '30 s – 2 min',
   inputs: ['touch'],
+  tags: ['party', 'intense'],
   modes: [],
   status: 'live',
 };

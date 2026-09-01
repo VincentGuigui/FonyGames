@@ -32,6 +32,7 @@ export const CARD: GameCard = {
   players: PLAYERS['steady-hand'],
   duration: '1 min',
   inputs: ['motion'],
+  tags: ['physical'],
   modes: [],
   status: 'live',
 };

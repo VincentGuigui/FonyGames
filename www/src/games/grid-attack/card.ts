@@ -41,6 +41,7 @@ export const CARD: GameCard = {
   players: PLAYERS['grid-attack'],
   duration: '1–2 min',
   inputs: ['touch'],
+  tags: ['duel', 'intense'],
   modes: [],
   status: 'live',
 };

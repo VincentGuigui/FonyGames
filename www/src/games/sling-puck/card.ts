@@ -37,6 +37,7 @@ export const CARD: GameCard = {
   players: PLAYERS['sling-puck'],
   duration: '30 s – 2 min',
   inputs: ['touch'],
+  tags: ['duel'],
   modes: [
     { id: 'classic', name: 'Classic', blurb: 'Five pucks each, first side clear wins' },
   ],

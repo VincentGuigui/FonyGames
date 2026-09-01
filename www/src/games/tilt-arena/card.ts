@@ -26,6 +26,7 @@ export const CARD: GameCard = {
   players: PLAYERS['tilt-arena'],
   duration: '2 min',
   inputs: ['orientation'],
+  tags: ['physical'],
   modes: [],
   status: 'soon',
 };

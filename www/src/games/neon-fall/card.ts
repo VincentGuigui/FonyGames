@@ -43,6 +43,7 @@ export const CARD: GameCard = {
   players: PLAYERS['neon-fall'],
   duration: '~30–60 s',
   inputs: ['orientation', 'touch'],
+  tags: ['duel', 'arcade'],
   modes: [],
   status: 'live',
 };

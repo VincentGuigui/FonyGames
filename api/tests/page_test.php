@@ -145,7 +145,12 @@ group('a NEW-flagged game moves to its own tier, ahead of everything else that i
 
 $fresh = Page::grid(fakeCards(), ['tap-duel' => ['state' => 'new']], false, [], ALPHA, $week1);
 check('week still leads, then NEW, then the rest', slugsIn($fresh) === ['ghost-tag', 'tap-duel', 'spill'], slugsIn($fresh));
-check('two spacers now — one per tier boundary', substr_count($fresh, 'hub__spacer') === 2, $fresh);
+// Only one spacer now, not two: hot/week leading straight into NEW gets none.
+check('one spacer, not two — pinned flows straight into NEW', substr_count($fresh, 'hub__spacer') === 1, $fresh);
+$betweenPinnedAndFresh = substr($fresh, (int) strpos($fresh, 'ghost-tag'), (int) strpos($fresh, 'tap-duel') - (int) strpos($fresh, 'ghost-tag'));
+check('specifically: nothing between the pinned tier and NEW', !str_contains($betweenPinnedAndFresh, 'hub__spacer'), $betweenPinnedAndFresh);
+$betweenFreshAndRest = substr($fresh, (int) strpos($fresh, 'tap-duel'), (int) strpos($fresh, 'spill') - (int) strpos($fresh, 'tap-duel'));
+check('but NEW and the rest still get one', str_contains($betweenFreshAndRest, 'hub__spacer'), $betweenFreshAndRest);
 check('the new state picks its own variant', str_contains($fresh, 'data-key="new:0:0:0"'), $fresh);
 
 // Pinned always outranks NEW — a hot-and-new game is not also duplicated into the NEW tier.
@@ -168,7 +173,8 @@ check(
     slugsIn($withSoonAndNew) === ['ghost-tag', 'tap-duel', 'spill', 'zone-rush'],
     slugsIn($withSoonAndNew),
 );
-check('one spacer per tier boundary, three tiers deep', substr_count($withSoonAndNew, 'hub__spacer') === 3, $withSoonAndNew);
+// Four tiers, but only two spacers: pinned→NEW still gets none, NEW→rest and rest→soon do.
+check('two spacers, not three — pinned still flows straight into NEW', substr_count($withSoonAndNew, 'hub__spacer') === 2, $withSoonAndNew);
 
 // hubSections() never sees $soonOrder at all, so a play count for a not-yet-live game
 // cannot promote it — the same fail-open rule `Flags::hottest` already applies to a
