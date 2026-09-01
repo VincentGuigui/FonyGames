@@ -2,7 +2,7 @@ import { isRoomCode, normaliseRoomCode } from '../www/src/core/room/code';
 import { gameSlug, originAllowed } from './router';
 import { Room } from './Room';
 import { makeFlagsReader, timedFetch, type FlagsReader } from './flags';
-import type { FlagState } from '../shared/flags';
+import { isPlayable, type FlagState } from '../shared/flags';
 
 export { Room };
 
@@ -119,11 +119,11 @@ export default {
      * round, so a room that still has a connected player keeps accepting them. The Room
      * is the only thing that knows whether it is occupied.
      *
-     * Fail open, and no `try` around it: `availabilityOf` answers `active` for a dead
+     * Fail open, and no `try` around it: `stateOf` answers `active` for a dead
      * host, a 404, a truncated body or an unset URL, and `worker/flags.test.ts` asserts
      * each of those. A `catch` here would suggest the contract is weaker than it is.
      */
-    const availability: FlagState = game ? await flags(env).availabilityOf(game) : 'active';
+    const state: FlagState = game ? await flags(env).stateOf(game) : 'active';
 
     // The whole reason for Durable Objects: this name always resolves to the
     // same object, anywhere in the world, with no routing table of our own.
@@ -134,7 +134,7 @@ export default {
     forwarded.searchParams.set('code', code);
     if (game) forwarded.searchParams.set('game', game);
     else forwarded.searchParams.delete('game');
-    forwarded.searchParams.set('open', availability === 'active' ? '1' : '0');
+    forwarded.searchParams.set('open', isPlayable(state) ? '1' : '0');
     return stub.fetch(new Request(forwarded, request));
   },
 };

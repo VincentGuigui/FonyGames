@@ -1,21 +1,13 @@
-import { cardState, DEFAULT_FLAG, flagFor, gameOfWeek, hottest, hubSections, isoWeek, mayOpenRoom, type GameFlag } from './flags';
+import { cardState, DEFAULT_FLAG, flagFor, gameOfWeek, hottest, hubSections, isoWeek, isPlayable, mayOpenRoom, type GameFlag } from './flags';
 
 /**
  * `cardState` — the one function that decides what a player sees on a card.
  *
  * It is called from four places (the hub, `GameCardTile`, the admin centre and
- * `scripts/ssr.mjs`, which bakes its answers into PHP), and it had no test of its
- * own. That is how this shipped:
- *
- *     const isNew = flag.isNew || status === 'new';
- *
- * The `||` made the admin's NEW toggle a no-op for every game whose card said
- * `status: 'new'` — switching the flag off left the badge on, because the
- * build-time half still held, and no amount of clicking could clear it. Nothing
- * failed, nothing logged; the button just did nothing.
- *
- * So the checks below are written from the operator's side: press the toggle, and
- * the badge must follow it, in both directions, for every game.
+ * `scripts/ssr.mjs`, which bakes its answers into PHP). A game is now exactly one
+ * of `new` / `active` / `soon` / `hidden` — never two at once — so the checks
+ * below are about that one value's own transitions, in both directions, for
+ * every game.
  */
 
 let failures = 0;
@@ -42,74 +34,69 @@ console.log('\nnothing is NEW until an operator says so');
   check('and shows', view.show === true);
   // The whole point: a fresh install advertises nothing as new. NEW is something an
   // operator turns on when it is worth pointing at, not the state everything ships in.
-  check('the default flag is not new', DEFAULT_FLAG.isNew === false);
+  check('the default flag is active, not new', DEFAULT_FLAG.state === 'active');
 }
 
-console.log('\nthe NEW toggle, in both directions');
+console.log('\nthe NEW state, in both directions');
 
 {
-  check('on shows the badge', cardState('live', flag({ isNew: true }), false).badge === 'new');
-  check('off removes it', cardState('live', flag({ isNew: false }), false).badge === null);
-  // The regression, stated as plainly as it can be: there is no second source of NEW.
-  // If a build-time value is ever OR'd back in, this is the check that fails.
-  check('and nothing else can put it back',
-    cardState('live', flag({ isNew: false }), false).badge === null &&
-      cardState('live', flag({ isNew: false }), true).badge === null);
-  check('turning it off leaves the game playable', cardState('live', flag({ isNew: false }), false).playable === true);
+  check('new shows the badge', cardState('live', flag({ state: 'new' }), false).badge === 'new');
+  check('active removes it', cardState('live', flag({ state: 'active' }), false).badge === null);
+  check('and new is still playable', cardState('live', flag({ state: 'new' }), false).playable === true);
 }
 
 console.log('\nsoon still beats everything, because the code does not exist');
 
 {
-  const view = cardState('soon', flag({ isNew: true, availability: 'active' }), false);
+  const view = cardState('soon', flag({ state: 'new' }), false);
   check('a soon game is soon however it is flagged', view.badge === 'soon', view);
   check('and is never playable', view.playable === false);
   check('but it does show, because it is an advert', view.show === true);
   check('even in dev', cardState('soon', DEFAULT_FLAG, true).playable === false);
 }
 
-console.log('\ndisabled and hidden are unaffected by NEW');
+console.log('\nsoon and hidden');
 
 {
-  const off = cardState('live', flag({ availability: 'disabled', isNew: true }), false);
-  check('a disabled game says why, not NEW', off.badge === 'paused', off);
+  const off = cardState('live', flag({ state: 'soon' }), false);
+  check('a soon game says so', off.badge === 'soon', off);
   check('and is not playable', off.playable === false);
   check('a reason replaces the default word',
-    cardState('live', flag({ availability: 'disabled', reason: 'server maintenance' }), false).badge ===
+    cardState('live', flag({ state: 'soon', reason: 'server maintenance' }), false).badge ===
       'server maintenance');
   // dev shows everything, with a badge stating what prod would do.
-  check('dev sees the state rather than the excuse',
-    cardState('live', flag({ availability: 'disabled', reason: 'x' }), true).badge === 'disabled');
-  check('and can still play it', cardState('live', flag({ availability: 'disabled' }), true).playable === true);
+  check('dev sees the word "soon" rather than the excuse',
+    cardState('live', flag({ state: 'soon', reason: 'x' }), true).badge === 'soon');
+  check('and can still play it', cardState('live', flag({ state: 'soon' }), true).playable === true);
 
-  const hidden = cardState('live', flag({ availability: 'hidden', isNew: true }), false);
+  const hidden = cardState('live', flag({ state: 'hidden' }), false);
   check('a hidden game does not show at all', hidden.show === false);
-  check('NEW cannot drag it back onto the hub', hidden.badge === 'hidden');
-  check('dev sees it', cardState('live', flag({ availability: 'hidden' }), true).show === true);
+  check('and reads hidden', hidden.badge === 'hidden');
+  check('dev sees it', cardState('live', flag({ state: 'hidden' }), true).show === true);
 }
 
 console.log('\nthe flag lookup');
 
 {
-  check('an unknown slug gets the default', flagFor({}, 'nothing').isNew === false);
-  check('and is active', flagFor({}, 'nothing').availability === 'active');
-  const flags = { spill: flag({ isNew: true }) };
-  check('a known slug gets its own', flagFor(flags, 'spill').isNew === true);
+  check('an unknown slug gets the default', flagFor({}, 'nothing').state === 'active');
+  const flags = { spill: flag({ state: 'new' }) };
+  check('a known slug gets its own', flagFor(flags, 'spill').state === 'new');
 
   // The one that actually gates a socket, as opposed to a badge. `occupied` is the
   // in-flight rule: disabling blocks NEW rooms and never interrupts a round already
   // being played.
   const empty = false;
   check('an active game may open a room', mayOpenRoom(flags, 'spill', empty) === true);
-  check('a disabled one may not', mayOpenRoom({ spill: flag({ availability: 'disabled' }) }, 'spill', empty) === false);
-  check('a hidden one may not', mayOpenRoom({ spill: flag({ availability: 'hidden' }) }, 'spill', empty) === false);
+  check('so may a new one', mayOpenRoom({ spill: flag({ state: 'new' }) }, 'spill', empty) === true);
+  check('a soon one may not', mayOpenRoom({ spill: flag({ state: 'soon' }) }, 'spill', empty) === false);
+  check('a hidden one may not', mayOpenRoom({ spill: flag({ state: 'hidden' }) }, 'spill', empty) === false);
   check('and an unknown one may, because flags fail open', mayOpenRoom({}, 'anything', empty) === true);
   check('but a round already in progress is never cut off',
-    mayOpenRoom({ spill: flag({ availability: 'disabled' }) }, 'spill', true) === true);
-  check('not even a hidden one', mayOpenRoom({ spill: flag({ availability: 'hidden' }) }, 'spill', true) === true);
-  // Worth stating next to the lines above: NEW is a merchandising switch, not a
-  // security control, and shared/flags.ts says so.
-  check('NEW never gates a room', mayOpenRoom({ spill: flag({ isNew: true }) }, 'spill', empty) === true);
+    mayOpenRoom({ spill: flag({ state: 'soon' }) }, 'spill', true) === true);
+  check('not even a hidden one', mayOpenRoom({ spill: flag({ state: 'hidden' }) }, 'spill', true) === true);
+
+  check('isPlayable agrees: active and new both are', isPlayable('active') && isPlayable('new'));
+  check('soon and hidden are not', !isPlayable('soon') && !isPlayable('hidden'));
 }
 
 console.log('\nthe hot game');
@@ -139,7 +126,7 @@ console.log('\nthe hot game');
   // tap-duel would be the true sort — reusing the literal array from above instead,
   // since hubSections trusts its caller for that, the same as gameOfWeek already does).
   const alphabetical = ['ghost-hunt', 'spill', 'tap-duel'];
-  const flags = { spill: flag({ isNew: true }) };
+  const flags = { spill: flag({ state: 'new' }) };
 
   check(
     'hot and week both pinned, hot first',
@@ -166,10 +153,10 @@ console.log('\nthe hot game');
   // HOT replaces NEW rather than stacking with it: one badge slot, and a card claiming
   // both says nothing.
   check('the hot card wears HOT', cardState('live', flag({}), false, true).badge === 'hot');
-  check('even when it is also new', cardState('live', flag({ isNew: true }), false, true).badge === 'hot');
+  check('even when it is also new', cardState('live', flag({ state: 'new' }), false, true).badge === 'hot');
   check('and it is still playable', cardState('live', flag({}), false, true).playable === true);
   // The other states' badges are caveats, and a caveat outranks a boast.
-  check('a paused game does not boast', cardState('live', flag({ availability: 'disabled' }), false, true).badge === 'paused');
+  check('a soon game does not boast', cardState('live', flag({ state: 'soon' }), false, true).badge === 'soon');
   check('nor does one that is not built yet', cardState('soon', flag({}), false, true).badge === 'soon');
 }
 
@@ -224,14 +211,14 @@ console.log('\nWEEK, ranked between HOT and NEW');
   // hydrates it, and the two must agree.
   check('the week\'s own game wears WEEK',
     cardState('live', flag({}), false, false, true).badge === 'week');
-  check('even when it is also flagged new', cardState('live', flag({ isNew: true }), false, false, true).badge === 'week');
+  check('even when it is also flagged new', cardState('live', flag({ state: 'new' }), false, false, true).badge === 'week');
   check('but HOT still outranks it', cardState('live', flag({}), false, true, true).badge === 'hot');
   check('and it is still playable', cardState('live', flag({}), false, false, true).playable === true);
-  check('a paused game does not get spotlighted either',
-    cardState('live', flag({ availability: 'disabled' }), false, false, true).badge === 'paused');
+  check('a soon game does not get spotlighted either',
+    cardState('live', flag({ state: 'soon' }), false, false, true).badge === 'soon');
   check('nor a game that is not built yet', cardState('soon', flag({}), false, false, true).badge === 'soon');
   // Without week, the existing NEW/nothing rule is exactly as it always was.
-  check('no week, no change to a plain new card', cardState('live', flag({ isNew: true }), false).badge === 'new');
+  check('no week, no change to a plain new card', cardState('live', flag({ state: 'new' }), false).badge === 'new');
 }
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);

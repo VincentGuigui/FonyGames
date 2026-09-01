@@ -8,7 +8,7 @@
  *
  * ## Everything here is shaped by where it is called from
  *
- * `availabilityOf()` runs while a player is opening a room, inside the ±250 ms budget
+ * `stateOf()` runs while a player is opening a room, inside the ±250 ms budget
  * in `docs/architecture.md` §4. That single fact explains every decision below:
  *
  * - **A 60 s memory cache**, because a flag changes a few times a year and a room
@@ -50,8 +50,8 @@ export type FlagsDeps = {
 };
 
 export type FlagsReader = {
-  /** The availability for one slug. Never throws, never rejects. */
-  availabilityOf(slug: string): Promise<FlagState>;
+  /** The state for one slug. Never throws, never rejects. */
+  stateOf(slug: string): Promise<FlagState>;
   /** The whole map, for callers that want more than one answer. */
   all(): Promise<Record<string, GameFlag>>;
 };
@@ -91,13 +91,12 @@ export function parseFlags(body: unknown): Record<string, GameFlag> {
     if (gameSlug(rawSlug) === null) continue;
     if (typeof rawFlag !== 'object' || rawFlag === null) continue;
 
-    const { availability, isNew, reason } = rawFlag as Record<string, unknown>;
+    const { state, reason } = rawFlag as Record<string, unknown>;
     const flag: GameFlag = {
-      availability:
-        availability === 'active' || availability === 'disabled' || availability === 'hidden'
-          ? availability
-          : DEFAULT_FLAG.availability,
-      isNew: isNew === true,
+      state:
+        state === 'new' || state === 'active' || state === 'soon' || state === 'hidden'
+          ? state
+          : DEFAULT_FLAG.state,
     };
     if (typeof reason === 'string' && reason.trim() !== '') flag.reason = reason.trim();
 
@@ -154,9 +153,9 @@ export function makeFlagsReader(deps: FlagsDeps): FlagsReader {
 
   return {
     all: current,
-    async availabilityOf(slug: string): Promise<FlagState> {
+    async stateOf(slug: string): Promise<FlagState> {
       const flags = await current();
-      return flags[slug]?.availability ?? DEFAULT_FLAG.availability;
+      return flags[slug]?.state ?? DEFAULT_FLAG.state;
     },
   };
 }

@@ -68,24 +68,20 @@ check('and keeps the /D modifier that makes $ mean end-of-string', str_contains(
 group('a patch is partial, and merges');
 
 $flags = [];
-$flags = Flags::apply($flags, 'spill', ['availability' => Flags::DISABLED]);
-check('an unknown slug starts from the default', $flags['spill']['isNew'] === false, $flags);
-check('and takes the patched availability', $flags['spill']['availability'] === Flags::DISABLED);
+$flags = Flags::apply($flags, 'spill', ['state' => Flags::SOON]);
+check('an unknown slug starts from the default', $flags['spill'] === ['state' => Flags::SOON], $flags);
 
-$flags = Flags::apply($flags, 'spill', ['isNew' => true]);
-check('a later patch does not reset the other field', $flags['spill']['availability'] === Flags::DISABLED, $flags);
-check('and sets its own', $flags['spill']['isNew'] === true);
+$flags = Flags::apply($flags, 'spill', ['reason' => 'balance pass']);
+check('a later patch does not reset the state', $flags['spill']['state'] === Flags::SOON, $flags);
+check('and sets its own field', $flags['spill']['reason'] === 'balance pass');
 
-// A game can be new AND disabled — the whole reason these are two fields rather than
-// one four-value enum (spec §5).
-check('new and disabled coexist', $flags['spill'] === [
-    'availability' => Flags::DISABLED,
-    'isNew' => true,
+check('a game is exactly one state, carrying its reason alongside', $flags['spill'] === [
+    'state' => Flags::SOON,
+    'reason' => 'balance pass',
 ]);
 
-$flags = Flags::apply($flags, 'spill', ['availability' => 'banana', 'isNew' => 'yes']);
-check('a bad availability is ignored, not stored', $flags['spill']['availability'] === Flags::DISABLED, $flags);
-check('a bad isNew is ignored, not coerced', $flags['spill']['isNew'] === true);
+$flags = Flags::apply($flags, 'spill', ['state' => 'banana']);
+check('a bad state is ignored, not stored', $flags['spill']['state'] === Flags::SOON, $flags);
 
 group('a reason is absent, never empty');
 
@@ -103,11 +99,10 @@ check('null clears it', !array_key_exists('reason', $flags['spill']));
 
 group('the published JSON is the shape shared/flags.ts expects');
 
-$json = Flags::encode(['spill' => ['availability' => Flags::HIDDEN, 'isNew' => false]]);
+$json = Flags::encode(['spill' => ['state' => Flags::HIDDEN]]);
 $back = json_decode($json, true);
 check('wrapped in a flags key', isset($back['flags']['spill']));
-check('availability survives', $back['flags']['spill']['availability'] === Flags::HIDDEN);
-check('isNew is a real boolean, not 0', $back['flags']['spill']['isNew'] === false, $json);
+check('state survives', $back['flags']['spill']['state'] === Flags::HIDDEN, $json);
 
 // The fresh-install case. PHP's empty array encodes as `[]`, and a reader doing
 // `flags.flags[slug]` on an array gets undefined at best — so an empty map must be
@@ -119,12 +114,12 @@ check('an empty map encodes as an object', str_contains(Flags::encode([]), '"fla
 // searching for a string: a `str_contains($json, 'at')` would have passed here and
 // then failed the day a slug called `cat-and-mouse` was added.
 $encoded = json_decode(Flags::encode([
-    'cat-and-mouse' => ['availability' => Flags::DISABLED, 'isNew' => true, 'reason' => 'why'],
+    'cat-and-mouse' => ['state' => Flags::SOON, 'reason' => 'why'],
 ]), true);
 check('the payload has exactly one top-level key', array_keys($encoded) === ['flags'], $encoded);
 check(
-    'and a flag carries only the three GameFlag fields',
-    array_keys($encoded['flags']['cat-and-mouse']) === ['availability', 'isNew', 'reason'],
+    'and a flag carries only the two GameFlag fields',
+    array_keys($encoded['flags']['cat-and-mouse']) === ['state', 'reason'],
     $encoded['flags']['cat-and-mouse'],
 );
 
@@ -135,23 +130,23 @@ $store = new PdoFlagStore(testDb(), $clock);
 
 check('an empty store loads an empty map', $store->load() === []);
 
-$store->put('spill', ['availability' => Flags::DISABLED, 'isNew' => true, 'reason' => 'maintenance']);
+$store->put('spill', ['state' => Flags::SOON, 'reason' => 'maintenance']);
 $loaded = $store->load();
 check('a stored flag comes back whole', $loaded === [
-    'spill' => ['availability' => Flags::DISABLED, 'isNew' => true, 'reason' => 'maintenance'],
+    'spill' => ['state' => Flags::SOON, 'reason' => 'maintenance'],
 ], $loaded);
 
-$store->put('spill', ['availability' => Flags::ACTIVE, 'isNew' => false]);
+$store->put('spill', ['state' => Flags::ACTIVE]);
 $loaded = $store->load();
 check('a second write updates rather than duplicating', count($loaded) === 1, $loaded);
 check('and clears the reason when the new flag has none', !array_key_exists('reason', $loaded['spill']), $loaded);
 
-$store->put('tap-duel', ['availability' => Flags::HIDDEN, 'isNew' => false]);
+$store->put('tap-duel', ['state' => Flags::HIDDEN]);
 check('slugs come back sorted', array_keys($store->load()) === ['spill', 'tap-duel']);
 
 $threw = false;
 try {
-    $store->put('../etc/passwd', ['availability' => Flags::ACTIVE, 'isNew' => false]);
+    $store->put('../etc/passwd', ['state' => Flags::ACTIVE]);
 } catch (InvalidArgumentException) {
     $threw = true;
 }
@@ -162,11 +157,11 @@ group('every change leaves an audit row, in the same transaction');
 $history = $store->history();
 check('three writes, three rows', count($history) === 3, $history);
 check('newest first', $history[0]['slug'] === 'tap-duel', $history);
-check('the row records the state it set', $history[0]['availability'] === Flags::HIDDEN);
+check('the row records the state it set', $history[0]['state'] === Flags::HIDDEN);
 check('and when', $history[0]['at'] === 1_000_000);
 
 $clock->advance(5_000);
-$store->put('spill', ['availability' => Flags::DISABLED, 'isNew' => false]);
+$store->put('spill', ['state' => Flags::SOON]);
 $history = $store->history();
 check('a later write is timestamped later', $history[0]['at'] === 1_005_000, $history[0]);
 
@@ -191,7 +186,7 @@ check('counts come back per slug', $store->plays() === ['ghost-hunt' => 2, 'spil
 // A game that has been counted must keep whatever the operator set. The bump writes one
 // column; it is not a flag change, and it leaves no audit row.
 $before = count($store->history());
-check('counting does not disturb the flag', $store->load()['spill']['availability'] === Flags::DISABLED, $store->load());
+check('counting does not disturb the flag', $store->load()['spill']['state'] === Flags::SOON, $store->load());
 check('and writes no audit row', count($store->history()) === $before);
 
 $threwCount = false;
@@ -210,7 +205,7 @@ $service = new FlagService(new PdoFlagStore(testDb(), $clock), $path, $clock);
 
 check('nothing published yet reads as no flags', Flags::read($path) === []);
 
-$result = $service->update('spill', ['availability' => Flags::DISABLED, 'reason' => 'back Friday']);
+$result = $service->update('spill', ['state' => Flags::SOON, 'reason' => 'back Friday']);
 check('the update reports success', $result !== null && $result['published'] === true, $result);
 
 // The invariant this whole class exists for: one call, and the file on disk already
@@ -219,11 +214,11 @@ check('the update reports success', $result !== null && $result['published'] ===
 // one.
 $published = Flags::read($path);
 check('the published file already matches the store', $published === $service->all(), [$published, $service->all()]);
-check('and holds the disabled state', $published['spill']['availability'] === Flags::DISABLED);
+check('and holds the soon state', $published['spill']['state'] === Flags::SOON);
 check('and the reason', ($published['spill']['reason'] ?? null) === 'back Friday');
 
-check('a bad slug updates nothing and reports it', $service->update('//evil.test', ['availability' => Flags::HIDDEN]) === null);
-check('and left the file alone', Flags::read($path)['spill']['availability'] === Flags::DISABLED);
+check('a bad slug updates nothing and reports it', $service->update('//evil.test', ['state' => Flags::HIDDEN]) === null);
+check('and left the file alone', Flags::read($path)['spill']['state'] === Flags::SOON);
 
 group('the published file is replaced atomically');
 
@@ -233,7 +228,7 @@ group('the published file is replaced atomically');
 // open — turning a disabled game playable for the duration of every write.
 $before = fileinode($path);
 clearstatcache();
-$service->update('tap-duel', ['availability' => Flags::HIDDEN]);
+$service->update('tap-duel', ['state' => Flags::HIDDEN]);
 clearstatcache();
 check('the file is a new inode, i.e. renamed into place', fileinode($path) !== $before, [$before, fileinode($path)]);
 
@@ -261,18 +256,17 @@ check('and the file is where it was asked for', is_readable($dir . '/flags-dotdo
 
 group('reading the file fails open, always');
 
-file_put_contents($path, '{"flags":{"spill":{"availabil');
+file_put_contents($path, '{"flags":{"spill":{"stat');
 check('half a document reads as no flags', Flags::read($path) === []);
 
 file_put_contents($path, 'null');
 check('valid JSON of the wrong shape reads as no flags', Flags::read($path) === []);
 
-file_put_contents($path, '{"flags":{"spill":{"availability":"banana","isNew":1}}}');
+file_put_contents($path, '{"flags":{"spill":{"state":"banana"}}}');
 $read = Flags::read($path);
-check('an availability outside the enum falls back to active', $read['spill']['availability'] === Flags::ACTIVE, $read);
-check('and a truthy non-boolean isNew is not trusted', $read['spill']['isNew'] === false, $read);
+check('a state outside the enum falls back to active', $read['spill']['state'] === Flags::ACTIVE, $read);
 
-file_put_contents($path, '{"flags":{"../etc/passwd":{"availability":"hidden","isNew":false}}}');
+file_put_contents($path, '{"flags":{"../etc/passwd":{"state":"hidden"}}}');
 check('a hand-edited bad slug is dropped on read', Flags::read($path) === [], Flags::read($path));
 
 check('a missing file reads as no flags', Flags::read($dir . '/nope.json') === []);
@@ -305,7 +299,7 @@ check(
 // An admin flag edit is a human waiting on the result — it must not be throttled by
 // a recount that happened a moment ago, and it must not reset the recount's own
 // window either: the two are unrelated writers of the same file.
-check('a flag edit right after still publishes immediately', $service->update('spill', ['availability' => Flags::ACTIVE])['published'] === true);
+check('a flag edit right after still publishes immediately', $service->update('spill', ['state' => Flags::ACTIVE])['published'] === true);
 check('and so does the explicit repair action', $service->republish() === true);
 
 $stillWaiting = $service->count('ghost-hunt');
@@ -331,7 +325,7 @@ check(
 
 // A flag change must not blank the counts, which is why publish() reads them from the
 // store rather than from whatever the caller was holding.
-$service->update('ghost-hunt', ['availability' => Flags::ACTIVE]);
+$service->update('ghost-hunt', ['state' => Flags::ACTIVE]);
 check('a later flag change keeps them', Flags::readPlays($path)['ghost-hunt'] === $dueNow['plays'], Flags::readPlays($path));
 
 file_put_contents($path, '{"flags":{},"plays":{"spill":"12","../evil":9,"tap-duel":0,"goat-siege":-3}}');
@@ -356,7 +350,7 @@ check('a slug outside the catalogue cannot win', Flags::hottest(['zone-rush' => 
 // hubSections' own three tiers (issue #4): week + hot pinned (week first), then NEW
 // alphabetical, then the rest — mirrored, case for case, in shared/flags.test.ts.
 $alphabetical = ['ghost-hunt', 'spill', 'tap-duel'];
-$flagsWithNew = ['spill' => ['isNew' => true]];
+$flagsWithNew = ['spill' => ['state' => Flags::NEW]];
 
 check(
     'hot and week both pinned, week first',

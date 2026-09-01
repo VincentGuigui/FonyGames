@@ -29,6 +29,14 @@ require_once __DIR__ . '/Flags.php';
  * Not for tidiness: a flag that changed with no audit row is a lie about the history,
  * and an audit row for a change that did not land is worse. One transaction makes
  * both impossible.
+ *
+ * ## The column is still called `availability`
+ *
+ * `GameFlag.state` (shared/flags.ts) replaced the old `availability`/`isNew` pair with
+ * one four-value field, but the column itself did not need to move: `VARCHAR(16)`
+ * already held any string this code decided to put there (db/init.sql's own comment
+ * says as much), so widening its meaning is a code change, not a schema one. Renaming
+ * the column would have bought nothing but churn.
  */
 final class PdoFlagStore implements FlagStore
 {
@@ -44,7 +52,7 @@ final class PdoFlagStore implements FlagStore
     public function load(): array
     {
         $rows = $this->db
-            ->query('SELECT slug, availability, is_new, reason FROM games ORDER BY slug')
+            ->query('SELECT slug, availability, reason FROM games ORDER BY slug')
             ->fetchAll(PDO::FETCH_ASSOC);
 
         $out = [];
@@ -57,14 +65,11 @@ final class PdoFlagStore implements FlagStore
             }
 
             $flag = [
-                'availability' => in_array($row['availability'], Flags::STATES, true)
+                'state' => in_array($row['availability'], Flags::STATES, true)
                     ? (string) $row['availability']
                     // A value outside the enum means the column drifted from the
                     // code. Fail open, like everything else about flags.
                     : Flags::ACTIVE,
-                // SQLite hands back 0/1 as int, MySQL as string. `(bool) (int)`
-                // reads both, where a bare `(bool)` would make the string "0" true.
-                'isNew' => (bool) (int) $row['is_new'],
             ];
 
             $reason = $row['reason'];
@@ -84,10 +89,9 @@ final class PdoFlagStore implements FlagStore
             throw new InvalidArgumentException("refusing to store a bad slug: {$slug}");
         }
 
-        $availability = in_array($flag['availability'] ?? null, Flags::STATES, true)
-            ? (string) $flag['availability']
+        $state = in_array($flag['state'] ?? null, Flags::STATES, true)
+            ? (string) $flag['state']
             : Flags::ACTIVE;
-        $isNew = ($flag['isNew'] ?? false) === true ? 1 : 0;
         $reason = isset($flag['reason']) && is_string($flag['reason']) && trim($flag['reason']) !== ''
             ? mb_substr(trim($flag['reason']), 0, Flags::REASON_MAX)
             : null;
@@ -102,26 +106,26 @@ final class PdoFlagStore implements FlagStore
             if ($exists->fetchColumn() === false) {
                 $this->db
                     ->prepare(
-                        'INSERT INTO games (slug, availability, is_new, reason, updated_at)
-                         VALUES (?, ?, ?, ?, ?)',
+                        'INSERT INTO games (slug, availability, reason, updated_at)
+                         VALUES (?, ?, ?, ?)',
                     )
-                    ->execute([$slug, $availability, $isNew, $reason, $at]);
+                    ->execute([$slug, $state, $reason, $at]);
             } else {
                 $this->db
                     ->prepare(
                         'UPDATE games
-                            SET availability = ?, is_new = ?, reason = ?, updated_at = ?
+                            SET availability = ?, reason = ?, updated_at = ?
                           WHERE slug = ?',
                     )
-                    ->execute([$availability, $isNew, $reason, $at, $slug]);
+                    ->execute([$state, $reason, $at, $slug]);
             }
 
             $this->db
                 ->prepare(
-                    'INSERT INTO flag_audit (slug, availability, is_new, reason, at)
-                     VALUES (?, ?, ?, ?, ?)',
+                    'INSERT INTO flag_audit (slug, availability, reason, at)
+                     VALUES (?, ?, ?, ?)',
                 )
-                ->execute([$slug, $availability, $isNew, $reason, $at]);
+                ->execute([$slug, $state, $reason, $at]);
 
             $this->db->commit();
         } catch (Throwable $e) {
@@ -178,8 +182,8 @@ final class PdoFlagStore implements FlagStore
             try {
                 $this->db
                     ->prepare(
-                        'INSERT INTO games (slug, availability, is_new, reason, updated_at, plays)
-                         VALUES (?, ?, 0, NULL, ?, 1)',
+                        'INSERT INTO games (slug, availability, reason, updated_at, plays)
+                         VALUES (?, ?, NULL, ?, 1)',
                     )
                     ->execute([$slug, Flags::ACTIVE, $this->clock->now()]);
             } catch (PDOException) {
@@ -203,15 +207,14 @@ final class PdoFlagStore implements FlagStore
         $limit = max(1, min(500, $limit));
 
         $rows = $this->db
-            ->query("SELECT slug, availability, is_new, reason, at
+            ->query("SELECT slug, availability, reason, at
                        FROM flag_audit ORDER BY at DESC, id DESC LIMIT {$limit}")
             ->fetchAll(PDO::FETCH_ASSOC);
 
         return array_map(
             static fn (array $row): array => [
                 'slug' => (string) $row['slug'],
-                'availability' => (string) $row['availability'],
-                'isNew' => (bool) (int) $row['is_new'],
+                'state' => (string) $row['availability'],
                 'reason' => is_string($row['reason']) ? $row['reason'] : null,
                 'at' => (int) $row['at'],
             ],

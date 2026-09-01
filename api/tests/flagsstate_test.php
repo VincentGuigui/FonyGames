@@ -64,7 +64,7 @@ check('still naming the default', str_contains($state['detail'], 'every game is 
 
 group('a flag that IS set is counted');
 
-$app->flags()->update('spill', ['availability' => 'disabled', 'reason' => 'balance pass']);
+$app->flags()->update('spill', ['state' => 'soon', 'reason' => 'balance pass']);
 $state = $app->flagsState();
 check('it reads as OK', $state['ok'] === true, $state);
 check('and reports the count', str_contains($state['detail'], '1 flag(s)'), $state['detail']);

@@ -99,18 +99,16 @@ export interface UiStrings {
   };
   /**
    * `GameCardTile.tsx`'s badge words. Keyed by the fixed tokens `cardState` (shared/flags.ts)
-   * can return — `disabled`/`hidden` only ever show in dev's `showAll` mode. A `paused`
-   * game's *own* reason (`flag.reason`) is the operator's free text and travels verbatim,
-   * never through this table — `paused` here is only the fallback when no reason was set.
+   * can return — `hidden` only ever shows in dev's `showAll` mode. A `soon`-state game's
+   * *own* reason (`flag.reason`) is the operator's free text and travels verbatim, never
+   * through this table — `soon` here is only the fallback when no reason was set.
    */
   badge: {
     hot: string;
     week: string;
     new: string;
     soon: string;
-    disabled: string;
     hidden: string;
-    paused: string;
   };
   parts: {
     connecting: string;
@@ -220,9 +218,7 @@ const en: UiStrings = {
     week: 'Game of the Week',
     new: 'New',
     soon: 'Soon',
-    disabled: 'Disabled',
     hidden: 'Hidden',
-    paused: 'Paused',
   },
   parts: {
     connecting: 'Connecting…',
@@ -333,9 +329,7 @@ const fr: UiStrings = {
     week: 'Jeu de la semaine',
     new: 'Nouveau',
     soon: 'À venir',
-    disabled: 'Désactivé',
     hidden: 'Masqué',
-    paused: 'En pause',
   },
   parts: {
     connecting: 'Connexion…',

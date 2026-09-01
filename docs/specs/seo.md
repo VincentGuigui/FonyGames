@@ -116,7 +116,7 @@ request dist/index.php
 hydration has nothing to correct.
 
 - **The variants are enumerated mechanically.** For each card, for each
-  `availability` × `isNew` × `hot` × `showAll` combination — twenty-four — call `cardState()` from
+  `state` × `hot` × `week` × `showAll` combination — thirty-two — call `cardState()` from
   [`shared/flags.ts`](../../shared/flags.ts) and render the real component with the
   result. A `hidden` game on prod is the empty string, so it is **absent from the
   document** rather than dimmed with CSS, which would still put its title and its link

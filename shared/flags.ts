@@ -5,12 +5,16 @@
  * A zero-import leaf, DOM-free, so it typechecks under `tsconfig.worker.json` and can be
  * read by the hub without dragging anything else in.
  *
- * ## Two fields, not one enum
+ * ## One state, not two fields
  *
- * `availability` is what the **Worker enforces**. `isNew` only drives a badge. They are
- * separate because a game can be new *and* disabled, and folding novelty into the enum
- * would make `new` silently mean "playable" — presentation leaking into the one thing
- * that is a control.
+ * A game is exactly one of `new` / `active` / `soon` / `hidden` — never two of these at
+ * once. This supersedes an earlier design (superseded 2026-09-01) that kept `isNew` as a
+ * second, independent boolean specifically so a game could be "new and disabled" at the
+ * same time; the operator asked for the simpler mental model instead, at the cost of that
+ * combination. `soon` also replaces the old `disabled` — the same runtime "not playable
+ * right now" state, renamed to read the same as the build-time "not built yet" one
+ * (`GameCard.status`), which the stricter-of-the-two rule in `cardState` already treated
+ * as the same kind of caveat to a player.
  *
  * ## Fail open, on purpose
  *
@@ -19,13 +23,11 @@
  * a security control.** For something genuinely dangerous, delete the game and deploy.
  */
 
-export type FlagState = 'active' | 'disabled' | 'hidden';
+export type FlagState = 'new' | 'active' | 'soon' | 'hidden';
 
 export type GameFlag = {
-  availability: FlagState;
-  /** Runtime NEW badge, independent of build-time `status` in `card.ts`. */
-  isNew: boolean;
-  /** Shown beside a disabled card. Absent, not empty, when there is none. */
+  state: FlagState;
+  /** Shown beside a `soon` card. Absent, not empty, when there is none. */
   reason?: string;
 };
 
@@ -44,10 +46,16 @@ export type PublicFlags = {
   plays?: Record<string, number>;
 };
 
-export const DEFAULT_FLAG: GameFlag = { availability: 'active', isNew: false };
+export const DEFAULT_FLAG: GameFlag = { state: 'active' };
 
 export function flagFor(flags: Record<string, GameFlag>, slug: string): GameFlag {
   return flags[slug] ?? DEFAULT_FLAG;
+}
+
+/** `new` is cosmetic-plus-playable, same as `active` — the badge is the only
+ *  difference between the two. */
+export function isPlayable(state: FlagState): boolean {
+  return state === 'active' || state === 'new';
 }
 
 /**
@@ -64,7 +72,7 @@ export function mayOpenRoom(
   occupied: boolean,
 ): boolean {
   if (occupied) return true;
-  return flagFor(flags, slug).availability === 'active';
+  return isPlayable(flagFor(flags, slug).state);
 }
 
 /**
@@ -73,17 +81,6 @@ export function mayOpenRoom(
  * **The stricter of the two wins** (spec §2b). `status` says how finished a game is;
  * the flag says whether it may be played now. A `soon` game that someone flipped to
  * `active` is still `soon` — the code does not exist yet, and a flag cannot conjure it.
- *
- * ## NEW is a flag and ONLY a flag
- *
- * This used to read `flag.isNew || status === 'new'`, and the `||` made the admin's
- * NEW toggle a no-op for every game whose card said `status: 'new'`: turning the flag
- * off left the badge on, because the build-time half of the OR still held. Nothing in
- * the admin could ever clear it — the only way was a deploy.
- *
- * A badge that says "look at this" is a *merchandising* decision that changes every
- * few weeks, so it belongs to the operator, not to a constant compiled into a bundle.
- * `status` now only says whether a game exists yet.
  */
 export function cardState(
   status: 'live' | 'soon',
@@ -95,8 +92,8 @@ export function cardState(
    *
    * One badge slot, so the two have to be ranked rather than stacked, and HOT wins: NEW
    * says nobody has tried this yet, HOT says everybody has. A card claiming both is
-   * saying nothing. It applies only to an `active` game — the other states' badges are
-   * caveats, and a paused game announcing how popular it is would be a joke at the
+   * saying nothing. It never applies to `soon` or `hidden` — the other states' badges
+   * are caveats, and a paused game announcing how popular it is would be a joke at the
    * player's expense.
    */
   hot = false,
@@ -110,14 +107,16 @@ export function cardState(
 ): { show: boolean; playable: boolean; badge: string | null } {
   if (status === 'soon') return { show: true, playable: false, badge: 'soon' };
 
-  switch (flag.availability) {
+  switch (flag.state) {
+    case 'new':
+      return { show: true, playable: true, badge: hot ? 'hot' : week ? 'week' : 'new' };
     case 'active':
-      return { show: true, playable: true, badge: hot ? 'hot' : week ? 'week' : flag.isNew ? 'new' : null };
-    case 'disabled':
+      return { show: true, playable: true, badge: hot ? 'hot' : week ? 'week' : null };
+    case 'soon':
       return {
         show: true,
         playable: showAll,
-        badge: showAll ? 'disabled' : (flag.reason ?? 'paused'),
+        badge: showAll ? 'soon' : (flag.reason ?? 'soon'),
       };
     case 'hidden':
       return { show: showAll, playable: showAll, badge: 'hidden' };
@@ -192,8 +191,8 @@ export function hubSections(
   const unpinned = slugsAlphabetical.filter((slug) => !pinnedSet.has(slug));
   return {
     pinned,
-    fresh: unpinned.filter((slug) => flagFor(flags, slug).isNew),
-    rest: unpinned.filter((slug) => !flagFor(flags, slug).isNew),
+    fresh: unpinned.filter((slug) => flagFor(flags, slug).state === 'new'),
+    rest: unpinned.filter((slug) => flagFor(flags, slug).state !== 'new'),
   };
 }
 
