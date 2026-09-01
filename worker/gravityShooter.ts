@@ -32,6 +32,14 @@ import { enoughToStart } from '../shared/players';
  * `random()` — a phone cannot be the fairest source of a shared board it is
  * also playing, the same reasoning Squash Mosquitoes' own shuffle uses), and
  * forcing a silent shooter's turn forward rather than ever stalling the match.
+ *
+ * **Every per-side field is keyed by seat (0 or 1), never by player id.**
+ * Solo mode (Tap Fighter's own idiom) puts the same connected player in both
+ * `seats` — a player id cannot tell the two ships apart when there is only
+ * one of it, so `lives`, `turn`, a shot's own `shooter`, and `winner` all
+ * index by seat instead. A `gravity-shot` is still only ever accepted from
+ * whoever `seats[turn]` actually is — which in solo is trivially the one
+ * connected player, whichever seat is on turn.
  */
 
 export type Gravity = GravityShooterState;
@@ -81,16 +89,18 @@ function rollPlanetXs(random: () => number): [number, number] {
 
 /** Host pressed start. Returns false when the room is not eligible.
  *
- * **No solo mode.** Two ships facing each other is the whole game — alone
- * there is nobody to shoot at, the same reason Grid Attack opts out. */
+ * **Solo mode is a hotseat, not a second player.** The one connected phone
+ * takes both seats, alternating which ship it aims each turn — the same
+ * idiom Tap Fighter's own solo already uses (`worker/tapFighter.ts`). */
 export async function startGravityShooter(
   ctx: Ctx,
   roundId: number,
   connected: PlayerId[],
+  solo = false,
 ): Promise<boolean> {
-  if (!enoughToStart(connected.length, [GRAVITY_MIN_PLAYERS, GRAVITY_MAX_PLAYERS], false)) return false;
+  if (!enoughToStart(connected.length, [GRAVITY_MIN_PLAYERS, GRAVITY_MAX_PLAYERS], solo)) return false;
   const host = connected[0];
-  const other = connected[1];
+  const other = solo ? host : connected[1];
   if (!host || !other) return false;
 
   const now = ctx.now();
@@ -100,12 +110,13 @@ export async function startGravityShooter(
     startsAt: now,
     seats: [host, other],
     planets: [rollPlanet(ctx.random, xa), rollPlanet(ctx.random, xb)],
-    lives: { [host]: GRAVITY_LIVES, [other]: GRAVITY_LIVES },
-    turn: host,
+    lives: [GRAVITY_LIVES, GRAVITY_LIVES],
+    turn: 0,
     resolvesAt: now + GRAVITY_SHOT_TIMEOUT_MS,
     lastShot: null,
     winner: null,
     phase: 'running',
+    solo,
   };
 
   await ctx.save(g);
@@ -114,8 +125,8 @@ export async function startGravityShooter(
   return true;
 }
 
-function otherPlayer(g: Gravity, playerId: PlayerId): PlayerId | null {
-  return Object.keys(g.lives).find((id) => id !== playerId) ?? null;
+function otherSeat(seat: 0 | 1): 0 | 1 {
+  return seat === 0 ? 1 : 0;
 }
 
 /**
@@ -126,6 +137,10 @@ function otherPlayer(g: Gravity, playerId: PlayerId): PlayerId | null {
  * still clamped to finite, sane ranges: a cheap defence against a malformed
  * payload producing `NaN`/`Infinity` in the other phone's own replay, not
  * a check on the claimed outcome.
+ *
+ * The sender must be whoever `seats[turn]` actually is — in solo that is
+ * always the one connected player, on either seat, so nothing extra is
+ * needed to let a hotseat player fire for both ships in their own turn.
  */
 export async function onGravityShot(
   ctx: Ctx,
@@ -137,21 +152,21 @@ export async function onGravityShot(
 ): Promise<void> {
   const g = await ctx.load();
   if (!g || g.phase !== 'running' || g.roundId !== roundId) return;
-  if (g.turn !== playerId) return;
+  if (g.seats[g.turn] !== playerId) return;
   if (ctx.now() >= g.resolvesAt) return; // the tick has already timed this turn out
 
-  const opponent = otherPlayer(g, playerId);
-  if (!opponent) return;
+  const shooter = g.turn;
+  const opponent = otherSeat(shooter);
 
   const safeAngle = Number.isFinite(angle) ? angle : 0;
   const safeStrength = Number.isFinite(strength) ? Math.max(0, Math.min(GRAVITY_MAX_STRENGTH, strength)) : 0;
   const landed = hit === true;
 
-  g.lastShot = { shooter: playerId, angle: safeAngle, strength: safeStrength, hit: landed };
-  if (landed) g.lives[opponent] = Math.max(0, (g.lives[opponent] ?? 0) - 1);
+  g.lastShot = { shooter, angle: safeAngle, strength: safeStrength, hit: landed };
+  if (landed) g.lives[opponent] = Math.max(0, g.lives[opponent] - 1);
 
-  if ((g.lives[opponent] ?? 0) <= 0) {
-    await finish(ctx, g, playerId);
+  if (g.lives[opponent] <= 0) {
+    await finish(ctx, g, shooter);
     return;
   }
 
@@ -173,8 +188,7 @@ export async function tick(ctx: Ctx): Promise<boolean> {
   if (ctx.now() < g.resolvesAt) return false;
 
   const shooter = g.turn;
-  const opponent = otherPlayer(g, shooter);
-  if (!opponent) return false;
+  const opponent = otherSeat(shooter);
 
   g.lastShot = { shooter, angle: 0, strength: 0, hit: false };
   g.turn = opponent;
@@ -193,12 +207,13 @@ export async function tick(ctx: Ctx): Promise<boolean> {
 export async function onPlayerGone(ctx: Ctx, playerId: PlayerId): Promise<void> {
   const g = await ctx.load();
   if (!g || g.phase !== 'running') return;
-  if (!(playerId in g.lives)) return;
+  const seat = g.seats[0] === playerId ? 0 : g.seats[1] === playerId ? 1 : null;
+  if (seat === null) return;
 
-  await finish(ctx, g, otherPlayer(g, playerId));
+  await finish(ctx, g, otherSeat(seat));
 }
 
-async function finish(ctx: Ctx, g: Gravity, winner: PlayerId | null): Promise<void> {
+async function finish(ctx: Ctx, g: Gravity, winner: 0 | 1 | null): Promise<void> {
   g.phase = 'done';
   g.winner = winner;
   await ctx.save(g);

@@ -15,6 +15,7 @@ import { StatusBar } from '../../core/ui/StatusBar';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
 import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useSoloTesting } from '../../core/useSolo';
 import { GravityGame } from './game';
 import { GravityCanvas, type FlightEnd } from './GravityCanvas';
 import impactMissileGif from './art/impact_missile.gif?url&no-inline';
@@ -41,6 +42,7 @@ const BURST_ART: Record<Burst['kind'], string> = { missile: impactMissileGif, ex
 function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
   const t = useT();
   const text = useGameText();
+  const solo = useSoloTesting();
   const [, redraw] = useState(0);
   const [bursts, setBursts] = useState<Burst[]>([]);
   const burstId = useRef(0);
@@ -57,8 +59,11 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
    * straight from `state.lives`, the pips gave the result away mid-flight.
    * Reset only when a fresh match starts; every life lost within one is
    * revealed by `onFlightEnd` below, exactly when the flight is done.
+   *
+   * Indexed by seat, not player id — solo mode puts the same player in both
+   * seats (see shared/protocol.ts's own `GravityShooterState` docblock).
    */
-  const [displayedLives, setDisplayedLives] = useState<Record<string, number>>({});
+  const [displayedLives, setDisplayedLives] = useState<[number, number]>([GRAVITY_LIVES, GRAVITY_LIVES]);
 
   const onGame = useCallback(
     (msg: ServerMessage) => {
@@ -134,25 +139,25 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        rows={state.seats.map((id) => ({
+        rows={state.seats.map((id, seat) => ({
           id,
           avatar: avatarOf(id),
           name: nameOf(id),
-          value: id === state.winner ? t.common.win : t.common.lose,
+          value: seat === state.winner ? t.common.win : t.common.lose,
         }))}
         me={myId}
-        winner={state.winner}
-        onAgain={() => client?.send({ t: 'start', d: { mode: 'gravity' } })}
-        canAct={room.isHost && room.connected === GRAVITY_MAX_PLAYERS}
+        winner={state.winner !== null ? state.seats[state.winner] : null}
+        onAgain={() => client?.send({ t: 'start', d: { mode: 'gravity', solo } })}
+        canAct={room.isHost && enoughToStart(room.connected, [GRAVITY_MIN_PLAYERS, GRAVITY_MAX_PLAYERS], solo)}
       />
     );
   }
 
   if (state && (state.phase === 'running' || stillAnimating)) {
     const mySeat = game.mySeat;
-    const myLives = mySeat !== null ? (displayedLives[state.seats[mySeat]] ?? 0) : 0;
+    const myLives = mySeat !== null ? displayedLives[mySeat] : 0;
     const otherSeatIndex = mySeat === 0 ? 1 : 0;
-    const opponentLives = mySeat !== null ? (displayedLives[state.seats[otherSeatIndex]] ?? 0) : 0;
+    const opponentLives = mySeat !== null ? displayedLives[otherSeatIndex] : 0;
     const isMyTurn = game.isMyTurn;
 
     return (
@@ -201,11 +206,10 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
       showQr={showQr}
       onShare={share}
       onToggleQr={toggleQr}
-      canStart={room.isHost && enoughToStart(room.connected, [GRAVITY_MIN_PLAYERS, GRAVITY_MAX_PLAYERS], false)}
+      canStart={room.isHost && enoughToStart(room.connected, [GRAVITY_MIN_PLAYERS, GRAVITY_MAX_PLAYERS], solo)}
       startLabel={state ? t.common.playAgain : t.common.startRound}
-      onStart={() => client?.send({ t: 'start', d: { mode: 'gravity' } })}
-      note={note(room.isHost, room.connected, text)}
-      soloSupported={false}
+      onStart={() => client?.send({ t: 'start', d: { mode: 'gravity', solo } })}
+      note={note(room.isHost, room.connected, solo, text)}
     />
   );
 }
@@ -219,9 +223,9 @@ function pips(lives: number): JSX.Element {
   );
 }
 
-function note(isHost: boolean, connected: number, text: GameText): string {
+function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
   if (!isHost) return text({ en: 'The host starts the match.', fr: "L’hôte démarre la partie." });
-  if (connected < GRAVITY_MAX_PLAYERS) return text({ en: 'Waiting for your opponent…', fr: 'En attente de votre adversaire…' });
+  if (!solo && connected < GRAVITY_MAX_PLAYERS) return text({ en: 'Waiting for your opponent…', fr: 'En attente de votre adversaire…' });
   if (connected > GRAVITY_MAX_PLAYERS) return text({ en: 'Gravity Shooter is exactly two players.', fr: 'Gravity Shooter se joue exactement à deux.' });
   return text({ en: 'Touch above your ship to aim, let go, and let the planets bend your shot.', fr: 'Touchez au-dessus de votre vaisseau pour viser, lâchez, et laissez les planètes courber votre tir.' });
 }

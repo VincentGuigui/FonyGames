@@ -664,9 +664,11 @@ export type GravityPlanet = {
 
 /** Gravity Shooter: the last shot fired, for the non-shooting client's own
  *  cosmetic replay (spec §2.3) — `hit` is trusted as reported (spec §8),
- *  never re-derived from this replay. */
+ *  never re-derived from this replay. `shooter` is a seat, not a player id
+ *  (see `GravityShooterState.turn`) — solo mode puts the same player id in
+ *  both `seats`, so only the seat says which ship actually fired. */
 export type GravityShot = {
-  shooter: PlayerId;
+  shooter: 0 | 1;
   angle: number;
   strength: number;
   hit: boolean;
@@ -686,18 +688,27 @@ export type GravityShooterState = {
    * Fixed for the whole match, so both clients' render-time flip and every
    * shot's own simulation agree on the same two fixed points without this
    * having to be re-derived from object key order or anything else implicit.
+   *
+   * In solo mode (`solo: true`) both entries are the same player id — the
+   * one connected player takes both seats in turn — which is exactly why
+   * every other per-side field below (`lives`, `turn`, `GravityShot.shooter`,
+   * `winner`) is keyed by SEAT rather than by this id: a player id cannot
+   * tell the two ships apart when there is only one of it.
    */
   seats: [PlayerId, PlayerId];
   /** Rolled once at round start, echoed unchanged on every later frame. */
   planets: [GravityPlanet, GravityPlanet];
-  lives: Record<PlayerId, number>;
-  turn: PlayerId;
+  lives: [number, number];
+  turn: 0 | 1;
   /** Deadline for the current turn's `gravity-shot` — a silent shooter is
    *  resolved as a miss here rather than stalling the match (spec §2.4). */
   resolvesAt: number;
   lastShot: GravityShot | null;
-  winner: PlayerId | null;
+  winner: 0 | 1 | null;
   phase: 'running' | 'done';
+  /** One connected player takes both seats, alternating turns on one phone
+   *  (`docs/specs/backoffice.md` §6) — same idiom as Tap Fighter's own. */
+  solo: boolean;
 };
 
 /** Spill: one projectile, described once and animated locally from then on. */

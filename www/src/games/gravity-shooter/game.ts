@@ -204,21 +204,30 @@ export class GravityGame {
     return this.#state;
   }
 
-  get winner(): PlayerId | null {
+  /** The winning seat, or null — a caller wanting a player id back has
+   *  `state.seats[winner]`. */
+  get winner(): Seat | null {
     return this.#state?.winner ?? null;
   }
 
-  /** My own fixed seat for the whole match, or null before a round exists. */
+  /**
+   * Whichever seat is mine to fly right now. Fixed for the whole match in a
+   * real two-player game; in solo (`state.solo`) both `seats` are the same
+   * connected player, so a player id cannot tell the ships apart — "mine" is
+   * instead whichever seat currently holds the turn, which is exactly the
+   * seat a hotseat player is meant to be flying this instant.
+   */
   get mySeat(): Seat | null {
     const s = this.#state;
     if (!s) return null;
+    if (s.solo) return s.turn;
     if (s.seats[0] === this.#me) return 0;
     if (s.seats[1] === this.#me) return 1;
     return null;
   }
 
   get isMyTurn(): boolean {
-    return !!this.#state && this.#state.phase === 'running' && this.#state.turn === this.#me;
+    return !!this.#state && this.#state.phase === 'running' && this.mySeat === this.#state.turn;
   }
 
   /** Aiming is only ever mine to do, and only between my own shots. */
@@ -248,10 +257,9 @@ export class GravityGame {
     const shot = msg.d.lastShot;
     if (shot && !sameShot(this.#animatedShot, shot)) {
       this.#animatedShot = shot;
-      const seat: Seat = msg.d.seats[0] === shot.shooter ? 0 : 1;
       this.#activeShot = {
-        seat,
-        result: simulateShot(msg.d.planets, seat, shot.angle, shot.strength),
+        seat: shot.shooter,
+        result: simulateShot(msg.d.planets, shot.shooter, shot.angle, shot.strength),
         startedAt: this.#now(),
       };
     }
@@ -294,7 +302,7 @@ export class GravityGame {
     if (strength <= 0) return null;
 
     const result = simulateShot(s.planets, seat, angle, strength);
-    const shot: GravityShot = { shooter: this.#me, angle, strength, hit: result.hit };
+    const shot: GravityShot = { shooter: seat, angle, strength, hit: result.hit };
     this.#animatedShot = shot;
     this.#activeShot = { seat, result, startedAt: this.#now() };
     return { roundId: s.roundId, angle, strength, hit: result.hit };

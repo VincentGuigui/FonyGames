@@ -50,6 +50,15 @@ viewer, never two different boards.
 **Win condition:** the opponent's fifth life reaches 0.
 **Scoring:** none. The result panel says only **Win** or **Lose** (§4).
 
+**Solo test mode** is a hotseat, not a second player (Tap Fighter's own
+idiom, `worker/tapFighter.ts`): the one connected phone takes both seats,
+firing for whichever ship currently holds the turn, and the view flips
+per turn exactly as it would between two real phones. Every per-side
+field the referee tracks — `lives`, `turn`, a shot's own `shooter`,
+`winner` — is keyed by **seat** rather than by player id for exactly this
+reason: solo puts the same player id in both `seats`, and a player id
+cannot tell the two ships apart when there is only one of it.
+
 ### 2.1 The planets: rolled once, shared by construction
 
 Exactly 2 planets, `{ x, y, r, art }` each, rolled once by the referee at
@@ -172,13 +181,15 @@ to fire. No sensors, no permissions, nothing to fall back from.
 // server -> both, on every resolved turn (including a timeout-miss)
 { t: 'gravity', d: {
   roundId, startsAt,
+  seats: [PlayerId, PlayerId],   // both entries the same id in solo (§2)
   planets: [{ x, y, r, art }, { x, y, r, art }],
-  lives: Record<PlayerId, number>,
-  turn: PlayerId,
+  lives: [number, number],       // indexed by seat, not by seats[]'s player id
+  turn: 0 | 1,
   resolvesAt: number,
-  lastShot: { shooter: PlayerId, angle: number, strength: number, hit: boolean } | null,
-  winner: PlayerId | null,
+  lastShot: { shooter: 0 | 1, angle: number, strength: number, hit: boolean } | null,
+  winner: 0 | 1 | null,
   phase: 'running' | 'done',
+  solo: boolean,
 } }
 ```
 
@@ -187,11 +198,13 @@ to fire. No sensors, no permissions, nothing to fall back from.
 | `gravity-shot` | client → server | `{roundId, angle, strength, hit}` | This turn's shot, and its own claimed outcome — trusted as reported (§8) |
 | `gravity` | server → both | see above | The planets (sent once, then echoed unchanged), lives, whose turn it is, and the last shot's numbers for the receiver's own cosmetic replay (§2.3) |
 
-`gravity-shot` is only accepted from `state.turn`'s own player, and only
-before `resolvesAt` — a plain seat/deadline check, not anti-cheat.
-`angle`/`strength` are clamped to finite, sane ranges before the referee's
-own re-broadcast, so a malformed payload cannot produce `NaN`/`Infinity`
-in the receiver's replay.
+`gravity-shot` is only accepted from whoever `seats[turn]` actually is, and
+only before `resolvesAt` — a plain seat/deadline check, not anti-cheat. In
+solo that is always the one connected player, on either seat, so a hotseat
+shot needs nothing extra to say which ship it is for. `angle`/`strength`
+are clamped to finite, sane ranges before the referee's own re-broadcast,
+so a malformed payload cannot produce `NaN`/`Infinity` in the receiver's
+replay.
 
 ## 7. Failure & edge cases
 

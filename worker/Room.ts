@@ -845,7 +845,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'ufo') started = await startUfoHunt(this.#ufoHuntCtx(), roundId, ids, solo);
       else if (mode === 'abduct') started = await startAbduct(this.#abductCtx(), roundId, ids, solo);
       else if (mode === 'tiles') started = await startTilesSurfer(this.#tilesCtx(), roundId, ids, solo);
-      else if (mode === 'gravity') started = await startGravityShooter(this.#gravityCtx(), roundId, ids);
+      else if (mode === 'gravity') started = await startGravityShooter(this.#gravityCtx(), roundId, ids, solo);
       else if (mode === 'tttt') started = await startTttt(this.#ttttCtx(), roundId, ids, symbols, solo);
       else if (mode === 'fighter') started = await startTapFighter(this.#fighterCtx(), roundId, ids, solo);
       // `direct` is the default because it needs no explanation: grab your icon

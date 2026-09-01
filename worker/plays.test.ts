@@ -189,16 +189,18 @@ console.log('\na round somebody won counts');
   not(tiles('running', null), 'tiles surfer: not mid-round');
 
   // Gravity Shooter ends the same way: phase and winner in the same frame.
-  const gravity = (phase: 'running' | 'done', winner: PlayerId | null): ServerMessage => ({
+  // Both are keyed by seat (0 | 1), not player id — solo mode puts the same
+  // player id in both `seats`.
+  const gravity = (phase: 'running' | 'done', winner: 0 | 1 | null): ServerMessage => ({
     t: 'gravity',
     s: 1,
     d: {
       roundId: 1, startsAt: 0, seats: [A, B],
       planets: [{ x: 0.3, y: 0.5, r: 0.1, art: 0 }, { x: 0.7, y: 0.5, r: 0.1, art: 1 }],
-      lives: { [A]: 5, [B]: 0 }, turn: A, resolvesAt: 1, lastShot: null, winner, phase,
+      lives: [5, 0], turn: 0, resolvesAt: 1, lastShot: null, winner, phase, solo: false,
     },
   });
-  won(gravity('done', A), 'gravity shooter: the last ship standing');
+  won(gravity('done', 0), 'gravity shooter: the last ship standing');
   not(gravity('running', null), 'gravity shooter: not mid-match');
 
   const fighter = (phase: 'planning' | 'fighting' | 'round-over' | 'match-over', matchWinner: 'blue' | 'green' | null): ServerMessage => ({
@@ -235,7 +237,7 @@ console.log('\nnothing mid-round counts');
       t: 'gravity', s: 1, d: {
         roundId: 1, startsAt: 0, seats: [A, B],
         planets: [{ x: 0.3, y: 0.5, r: 0.1, art: 0 }, { x: 0.7, y: 0.5, r: 0.1, art: 1 }],
-        lives: { [A]: 5, [B]: 5 }, turn: A, resolvesAt: 1, lastShot: null, winner: null, phase: 'running',
+        lives: [5, 5], turn: 0, resolvesAt: 1, lastShot: null, winner: null, phase: 'running', solo: false,
       },
     },
     { t: 'error', d: { code: 'rate-limited', message: 'Slow down.' } },
