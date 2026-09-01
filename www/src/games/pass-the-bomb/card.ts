@@ -37,6 +37,7 @@ export const CARD: GameCard = {
   players: PLAYERS['pass-the-bomb'],
   duration: '1–2 min',
   inputs: ['motion', 'touch'],
+  tags: ['party', 'physical'],
   modes: [
     { id: 'classic', name: 'Classic', blurb: 'One bomb, one loser at a time' },
     { id: 'double', name: 'Double', blurb: 'Two bombs, half the mercy' },

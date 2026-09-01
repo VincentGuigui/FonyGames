@@ -37,6 +37,7 @@ export const CARD: GameCard = {
   players: PLAYERS['gravity-shooter'],
   duration: '1–3 min',
   inputs: ['touch'],
+  tags: ['duel', 'arcade', 'strategy'],
   modes: [],
   status: 'live',
 };

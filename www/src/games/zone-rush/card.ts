@@ -26,6 +26,7 @@ export const CARD: GameCard = {
   players: PLAYERS['zone-rush'],
   duration: '10 min',
   inputs: ['gps'],
+  tags: ['outdoors'],
   modes: [],
   status: 'soon',
 };

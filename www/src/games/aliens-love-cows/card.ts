@@ -37,6 +37,7 @@ export const CARD: GameCard = {
   players: PLAYERS['aliens-love-cows'],
   duration: '< 20 s',
   inputs: ['touch'],
+  tags: ['arcade', 'luck'],
   modes: [],
   status: 'live',
 };

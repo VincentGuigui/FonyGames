@@ -4,6 +4,7 @@ import { GameCardTile } from './GameCardTile';
 import { flagFor, gameOfWeek, hottest, hubSections, type GameFlag } from '../../../shared/flags';
 import { localizeCard } from '../core/i18n/localizeCard';
 import type { Locale } from '../core/i18n/locale';
+import type { GameTag } from '../core/types';
 
 /**
  * The card grid, on its own.
@@ -20,8 +21,10 @@ import type { Locale } from '../core/i18n/locale';
  * not-yet-live game in its curated `registry.ts` order, exactly where it always sat.
  * `hubSections` only ever sees `live` games: a `soon` card cannot be hot, spotlighted,
  * or NEW, so it has no business in that sort. A `.hub__spacer` separates every pair of
- * non-empty tiers, never a dangling one at the very top or bottom. Flags still decide
- * only *which* cards appear.
+ * non-empty tiers **except pinned→fresh**: hot/week and NEW are both "look at this
+ * one" tiers, and a rule between them read as a boundary that was not there for any
+ * other adjacent pair. Never a dangling spacer at the very top or bottom either. Flags
+ * still decide only *which* cards appear.
  *
  * `index.php` applies the same rule to the same numbers before it serves the page
  * (`Page::grid`), which is what keeps hydration exact — a grid the server ordered one
@@ -32,6 +35,13 @@ import type { Locale } from '../core/i18n/locale';
  * English one are shown the same game rather than two different alphabetical orders of
  * two different sets of titles. The same alphabetical list also decides the NEW and
  * "everything else" tiers, so there is only ever the one sort to keep in step.
+ *
+ * `tags`, unlike everything above, is a purely client-side narrowing: it never
+ * changes which tier a slug belongs to (so hot/week/NEW stay stable while a filter
+ * is toggled on and off), only whether that slug is skipped when a tier renders.
+ * Starts empty on both the server's shell render and the client's first paint —
+ * hydration is unaffected — and only ever changes after a visitor taps a chip
+ * (`HubFilters.tsx`, `Hub.tsx`).
  */
 export function HubGrid({
   flags,
@@ -43,12 +53,15 @@ export function HubGrid({
    * client re-renders with the real locale once `LocaleProvider` mounts.
    */
   locale = 'en',
+  /** Selected filter chips (`HubFilters.tsx`). Empty means no filter, show everything. */
+  tags,
 }: {
   flags: Record<string, GameFlag>;
   /** Rounds played per slug, from the published file. Absent until something is counted. */
   plays?: Record<string, number> | undefined;
   showAll: boolean;
   locale?: Locale;
+  tags?: ReadonlySet<GameTag>;
 }): JSX.Element {
   const raw = catalogue();
   const games = raw.map((g) => localizeCard(g, locale));
@@ -63,6 +76,9 @@ export function HubGrid({
   const week = gameOfWeek(alphabetical, new Date());
   const { pinned, fresh, rest } = hubSections(alphabetical, flags, hot, week);
   const soon = raw.filter((g) => g.status !== 'live').map((g) => g.slug);
+
+  const matchesFilter = (slug: string): boolean =>
+    !tags || tags.size === 0 || (bySlug.get(slug)?.tags ?? []).some((tag) => tags.has(tag));
 
   const tile = (slug: string): JSX.Element | null => {
     const game = bySlug.get(slug);
@@ -79,16 +95,30 @@ export function HubGrid({
     );
   };
 
-  const sections = [pinned, fresh, rest, soon].filter((section) => section.length > 0);
+  const tiers = (
+    [
+      { key: 'pinned', slugs: pinned },
+      { key: 'fresh', slugs: fresh },
+      { key: 'rest', slugs: rest },
+      { key: 'soon', slugs: soon },
+    ] as const
+  )
+    .map((tier) => ({ ...tier, slugs: tier.slugs.filter(matchesFilter) }))
+    .filter((tier) => tier.slugs.length > 0);
 
   return (
     <ul class="hub__grid">
-      {sections.map((section, index) => (
-        <Fragment key={section[0]}>
-          {index > 0 && <li class="hub__spacer" aria-hidden="true" />}
-          {section.map(tile)}
-        </Fragment>
-      ))}
+      {tiers.map((tier, index) => {
+        // The one adjacency with no spacer: hot/week leading straight into NEW.
+        const previous = tiers[index - 1];
+        const spacer = index > 0 && !(tier.key === 'fresh' && previous?.key === 'pinned');
+        return (
+          <Fragment key={tier.slugs[0]}>
+            {spacer && <li class="hub__spacer" aria-hidden="true" />}
+            {tier.slugs.map(tile)}
+          </Fragment>
+        );
+      })}
     </ul>
   );
 }

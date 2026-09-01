@@ -45,6 +45,7 @@ const card: GameCard = {
   players: [2, 4],
   duration: '1 min',
   inputs: ['touch'],
+  tags: ['party'],
   modes: [],
   status: 'live',
 };

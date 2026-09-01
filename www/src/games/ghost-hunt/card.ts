@@ -42,6 +42,7 @@ export const CARD: GameCard = {
   players: PLAYERS['ghost-hunt'],
   duration: '100 s',
   inputs: ['orientation', 'camera', 'touch'],
+  tags: ['augmented-reality'],
   modes: [],
   status: 'live',
 };

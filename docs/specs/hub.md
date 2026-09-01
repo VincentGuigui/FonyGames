@@ -41,7 +41,10 @@ play something in under ten seconds.
   `live` game alphabetically (**rest**), then every `soon` game in its curated
   `games/registry.ts` order (dimmed, not tappable, no link — unchanged from
   before). A thin divider (`.hub__spacer`) separates each pair of non-empty
-  tiers; there is never a dangling one at the very top or bottom.
+  tiers, **except pinned→fresh**: hot/week and NEW are both "look at this one"
+  tiers, and a rule between them read as a boundary that was not there for any
+  other adjacent pair. There is never a dangling divider at the very top or
+  bottom either.
 - **The week's own game and the most-played game are pinned at the top, week
   first.** Popularity and the calendar are the two signals allowed to move a
   card off its alphabetical position; a shelf sorted entirely by popularity
@@ -96,11 +99,42 @@ play something in under ten seconds.
   behind the transparent art after it loads, so it is one paint doing two jobs.
   See [../design/illustrations.md](../design/illustrations.md).
 
-## 3. Filters (v1: minimal)
+## 3. Filters
 
-A single row of chips above the grid: `All` · `Same room` · `Outdoors` ·
-`2 players`. Chips filter client-side on `GameCard` tags. No search box in v1 —
-the catalogue is small enough to scan.
+A single row of chips above the grid (`HubFilters.tsx`), multi-select, OR'd
+together — picking two chips widens the grid rather than narrowing it further,
+since the point is "show me something in either of these moods", not a strict
+intersection that can empty the grid for no reason a visitor could see. `All`
+clears the selection. No search box — the catalogue is small enough to scan.
+
+The vocabulary is `GameTag` (`core/types.ts`), a fixed, hand-picked set —
+unlike `inputs`, a game earns none of these automatically:
+
+`party` · `duel` · `physical` · `outdoors` · `strategy` · `arcade` ·
+`augmented-reality` · `luck` · `music` · `intense`
+
+A game carries 1–3. Only chips a **live** game actually uses are shown, in the
+fixed order above — never however `tags` happens to be declared, and never
+reshuffled by which games are currently visible, so a returning visitor is not
+re-scanning the row every time. Filtering is purely client-side and never
+changes which of the four tiers (§2) a card belongs to — hot/week/NEW stay put
+while a filter is toggled on and off, only whether a given card is skipped
+when its tier renders.
+
+Chip labels are translated (`UiStrings.tag`, `docs/specs/i18n.md` §2) the same
+way badge words are — a closed, shared vocabulary, not per-game prose.
+
+### Dev-only: previewing prod
+
+The admin centre's own operator, and only them, gets one more pair of chips on
+the **dev** host: `All games` (today's dev default: everything shown, including
+what a flag paused or hid) and `Prod preview` (exactly what prod would render —
+a hidden game is truly absent). Detected by asking `GET /api/index.php?a=state`
+— 200 for a signed-in admin session, 401 for anyone else — so this costs no new
+endpoint and never fires at all on prod, where the server's own `showAll` is
+already `false`. Purely a client-side override of the `showAll` `HubGrid`
+renders with; nothing server-side changes. See [backoffice.md](backoffice.md)
+§2b.
 
 ## 4. Navigation & URLs
 
@@ -166,4 +200,3 @@ line, and a link to the repository.
 - Curated order vs. "recently played" (needs local storage — is that acceptable
   under the no-storage stance? Proposal: allow *local-only* storage for
   preferences, never for game data).
-- Does v1 need the filter chips at all, with fewer than 6 live games?

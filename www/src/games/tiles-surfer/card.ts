@@ -37,6 +37,7 @@ export const CARD: GameCard = {
   players: PLAYERS['tiles-surfer'],
   duration: '1–5 min',
   inputs: ['touch'],
+  tags: ['arcade', 'music'],
   modes: [],
   status: 'live',
 };

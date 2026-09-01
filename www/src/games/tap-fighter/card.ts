@@ -27,6 +27,7 @@ export const CARD: GameCard = {
   players: PLAYERS['tap-fighter'],
   duration: '1–5 min',
   inputs: ['touch'],
+  tags: ['duel', 'strategy'],
   modes: [],
   status: 'live',
 };

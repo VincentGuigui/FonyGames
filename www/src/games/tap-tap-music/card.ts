@@ -41,6 +41,7 @@ export const CARD: GameCard = {
   players: PLAYERS['tap-tap-music'],
   duration: '30 s – 2 min',
   inputs: ['touch'],
+  tags: ['music', 'intense'],
   modes: [],
   status: 'live',
 };

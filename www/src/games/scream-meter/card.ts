@@ -26,6 +26,7 @@ export const CARD: GameCard = {
   players: PLAYERS['scream-meter'],
   duration: '1 min',
   inputs: ['mic'],
+  tags: ['physical'],
   modes: [],
   status: 'soon',
 };

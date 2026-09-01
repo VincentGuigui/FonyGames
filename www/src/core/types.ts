@@ -17,6 +17,25 @@ export type GameInput =
   | 'mic';
 
 /**
+ * A game's own merchandising/filter labels — never inferred, always written by hand
+ * per game (a game is 1–3 of these). Drives the hub's filter chips
+ * (docs/specs/hub.md §3) and, like `GameInput`, is a closed set: adding a value means
+ * this type, a `UiStrings.tag` entry in both languages (`core/i18n/strings.ts`), and
+ * tagging whichever games actually earn it.
+ */
+export type GameTag =
+  | 'party'
+  | 'duel'
+  | 'physical'
+  | 'outdoors'
+  | 'strategy'
+  | 'arcade'
+  | 'augmented-reality'
+  | 'luck'
+  | 'music'
+  | 'intense';
+
+/**
  * The card illustration.
  *
  * Both halves or neither: an image without alt text breaks
@@ -81,6 +100,8 @@ export type GameCard = {
   /** Human-readable, e.g. "1–2 min". */
   duration: string;
   inputs: GameInput[];
+  /** 1–3 of `GameTag`. See that type's own comment. */
+  tags: GameTag[];
   modes: GameMode[];
   /**
    * French text overriding the fields above, where translated. A missing field

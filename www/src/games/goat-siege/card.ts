@@ -37,6 +37,7 @@ export const CARD: GameCard = {
   players: PLAYERS['goat-siege'],
   duration: '2–3 min',
   inputs: ['touch'],
+  tags: ['party'],
   modes: [
     { id: 'patch', name: 'Patch', blurb: 'Six cabbages each, last garden standing' },
   ],
