@@ -173,31 +173,24 @@ export function SquashBoard({
   const flyingSet = new Set(activeViews.filter((v) => v.flying).map((v) => v.index));
   const squashedSet = new Set(squashedViews.map((v) => v.index));
 
-  /*
-   * The squash cue (issue #13): one shot per mosquito THIS board actually loses,
-   * never per tap — a tap the referee rejects (already squashed, round not started
-   * yet) must stay silent. Tracked by count rather than by `onTap`'s own call site
-   * because the referee, not the tap, is what decides a squash landed (spec §8).
-   * Reset per round so reconnecting mid-round with squashes already on the board
-   * does not replay them all as a burst.
-   */
-  const squashedTally = useRef<{ roundId: number | null; count: number }>({ roundId: null, count: 0 });
-  useEffect(() => {
-    const roundId = state?.roundId ?? null;
-    const previous = squashedTally.current;
-    if (previous.roundId !== roundId) {
-      squashedTally.current = { roundId, count: squashedViews.length };
-      return;
-    }
-    if (squashedViews.length > previous.count && sound) playSquashSound();
-    squashedTally.current = { roundId, count: squashedViews.length };
-  }, [state?.roundId, squashedViews.length, sound]);
+  // `game.optimisticSquash` mutates the game instance directly — nothing about
+  // props or state changes, so this forces the re-render that shows its result
+  // (the blood mark) on the very next paint, same reasoning `tick` above uses.
+  const [, bump] = useState(0);
 
   function tap(index: number, position: number): void {
     // Nothing to do for a cell this phone already knows is dormant or squashed — the
     // native `disabled` on the button already stops the pointer event, this is the
     // second, cheaper layer (spec §8 is the real one: the referee decides).
     if (!activeSet.has(index)) return;
+    // The blood mark and the cue play the instant a tap looks valid (issue #13
+    // follow-up) — a round trip to the referee is too slow for a mash game. The
+    // referee still gets the real tap and still has the only real answer;
+    // `optimisticSquash` self-heals in `game.apply` if this guess turns out wrong.
+    if (game.optimisticSquash(index)) {
+      if (sound) playSquashSound();
+      bump((n) => n + 1);
+    }
     onTap(position);
   }
 

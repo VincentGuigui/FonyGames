@@ -80,6 +80,14 @@ export class SquashGame {
   #board: SquashBoard | null = null;
   /** Cleared on every new round (see `apply`) — a fresh swarm gets a fresh scatter. */
   #visuals = new Map<number, MosquitoVisual>();
+  /**
+   * Indices this phone has marked squashed itself, before the referee has said
+   * anything back — the blood mark and the squash cue cannot wait a round trip on
+   * a mash game (issue #13 follow-up). Reconciled the instant the real board
+   * arrives (`apply`): the referee still decides, this is only ever a guess shown
+   * early and quietly corrected if wrong.
+   */
+  #optimistic = new Set<number>();
 
   /**
    * Say who we are and whose clock to trust. Separate from the constructor because
@@ -108,9 +116,10 @@ export class SquashGame {
     return this.#now();
   }
 
-  /** My own squashed count — what StatusBar shows. */
+  /** My own squashed count — what StatusBar shows. Never behind the blood marks
+   *  actually on screen, even while a guess is still awaiting the referee. */
   get mySquashed(): number {
-    return this.#state?.scores[this.#me] ?? this.#board?.squashed.length ?? 0;
+    return Math.max(this.#state?.scores[this.#me] ?? 0, this.squashed().length);
   }
 
   /** Feed it everything from RoomClient's `game` event. */
@@ -119,13 +128,36 @@ export class SquashGame {
       case 'squash':
         // A new round gets a fresh scatter — the previous one's targets and entrances
         // mean nothing once the pattern indices have been dealt out again.
-        if (this.#state?.roundId !== msg.d.roundId) this.#visuals.clear();
+        if (this.#state?.roundId !== msg.d.roundId) {
+          this.#visuals.clear();
+          this.#optimistic.clear();
+        }
         this.#state = msg.d;
         return;
       case 'squash-board':
         this.#board = msg.d.board;
+        // The referee has now weighed in on everything it knows about — drop any
+        // guess it has an answer for, right or wrong, so `#optimistic` never holds
+        // an index the real board has already settled.
+        for (const index of this.#optimistic) {
+          if (msg.d.board.active.includes(index) || msg.d.board.squashed.includes(index)) {
+            this.#optimistic.delete(index);
+          }
+        }
         return;
     }
+  }
+
+  /**
+   * Guess that `index` is squashed, ahead of the referee's own reply — the caller
+   * sends the real tap regardless (spec §8 is still the one that decides). Returns
+   * false for an index already flagged (by an earlier guess or a confirmed one),
+   * so a double-fire on the same cell never plays the cue twice.
+   */
+  optimisticSquash(index: number): boolean {
+    if (this.#optimistic.has(index) || (this.#board?.squashed.includes(index) ?? false)) return false;
+    this.#optimistic.add(index);
+    return true;
   }
 
   /** Everyone's count, for the shared Scoreboard panel. */
@@ -133,20 +165,25 @@ export class SquashGame {
     return this.#state?.scores ?? {};
   }
 
-  /** Every mosquito alive on MY board right now, in no particular order. */
+  /** Every mosquito alive on MY board right now, in no particular order. Excludes
+   *  anything `optimisticSquash` has already marked — it moves to `squashed()`
+   *  the instant it is guessed, not once the referee confirms it. */
   active(): MosquitoView[] {
     const s = this.#state;
     const b = this.#board;
     if (!s || !b) return [];
-    return b.active.map((index) => toView(s, index, this.visual(index).size));
+    return b.active.filter((index) => !this.#optimistic.has(index)).map((index) => toView(s, index, this.visual(index).size));
   }
 
-  /** Every mosquito I have already squashed — drawn as a permanent blood mark. */
+  /** Every mosquito I have already squashed — drawn as a permanent blood mark.
+   *  Includes an unconfirmed guess from `optimisticSquash` right away; `apply`
+   *  is what folds it into (or drops it from) the referee's own list. */
   squashed(): MosquitoView[] {
     const s = this.#state;
     const b = this.#board;
     if (!s || !b) return [];
-    return b.squashed.map((index) => toView(s, index, this.visual(index).size));
+    const indices = new Set([...b.squashed, ...this.#optimistic]);
+    return [...indices].map((index) => toView(s, index, this.visual(index).size));
   }
 
   /**
@@ -162,7 +199,7 @@ export class SquashGame {
     const b = this.#board;
     if (!s || !b) return null;
     const index = s.pattern.indexOf(position);
-    return index >= 0 && b.active.includes(index) ? index : null;
+    return index >= 0 && b.active.includes(index) && !this.#optimistic.has(index) ? index : null;
   }
 
   /** Mosquito `index`'s own scatter and entrance, rolled once and cached — see `MosquitoVisual`. */

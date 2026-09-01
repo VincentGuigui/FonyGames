@@ -102,6 +102,40 @@ function boardsAndScores(): void {
   check('before any frame arrives, nothing is active', new SquashGame().active().length === 0);
 }
 
+function optimism(): void {
+  console.log('\na guessed squash shows up before the referee replies');
+  const g = new SquashGame();
+  g.identify(ME, () => 0);
+  g.apply(squashMsg(state()));
+  g.apply(boardMsg([4, 5, 6], []));
+
+  check('the guess moves it to squashed immediately', g.optimisticSquash(4) === true);
+  check('active drops it in the same instant', !g.active().some((v) => v.index === 4));
+  check('squashed shows it before the referee has said anything', g.squashed().some((v) => v.index === 4));
+  check('the count reflects it too', g.mySquashed === 1);
+  check('guessing the same index twice does nothing the second time', g.optimisticSquash(4) === false);
+
+  // The referee confirms it — the guess folds into the real board with nothing
+  // visibly changing, and a fresh guess against an already-confirmed index is
+  // now a no-op too.
+  g.apply(boardMsg([5, 6], [4]));
+  check('still squashed once confirmed', g.squashed().map((v) => v.index).join() === '4');
+  check('a confirmed index refuses a fresh guess', g.optimisticSquash(4) === false);
+
+  // A wrong guess — the referee never squashed 6 — quietly reverts.
+  check('guess an index the referee will reject', g.optimisticSquash(6) === true);
+  check('shows as squashed for the moment', g.squashed().some((v) => v.index === 6));
+  g.apply(boardMsg([5, 6], [4])); // unchanged: 6 is still just active
+  check('reverts once the referee says it is still alive', !g.squashed().some((v) => v.index === 6));
+  check('and is tappable again', g.active().some((v) => v.index === 6));
+
+  // A fresh round drops every guess, confirmed or not — a new pattern owes nothing
+  // to the last one's guesses.
+  g.apply(squashMsg(state({ roundId: 2 })));
+  g.apply(boardMsg([9], []));
+  check('a new round starts with no carried-over guesses', g.optimisticSquash(9) === true);
+}
+
 function ending(): void {
   console.log('\nphase and winner ride the shared frame');
   const g = new SquashGame();
@@ -197,7 +231,7 @@ function entering(): void {
   check('a different phase swings differently', a.x !== c.x || a.y !== c.y);
 }
 
-for (const t of [seeing, boardsAndScores, ending, wandering, visuals, entering]) t();
+for (const t of [seeing, boardsAndScores, optimism, ending, wandering, visuals, entering]) t();
 
 if (failures > 0) throw new Error(`${failures} check(s) failed`);
 console.log('\nall passed');

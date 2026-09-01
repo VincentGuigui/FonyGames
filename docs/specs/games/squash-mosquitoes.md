@@ -129,9 +129,16 @@ on a game this short would be ceremony nobody asked for.
   alive flight rather than a held synth tone; issue #13's own reference nodes
   and values), toggled from the same `SoundToggle` idiom as Shake Rush's own
   tune. Purely ambient: it carries no state and is never retriggered per
-  squash. Each squash that actually lands (the referee's own decision, spec
-  §8 — a rejected tap on an already-squashed or dormant cell stays silent)
-  plays a short one-shot cue, `art/squash.mp3`, muted by the same toggle.
+  squash. **A squash's own blood mark and cue play the instant a tap looks
+  valid on this phone, not once the referee replies** — a round trip is too
+  slow for a mash game, and the mark plus a short one-shot cue (`art/squash.mp3`,
+  muted by the same toggle) are exactly the feedback that has to feel
+  instant. The referee is still the only thing that actually decides (spec
+  §8): `SquashGame.optimisticSquash` marks a guess right away and
+  `SquashGame.apply` quietly reconciles it against the real board the
+  moment it arrives — a wrong guess (e.g. a tap that lands right as the
+  round starts) reverts to alive with no extra cue, and a correct one folds
+  into the confirmed list with nothing visibly changing.
 - **Results**: the shared end screen ([../../design/game-chrome.md](../../design/game-chrome.md) §8) —
   the winner's avatar, everyone's count out of 66.
 
