@@ -49,15 +49,36 @@
 .hub__filters {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-3);
   margin: 0 0 var(--space-4);
 }
 
+.hub__filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.hub__filter-select {
+  font: inherit;
+  font-size: var(--font-small);
+  color: var(--color-text);
+  /* Tall enough for a thumb, same reasoning as every other tappable control in
+     the app (ops.css's own `.ops__choice`). */
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+/* The dev-only preview switch: two named-state buttons, kept as chips since a
+   two-value switch is exactly what a chip pair is for — unlike the two selects
+   above it, there is no list of options to pick from. */
 .hub__filter-chip {
   font: inherit;
   font-size: var(--font-small);
-  /* Tall enough for a thumb, same reasoning as every other tappable chip in
-     the app (ops.css's own `.ops__choice`). */
   padding: 0.45rem 0.85rem;
   border-radius: 999px;
   border: 1px solid var(--color-border);

@@ -39,17 +39,9 @@ export function Hub({
   const games = catalogue();
   const { locale } = useLocale();
   const t = useT();
-  const [selectedTags, setSelectedTags] = useState<Set<GameTag>>(new Set());
+  const [selectedTag, setSelectedTag] = useState<GameTag | null>(null);
+  const [selectedPlayers, setSelectedPlayers] = useState<number | null>(null);
   const { isAdmin, effectiveShowAll, previewProd, setPreviewProd } = useAdminPreview(showAll);
-
-  const toggleTag = (tag: GameTag): void => {
-    setSelectedTags((current) => {
-      const next = new Set(current);
-      if (next.has(tag)) next.delete(tag);
-      else next.add(tag);
-      return next;
-    });
-  };
 
   // "Nothing is playable yet" has to account for the flags, not just build-time status:
   // with every built game disabled, the shell notice is the honest thing to show.
@@ -77,12 +69,25 @@ export function Hub({
       {/* Dev-only, admin-only — `useAdminPreview` never even asks on prod (§ its own doc). */}
       {isAdmin && <HubAdminPreview previewProd={previewProd} onChange={setPreviewProd} />}
 
-      <HubFilters games={games} selected={selectedTags} onToggle={toggleTag} onClear={() => setSelectedTags(new Set())} />
+      <HubFilters
+        games={games}
+        tag={selectedTag}
+        onTagChange={setSelectedTag}
+        players={selectedPlayers}
+        onPlayersChange={setSelectedPlayers}
+      />
 
       {!anyPlayable && <p class="hub__notice">{t.hub.shellNotice}</p>}
 
       {grid ?? (
-        <HubGrid flags={flags} plays={plays} showAll={effectiveShowAll} locale={locale} tags={selectedTags} />
+        <HubGrid
+          flags={flags}
+          plays={plays}
+          showAll={effectiveShowAll}
+          locale={locale}
+          tag={selectedTag}
+          players={selectedPlayers}
+        />
       )}
 
       <footer class="hub__footer">

@@ -101,28 +101,36 @@ play something in under ten seconds.
 
 ## 3. Filters
 
-A single row of chips above the grid (`HubFilters.tsx`), multi-select, OR'd
-together — picking two chips widens the grid rather than narrowing it further,
-since the point is "show me something in either of these moods", not a strict
-intersection that can empty the grid for no reason a visitor could see. `All`
-clears the selection. No search box — the catalogue is small enough to scan.
+Two native `<select>` dropdowns above the grid (`HubFilters.tsx`) — a type
+filter and a player-count filter — combined with **AND**: picking both narrows
+to games matching both, since these are two independent questions ("what kind
+of game" and "how many of us are there"), not two moods to widen between. No
+search box — the catalogue is small enough to scan.
 
-The vocabulary is `GameTag` (`core/types.ts`), a fixed, hand-picked set —
-unlike `inputs`, a game earns none of these automatically:
+**Type.** The vocabulary is `GameTag` (`core/types.ts`), a fixed, hand-picked
+set — unlike `inputs`, a game earns none of these automatically:
 
 `party` · `duel` · `physical` · `outdoors` · `strategy` · `arcade` ·
 `augmented-reality` · `luck` · `music` · `intense`
 
-A game carries 1–3. Only chips a **live** game actually uses are shown, in the
-fixed order above — never however `tags` happens to be declared, and never
-reshuffled by which games are currently visible, so a returning visitor is not
-re-scanning the row every time. Filtering is purely client-side and never
-changes which of the four tiers (§2) a card belongs to — hot/week/NEW stay put
-while a filter is toggled on and off, only whether a given card is skipped
-when its tier renders.
+A game carries 1–3, and a single-select is the honest control for the filter
+even though a card itself can carry several: picking `arcade` means "show me
+arcade games", not "show me only games that are arcade and nothing else". Only
+options a **live** game actually uses are offered, in the fixed order above —
+never however `tags` happens to be declared, and never reshuffled by which
+games are currently visible, so a returning visitor is not re-scanning the
+list every time.
 
-Chip labels are translated (`UiStrings.tag`, `docs/specs/i18n.md` §2) the same
-way badge words are — a closed, shared vocabulary, not per-game prose.
+**Players.** A single number, 1 through the highest max any live game
+declares. A game matches when the chosen number falls inside its own
+`players` range (`shared/players.ts`) — picking `3` shows every game whose
+range spans 3, a `[2, 8]` game included, not only a game capped at exactly 3.
+
+Neither filter ever changes which of the four tiers (§2) a card belongs to —
+hot/week/NEW stay put while a filter changes, only whether a given card is
+skipped when its tier renders. Select labels and options are translated
+(`UiStrings.tag`, `docs/specs/i18n.md` §2) the same way badge words are — a
+closed, shared vocabulary, not per-game prose.
 
 ### Dev-only: previewing prod
 
