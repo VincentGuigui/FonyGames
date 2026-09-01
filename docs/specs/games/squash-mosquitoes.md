@@ -123,11 +123,15 @@ on a game this short would be ceremony nobody asked for.
   everyone else's, which is the entire live social read on the round — you
   cannot see anyone else's board, only how far along they are.
 
-  **The swarm has a sound**: a continuous mid-pitched buzz, on for as long as the round
-  is (`www/src/games/squash-mosquitoes/buzz.ts` — one sawtooth oscillator under a slow
-  vibrato, so it reads as a wingbeat rather than a synth tone), toggled from the same
-  `SoundToggle` idiom as Shake Rush's own tune. Purely ambient: it carries no state and
-  is never retriggered per squash, unlike a per-tap cue would be.
+  **The swarm has a sound**: a continuous buzz, on for as long as the round is
+  (`www/src/games/squash-mosquitoes/buzz.ts` — a sawtooth oscillator through a
+  lowpass filter, both randomly wobbled every 50ms so it reads as an erratic,
+  alive flight rather than a held synth tone; issue #13's own reference nodes
+  and values), toggled from the same `SoundToggle` idiom as Shake Rush's own
+  tune. Purely ambient: it carries no state and is never retriggered per
+  squash. Each squash that actually lands (the referee's own decision, spec
+  §8 — a rejected tap on an already-squashed or dormant cell stays silent)
+  plays a short one-shot cue, `art/squash.mp3`, muted by the same toggle.
 - **Results**: the shared end screen ([../../design/game-chrome.md](../../design/game-chrome.md) §8) —
   the winner's avatar, everyone's count out of 66.
 

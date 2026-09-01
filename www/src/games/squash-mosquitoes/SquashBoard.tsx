@@ -12,7 +12,7 @@ import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard, type ScoreRow } from '../../core/ui/Scoreboard';
 import { RulesPanel } from '../../core/ui/RulesPanel';
 import { SoundToggle } from '../../core/ui/SoundToggle';
-import { startBuzzLoop, stopBuzzLoop } from './buzz';
+import { playSquashSound, startBuzzLoop, stopBuzzLoop } from './buzz';
 import { useGameText } from '../../core/i18n/gameText';
 import {
   entryOffset,
@@ -167,10 +167,31 @@ export function SquashBoard({
   }, []);
 
   const activeViews = game.active();
-  const sizeByIndex = new Map([...activeViews, ...game.squashed()].map((v) => [v.index, v.size]));
+  const squashedViews = game.squashed();
+  const sizeByIndex = new Map([...activeViews, ...squashedViews].map((v) => [v.index, v.size]));
   const activeSet = new Set(activeViews.map((v) => v.index));
   const flyingSet = new Set(activeViews.filter((v) => v.flying).map((v) => v.index));
-  const squashedSet = new Set(game.squashed().map((v) => v.index));
+  const squashedSet = new Set(squashedViews.map((v) => v.index));
+
+  /*
+   * The squash cue (issue #13): one shot per mosquito THIS board actually loses,
+   * never per tap — a tap the referee rejects (already squashed, round not started
+   * yet) must stay silent. Tracked by count rather than by `onTap`'s own call site
+   * because the referee, not the tap, is what decides a squash landed (spec §8).
+   * Reset per round so reconnecting mid-round with squashes already on the board
+   * does not replay them all as a burst.
+   */
+  const squashedTally = useRef<{ roundId: number | null; count: number }>({ roundId: null, count: 0 });
+  useEffect(() => {
+    const roundId = state?.roundId ?? null;
+    const previous = squashedTally.current;
+    if (previous.roundId !== roundId) {
+      squashedTally.current = { roundId, count: squashedViews.length };
+      return;
+    }
+    if (squashedViews.length > previous.count && sound) playSquashSound();
+    squashedTally.current = { roundId, count: squashedViews.length };
+  }, [state?.roundId, squashedViews.length, sound]);
 
   function tap(index: number, position: number): void {
     // Nothing to do for a cell this phone already knows is dormant or squashed — the
