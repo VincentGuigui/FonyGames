@@ -97,6 +97,21 @@ export interface UiStrings {
     noSuchRoom: (formatted: string) => string;
     serverUnreachable: string;
   };
+  /**
+   * `GameCardTile.tsx`'s badge words. Keyed by the fixed tokens `cardState` (shared/flags.ts)
+   * can return — `disabled`/`hidden` only ever show in dev's `showAll` mode. A `paused`
+   * game's *own* reason (`flag.reason`) is the operator's free text and travels verbatim,
+   * never through this table — `paused` here is only the fallback when no reason was set.
+   */
+  badge: {
+    hot: string;
+    week: string;
+    new: string;
+    soon: string;
+    disabled: string;
+    hidden: string;
+    paused: string;
+  };
   parts: {
     connecting: string;
     reconnecting: string;
@@ -199,6 +214,15 @@ const en: UiStrings = {
     wrongLength: (length) => `A room code is ${length} letters, in two groups of three.`,
     noSuchRoom: (formatted) => `No room called ${formatted}. Check the code, or ask for the link.`,
     serverUnreachable: 'Could not reach the game server. Check your connection and try again.',
+  },
+  badge: {
+    hot: 'Hot',
+    week: 'Game of the Week',
+    new: 'New',
+    soon: 'Soon',
+    disabled: 'Disabled',
+    hidden: 'Hidden',
+    paused: 'Paused',
   },
   parts: {
     connecting: 'Connecting…',
@@ -303,6 +327,15 @@ const fr: UiStrings = {
     wrongLength: (length) => `Un code de salle fait ${length} lettres, en deux groupes de trois.`,
     noSuchRoom: (formatted) => `Aucune salle nommée ${formatted}. Vérifiez le code, ou demandez le lien.`,
     serverUnreachable: 'Impossible de joindre le serveur de jeu. Vérifiez votre connexion et réessayez.',
+  },
+  badge: {
+    hot: 'Populaire',
+    week: 'Jeu de la semaine',
+    new: 'Nouveau',
+    soon: 'À venir',
+    disabled: 'Désactivé',
+    hidden: 'Masqué',
+    paused: 'En pause',
   },
   parts: {
     connecting: 'Connexion…',

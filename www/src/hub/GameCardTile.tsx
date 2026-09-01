@@ -2,6 +2,7 @@ import type { JSX } from 'preact';
 import type { GameCard, GameInput } from '../core/types';
 import { GameIllustration } from './GameIllustration';
 import { cardState, DEFAULT_FLAG, type GameFlag } from '../../../shared/flags';
+import { useT } from '../core/i18n/strings';
 
 /**
  * One card = one promise in a glance: one illustration, one catchy sentence.
@@ -44,6 +45,7 @@ export function GameCardTile({
   /** The week's own spotlighted game. Decided by the grid, not here — see `gameOfWeek`. */
   week?: boolean;
 }): JSX.Element | null {
+  const t = useT();
   const view = cardState(game.status, flag, showAll, hot, week);
 
   // A hidden game is not rendered at all — not hidden with CSS, which would still put
@@ -77,12 +79,31 @@ export function GameCardTile({
             ? 'soon'
             : 'paused';
 
+  /*
+   * `hot`/`week`/`new`/`soon`/`disabled`/`hidden` are the fixed tokens `cardState` can
+   * return, and each has a translation. Anything else is a paused game's own reason
+   * (`flag.reason`) — the operator's free text, not a constant, so it passes through as-is
+   * rather than through this table.
+   */
+  const badgeText =
+    view.badge === null
+      ? null
+      : view.badge === 'hot' ||
+          view.badge === 'week' ||
+          view.badge === 'new' ||
+          view.badge === 'soon' ||
+          view.badge === 'disabled' ||
+          view.badge === 'hidden' ||
+          view.badge === 'paused'
+        ? t.badge[view.badge]
+        : view.badge;
+
   const inner = (
     <>
       <div class="game-card__art">
         <GameIllustration art={game.art} accent={game.accent} />
-        {view.badge !== null && (
-          <span class={`game-card__badge game-card__badge--${badgeKind}`}>{view.badge}</span>
+        {badgeText !== null && (
+          <span class={`game-card__badge game-card__badge--${badgeKind}`}>{badgeText}</span>
         )}
       </div>
       <div class="game-card__body">
