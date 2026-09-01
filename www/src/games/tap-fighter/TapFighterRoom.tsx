@@ -23,6 +23,7 @@ import {
 } from '../../../../shared/tapFighter';
 import type { Player, ServerMessage, TapFighterState } from '../../../../shared/protocol';
 import { playOutcomeSound } from '../../core/audio/outcome';
+import { playFighterCue, prepareFighterSfx } from './sfx';
 import { StatusBar } from '../../core/ui/StatusBar';
 import {
   ACTION_BEAT_MS,
@@ -62,6 +63,7 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
   const client = room.client;
   const clock = useCallback(() => client?.now() ?? Date.now(), [client]);
   const start = () => client?.send({ t: 'start', d: { mode: 'fighter', solo } });
+  useEffect(() => { prepareFighterSfx(); }, []);
 
   if (!state) {
     // No seat-colour tag in the players list (issue #3).
@@ -160,6 +162,29 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     const reacting = contact && beat?.[seat === 'blue' ? 'blueHit' : 'greenHit'];
     return reacting ? FIGHTER_POSES.hit : ACTION_POSE[action];
   };
+  /**
+   * Contact is the one instant both phones already agree on without a message
+   * (the same clock `pose` above reads), so it doubles as the cue to play a
+   * beat's sound — once, not on every 50 ms tick `contact` keeps reading true
+   * for: the effect only re-runs when `contact` or `beatIndex` actually change,
+   * and `contact` is false for the whole wind-up at the top of every new beat.
+   * `kick`'s own swing plays only for a landed-or-not KICK (no swing take was
+   * recorded for a punch); `impact`/`avoid` cover either attack, on whichever
+   * side actually threw one.
+   */
+  useEffect(() => {
+    if (state.phase !== 'fighting' || !contact || beatIndex < 0) return;
+    const currentBeat = state.beats[beatIndex];
+    if (!currentBeat) return;
+    if (currentBeat.blueAction === 'punch' || currentBeat.blueAction === 'kick') {
+      if (currentBeat.blueAction === 'kick') playFighterCue('kick');
+      playFighterCue(currentBeat.greenHit ? 'impact' : 'avoid');
+    }
+    if (currentBeat.greenAction === 'punch' || currentBeat.greenAction === 'kick') {
+      if (currentBeat.greenAction === 'kick') playFighterCue('kick');
+      playFighterCue(currentBeat.blueHit ? 'impact' : 'avoid');
+    }
+  }, [state.phase, contact, beatIndex]);
   // "Combo" reveals at the same instant the hit pose and health bar do — contact,
   // never the start of the beat — and only for as long as this exact beat is the
   // one showing (issue #9: three landed hits in a row with none received). Gated
