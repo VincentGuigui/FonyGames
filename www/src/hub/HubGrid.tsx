@@ -7,6 +7,15 @@ import type { Locale } from '../core/i18n/locale';
 import type { GameTag } from '../core/types';
 
 /**
+ * The one card that isn't a real game (`www/src/games/random-game/card.ts`) — kept
+ * as a plain slug literal, mirrored by hand in `scripts/ssr.mjs`'s `weekOrder()` and
+ * `api/lib/Page.php`, the same way a one-off exception is handled elsewhere in this
+ * codebase (`worker/router.ts`'s slug pattern and `Flags::slug()`) rather than
+ * inventing a cross-language constant for a single case.
+ */
+const RANDOM_GAME_SLUG = 'random-game';
+
+/**
  * The card grid, on its own.
  * Spec: docs/specs/hub.md §2 · docs/specs/seo.md §4
  *
@@ -15,16 +24,17 @@ import type { GameTag } from '../core/types';
  * author markup of its own (seo.md §4). A grid glued into `Hub` could not be rendered a
  * card at a time.
  *
- * Four tiers: `hubSections` (issue #4) supplies the first three — the week's spotlight
- * and the hottest game pinned at the top, then every NEW-flagged game alphabetically,
- * then everything else alphabetically — and a `soon` tier trails behind them, every
- * not-yet-live game in its curated `registry.ts` order, exactly where it always sat.
- * `hubSections` only ever sees `live` games: a `soon` card cannot be hot, spotlighted,
- * or NEW, so it has no business in that sort. A `.hub__spacer` separates every pair of
- * non-empty tiers **except pinned→fresh**: hot/week and NEW are both "look at this
- * one" tiers, and a rule between them read as a boundary that was not there for any
- * other adjacent pair. Never a dangling spacer at the very top or bottom either. Flags
- * still decide only *which* cards appear.
+ * Five tiers: **Random Game always leads**, when it's live, then `hubSections`
+ * (issue #4) supplies the next three — the week's spotlight and the hottest game
+ * pinned at the top, then every NEW-flagged game alphabetically, then everything else
+ * alphabetically — and a `soon` tier trails behind them, every not-yet-live game in
+ * its curated `registry.ts` order, exactly where it always sat. `hubSections` only
+ * ever sees `live` games: a `soon` card cannot be hot, spotlighted, or NEW, so it has
+ * no business in that sort. A `.hub__spacer` separates every pair of non-empty tiers
+ * **except pinned→fresh**: hot/week and NEW are both "look at this one" tiers, and a
+ * rule between them read as a boundary that was not there for any other adjacent
+ * pair. Never a dangling spacer at the very top or bottom either. Flags still decide
+ * only *which* cards appear.
  *
  * `index.php` applies the same rule to the same numbers before it serves the page
  * (`Page::grid`), which is what keeps hydration exact — a grid the server ordered one
@@ -35,6 +45,14 @@ import type { GameTag } from '../core/types';
  * English one are shown the same game rather than two different alphabetical orders of
  * two different sets of titles. The same alphabetical list also decides the NEW and
  * "everything else" tiers, so there is only ever the one sort to keep in step.
+ *
+ * `RANDOM_GAME_SLUG` is excluded from that alphabetical list entirely, not merely
+ * pinned first afterwards — it never opens a room, so it can never honestly earn
+ * HOT, and leaving it in the rotation would occasionally hand it the WEEK badge and
+ * spotlight, and by chance rather than by design, bump every real game's own turn.
+ * `scripts/ssr.mjs`'s `weekOrder()` carries the identical exclusion, since that list
+ * is also what `Page::grid()` receives (`$weekOrder`) — the one list both sides sort
+ * from, so this can't drift into two different rotations.
  *
  * `tag`/`players`, unlike everything above, are a purely client-side narrowing:
  * neither ever changes which tier a slug belongs to (so hot/week/NEW stay stable
@@ -71,7 +89,7 @@ export function HubGrid({
   const bySlug = new Map(games.map((g) => [g.slug, g]));
 
   const alphabetical = raw
-    .filter((g) => g.status === 'live')
+    .filter((g) => g.status === 'live' && g.slug !== RANDOM_GAME_SLUG)
     .slice()
     .sort((a, b) => a.title.localeCompare(b.title))
     .map((g) => g.slug);
@@ -79,6 +97,7 @@ export function HubGrid({
   const week = gameOfWeek(alphabetical, new Date());
   const { pinned, fresh, rest } = hubSections(alphabetical, flags, hot, week);
   const soon = raw.filter((g) => g.status !== 'live').map((g) => g.slug);
+  const randomGameLive = raw.some((g) => g.slug === RANDOM_GAME_SLUG && g.status === 'live');
 
   const matchesFilter = (slug: string): boolean => {
     const game = bySlug.get(slug);
@@ -105,6 +124,7 @@ export function HubGrid({
 
   const tiers = (
     [
+      { key: 'random', slugs: randomGameLive ? [RANDOM_GAME_SLUG] : [] },
       { key: 'pinned', slugs: pinned },
       { key: 'fresh', slugs: fresh },
       { key: 'rest', slugs: rest },

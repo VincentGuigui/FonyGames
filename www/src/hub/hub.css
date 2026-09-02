@@ -260,9 +260,13 @@
 /*
  * Fluid so a two-up card at 156px (360px phone) is not wearing a title sized
  * for a 34rem page. Never grows past --font-title, which is the one-column size.
+ *
+ * 5px clear of the body's own top padding, so the badge overlapping the seam
+ * above it (`.game-card__badge`) has room to dip down without crowding the
+ * text on a long title that wraps close to the right edge.
  */
 .game-card__title {
-  margin: 0;
+  margin: 5px 0 0;
   font-size: clamp(0.9375rem, 3.4vw, var(--font-title));
   font-weight: 700;
   line-height: 1.2;

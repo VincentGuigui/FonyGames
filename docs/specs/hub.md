@@ -35,14 +35,18 @@ play something in under ten seconds.
 - **Card anatomy and copy rules**: see
   [../design/ui-guidelines.md](../design/ui-guidelines.md) §3. One illustration,
   one catchy sentence, no exceptions.
-- **Cards are ordered in four tiers, top to bottom** (issue #4): the week's own
-  spotlighted game, then the most-played game (**pinned** — see below), then
-  every NEW-flagged `live` game alphabetically (**fresh**), then every other
-  `live` game alphabetically (**rest**), then every `soon` game in its curated
-  `games/registry.ts` order (dimmed, not tappable, no link — unchanged from
-  before). A thin divider (`.hub__spacer`) separates each pair of non-empty
-  tiers, **except pinned→fresh**: hot/week and NEW are both "look at this one"
-  tiers, and a rule between them read as a boundary that was not there for any
+- **Cards are ordered in five tiers, top to bottom** (issue #4): **Surprise Me**
+  always leads, then the week's own spotlighted game, then the most-played game
+  (**pinned** — see below), then every NEW-flagged `live` game alphabetically
+  (**fresh**), then every other `live` game alphabetically (**rest**), then every
+  `soon` game in its curated `games/registry.ts` order (dimmed, not tappable, no
+  link — unchanged from before). Surprise Me (`www/src/games/random-game/card.ts`)
+  is excluded from the pool the other tiers sort from — it never opens a room, so
+  it can never earn HOT, and leaving it in the rotation would occasionally hand it
+  the WEEK spotlight by chance, at a real game's expense. A thin divider
+  (`.hub__spacer`) separates each pair of non-empty tiers, **except pinned→fresh**:
+  hot/week and NEW are both "look at this one" tiers, and a rule between them read
+  as a boundary that was not there for any
   other adjacent pair. There is never a dangling divider at the very top or
   bottom either.
 - **The week's own game and the most-played game are pinned at the top, week
