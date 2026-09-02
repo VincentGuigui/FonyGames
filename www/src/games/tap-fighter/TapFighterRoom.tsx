@@ -74,12 +74,21 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
    * it doubles as "this fight is the last one" without any extra server state.
    * `startFighterMusic` is a no-op while the requested track is already playing, so
    * this firing again on every round's phase/round change just lets it keep going.
+   *
+   * The last-round fit duration is `state.endsAt - clock()`, NOT `state.endsAt -
+   * state.startsAt`: this effect fires the instant `phase` becomes `fighting`, which
+   * is the START of the ~6.5s VS/countdown/flash reveal (`REVEAL_LEAD_MS`) — before
+   * `state.startsAt` is even reached. `endsAt - startsAt` only spans the beats
+   * themselves (worker/tapFighter.ts), so using it here left the reveal's own 6.5s
+   * unaccounted for and the track finished that much before the round actually did.
+   * `clock()` reads the same server-synced clock `startsAt`/`endsAt` are expressed
+   * in, so `endsAt - clock()` is the real time left from right now to the round's end.
    */
   useEffect(() => {
     if (!state || state.phase === 'match-over') { stopFighterMusic(); return; }
     if (state.phase === 'planning') { startFighterMusic('preparation'); return; }
     if (state.matchWinner !== null) {
-      startFighterMusic('lastRound', (state.endsAt - state.startsAt) / 1000);
+      startFighterMusic('lastRound', (state.endsAt - clock()) / 1000);
     } else {
       startFighterMusic('round');
     }
