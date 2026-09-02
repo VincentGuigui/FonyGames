@@ -45,6 +45,29 @@ function fakeCards(): array
 }
 
 /**
+ * `fakeCards()` plus a `random-game` entry — kept separate from the main fixture so
+ * every other test's baseline (its slug list, its spacer counts) is untouched by
+ * adding it. Only `hot`/`week` false variants are built: `random-game` is excluded
+ * from `$weekOrder` by contract (`Page::grid()`'s own doc comment), so it can never
+ * equal `$hot` or `$week` and those keys are never asked for.
+ */
+function fakeCardsWithRandomGame(): array
+{
+    $cards = fakeCards();
+    foreach (['new', 'active', 'soon', 'hidden'] as $state) {
+        foreach ([0, 1] as $showAll) {
+            $key = "{$state}:0:0:{$showAll}";
+            $absent = $state === 'hidden' && $showAll === 0;
+            $cards['random-game'][$key] = $absent
+                ? ''
+                : "<li data-slug=\"random-game\" data-key=\"{$key}\">%%REASON%%</li>";
+        }
+    }
+
+    return $cards;
+}
+
+/**
  * Every live game, alphabetical by title — `weekOrder()` in `scripts/ssr.mjs`, and now
  * the one list `Page::grid()` builds all three tiers from (issue #4). It has replaced
  * `$order` in the grid's own signature entirely: `gameOfWeek()` can never return null for
@@ -215,6 +238,42 @@ check('no flags at all means every game active, bar the week\'s own pin', substr
 
 $grid = Page::grid(fakeCards(), [], false, [], ['tap-duel', 'a-game-the-build-never-saw'], $week1);
 check('a slug with no rendered variant is skipped, not invented', count(slugsIn($grid)) === 1, $grid);
+
+group('Random Game always leads, ahead of the week\'s own pick');
+
+$withRandom = Page::grid(fakeCardsWithRandomGame(), [], false, [], ALPHA, $week2);
+check('it leads, ahead of the pinned tier', (slugsIn($withRandom)[0] ?? null) === 'random-game', slugsIn($withRandom));
+check('the week\'s own pin still follows it', slugsIn($withRandom) === ['random-game', 'spill', 'ghost-tag', 'tap-duel'], slugsIn($withRandom));
+check('with no hot or week bits of its own', str_contains($withRandom, 'data-slug="random-game" data-key="active:0:0:0"'), $withRandom);
+
+// The pinned→fresh exception is about that ONE specific adjacency — random leading
+// into pinned is a different pair, and gets its own spacer like any other boundary.
+// A NEW-flagged game alongside it exercises both at once: two spacers total (before
+// pinned, and before the rest), none between pinned and NEW.
+$withRandomAndFresh = Page::grid(fakeCardsWithRandomGame(), ['tap-duel' => ['state' => 'new']], false, [], ALPHA, $week1);
+check('random, then pinned, then NEW, then the rest', slugsIn($withRandomAndFresh) === ['random-game', 'ghost-tag', 'tap-duel', 'spill'], slugsIn($withRandomAndFresh));
+check('two spacers, not three — still none between pinned and NEW', substr_count($withRandomAndFresh, 'hub__spacer') === 2, $withRandomAndFresh);
+$betweenRandomAndPinned = substr($withRandomAndFresh, (int) strpos($withRandomAndFresh, 'random-game'), (int) strpos($withRandomAndFresh, 'ghost-tag') - (int) strpos($withRandomAndFresh, 'random-game'));
+check('specifically: random still gets its own spacer before pinned', str_contains($betweenRandomAndPinned, 'hub__spacer'), $betweenRandomAndPinned);
+
+$withHotAndRandom = Page::grid(fakeCardsWithRandomGame(), [], false, ['tap-duel' => 4], ALPHA, $week1);
+check(
+    'hot still finds its real winner, unaffected by random-game being in $cards',
+    slugsIn($withHotAndRandom) === ['random-game', 'ghost-tag', 'tap-duel', 'spill'],
+    slugsIn($withHotAndRandom),
+);
+check('and it wears the hot variant', str_contains($withHotAndRandom, 'data-slug="tap-duel" data-key="active:1:0:0"'), $withHotAndRandom);
+
+$hiddenRandom = Page::grid(fakeCardsWithRandomGame(), ['random-game' => ['state' => 'hidden']], false, [], ALPHA, $week1);
+check('hidden means absent, same as any other card', !str_contains($hiddenRandom, 'data-slug="random-game"'), $hiddenRandom);
+
+group('but not when it is itself a not-yet-live card');
+
+// A build where `random-game/card.ts` was set to `status: 'soon'` (hypothetically) —
+// `Page::grid()` has only `$cards`/`$soonOrder` to tell the two situations apart, since
+// no separate "is it live" flag is passed in.
+$soonRandom = Page::grid(fakeCardsWithRandomGame(), [], false, [], ALPHA, $week1, ['random-game', 'zone-rush']);
+check('it trails with the rest of $soonOrder instead of leading', slugsIn($soonRandom) === ['ghost-tag', 'spill', 'tap-duel', 'random-game', 'zone-rush'], slugsIn($soonRandom));
 
 group('a reason is operator text, and is escaped where it becomes HTML');
 

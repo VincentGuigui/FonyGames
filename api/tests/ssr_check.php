@@ -110,8 +110,11 @@ if (!is_readable($generated)) {
     $real = Page::grid($built['cards'], [], false, [], $weekOrder, $fixedNow, $soonOrder);
     check('the real cards assemble into a non-empty grid', strlen($real) > 1000, strlen($real));
     preg_match_all('#href="/([a-z0-9-]+)/"#', $real, $mPlain);
-    check('every live game rendered its link', count($mPlain[1]) === count($weekOrder), count($mPlain[1]));
-    check('the week\'s own card leads with nothing else pinned', ($mPlain[1][0] ?? null) === $weekSlug, $mPlain[1]);
+    // Random Game is a live card with a real link but excluded from $weekOrder
+    // (Page::grid()'s own doc comment) — every check below accounts for the extra one.
+    check('every live game rendered its link, plus Random Game', count($mPlain[1]) === count($weekOrder) + 1, count($mPlain[1]));
+    check('Random Game leads', ($mPlain[1][0] ?? null) === 'random-game', $mPlain[1]);
+    check('the week\'s own card leads the rest, with nothing else pinned', ($mPlain[1][1] ?? null) === $weekSlug, $mPlain[1]);
     check('the week\'s own card wears the WEEK badge exactly once', substr_count($real, 'game-card__badge--week') === 1,
         substr_count($real, 'game-card__badge--week'));
     check('and it is on the right card', str_contains($real, "/{$weekSlug}/") && strpos($real, 'game-card__badge--week') > strpos($real, "/{$weekSlug}/"));
@@ -121,7 +124,7 @@ if (!is_readable($generated)) {
     // class="game-card` prefix instead, and its position by the badge text rather than a
     // link — this is the actual issue #4 regression this build was fixed to catch.
     $liCount = substr_count($real, '<li class="game-card');
-    check('and every not-yet-live game rendered too, not vanished', $liCount === count($weekOrder) + count($soonOrder), $liCount);
+    check('and every not-yet-live game rendered too, not vanished', $liCount === count($weekOrder) + 1 + count($soonOrder), $liCount);
     check(
         'the not-yet-live tier trails behind every live card',
         $soonOrder === [] || strpos($real, 'game-card__badge--soon') > strrpos($real, 'href="/'),
@@ -130,8 +133,9 @@ if (!is_readable($generated)) {
 
     $withHot = Page::grid($built['cards'], [], false, [$third => 3], $weekOrder, $fixedNow, $soonOrder);
     preg_match_all('#href="/([a-z0-9-]+)/"#', $withHot, $mHot);
-    check('the week\'s own card still leads', ($mHot[1][0] ?? null) === $weekSlug, $mHot[1]);
-    check('the most-played card follows it, ahead of everything cold', ($mHot[1][1] ?? null) === $third, $mHot[1]);
+    check('Random Game still leads, unaffected by hot', ($mHot[1][0] ?? null) === 'random-game', $mHot[1]);
+    check('the week\'s own card still leads the rest', ($mHot[1][1] ?? null) === $weekSlug, $mHot[1]);
+    check('the most-played card follows it, ahead of everything cold', ($mHot[1][2] ?? null) === $third, $mHot[1]);
     check('and it wears the HOT badge', substr_count($withHot, 'game-card__badge--hot') === 1,
         substr_count($withHot, 'game-card__badge--hot'));
 }

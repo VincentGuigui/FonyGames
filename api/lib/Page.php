@@ -28,6 +28,15 @@ final class Page
     public const REASON_SENTINEL = '%%REASON%%';
 
     /**
+     * The one card that isn't a real game (`www/src/games/random-game/card.ts`) —
+     * kept as a plain literal, mirrored by hand in `HubGrid.tsx` and
+     * `scripts/ssr.mjs`'s `weekOrder()`, the same way this class already mirrors
+     * `worker/router.ts`'s slug pattern rather than inventing a cross-language
+     * constant for a single case.
+     */
+    public const RANDOM_GAME_SLUG = 'random-game';
+
+    /**
      * The break between the hub's three tiers (issue #4), byte-for-byte what
      * `preact-render-to-string` produces for `<li class="hub__spacer" aria-hidden="true" />`
      * — `grid()` below has to emit exactly this literal or a client that hydrates the
@@ -49,27 +58,35 @@ final class Page
     }
 
     /**
-     * The grid, in the hub's four tiers (issue #4): the week's spotlight and the
-     * hottest game pinned at the top, then every NEW-flagged game alphabetically, then
-     * everything else alphabetically, then every not-yet-live game in its curated
-     * `registry.ts` order — `Flags::hubSections()` supplies the first three, which
-     * `HubGrid.tsx` applies identically on the client; `$soonOrder` is appended
-     * verbatim, exactly as `HubGrid.tsx` appends its own `soon` list, since a `soon`
-     * card cannot be hot, spotlighted or NEW and so has no place in that sort at all.
-     * Identically matters: the client hydrates this markup, and a grid built two ways
-     * is a mismatch on every card after the first, including where the `GRID_SPACER`
-     * between tiers lands.
+     * The grid, in the hub's five tiers (issue #4): **Random Game always leads**, when
+     * it's live, then the week's spotlight and the hottest game pinned next, then every
+     * NEW-flagged game alphabetically, then everything else alphabetically, then every
+     * not-yet-live game in its curated `registry.ts` order — `Flags::hubSections()`
+     * supplies the pinned/fresh/rest three, which `HubGrid.tsx` applies identically on
+     * the client; `$soonOrder` is appended verbatim, exactly as `HubGrid.tsx` appends
+     * its own `soon` list, since a `soon` card cannot be hot, spotlighted or NEW and so
+     * has no place in that sort at all. Identically matters: the client hydrates this
+     * markup, and a grid built two ways is a mismatch on every card after the first,
+     * including where the `GRID_SPACER` between tiers lands.
      *
      * A slug with no variant is skipped rather than guessed at: that means the build and
      * the flags disagree about which games exist, and inventing markup for it is how a
      * deleted game reappears.
      *
-     * `$weekOrder` — every live game, alphabetical by title, from `weekOrder()` in
-     * `scripts/ssr.mjs` — is also what bounds `Flags::hottest()` now and what
-     * `hubSections()` sorts NEW and "everything else" from, so there is only the one
-     * list to keep in step with the client, the same reasoning `HubGrid.tsx` itself
-     * applies to its own `alphabetical`. `$soonOrder` is `soonOrder()` from the same
-     * file, unrelated to that sort.
+     * `$weekOrder` — every live game except `RANDOM_GAME_SLUG`, alphabetical by title,
+     * from `weekOrder()` in `scripts/ssr.mjs` — is also what bounds `Flags::hottest()`
+     * now and what `hubSections()` sorts NEW and "everything else" from, so there is
+     * only the one list to keep in step with the client, the same reasoning
+     * `HubGrid.tsx` itself applies to its own `alphabetical`. The exclusion lives in
+     * `weekOrder()` itself (not here) because it never opens a room and so can never
+     * honestly earn HOT, and leaving it in the rotation would occasionally hand it the
+     * WEEK badge by chance. `$soonOrder` is `soonOrder()` from the same file, unrelated
+     * to that sort.
+     *
+     * Whether Random Game gets its own leading tier is decided from data already in
+     * scope rather than a new parameter: it's live this build if a variant exists for
+     * it (`$cards`) and it isn't in `$soonOrder` — the same two facts `weekOrder()`'s
+     * caller already has, just read back out.
      *
      * `$now` is a plain timestamp rather than a read of the clock in here, the same
      * reasoning `Flags::gameOfWeek()` itself is written that way: a test has to be able
@@ -92,8 +109,11 @@ final class Page
         $week = Flags::gameOfWeek($weekOrder, $now ?? time());
         $sections = Flags::hubSections($weekOrder, $flags, $hot, $week);
 
+        $randomGameLive = isset($cards[self::RANDOM_GAME_SLUG]) && !in_array(self::RANDOM_GAME_SLUG, $soonOrder, true);
+
         $tiers = array_values(array_filter(
             [
+                ['key' => 'random', 'slugs' => $randomGameLive ? [self::RANDOM_GAME_SLUG] : []],
                 ['key' => 'pinned', 'slugs' => $sections['pinned']],
                 ['key' => 'fresh', 'slugs' => $sections['fresh']],
                 ['key' => 'rest', 'slugs' => $sections['rest']],

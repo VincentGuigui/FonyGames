@@ -99,6 +99,16 @@ export type GameCard = {
   players: PlayerLimits;
   /** Human-readable, e.g. "1–2 min". */
   duration: string;
+  /**
+   * Hide the "N players" half of the card's meta line. Defaults to shown.
+   * For a card that is not itself a real game — Random Game redirects into
+   * whichever built game gets rolled, so its own `players` range (kept for
+   * the hub's player-count filter, `HubFilters.tsx`) describes nothing about
+   * what happens when it's tapped.
+   */
+  showPlayerCount?: boolean;
+  /** Same, for the duration half. */
+  showDuration?: boolean;
   inputs: GameInput[];
   /** 1–3 of `GameTag`. See that type's own comment. */
   tags: GameTag[];

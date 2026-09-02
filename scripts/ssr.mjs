@@ -138,10 +138,16 @@ export function order() {
  * whichever language a visitor reads the hub in. \`index.php\` walks this exactly the
  * way \`HubGrid.tsx\` does, computed independently from the same catalogue rather than
  * transmitted, the same reasoning \`order()\` above already established for HOT.
+ *
+ * \`random-game\` is excluded — it never opens a room, so it can never honestly earn
+ * HOT, and leaving it in the rotation would occasionally hand it the WEEK badge and
+ * spotlight by chance, bumping every real game's own turn. \`HubGrid.tsx\` carries the
+ * identical exclusion, on the identical literal, since this is the one list both
+ * sides sort the hub from.
  */
 export function weekOrder() {
   return catalogue()
-    .filter((g) => g.status === 'live')
+    .filter((g) => g.status === 'live' && g.slug !== 'random-game')
     .slice()
     .sort((a, b) => a.title.localeCompare(b.title))
     .map((g) => g.slug);

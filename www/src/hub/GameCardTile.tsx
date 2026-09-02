@@ -56,9 +56,13 @@ export function GameCardTile({
 
   // A game with a fixed player count reads "2 players", not "2–2 players".
   const who = min === max ? `${min} players` : `${min}–${max} players`;
-  const meta = `${who} · ${game.duration} · ${game.inputs
-    .map((i) => INPUT_LABEL[i])
-    .join(' + ')}`;
+  const meta = [
+    game.showPlayerCount === false ? null : who,
+    game.showDuration === false ? null : game.duration,
+    game.inputs.map((i) => INPUT_LABEL[i]).join(' + '),
+  ]
+    .filter((part): part is string => part !== null)
+    .join(' · ');
 
   /*
    * Which badge, and why it is one field rather than two.
