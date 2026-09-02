@@ -180,9 +180,18 @@
   aspect-ratio: 4 / 3;
 }
 
+/*
+ * Straddles the seam between the art and the body, at every card width — the
+ * card is fluid (1 column under 340px, 2 above), so the image's height moves
+ * with it and a fixed offset from the card's own top would only land on the
+ * seam at one specific width. Anchored to the art's bottom edge instead:
+ * `bottom` is negative by the badge's own font-size, so roughly half the
+ * badge sits on the photo and half on the text underneath, regardless of how
+ * tall the image actually rendered.
+ */
 .game-card__badge {
   position: absolute;
-  top: var(--space-2);
+  bottom: -0.6875rem;
   right: var(--space-2);
   padding: 0.15rem var(--space-2);
   border-radius: 999px;
