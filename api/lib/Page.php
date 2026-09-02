@@ -92,10 +92,15 @@ final class Page
      * reasoning `Flags::gameOfWeek()` itself is written that way: a test has to be able
      * to ask "what does the grid look like in week 1" without waiting for it.
      *
-     * No `GRID_SPACER` between `pinned` and `fresh` specifically: hot/week and NEW are
-     * both "look at this one" tiers, and a rule between them read as a boundary that
-     * was not there for any other adjacent pair (`HubGrid.tsx` carries the identical
-     * exception).
+     * No `GRID_SPACER` between `pinned` and `fresh` specifically, nor between `random`
+     * and whatever tier follows it: hot/week and NEW are both "look at this one"
+     * tiers, and a rule between them read as a boundary that was not there for any
+     * other adjacent pair; Random Game is chrome, not a tier of games, so nothing
+     * separates it from the section under it (`HubGrid.tsx` carries both exceptions).
+     *
+     * A live game an operator has flagged `soon` is moved out of pinned/fresh/rest
+     * and appended to `$soonOrder`, exactly like `HubGrid.tsx`'s own `demoted` — see
+     * that function's doc comment for why.
      *
      * @param array<string, array<string, string>> $cards
      * @param array<string, array<string, mixed>> $flags
@@ -109,15 +114,32 @@ final class Page
         $week = Flags::gameOfWeek($weekOrder, $now ?? time());
         $sections = Flags::hubSections($weekOrder, $flags, $hot, $week);
 
+        // Any live game flagged `soon` moves out of its section and joins the bottom,
+        // after $soonOrder's own build-time games — mirrors HubGrid.tsx's `demoted`.
+        $demoted = [];
+        $keep = static function (array $slugs) use ($flags, &$demoted): array {
+            return array_values(array_filter($slugs, static function (string $slug) use ($flags, &$demoted): bool {
+                if (($flags[$slug]['state'] ?? Flags::ACTIVE) !== Flags::SOON) {
+                    return true;
+                }
+                $demoted[] = $slug;
+                return false;
+            }));
+        };
+        $pinnedLive = $keep($sections['pinned']);
+        $freshLive = $keep($sections['fresh']);
+        $restLive = $keep($sections['rest']);
+        $soonAll = array_merge($soonOrder, $demoted);
+
         $randomGameLive = isset($cards[self::RANDOM_GAME_SLUG]) && !in_array(self::RANDOM_GAME_SLUG, $soonOrder, true);
 
         $tiers = array_values(array_filter(
             [
                 ['key' => 'random', 'slugs' => $randomGameLive ? [self::RANDOM_GAME_SLUG] : []],
-                ['key' => 'pinned', 'slugs' => $sections['pinned']],
-                ['key' => 'fresh', 'slugs' => $sections['fresh']],
-                ['key' => 'rest', 'slugs' => $sections['rest']],
-                ['key' => 'soon', 'slugs' => $soonOrder],
+                ['key' => 'pinned', 'slugs' => $pinnedLive],
+                ['key' => 'fresh', 'slugs' => $freshLive],
+                ['key' => 'rest', 'slugs' => $restLive],
+                ['key' => 'soon', 'slugs' => $soonAll],
             ],
             static fn (array $tier): bool => count($tier['slugs']) > 0,
         ));
@@ -125,8 +147,11 @@ final class Page
         $out = '';
         foreach ($tiers as $index => $tier) {
             $previous = $tiers[$index - 1] ?? null;
-            // The one adjacency with no spacer: hot/week leading straight into NEW.
-            if ($index > 0 && !($tier['key'] === 'fresh' && $previous !== null && $previous['key'] === 'pinned')) {
+            // The two adjacencies with no spacer: Random Game leading into anything,
+            // and hot/week leading straight into NEW.
+            $afterRandom = $previous !== null && $previous['key'] === 'random';
+            $freshAfterPinned = $tier['key'] === 'fresh' && $previous !== null && $previous['key'] === 'pinned';
+            if ($index > 0 && !$afterRandom && !$freshAfterPinned) {
                 $out .= self::GRID_SPACER;
             }
 

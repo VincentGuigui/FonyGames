@@ -44,11 +44,19 @@ play something in under ten seconds.
   is excluded from the pool the other tiers sort from — it never opens a room, so
   it can never earn HOT, and leaving it in the rotation would occasionally hand it
   the WEEK spotlight by chance, at a real game's expense. A thin divider
-  (`.hub__spacer`) separates each pair of non-empty tiers, **except pinned→fresh**:
-  hot/week and NEW are both "look at this one" tiers, and a rule between them read
-  as a boundary that was not there for any
-  other adjacent pair. There is never a dangling divider at the very top or
-  bottom either.
+  (`.hub__spacer`) separates each pair of non-empty tiers, **except pinned→fresh
+  and Surprise Me→anything**: hot/week and NEW are both "look at this one" tiers,
+  and a rule between them read as a boundary that was not there for any other
+  adjacent pair; Surprise Me is chrome rather than a tier of games, so nothing
+  separates it from the section under it. There is never a dangling divider at
+  the very top or bottom either.
+- **A `live` game an operator flags `soon` from the admin centre also trails
+  behind everything**, exactly like a built-in `soon` game — moved out of
+  whichever of pinned/fresh/rest its alphabetical slot would have put it in and
+  appended after the curated `soon` order. It already renders unplayable with
+  the same badge as a not-yet-live game ([backoffice.md](backoffice.md) §2b); the
+  one thing that used to differ was its position, and a caveat card belongs with
+  the other caveat cards rather than wherever the alphabet happened to leave it.
 - **The week's own game and the most-played game are pinned at the top, week
   first.** Popularity and the calendar are the two signals allowed to move a
   card off its alphabetical position; a shelf sorted entirely by popularity
@@ -89,7 +97,12 @@ play something in under ten seconds.
   to keep client and server in step on. The trailing `soon` tier is a separate
   list (`soonOrder()` in `scripts/ssr.mjs`, the `soon`-status games in
   `HubGrid.tsx`) appended verbatim after it: a `soon` card cannot be hot,
-  spotlighted, or NEW, so it plays no part in that sort at all.
+  spotlighted, or NEW, so it plays no part in that sort at all. A runtime
+  `soon` flag on a `live` game is not part of `hubSections()` either — it is
+  pulled out of whichever of pinned/fresh/rest that function returned, and
+  appended to the `soon` list, at grid-assembly time in `HubGrid.tsx` and
+  `Page::grid()`, so `hubSections()`'s own contract and its tests stay about
+  build-time status alone.
 - **Runtime feature flags** can additionally badge a card NEW, grey it out, or
   hide it; see [backoffice.md](backoffice.md) §2b. They are a different axis from
   `status`, and the first paint is **already correct**: PHP applies them while
