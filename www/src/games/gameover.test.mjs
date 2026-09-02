@@ -33,11 +33,19 @@ function check(what, ok, detail) {
   console.log(`  FAIL ${what}${detail === undefined ? '' : ` ${JSON.stringify(detail)}`}`);
 }
 
-/** Every game folder that has a card marked `live` — the ones a player can finish. */
+/**
+ * Every game folder that has a card marked `live` — the ones a player can finish.
+ *
+ * `random-game` is excluded: its card is `live` so it is tappable from the hub, but it
+ * is not a game with a round to finish — it is a redirector (`www/src/random-game.tsx`,
+ * outside this folder entirely) that lands the player on a genuinely random *other*
+ * live game, which is the thing that actually ends on `GameOverScreen`.
+ */
 function liveGames() {
   return readdirSync(here, { withFileTypes: true })
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
+    .filter((slug) => slug !== 'random-game')
     .filter((slug) => {
       try {
         return /status:\s*'live'/.test(readFileSync(join(here, slug, 'card.ts'), 'utf8'));

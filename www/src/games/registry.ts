@@ -1,3 +1,4 @@
+import { CARD as RANDOM_GAME_CARD } from './random-game/card';
 import { CARD as TAP_DUEL_CARD } from './tap-duel/card';
 import { CARD as TAP_FIGHTER_CARD } from './tap-fighter/card';
 import { CARD as SPILL_CARD } from './spill/card';
@@ -6,12 +7,8 @@ import { CARD as SLING_PUCK_CARD } from './sling-puck/card';
 import { CARD as BUMP_RELAY_CARD } from './pass-the-bomb/card';
 import { CARD as CAT_AND_MOUSE_CARD } from './cat-and-mouse/card';
 import { CARD as SHAKE_SPRINT_CARD } from './shake-rush/card';
-import { CARD as TILT_ARENA_CARD } from './tilt-arena/card';
 import { CARD as STEADY_HAND_CARD } from './steady-hand/card';
-import { CARD as GHOST_TAG_CARD } from './ghost-tag/card';
-import { CARD as ZONE_RUSH_CARD } from './zone-rush/card';
 import { CARD as COMPASS_HUNT_CARD } from './ghost-hunt/card';
-import { CARD as SCREAM_METER_CARD } from './scream-meter/card';
 import { CARD as GRID_ATTACK_CARD } from './grid-attack/card';
 import { CARD as SQUASH_MOSQUITOES_CARD } from './squash-mosquitoes/card';
 import { CARD as NEON_FALL_CARD } from './neon-fall/card';
@@ -38,6 +35,7 @@ import type { GameCard } from '../core/types';
  * below, which docs/specs/hub.md §2 requires.
  */
 export const GAMES: GameCard[] = [
+  RANDOM_GAME_CARD,
   TAP_DUEL_CARD,
   TAP_FIGHTER_CARD,
   SPILL_CARD,
@@ -46,10 +44,7 @@ export const GAMES: GameCard[] = [
   SLING_PUCK_CARD,
   CAT_AND_MOUSE_CARD,
   SHAKE_SPRINT_CARD,
-  TILT_ARENA_CARD,
   STEADY_HAND_CARD,
-  GHOST_TAG_CARD,
-  ZONE_RUSH_CARD,
   COMPASS_HUNT_CARD,
   GRID_ATTACK_CARD,
   SQUASH_MOSQUITOES_CARD,
@@ -61,7 +56,6 @@ export const GAMES: GameCard[] = [
   ALIENS_LOVE_COWS_CARD,
   TILES_SURFER_CARD,
   GRAVITY_SHOOTER_CARD,
-  SCREAM_METER_CARD,
 ];
 
 /** Display order by status. One entry per value of `GameCard['status']`. */

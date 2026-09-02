@@ -79,6 +79,7 @@ Index: **[docs/specs/README.md](docs/specs/README.md)**
 
 | Game | Pitch | Main input | State |
 | --- | --- | --- | --- |
+| **Random game** | *Can't decide? Let the dice choose for you.* | Touch | 🎮 built — picks any built game at random |
 | **[Tap Duel](docs/specs/games/tap-duel.md)** | *The fastest thumb in the room takes the round.* | Touch | 🎮 `pistol` playable |
 | **[Spill](docs/specs/games/spill.md)** | *Fling your water at the neighbours before they flood you.* | Touch | 🎮 playable, beta |
 | **[Pass the Bomb](docs/specs/games/pass-the-bomb.md)** | *Smash phones together to pass the bomb before it blows.* | Bump / motion | 🎮 playable, beta |
@@ -86,12 +87,8 @@ Index: **[docs/specs/README.md](docs/specs/README.md)**
 | **[Sling Puck](docs/specs/games/sling-puck.md)** | *Sling every puck onto their side before they sling them back.* | Touch | 🎮 playable, beta |
 | **[Cat and Mouse](docs/specs/games/cat-and-mouse.md)** | *One cat, a floor full of mice, and nowhere to hide.* | Touch | ✅ built, beta |
 | **[Shake Rush](docs/specs/games/shake-rush.md)** | *Shake like your life depends on it — first to the finish wins.* | Motion | 🎮 playable, beta |
-| **Tilt Arena** | *Tilt to steer, crash to win.* | Orientation | 💡 idea |
 | **[Steady Hand](docs/specs/games/steady-hand.md)** | *Hold your phone perfectly still. Longer than everyone else.* | Motion | 🎮 playable, beta |
-| **Ghost Tag** | *One ghost, a whole neighbourhood, and a map that only whispers.* | GPS | 💡 idea |
-| **Zone Rush** | *Claim real streets by standing on them longer than your rivals.* | GPS | 💡 idea |
 | **[Ghost Hunt](docs/specs/games/ghost-hunt.md)** | *Sweep the room for ghosts only your phone can see.* | Tilt + camera | 🎮 playable, beta |
-| **Scream Meter** | *Loudest wins. Your neighbours will not be thanked.* | Microphone | 💡 idea |
 
 Full index and status: [docs/specs/README.md](docs/specs/README.md).
 

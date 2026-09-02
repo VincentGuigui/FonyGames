@@ -24,6 +24,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         hub: 'www/index.html',
+        'random-game': 'www/random-game/index.html',
         'tap-duel': 'www/tap-duel/index.html',
         'tap-fighter': 'www/tap-fighter/index.html',
         spill: 'www/spill/index.html',

@@ -36,6 +36,7 @@ export type PlayerLimits = readonly [min: number, max: number];
  * fails `npm test`.
  */
 export const PLAYERS = {
+  'random-game': [1, 10],
   'tap-duel': [2, 8],
   'tap-fighter': [2, 2],
   spill: [2, 4],
@@ -44,13 +45,9 @@ export const PLAYERS = {
   'sling-puck': [2, 2],
   'cat-and-mouse': [2, 6],
   'shake-rush': [2, 8],
-  'tilt-arena': [2, 6],
   'steady-hand': [2, 8],
-  'ghost-tag': [3, 10],
-  'zone-rush': [2, 10],
   'ghost-hunt': [2, 10],
   'grid-attack': [2, 2],
-  'scream-meter': [2, 8],
   'squash-mosquitoes': [2, 8],
   'neon-fall': [2, 2],
   'tap-tap-music': [2, 8],
