@@ -3,7 +3,9 @@ import kick2Url from './art/kick2.mp3?url&no-inline';
 import impact1Url from './art/impact1.mp3?url&no-inline';
 import impact2Url from './art/impact2.mp3?url&no-inline';
 import avoidUrl from './art/avoid.mp3?url&no-inline';
-import musicUrl from './art/music.mp3?url&no-inline';
+import preparationMusicUrl from './art/bg_preparation.mp3?url&no-inline';
+import roundMusicUrl from './art/bg_round.mp3?url&no-inline';
+import lastRoundMusicUrl from './art/bg_last_round.mp3?url&no-inline';
 
 /**
  * Tap Fighter's per-beat sound effects: the attack swing, the hit landing, and a
@@ -46,7 +48,7 @@ export function prepareFighterSfx(): void {
     const current = audio();
     if (current?.state === 'suspended') void current.resume();
     if (current) for (const urls of Object.values(SOURCES)) for (const url of urls) void loadBuffer(current, url);
-    if (current) void loadBuffer(current, musicUrl);
+    if (current) for (const url of Object.values(MUSIC_URLS)) void loadBuffer(current, url);
   };
   document.addEventListener('pointerdown', arm, { passive: true });
   document.addEventListener('keydown', arm);
@@ -91,39 +93,76 @@ export function playFighterCue(cue: FighterCue): void {
 
 /* -------------------------------- match music -------------------------------- */
 
+/**
+ * Which of the three beds is playing. `preparation` covers the action-plan screen,
+ * `round` any ordinary round's fight, `lastRound` the round that ends the match —
+ * a 30s clip (once the real recording lands) that this module seeks into so it
+ * ends together with the round rather than looping or cutting off mid-phrase.
+ */
+export type MusicTrack = 'preparation' | 'round' | 'lastRound';
+
+const MUSIC_URLS: Record<MusicTrack, string> = {
+  preparation: preparationMusicUrl,
+  round: roundMusicUrl,
+  lastRound: lastRoundMusicUrl,
+};
+
 const MUSIC_GAIN = 0.35;
 const MUSIC_FADE_S = 0.6;
 
 let musicSource: AudioBufferSourceNode | null = null;
 let musicGain: GainNode | null = null;
+let currentTrack: MusicTrack | null = null;
+// Bumped on every start/stop so a decode that resolves after the request it was
+// for has since been superseded knows to give up instead of starting stale audio.
+let musicGeneration = 0;
 
 /**
- * Starts the match's own loop. A no-op while already playing, so calling it again
- * on every round's `phase` change (planning → fighting → round-over → …) just lets
- * the same loop keep going instead of restarting it beat to beat.
+ * Starts one of the three match beds. A no-op while that same track is already
+ * playing, so calling it again on every round's `phase`/`roundId` change just
+ * lets the current loop keep going instead of restarting it beat to beat.
+ *
+ * `fitDurationSeconds`, `lastRound` only: the round's own real-time length (known
+ * the instant it starts fighting, from `state.endsAt - state.startsAt`). The clip
+ * is seeked to `duration - fitDurationSeconds` so its last `fitDurationSeconds`
+ * play out and its own end lines up with the round's end — no fade or cut needed.
+ * This is not synced to the game's server clock beyond that seek: a few hundred
+ * milliseconds of drift in exactly where a background loop ends is not worth the
+ * extra complexity here.
  */
-export function startFighterMusic(): void {
-  if (musicSource) return;
+export function startFighterMusic(track: MusicTrack, fitDurationSeconds?: number): void {
+  if (musicSource && currentTrack === track) return;
+  stopFighterMusic();
   const current = audio();
   if (!current || current.state !== 'running') return;
-  void loadBuffer(current, musicUrl).then((buffer) => {
-    if (!buffer || musicSource) return; // stopped, or started again, while this decoded
+  const generation = ++musicGeneration;
+  const url = MUSIC_URLS[track];
+  void loadBuffer(current, url).then((buffer) => {
+    if (!buffer || generation !== musicGeneration) return; // superseded while this decoded
     const source = current.createBufferSource();
     source.buffer = buffer;
-    source.loop = true;
+    source.loop = track !== 'lastRound';
     const gain = current.createGain();
     gain.gain.setValueAtTime(0, current.currentTime);
     gain.gain.linearRampToValueAtTime(MUSIC_GAIN, current.currentTime + MUSIC_FADE_S);
     source.connect(gain);
     gain.connect(current.destination);
-    source.start();
+    if (track === 'lastRound') {
+      const offset = Math.max(0, buffer.duration - (fitDurationSeconds ?? 0));
+      source.start(0, offset);
+    } else {
+      source.start();
+    }
     musicSource = source;
     musicGain = gain;
+    currentTrack = track;
   });
 }
 
-/** Stops the match loop — a fade rather than a hard cut, which would otherwise click. */
+/** Stops the current bed — a fade rather than a hard cut, which would otherwise click. */
 export function stopFighterMusic(): void {
+  musicGeneration += 1;
+  currentTrack = null;
   if (!musicSource || !musicGain) return;
   const source = musicSource;
   const gain = musicGain;

@@ -65,16 +65,25 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
   const start = () => client?.send({ t: 'start', d: { mode: 'fighter', solo } });
   useEffect(() => { prepareFighterSfx(); }, []);
   /**
-   * The match's own loop plays for as long as a match is in progress — planning
-   * through round-over, across every round — and fades out the moment the match
-   * ends or this phone leaves the room. `startFighterMusic` is a no-op while
-   * already playing, so this firing again on every round's phase change just
-   * lets the same loop keep going rather than restarting it beat to beat.
+   * Three beds, one per phase: `preparation` under the action plan, `round` under
+   * an ordinary fight, `lastRound` under the round that ends the match — fading out
+   * the moment the match ends or this phone leaves the room. `state.matchWinner` is
+   * already known the instant `fighting` starts (the worker settles it the moment
+   * both plans lock, before either phone has watched a beat), the same "referee
+   * resolves before the animation plays" fact `displayedWins` below relies on — so
+   * it doubles as "this fight is the last one" without any extra server state.
+   * `startFighterMusic` is a no-op while the requested track is already playing, so
+   * this firing again on every round's phase/round change just lets it keep going.
    */
   useEffect(() => {
     if (!state || state.phase === 'match-over') { stopFighterMusic(); return; }
-    startFighterMusic();
-  }, [state?.phase]);
+    if (state.phase === 'planning') { startFighterMusic('preparation'); return; }
+    if (state.matchWinner !== null) {
+      startFighterMusic('lastRound', (state.endsAt - state.startsAt) / 1000);
+    } else {
+      startFighterMusic('round');
+    }
+  }, [state?.phase, state?.roundId]);
   useEffect(() => () => stopFighterMusic(), []);
 
   if (!state) {
