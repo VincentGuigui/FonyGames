@@ -21,16 +21,13 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 
 | Game | Catchy sentence | Input | Players | Status |
 | --- | --- | --- | --- | --- |
+| Random game | *Can't decide? Let the dice choose for you* | touch | 1–10 | 🎮 built — a redirector, not a spec'd game; picks any built game at random |
 | [Pass the Bomb](games/pass-the-bomb.md) | *Smash phones together to pass the bomb before it blows* | bump / motion | 3–8 | 🎮 beta — untested on real phones bumping |
 | [Shake Rush](games/shake-rush.md) | *Shake like your life depends on it — first to the finish wins* | motion | 2–8 | 🎮 beta — distance and threshold untested on real arms |
-| Tilt Arena | *Tilt to steer, crash to win* | orientation | 2–6 | 💡 idea |
 | [Steady Hand](games/steady-hand.md) | *Hold your phone perfectly still. Longer than everyone else* | motion | 2–8 | 🎮 beta — tolerance curve untested on real hands |
 | [Tap Duel](games/tap-duel.md) | *The fastest thumb in the room takes the round* | touch | 2–8 | 🎮 `pistol` live · `sprint`/`simon` to come |
 | [Tap Fighter](games/tap-fighter.md) | *Pick six moves, then watch the fight unfold* | touch | 2 | 🎮 beta — balance and animation timing untested on two real phones |
-| Ghost Tag | *One ghost, a whole neighbourhood, and a map that only whispers* | GPS | 3–10 | 💡 idea — **name clashes with Ghost Hunt** |
-| Zone Rush | *Claim real streets by standing on them longer than your rivals* | GPS | 2–10 | 💡 idea |
-| [Ghost Hunt](games/ghost-hunt.md) | *Sweep the room for ghosts only your phone can see* | orientation + camera | 2–10 | 🎮 beta — cone and dwell untested in a real room; **name still clashes with Ghost Tag** |
-| Scream Meter | *Loudest wins. Your neighbours will not be thanked* | mic | 2–8 | 💡 idea |
+| [Ghost Hunt](games/ghost-hunt.md) | *Sweep the room for ghosts only your phone can see* | orientation + camera | 2–10 | 🎮 beta — cone and dwell untested in a real room |
 | [Spill](games/spill.md) | *Fling your water at the neighbours before they flood you* | touch | 2–4 | 🎮 `ring` beta — numbers untested on a real table |
 | [Goat Siege](games/goat-siege.md) | *Shoo the neighbours' goats before they eat your cabbages* | touch | 2–4 | 🎮 beta — balance untested |
 | [Sling Puck](games/sling-puck.md) | *Sling every puck onto their side before they sling them back* | touch | 2 | 🎮 `classic` beta — puck count and gap width untested |
@@ -48,16 +45,8 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 
 ### Idea notes (not yet specs)
 
-- **Tilt Arena** — sumo/bumper-car arena on a shared board, phone tilt = thrust;
-  modes: last-one-standing, football, king-of-the-hill.
 - **Tap Duel** — reaction and rhythm duels; modes: pistol duel (tap on the
   signal, false start = loss), tap sprint, Simon-style sequence.
-- **Ghost Tag** — one hidden player, others hunt with distance-only hints;
-  contact confirmed by bump; modes: classic tag, hot/cold, blackout.
-- **Zone Rush** — the map is split into cells; standing in a cell claims it over
-  time; modes: territory, capture-the-flag, walk-the-most-cells.
-- **Scream Meter** — mic level battles; modes: loudest, longest note, quietest
-  (whisper duel), choir (team sync).
 - **Spill** — phones flat in a ring; flick your water onto a neighbour's phone,
   aiming by their real position on the table. Empty to win, 40 drops to lose.
   Rendering is split behind a `Theme` interface, with water the one look shipped.

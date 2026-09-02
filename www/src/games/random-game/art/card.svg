@@ -1,0 +1,257 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="90" viewBox="0 0 120 90">
+  <rect x="0" y="0" width="40" height="30" fill="#67E8F9" opacity="0.16"/>
+  <g opacity="0.4" transform="translate(0.000 0.000) scale(0.3333)"><rect width="120" height="90" rx="12" fill="#102333"/><g stroke="#67e8f9" stroke-width="2" fill="none"><path d="M24 15h72v60H24zM48 15v60M72 15v60M24 35h72M24 55h72"/><path d="M32 22l8 8m0-8-8 8M80 42l8 8m0-8-8 8" stroke="#fbbf24"/></g></g>
+  <rect x="40" y="0" width="40" height="30" fill="#4ADE80" opacity="0.16"/>
+  <g opacity="0.4" transform="translate(40.000 0.000) scale(0.3333)">
+  <!--
+    Shake Rush — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <g transform="rotate(0 60 45)"><rect x="49" y="26" width="22" height="38" rx="5" fill="#10121a" stroke="#4ADE80" stroke-width="3"/></g>
+  <g stroke="#4ADE80" stroke-width="4" stroke-linecap="round">
+    <path d="M34 38 L26 38"/><path d="M34 50 L22 50"/>
+    <path d="M86 38 L94 38"/><path d="M86 50 L98 50"/>
+  </g>
+</g>
+  <rect x="80" y="0" width="40" height="30" fill="#C084FC" opacity="0.16"/>
+  <g opacity="0.4" transform="translate(80.000 0.000) scale(0.3333)">
+  <!--
+    Steady Hand — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <g transform="rotate(0 60 43)"><rect x="49" y="24" width="22" height="38" rx="5" fill="#10121a" stroke="#C084FC" stroke-width="3"/></g>
+  <circle cx="60" cy="43" r="13" fill="none" stroke="#C084FC" stroke-width="3"/>
+  <circle cx="60" cy="43" r="4" fill="#C084FC"/>
+  <path d="M40 74 h40" stroke="#C084FC" stroke-width="4" stroke-linecap="round"/>
+</g>
+  <rect x="0" y="30" width="40" height="30" fill="#FF5A36" opacity="0.16"/>
+  <g opacity="0.4" transform="translate(0.000 30.000) scale(0.3333)">
+  <!--
+    Pass the Bomb — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <g transform="rotate(-14 37 45)"><rect x="26" y="26" width="22" height="38" rx="5" fill="#10121a" stroke="#FF5A36" stroke-width="3"/></g>
+  <g transform="rotate(14 83 45)"><rect x="72" y="26" width="22" height="38" rx="5" fill="#10121a" stroke="#FF5A36" stroke-width="3"/></g>
+  <g stroke="#FF5A36" stroke-width="4" stroke-linecap="round">
+    <path d="M60 30 L60 22"/><path d="M52 36 L45 31"/><path d="M68 36 L75 31"/>
+  </g>
+  <circle cx="60" cy="46" r="7" fill="#FF5A36"/>
+</g>
+  <rect x="40" y="30" width="40" height="30" fill="#F0ABFC" opacity="0.16"/>
+  <g opacity="0.4" transform="translate(40.000 30.000) scale(0.3333)">
+  <!--
+    Tiles Surfer — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <g stroke="#F0ABFC" stroke-width="1" opacity="0.22">
+    <line x1="24" y1="4" x2="24" y2="86"/>
+    <line x1="48" y1="4" x2="48" y2="86"/>
+    <line x1="72" y1="4" x2="72" y2="86"/>
+    <line x1="96" y1="4" x2="96" y2="86"/>
+  </g>
+  <rect x="46" y="16" width="20" height="36" rx="3" fill="#F0ABFC" opacity="0.18"/>
+  <rect x="49" y="19" width="14" height="30" rx="2" fill="#F0ABFC"/>
+  <rect x="0" y="74" width="120" height="2.5" fill="#F0ABFC" opacity="0.3"/>
+  <rect x="0" y="75" width="120" height="1" fill="#F0ABFC"/>
+</g>
+  <rect x="80" y="30" width="40" height="30" fill="#22D3EE" opacity="0.16"/>
+  <g opacity="0.4" transform="translate(80.000 30.000) scale(0.3333)">
+  <!--
+    Neon Fall — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <circle cx="22" cy="16" r="1.4" fill="#22D3EE" opacity="0.5"/>
+  <circle cx="96" cy="12" r="1.1" fill="#22D3EE" opacity="0.4"/>
+  <circle cx="80" cy="24" r="1.4" fill="#22D3EE" opacity="0.5"/>
+  <circle cx="34" cy="70" r="1.1" fill="#22D3EE" opacity="0.35"/>
+  <g transform="translate(60 40) rotate(45)">
+    <rect x="-11" y="-11" width="22" height="22" fill="none" stroke="#22D3EE" stroke-width="3"/>
+  </g>
+  <g stroke="#F72585" stroke-width="3" stroke-linecap="round" fill="none">
+    <path d="M40 82 L34 66"/>
+    <path d="M80 82 L86 66"/>
+  </g>
+</g>
+  <rect x="0" y="60" width="40" height="30" fill="#FFC93C" opacity="0.16"/>
+  <g opacity="0.4" transform="translate(0.000 60.000) scale(0.3333)">
+  <!--
+    Tap Duel — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <!-- A phone with the target inside it and nothing else: the finger that was
+       here read as clutter at 160 px, and the target belongs on a screen. -->
+  <g transform="rotate(0 59.9 45.1)"><rect x="39" y="9" width="41.8" height="72.2" rx="9.5" fill="#10121a" stroke="#FFC93C" stroke-width="3"/></g>
+  <!-- Rings outside in, in the archery colours the board uses. -->
+  <circle cx="60" cy="45" r="15" fill="#f4f1e8"/>
+  <circle cx="60" cy="45" r="11.6" fill="#14161c"/>
+  <circle cx="60" cy="45" r="8.2" fill="#1f6feb"/>
+  <circle cx="60" cy="45" r="5" fill="#d92d20"/>
+  <circle cx="60" cy="45" r="2.3" fill="#f5c518"/>
+</g>
+  <rect x="40" y="60" width="40" height="30" fill="#C084FC" opacity="0.16"/>
+  <g opacity="0.4" transform="translate(40.000 60.000) scale(0.3333)">
+  <!--
+    Cat And Mouse — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <!-- A cat lunging left to right with mice scattering ahead of it. Filled
+       silhouettes rather than outlines, matching the goat (ui-guidelines §6). -->
+  <g fill="#C084FC">
+    <ellipse cx="34" cy="52" rx="22" ry="13"/>
+    <circle cx="52" cy="40" r="11"/>
+    <path d="M44 33 L45 21 L53 30 Z"/>
+    <path d="M56 30 L62 20 L63 32 Z"/>
+    <path d="M13 45 Q4 34 12 26 L16 30 Q11 36 18 43 Z"/>
+    <!-- Legs, mid-stride. -->
+    <rect x="22" y="60" width="5" height="13" rx="2.5"/>
+    <rect x="42" y="60" width="5" height="13" rx="2.5"/>
+  </g>
+  <circle cx="56" cy="38" r="2" fill="#10121a"/>
+  <!-- Two mice running for it, smaller and rounder: silhouette, not hue. -->
+  <g transform="translate(82 40) scale(1)" fill="#C084FC"><ellipse rx="9" ry="6.5"/><circle cx="8" cy="-3" r="4.5"/><circle cx="-1" cy="-6" r="3.5"/><path d="M-8 1 Q-17 3 -15 -4" fill="none" stroke="#C084FC" stroke-width="2"/></g>
+  <g transform="translate(100 60) scale(0.82)" fill="#C084FC"><ellipse rx="9" ry="6.5"/><circle cx="8" cy="-3" r="4.5"/><circle cx="-1" cy="-6" r="3.5"/><path d="M-8 1 Q-17 3 -15 -4" fill="none" stroke="#C084FC" stroke-width="2"/></g>
+</g>
+  <rect x="80" y="60" width="40" height="30" fill="#818CF8" opacity="0.16"/>
+  <g opacity="0.4" transform="translate(80.000 60.000) scale(0.3333)">
+  <!--
+    Gravity Shooter — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    Transparent: the accent tint behind it is painted by CSS, so it is both the
+    placeholder before this file loads and the backdrop after.
+
+    Colours are literal hexes on purpose. This is loaded through an img element,
+    which is a separate document with no access to the page's CSS: a currentColor
+    fill would render black on a dark card, and a CSS variable would make the shape
+    vanish entirely.
+
+    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
+    doubled hyphen inside a comment is illegal and silently kills the whole file.
+  -->
+  <circle cx="66" cy="46" r="16" fill="#818CF8" opacity="0.22"/>
+  <circle cx="66" cy="46" r="16" fill="none" stroke="#818CF8" stroke-width="1.5" opacity="0.5"/>
+  <circle cx="60" cy="41" r="3.4" fill="#818CF8" opacity="0.35"/>
+  <circle cx="72" cy="52" r="2.2" fill="#818CF8" opacity="0.3"/>
+
+  <!-- The missile's own curving trail, bending hard around the planet. -->
+  <path d="M18 78 C 34 66, 40 54, 52 60 S 78 34, 92 16"
+        fill="none" stroke="#818CF8" stroke-width="1.6" stroke-dasharray="3 3" opacity="0.75"/>
+
+  <!-- The missile itself, mid-flight past the planet. -->
+  <g transform="translate(60,58) rotate(35)">
+    <rect x="-2.4" y="-6.5" width="4.8" height="13" rx="2.2" fill="#818CF8"/>
+  </g>
+
+  <!-- The distant starship, dome up, waiting at the far end of the shot. -->
+  <path d="M84 16 a8 8 0 0 1 16 0 z" fill="#818CF8"/>
+  <rect x="82" y="16" width="20" height="2.4" rx="1" fill="#818CF8" opacity="0.7"/>
+
+  <!-- The shooter's own ship, bottom left, where the shot started. -->
+  <path d="M10 84 a8 8 0 0 1 16 0 z" fill="#818CF8" opacity="0.85"/>
+  <rect x="8" y="84" width="20" height="2.4" rx="1" fill="#818CF8" opacity="0.6"/>
+</g>
+
+  <!-- top face: a diamond -->
+  <polygon points="60,18 86,32 60,46 34,32" fill="#f3e9d2" stroke="#2a2438" stroke-width="2.6" stroke-linejoin="round"/>
+  <!-- left face -->
+  <polygon points="34,32 60,46 60,78 34,64" fill="#c9ad84" stroke="#2a2438" stroke-width="2.6" stroke-linejoin="round"/>
+  <!-- right face -->
+  <polygon points="86,32 60,46 60,78 86,64" fill="#a98c63" stroke="#2a2438" stroke-width="2.6" stroke-linejoin="round"/>
+  <!-- five pips on top, quincunx -->
+  <g fill="#2a2438">
+    <circle cx="60" cy="32" r="2.6"/>
+    <circle cx="50" cy="27" r="2.6"/>
+    <circle cx="70" cy="27" r="2.6"/>
+    <circle cx="50" cy="37" r="2.6"/>
+    <circle cx="70" cy="37" r="2.6"/>
+  </g>
+  <!-- two pips on the left face -->
+  <g fill="#2a2438">
+    <circle cx="42" cy="42" r="2.4"/>
+    <circle cx="52" cy="60" r="2.4"/>
+  </g>
+  <!-- three pips on the right face -->
+  <g fill="#2a2438">
+    <circle cx="68" cy="42" r="2.4"/>
+    <circle cx="73" cy="53" r="2.4"/>
+    <circle cx="78" cy="64" r="2.4"/>
+  </g>
+
+</svg>

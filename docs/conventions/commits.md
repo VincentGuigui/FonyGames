@@ -22,7 +22,7 @@ in the same commit or in an adjacent `docs:` commit — never be forgotten.
 | Type | Use it for | Example |
 | --- | --- | --- |
 | `feat` | New user-facing capability that isn't a whole game | `feat: add room code sharing via QR` |
-| `game` | Adding or changing a game's playable content | `game(tilt-arena): add sudden-death mode` |
+| `game` | Adding or changing a game's playable content | `game(pass-the-bomb): add sudden-death mode` |
 | `ui` | Visual / layout / interaction work, no logic change | `ui: make hub cards thumb-reachable` |
 | `spec` | Writing or amending a specification in `docs/specs` | `spec: add Pass the Bomb game spec` |
 | `docs` | Any other documentation | `docs: define commit convention` |

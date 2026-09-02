@@ -15,11 +15,6 @@
 > played standing in one spot. It is **not called Compass Hunt any more because it
 > never reads a compass** (§3) — a name promising a sensor the game deliberately
 > avoids is a lie told on the card.
->
-> **Name collision to resolve:** the catalogue already has **Ghost Tag** (a GPS
-> hide-and-seek idea). Two "Ghost" games is one too many — either this becomes
-> *Ghost Radar* / *Spectre* / *Cold Spot*, or Ghost Tag is renamed. Flagged, not
-> decided. *Ghost Radar* has got stronger since the dial became the whole interface.
 
 | | |
 | --- | --- |
@@ -645,8 +640,6 @@ game (§5.3).
 - **Does the dial need to show the whole 40° it covers, or should the ghost be drawn
   larger as it nears the middle?** Right now it is flat: a ghost at the rim and one in
   the centre are the same size, which is honest and possibly dull.
-- **The name.** *Ghost Hunt* collides with *Ghost Tag* already in the catalogue.
-  One of the two has to move.
 - **Which photosphere?** It must be a place rather than a room, and it is the
   heaviest asset in the project (§5.4).
 - Should a found ghost stay visible as a mark on the sphere, filling in over the
