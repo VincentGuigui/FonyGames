@@ -193,7 +193,7 @@ decides what that is worth.
 
 **Batched, not per shake.** At 5 shakes a second across 8 players a
 frame-per-shake is 40 messages/s for a progress bar nobody reads that precisely.
-The phone sends its count on a **150 ms** tick, the server integrates, and
+The phone sends its count on a **250 ms** tick, the server integrates, and
 broadcasts on its own **~10 Hz** tick. Under
 [realtime-server.md](../../realtime-server.md)'s Profile B, this is well inside
 budget.
@@ -203,6 +203,12 @@ contained accelerometer samples. A window with none has a count of zero, which i
 indistinguishable from "did not shake" — and sending it would keep a backgrounded
 or sensor-less runner from ever being marked `away` (§7). Steady Hand learnt this
 the hard way; see steady-hand.md §6.
+
+**The last window is flushed, not dropped.** Crossing the line, the race ending
+or motion turning off mid-round all stop the tick before it next fires — the
+shakes counted since the previous frame would otherwise sit in the detector and
+never reach the server. The client reads and sends that final partial window
+once, right there, instead of waiting on a tick that will not come.
 
 **The broadcast deadline is a stored moment**, not "now plus a tick": Room's one
 alarm slot decides which game woke it by comparing the clock against that number,
@@ -229,9 +235,9 @@ the other two leave open. All three are pinned by `worker/shakeRush.test.ts`.
 
 - **The frame cap.** A batch is clipped to `SHAKE_RATE_CAP × elapsed`, plus one
   shake of slack so a frame that lands early does not clip an honest player.
-  Reporting 500 shakes in one 150 ms frame advances you by 2.
+  Reporting 500 shakes in one 250 ms frame advances you by 3.
 - **The trajectory cap** (`reachableBy`). The frame cap's slack is *per frame*,
-  so at a 150 ms tick a client claiming the maximum every time banks 13 shakes a
+  so at a 250 ms tick a client claiming the maximum every time banks 12 shakes a
   second against a cap of 8 — a third off the race, just by sending more frames.
   Bounding the *position* by the elapsed round time makes the slack a constant
   rather than a rate, and splitting a lie across frames stops paying.

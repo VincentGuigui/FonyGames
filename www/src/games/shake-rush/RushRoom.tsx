@@ -127,6 +127,12 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     return () => {
       clearInterval(timer);
       detector.stop();
+      // The window in progress when the race ends for this phone — crossing the
+      // line, the round ending, or motion turning off mid-race — is otherwise lost:
+      // it sits in the detector until the next tick, and there is no next tick.
+      const c = clientRef.current;
+      const { n, samples } = detector.read();
+      if (c && samples > 0) c.send({ t: 'shake', d: { n, roundId: roundRef.current } });
     };
   }, [motionOn, running, home]);
 

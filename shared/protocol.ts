@@ -1743,7 +1743,7 @@ export const SHAKE_THRESHOLD = 14;
 export const SHAKE_REFRACTORY_MS = 90;
 
 /** How often a phone reports its count. Batched, not one message per shake. */
-export const RUSH_TICK_MS = 150;
+export const RUSH_TICK_MS = 250;
 
 /** The server's own broadcast tick, ~10 Hz. */
 export const RUSH_BROADCAST_MS = 100;
