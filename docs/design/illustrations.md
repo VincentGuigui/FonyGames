@@ -188,15 +188,24 @@ Tap Fighter's two runtime sprite sheets are authored PNGs: `fighter1.png` and
 `fighter2.png`. Each is a transparent 4×2 grid of 256 px frames; the second sheet
 is already mirrored, so the canvas and CSS use it directly without runtime transforms.
 
-**Tap Fighter's hub card is one exception to "cards are pure vector," and Aliens
-love cows' is the second.** Every other card redraws its sprite's shape as fresh
-paths (this section's Goat Siege/Sling Puck/Spill examples); Tap Fighter's
-`card.svg` instead embeds base64 crops of the actual `fighter1.png`/`fighter2.png`
-frames, and Aliens love cows' embeds crops of its own `barn.png`/`cow.png` (the
-UFO, its cone, the stars and the ground stay fresh vector paths around them) —
-because a hand-drawn approximation of a detailed authored pixel-art sprite reads
-worse than the real thing at this size. Two things make either safe rather than a
-shortcut: a bare `<image href="./fighter1.png">` would 404 once Vite hashes the
+**Tap Fighter's hub card is one exception to "cards are pure vector," Aliens
+love cows' is the second, and Random Game's is the third.** Every other card
+redraws its sprite's shape as fresh paths (this section's Goat Siege/Sling
+Puck/Spill examples); Tap Fighter's `card.svg` instead embeds base64 crops of
+the actual `fighter1.png`/`fighter2.png` frames, Aliens love cows' embeds crops
+of its own `barn.png`/`cow.png` (the UFO, its cone, the stars and the ground
+stay fresh vector paths around them), and Random Game's embeds a downscaled
+crop of `art/src/dice.png` over a mosaic of nine other games' own card art
+(the mosaic tiles stay fresh — they are those games' real `card.svg` markup,
+not a redraw) — because a hand-drawn approximation of a detailed authored
+pixel-art subject reads worse than the real thing at this size. Random Game's
+is the one of the three that is **generated**, not hand-assembled:
+`www/src/games/random-game/generate-card.mjs` extracts the nine mosaic tiles
+and crops/embeds the die on every run, gated by a committed content-hash
+manifest (`art/.card-manifest.json`) the same way `og.mjs` guards its own
+derived PNGs — `npm run art:random-card` regenerates it, `npm test` fails if
+the committed file is stale. Two things make any of the three safe rather than
+a shortcut: a bare `<image href="./fighter1.png">` would 404 once Vite hashes the
 SVG and the PNG into `dist/assets/` under different names and does not rewrite
 hrefs inside `.svg` files, so the frame has to be a data URI; and the ≤ 40 KB
 budget still applies, met only by cropping each frame to its actual content
