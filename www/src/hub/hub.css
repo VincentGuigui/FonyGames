@@ -195,13 +195,21 @@
   right: var(--space-2);
   padding: 0.15rem var(--space-2);
   border-radius: 999px;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  color: var(--color-text-dim);
+  border: none;
   font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  /*
+   * Every state badge declares one `--badge-color` (below); the pill's own
+   * highlight-to-shadow gradient is computed from it here, once, so a new
+   * badge only ever has to pick a single color.
+   */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--badge-color) 70%, white),
+    color-mix(in srgb, var(--badge-color) 70%, black)
+  );
 }
 
 /*
@@ -213,23 +221,14 @@
  * build-time not-yet-live card — both are the same caveat to a player.
  */
 .game-card__badge--soon {
-  text-transform: none;
-  letter-spacing: normal;
-  font-weight: 600;
-  color: #ffd08a;
-  background: #4a3410;
-  border-color: transparent;
-  /* A reason can be a whole clause. Let it wrap rather than run off the card. */
-  max-width: calc(100% - var(--space-4));
-  white-space: normal;
-  text-align: right;
+  --badge-color: #d99a3f;
+  color: #2b1a04;
 }
 
 /* NEW is the one badge that shouts: it is the reason to look at this card. */
 .game-card__badge--new {
+  --badge-color: var(--color-accent);
   color: var(--color-on-accent);
-  background: var(--color-accent);
-  border-color: transparent;
 }
 
 /*
@@ -240,9 +239,8 @@
  * one card wearing it is distinguishable from the accent used everywhere else.
  */
 .game-card__badge--hot {
+  --badge-color: #ff7a2e;
   color: #2b0f06;
-  background: linear-gradient(180deg, #ffb347, #ff5f2e);
-  border-color: transparent;
 }
 
 /*
@@ -251,9 +249,8 @@
  * "shout", and this is a schedule, not a claim about how popular the game is.
  */
 .game-card__badge--week {
+  --badge-color: #9061f0;
   color: #1e1440;
-  background: linear-gradient(180deg, #c4b5fd, #7c3aed);
-  border-color: transparent;
 }
 
 .game-card__body {
