@@ -10,6 +10,7 @@ is made in a discussion, it belongs in one of these files.
 | [../README.md](../README.md) | Project pitch, principles, layout, game catalogue |
 | [../AGENTS.md](../AGENTS.md) | Dev workflow, golden rules, definition of done |
 | [roadmap.md](roadmap.md) | Milestones and **open decisions awaiting validation** |
+| [monetization.md](monetization.md) | Revenue options, the free-tier cost ceiling, which own rules each option would break, and the gates they unlock behind |
 
 ## Technical
 

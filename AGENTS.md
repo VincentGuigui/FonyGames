@@ -29,6 +29,7 @@ file under 200 lines** — put detail in `docs/`, not here.
 | Code style | [docs/conventions/code-style.md](./docs/conventions/code-style.md) |
 | Testing strategy | [docs/testing.md](./docs/testing.md) |
 | Roadmap & open decisions | [docs/roadmap.md](./docs/roadmap.md) |
+| Monetization options & what each costs | [docs/monetization.md](./docs/monetization.md) |
 | Specs index (hub + games) | [docs/specs/README.md](./docs/specs/README.md) |
 | Hub spec | [docs/specs/hub.md](./docs/specs/hub.md) |
 | Join methods (link, code, QR, smart join) | [docs/specs/join.md](./docs/specs/join.md) |
