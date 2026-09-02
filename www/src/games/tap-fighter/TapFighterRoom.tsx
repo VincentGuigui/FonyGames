@@ -23,7 +23,7 @@ import {
 } from '../../../../shared/tapFighter';
 import type { Player, ServerMessage, TapFighterState } from '../../../../shared/protocol';
 import { playOutcomeSound } from '../../core/audio/outcome';
-import { playFighterCue, prepareFighterSfx } from './sfx';
+import { playFighterCue, prepareFighterSfx, startFighterMusic, stopFighterMusic } from './sfx';
 import { StatusBar } from '../../core/ui/StatusBar';
 import {
   ACTION_BEAT_MS,
@@ -64,6 +64,18 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
   const clock = useCallback(() => client?.now() ?? Date.now(), [client]);
   const start = () => client?.send({ t: 'start', d: { mode: 'fighter', solo } });
   useEffect(() => { prepareFighterSfx(); }, []);
+  /**
+   * The match's own loop plays for as long as a match is in progress — planning
+   * through round-over, across every round — and fades out the moment the match
+   * ends or this phone leaves the room. `startFighterMusic` is a no-op while
+   * already playing, so this firing again on every round's phase change just
+   * lets the same loop keep going rather than restarting it beat to beat.
+   */
+  useEffect(() => {
+    if (!state || state.phase === 'match-over') { stopFighterMusic(); return; }
+    startFighterMusic();
+  }, [state?.phase]);
+  useEffect(() => () => stopFighterMusic(), []);
 
   if (!state) {
     // No seat-colour tag in the players list (issue #3).

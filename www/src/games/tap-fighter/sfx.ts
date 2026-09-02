@@ -3,6 +3,7 @@ import kick2Url from './art/kick2.mp3?url&no-inline';
 import impact1Url from './art/impact1.mp3?url&no-inline';
 import impact2Url from './art/impact2.mp3?url&no-inline';
 import avoidUrl from './art/avoid.mp3?url&no-inline';
+import musicUrl from './art/music.mp3?url&no-inline';
 
 /**
  * Tap Fighter's per-beat sound effects: the attack swing, the hit landing, and a
@@ -45,6 +46,7 @@ export function prepareFighterSfx(): void {
     const current = audio();
     if (current?.state === 'suspended') void current.resume();
     if (current) for (const urls of Object.values(SOURCES)) for (const url of urls) void loadBuffer(current, url);
+    if (current) void loadBuffer(current, musicUrl);
   };
   document.addEventListener('pointerdown', arm, { passive: true });
   document.addEventListener('keydown', arm);
@@ -85,4 +87,55 @@ export function playFighterCue(cue: FighterCue): void {
     source.connect(current.destination);
     source.start();
   });
+}
+
+/* -------------------------------- match music -------------------------------- */
+
+const MUSIC_GAIN = 0.35;
+const MUSIC_FADE_S = 0.6;
+
+let musicSource: AudioBufferSourceNode | null = null;
+let musicGain: GainNode | null = null;
+
+/**
+ * Starts the match's own loop. A no-op while already playing, so calling it again
+ * on every round's `phase` change (planning → fighting → round-over → …) just lets
+ * the same loop keep going instead of restarting it beat to beat.
+ */
+export function startFighterMusic(): void {
+  if (musicSource) return;
+  const current = audio();
+  if (!current || current.state !== 'running') return;
+  void loadBuffer(current, musicUrl).then((buffer) => {
+    if (!buffer || musicSource) return; // stopped, or started again, while this decoded
+    const source = current.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    const gain = current.createGain();
+    gain.gain.setValueAtTime(0, current.currentTime);
+    gain.gain.linearRampToValueAtTime(MUSIC_GAIN, current.currentTime + MUSIC_FADE_S);
+    source.connect(gain);
+    gain.connect(current.destination);
+    source.start();
+    musicSource = source;
+    musicGain = gain;
+  });
+}
+
+/** Stops the match loop — a fade rather than a hard cut, which would otherwise click. */
+export function stopFighterMusic(): void {
+  if (!musicSource || !musicGain) return;
+  const source = musicSource;
+  const gain = musicGain;
+  musicSource = null;
+  musicGain = null;
+  const current = audio();
+  if (current) {
+    gain.gain.cancelScheduledValues(current.currentTime);
+    gain.gain.setValueAtTime(gain.gain.value, current.currentTime);
+    gain.gain.linearRampToValueAtTime(0.0001, current.currentTime + MUSIC_FADE_S);
+    source.stop(current.currentTime + MUSIC_FADE_S + 0.05);
+  } else {
+    source.stop();
+  }
 }
