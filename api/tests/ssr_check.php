@@ -115,6 +115,8 @@ if (!is_readable($generated)) {
     check('every live game rendered its link, plus Random Game', count($mPlain[1]) === count($weekOrder) + 1, count($mPlain[1]));
     check('Random Game leads', ($mPlain[1][0] ?? null) === 'random-game', $mPlain[1]);
     check('the week\'s own card leads the rest, with nothing else pinned', ($mPlain[1][1] ?? null) === $weekSlug, $mPlain[1]);
+    $betweenRandomAndPinned = substr($real, (int) strpos($real, 'random-game'), (int) strpos($real, "/{$weekSlug}/") - (int) strpos($real, 'random-game'));
+    check('and no spacer sits between Random Game and the pinned tier', !str_contains($betweenRandomAndPinned, 'hub__spacer'), $betweenRandomAndPinned);
     check('the week\'s own card wears the WEEK badge exactly once', substr_count($real, 'game-card__badge--week') === 1,
         substr_count($real, 'game-card__badge--week'));
     check('and it is on the right card', str_contains($real, "/{$weekSlug}/") && strpos($real, 'game-card__badge--week') > strpos($real, "/{$weekSlug}/"));
@@ -129,6 +131,18 @@ if (!is_readable($generated)) {
         'the not-yet-live tier trails behind every live card',
         $soonOrder === [] || strpos($real, 'game-card__badge--soon') > strrpos($real, 'href="/'),
         $soonOrder,
+    );
+
+    // A live game an operator disables (runtime `soon`, from the admin centre) trails
+    // behind everything too, exactly like a build-time soon game — see Page::grid()'s
+    // own doc comment. $third is an ordinary alphabetical member, not pinned.
+    $withRuntimeSoon = Page::grid($built['cards'], [$third => ['state' => 'soon']], false, [], $weekOrder, $fixedNow, $soonOrder);
+    preg_match_all('#href="/([a-z0-9-]+)/"#', $withRuntimeSoon, $mRuntimeSoon);
+    check('a runtime-disabled live game drops its link, same as any soon card', !in_array($third, $mRuntimeSoon[1], true), $mRuntimeSoon[1]);
+    check(
+        'and its badge trails behind every remaining live card',
+        strpos($withRuntimeSoon, 'game-card__badge--soon') > strrpos($withRuntimeSoon, 'href="/'),
+        $withRuntimeSoon,
     );
 
     $withHot = Page::grid($built['cards'], [], false, [$third => 3], $weekOrder, $fixedNow, $soonOrder);

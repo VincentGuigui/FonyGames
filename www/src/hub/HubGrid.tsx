@@ -31,10 +31,21 @@ const RANDOM_GAME_SLUG = 'random-game';
  * its curated `registry.ts` order, exactly where it always sat. `hubSections` only
  * ever sees `live` games: a `soon` card cannot be hot, spotlighted, or NEW, so it has
  * no business in that sort. A `.hub__spacer` separates every pair of non-empty tiers
- * **except pinned→fresh**: hot/week and NEW are both "look at this one" tiers, and a
- * rule between them read as a boundary that was not there for any other adjacent
- * pair. Never a dangling spacer at the very top or bottom either. Flags still decide
- * only *which* cards appear.
+ * **except pinned→fresh** and **random→anything**: hot/week and NEW are both "look at
+ * this one" tiers, and a rule between them read as a boundary that was not there for
+ * any other adjacent pair; Random Game is chrome rather than a tier of games, so it
+ * reads as part of the header, not a section with a boundary under it. Never a
+ * dangling spacer at the very top or bottom either. Flags still decide only *which*
+ * cards appear.
+ *
+ * **A live game an operator has flagged `soon` (runtime, from the admin centre) also
+ * trails behind everything else**, exactly like a build-time `soon` game — moved out
+ * of whichever of pinned/fresh/rest its alphabetical slot would have put it in and
+ * appended after `soon`'s own curated order. `cardState` already renders it exactly
+ * like a build-time `soon` card (unplayable, the same badge); leaving it in place
+ * among live cards would be the one case where a caveat card does not sit with the
+ * others. `hot`/`week` are passed through unchanged even for a demoted slug — a
+ * `soon` flag makes `cardState` ignore both anyway, so there is nothing to null out.
  *
  * `index.php` applies the same rule to the same numbers before it serves the page
  * (`Page::grid`), which is what keeps hydration exact — a grid the server ordered one
@@ -96,7 +107,21 @@ export function HubGrid({
   const hot = hottest(plays, alphabetical);
   const week = gameOfWeek(alphabetical, new Date());
   const { pinned, fresh, rest } = hubSections(alphabetical, flags, hot, week);
-  const soon = raw.filter((g) => g.status !== 'live').map((g) => g.slug);
+
+  // Any live game an operator has flagged `soon` moves out of its alphabetical tier
+  // and joins the bottom, after the build-time `soon` games — see the doc comment
+  // above. Order of the three `keep` calls decides `demoted`'s own order.
+  const demoted: string[] = [];
+  const keep = (slugs: string[]): string[] =>
+    slugs.filter((slug) => {
+      if (flagFor(flags, slug).state !== 'soon') return true;
+      demoted.push(slug);
+      return false;
+    });
+  const pinnedLive = keep(pinned);
+  const freshLive = keep(fresh);
+  const restLive = keep(rest);
+  const soon = [...raw.filter((g) => g.status !== 'live').map((g) => g.slug), ...demoted];
   const randomGameLive = raw.some((g) => g.slug === RANDOM_GAME_SLUG && g.status === 'live');
 
   const matchesFilter = (slug: string): boolean => {
@@ -125,9 +150,9 @@ export function HubGrid({
   const tiers = (
     [
       { key: 'random', slugs: randomGameLive ? [RANDOM_GAME_SLUG] : [] },
-      { key: 'pinned', slugs: pinned },
-      { key: 'fresh', slugs: fresh },
-      { key: 'rest', slugs: rest },
+      { key: 'pinned', slugs: pinnedLive },
+      { key: 'fresh', slugs: freshLive },
+      { key: 'rest', slugs: restLive },
       { key: 'soon', slugs: soon },
     ] as const
   )
@@ -137,9 +162,13 @@ export function HubGrid({
   return (
     <ul class="hub__grid">
       {tiers.map((tier, index) => {
-        // The one adjacency with no spacer: hot/week leading straight into NEW.
+        // The two adjacencies with no spacer: Random Game leading into anything, and
+        // hot/week leading straight into NEW.
         const previous = tiers[index - 1];
-        const spacer = index > 0 && !(tier.key === 'fresh' && previous?.key === 'pinned');
+        const spacer =
+          index > 0 &&
+          previous?.key !== 'random' &&
+          !(tier.key === 'fresh' && previous?.key === 'pinned');
         return (
           <Fragment key={tier.slugs[0]}>
             {spacer && <li class="hub__spacer" aria-hidden="true" />}

@@ -206,6 +206,33 @@ $noPromote = Page::grid(fakeCards(), [], false, ['zone-rush' => 99], ALPHA, $wee
 check('a not-yet-live game earns no HOT badge no matter how many plays it has', !str_contains($noPromote, 'data-slug="zone-rush" data-key="active:1'), $noPromote);
 check('and stays put at the very end', slugsIn($noPromote) === [...ALPHA, 'zone-rush'], slugsIn($noPromote));
 
+group('a live game flagged soon trails everything too, same as a not-yet-live one');
+
+// spill sits in "the rest" tier normally (ALPHA = [ghost-tag (week), spill, tap-duel]).
+// Flagging it soon must pull it out of rest and append it after $soonOrder's own
+// build-time games, not merely dim it in place — a caveat card belongs with the
+// other caveat cards.
+$demoted = Page::grid(fakeCards(), ['spill' => ['state' => 'soon']], false, [], ALPHA, $week1, SOON);
+check(
+    'it moves to the very end, after the build-time soon tier',
+    slugsIn($demoted) === ['ghost-tag', 'tap-duel', 'zone-rush', 'spill'],
+    slugsIn($demoted),
+);
+check('and still gets the soon variant, not active', str_contains($demoted, 'data-slug="spill" data-key="soon:0:0:0"'), $demoted);
+
+// The pinned slot itself can be the one flagged soon — week2 pins spill (ALPHA[1]).
+$demotedFromPinned = Page::grid(fakeCards(), ['spill' => ['state' => 'soon']], false, [], ALPHA, $week2, SOON);
+check(
+    "even the week's own pin is pulled out, not left pinned wearing a soon badge",
+    slugsIn($demotedFromPinned) === ['ghost-tag', 'tap-duel', 'zone-rush', 'spill'],
+    slugsIn($demotedFromPinned),
+);
+check(
+    'its variant key still carries the week bit — cardState ignores it for soon, but the key stays honest',
+    str_contains($demotedFromPinned, 'data-slug="spill" data-key="soon:0:1:0"'),
+    $demotedFromPinned,
+);
+
 group('a flag selects the variant');
 
 $grid = Page::grid(fakeCards(), ['spill' => ['state' => 'soon']], false, [], ALPHA, $week1);
@@ -246,15 +273,15 @@ check('it leads, ahead of the pinned tier', (slugsIn($withRandom)[0] ?? null) ==
 check('the week\'s own pin still follows it', slugsIn($withRandom) === ['random-game', 'spill', 'ghost-tag', 'tap-duel'], slugsIn($withRandom));
 check('with no hot or week bits of its own', str_contains($withRandom, 'data-slug="random-game" data-key="active:0:0:0"'), $withRandom);
 
-// The pinned→fresh exception is about that ONE specific adjacency — random leading
-// into pinned is a different pair, and gets its own spacer like any other boundary.
-// A NEW-flagged game alongside it exercises both at once: two spacers total (before
-// pinned, and before the rest), none between pinned and NEW.
+// Random Game is chrome, not a tier of games, so nothing separates it from whatever
+// follows — same exception as pinned→fresh, for a different reason. A NEW-flagged
+// game alongside it exercises both exceptions at once: one spacer total, before the
+// rest — none after random, none between pinned and NEW.
 $withRandomAndFresh = Page::grid(fakeCardsWithRandomGame(), ['tap-duel' => ['state' => 'new']], false, [], ALPHA, $week1);
 check('random, then pinned, then NEW, then the rest', slugsIn($withRandomAndFresh) === ['random-game', 'ghost-tag', 'tap-duel', 'spill'], slugsIn($withRandomAndFresh));
-check('two spacers, not three — still none between pinned and NEW', substr_count($withRandomAndFresh, 'hub__spacer') === 2, $withRandomAndFresh);
+check('one spacer, not three — none after random, none between pinned and NEW', substr_count($withRandomAndFresh, 'hub__spacer') === 1, $withRandomAndFresh);
 $betweenRandomAndPinned = substr($withRandomAndFresh, (int) strpos($withRandomAndFresh, 'random-game'), (int) strpos($withRandomAndFresh, 'ghost-tag') - (int) strpos($withRandomAndFresh, 'random-game'));
-check('specifically: random still gets its own spacer before pinned', str_contains($betweenRandomAndPinned, 'hub__spacer'), $betweenRandomAndPinned);
+check('specifically: no spacer between random and pinned', !str_contains($betweenRandomAndPinned, 'hub__spacer'), $betweenRandomAndPinned);
 
 $withHotAndRandom = Page::grid(fakeCardsWithRandomGame(), [], false, ['tap-duel' => 4], ALPHA, $week1);
 check(
