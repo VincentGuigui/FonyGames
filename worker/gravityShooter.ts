@@ -4,7 +4,6 @@ import {
   GRAVITY_MAX_STRENGTH,
   GRAVITY_MIN_PLAYERS,
   GRAVITY_PLANET_ART_COUNT,
-  GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR,
   GRAVITY_PLANET_MIN_GAP,
   GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO,
   GRAVITY_PLANET_MIN_Y_DIFF,
@@ -16,6 +15,9 @@ import {
   GRAVITY_SHIP_MARGIN,
   GRAVITY_SHOTS_PER_MAP,
   GRAVITY_SHOT_TIMEOUT_MS,
+  GRAVITY_STAR_R_MAX,
+  GRAVITY_STAR_R_MIN,
+  gravityBodies,
   type GravityPlanet,
   type GravityShooterState,
   type PlayerId,
@@ -70,22 +72,39 @@ export function nextDeadline(g: Gravity): number {
 }
 
 /**
- * One planet's own `x`, on the given half of the board and close enough to
- * the centre line for its own gravity to still matter there (follow-up after
- * issue #16 — see `GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR`'s own doc comment
- * for why "close enough" scales with `r`). The `Math.max`/`Math.min` against
- * the edge margin is defensive — a big enough planet's own influence already
- * reaches past the margin, so this never asks a planet to sit closer to the
- * ships than the margin already allows.
+ * One planet's own `x`, on its own half of the board, inside the edge margin
+ * and far enough out to clear the star.
+ *
+ * It used to be pinned CLOSE to the centre line so its own gravity reached the
+ * middle (the old `GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR` rule). The star now
+ * sits in the middle permanently and does that job better than either planet
+ * could — so that rule is gone, and the opposite constraint takes its place:
+ * a planet has to stand clear of the star, which occupies exactly where those
+ * planets used to be sent.
  */
-function rollPlanetX(random: () => number, side: 'left' | 'right', r: number): number {
-  const maxOffset = GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR * r;
+function rollPlanetX(
+  random: () => number,
+  side: 'left' | 'right',
+  r: number,
+  y: number,
+  starRadius: number,
+): number | null {
+  // How far off the centre column this planet has to stand to owe the star its
+  // full surface gap, given how far off the centre ROW it already is. Solving
+  // the gap rule for the horizontal leg rather than rolling `x` blind and
+  // rejecting: at a mean star size, a blind roll landed inside the star a
+  // quarter of the time, which no sane retry budget can paper over.
+  const needed = GRAVITY_PLANET_MIN_GAP + r + starRadius;
+  const dy = y - 0.5;
+  const minOffset = Math.sqrt(Math.max(0, needed * needed - dy * dy));
   if (side === 'left') {
-    const lo = Math.max(GRAVITY_PLANET_X_MARGIN, 0.5 - maxOffset);
-    return lo + random() * (0.5 - lo);
+    const hi = 0.5 - minOffset;
+    if (hi < GRAVITY_PLANET_X_MARGIN) return null; // this size/row simply cannot clear the star
+    return GRAVITY_PLANET_X_MARGIN + random() * (hi - GRAVITY_PLANET_X_MARGIN);
   }
-  const hi = Math.min(1 - GRAVITY_PLANET_X_MARGIN, 0.5 + maxOffset);
-  return 0.5 + random() * (hi - 0.5);
+  const lo = 0.5 + minOffset;
+  if (lo > 1 - GRAVITY_PLANET_X_MARGIN) return null;
+  return lo + random() * (1 - GRAVITY_PLANET_X_MARGIN - lo);
 }
 
 /**
@@ -110,62 +129,22 @@ export function surfaceGap(a: GravityPlanet, b: GravityPlanet): number {
   return Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.r;
 }
 
-/** Does this planet's own body cover the middle of the board? One of the two
- *  always must (spec §2.1), so the straight line between the ships is never
- *  a shot — every shot has to be curved around something. */
-export function coversBoardCentre(p: GravityPlanet): boolean {
-  return Math.hypot(p.x - 0.5, p.y - 0.5) <= p.r;
+/**
+ * Both planets' own rows, at least `GRAVITY_PLANET_MIN_Y_DIFF` apart (issue
+ * #16) and inside the band — constructed rather than rejected: pick the lower
+ * one from a range that still leaves the higher one room above it.
+ */
+function rollPlanetYs(random: () => number): [number, number] {
+  const span = GRAVITY_PLANET_Y_MAX - GRAVITY_PLANET_Y_MIN;
+  const gap = Math.min(GRAVITY_PLANET_MIN_Y_DIFF, span);
+  const low = GRAVITY_PLANET_Y_MIN + random() * (span - gap);
+  const high = low + gap + random() * (GRAVITY_PLANET_Y_MAX - low - gap);
+  return random() < 0.5 ? [low, high] : [high, low];
 }
 
-/**
- * How close to the board's own centre row the nearer planet is even allowed
- * to sit: pull one planet toward the middle and the other still has to fit
- * inside the `y` band a full `GRAVITY_PLANET_MIN_Y_DIFF` away, which is what
- * bounds how far in the first one may come. Derived rather than tuned, so
- * widening the band or relaxing the separation rule loosens this on its own.
- */
-const CENTRE_OFFSET_MIN = Math.max(
-  0,
-  GRAVITY_PLANET_MIN_Y_DIFF - (GRAVITY_PLANET_Y_MAX - GRAVITY_PLANET_Y_MIN) / 2,
-);
-
-/**
- * The planet that covers the board's centre. Its `y` offset from the centre
- * row is rolled first — bounded below by `CENTRE_OFFSET_MIN` so the other
- * planet can still be placed legally, and above by its own radius, since a
- * planet sitting further from the centre row than it is wide could never
- * reach the centre at all — and then `x` inside whatever horizontal room the
- * radius has left over, on its own half of the board. The edge margin needs
- * no check here: reaching the centre already keeps it well inside.
- */
-function rollCentreBlocker(random: () => number, r: number, side: 'left' | 'right'): { x: number; y: number } {
-  const offsetMax = Math.min((GRAVITY_PLANET_Y_MAX - GRAVITY_PLANET_Y_MIN) / 2, r);
-  const offset = CENTRE_OFFSET_MIN + random() * Math.max(0, offsetMax - CENTRE_OFFSET_MIN);
-  const y = random() < 0.5 ? 0.5 + offset : 0.5 - offset;
-  // Whatever is left of the radius once the vertical offset is spent is how
-  // far off the centre column this planet may sit and still cover the centre.
-  const reach = Math.sqrt(Math.max(0, r * r - offset * offset));
-  const x = side === 'left' ? 0.5 - random() * reach : 0.5 + random() * reach;
-  return { x, y };
-}
-
-/**
- * The other planet's own row: at least `GRAVITY_PLANET_MIN_Y_DIFF` from the
- * blocker's (issue #16's separation rule) and still inside the band. The
- * blocker sits near the middle, so usually only one side of it has any legal
- * room left at all; when both do, which one is a fair coin flip.
- */
-function rollCompanionY(random: () => number, blockerY: number): number {
-  const belowMax = blockerY - GRAVITY_PLANET_MIN_Y_DIFF;
-  const aboveMin = blockerY + GRAVITY_PLANET_MIN_Y_DIFF;
-  const belowFits = belowMax >= GRAVITY_PLANET_Y_MIN;
-  const aboveFits = aboveMin <= GRAVITY_PLANET_Y_MAX;
-  const below = belowFits && (!aboveFits || random() < 0.5);
-  if (below) return GRAVITY_PLANET_Y_MIN + random() * (belowMax - GRAVITY_PLANET_Y_MIN);
-  if (aboveFits) return aboveMin + random() * (GRAVITY_PLANET_Y_MAX - aboveMin);
-  // Defensive: the offset rule above always leaves one side room, so this is
-  // unreachable — but a referee must never throw rather than start a match.
-  return blockerY >= 0.5 ? GRAVITY_PLANET_Y_MIN : GRAVITY_PLANET_Y_MAX;
+/** The star's own size for this board — its position never changes. */
+function rollStarRadius(random: () => number): number {
+  return GRAVITY_STAR_R_MIN + random() * (GRAVITY_STAR_R_MAX - GRAVITY_STAR_R_MIN);
 }
 
 /**
@@ -194,7 +173,7 @@ const FAIRNESS_HIT_RADIUS = 0.11;
  *  `GRAVITY_MAX_LAUNCH_SPEED`/`GRAVITY_MIN_LAUNCH_SPEED`. */
 const FAIRNESS_BOARD_HEIGHT = 1 - 2 * GRAVITY_SHIP_MARGIN;
 const FAIRNESS_LAUNCH_SPEED = FAIRNESS_BOARD_HEIGHT / 3;
-const FAIRNESS_MIN_LAUNCH_SPEED = FAIRNESS_BOARD_HEIGHT / 6;
+const FAIRNESS_MIN_LAUNCH_SPEED = FAIRNESS_BOARD_HEIGHT / 12;
 const FAIRNESS_STEP_S = 1 / 60;
 /** 8s of flight — generous even for the slowest sampled pull (up to 6s
  *  straight-line at the true floor, more once gravity curves it, more still
@@ -214,7 +193,7 @@ function fairnessShipPosition(seat: 0 | 1): { x: number; y: number } {
 /** One sampled shot: does it reach within `FAIRNESS_HIT_RADIUS` of the
  *  opponent's own ship before it is absorbed, wanders off, or runs out of
  *  simulated time? */
-function fairnessShotConnects(planets: readonly [GravityPlanet, GravityPlanet], shooterSeat: 0 | 1, angle: number, strength: number): boolean {
+function fairnessShotConnects(bodies: readonly GravityPlanet[], shooterSeat: 0 | 1, angle: number, strength: number): boolean {
   const start = fairnessShipPosition(shooterSeat);
   const target = fairnessShipPosition(shooterSeat === 0 ? 1 : 0);
   const speed = FAIRNESS_MIN_LAUNCH_SPEED + strength * (FAIRNESS_LAUNCH_SPEED - FAIRNESS_MIN_LAUNCH_SPEED);
@@ -228,7 +207,7 @@ function fairnessShotConnects(planets: readonly [GravityPlanet, GravityPlanet], 
   for (let i = 0; i < FAIRNESS_MAX_STEPS; i++) {
     let ax = 0;
     let ay = 0;
-    for (const p of planets) {
+    for (const p of bodies) {
       const dx = p.x - x;
       const dy = p.y - y;
       const distSq = dx * dx + dy * dy;
@@ -258,11 +237,17 @@ const FAIRNESS_ANGLES_DEG = [-60, -40, -20, 0, 20, 40, 60];
  *  reachable shot is more likely to sit at the gentler end of the range. */
 const FAIRNESS_STRENGTHS = [0.15, 0.35, 0.5, 0.75, 1];
 
-/** Can at least one reasonable shot from `seat` reach the opponent? */
-export function seatCanReachOpponent(planets: readonly [GravityPlanet, GravityPlanet], seat: 0 | 1): boolean {
+/** Can at least one reasonable shot from `seat` reach the opponent, with the
+ *  star in the way as well as both planets? */
+export function seatCanReachOpponent(
+  planets: readonly [GravityPlanet, GravityPlanet],
+  seat: 0 | 1,
+  starRadius: number,
+): boolean {
+  const bodies = gravityBodies(starRadius, planets as [GravityPlanet, GravityPlanet]);
   for (const deg of FAIRNESS_ANGLES_DEG) {
     for (const strength of FAIRNESS_STRENGTHS) {
-      if (fairnessShotConnects(planets, seat, (deg * Math.PI) / 180, strength)) return true;
+      if (fairnessShotConnects(bodies, seat, (deg * Math.PI) / 180, strength)) return true;
     }
   }
   return false;
@@ -287,66 +272,67 @@ const GRAVITY_WINNABILITY_ATTEMPTS = 8;
  */
 const GRAVITY_SPACING_ATTEMPTS = 60;
 
+/** A whole board: the star's own size, plus the two planets around it. */
+export type GravityBoard = { starRadius: number; planets: [GravityPlanet, GravityPlanet] };
+
 /**
- * Both planets, rolled once with the referee's own fair `random()` (spec
- * §2.1): one always covering the board's own centre (`rollCentreBlocker`, so
- * no shot can ever just fly straight up the middle), the other on the
- * opposite half and close enough to the centre line for its own gravity to
- * matter there (`rollPlanetX`, the no-dead-zone rule), sized and spaced apart
- * enough to read as two different obstacles rather than one blob
- * (`rollPlanetRadii`/`rollCompanionY`/`surfaceGap`, issue #16), and — best
- * effort, never a hard requirement — checked against `seatCanReachOpponent`
- * for BOTH players before shipping, so a genuinely impossible map is rare
- * rather than merely unlikely.
+ * A whole board, rolled with the referee's own fair `random()` (spec §2.1).
  *
- * Everything is rolled together in the inner loop rather than once per outer
- * attempt, because each step now depends on the one before it: the blocker's
- * `x` depends on its own radius and row, and the companion's row depends on
- * the blocker's.
+ * The **star** is the fixed point: always dead centre, only its size rolled.
+ * It is what makes the straight line between the two ships a non-shot, which
+ * is a job two planets used to share awkwardly — one of them was pinned to
+ * cover the centre, and both were pulled close to the centre line so their
+ * gravity reached it. Both of those rules are gone: the star does the work,
+ * and the planets are free to roam their own halves again (and have to be,
+ * since they now owe the star the same surface gap they owe each other).
+ *
+ * What survives from issue #16, all still guaranteed rather than merely
+ * likely: the two planets differ in size by 30% (`rollPlanetRadii`), sit one
+ * per half, keep 100px of vertical separation (`rollPlanetYs`), and keep 50px
+ * of clear space from each other AND from the star (`surfaceGap`). On top,
+ * best effort and never a hard requirement, the whole board is checked with
+ * `seatCanReachOpponent` for both players before it ships.
  */
-export function rollPlanets(random: () => number): [GravityPlanet, GravityPlanet] {
-  let candidate: [GravityPlanet, GravityPlanet] | null = null;
+export function rollBoard(random: () => number): GravityBoard {
+  let candidate: GravityBoard | null = null;
 
   for (let attempt = 0; attempt < GRAVITY_WINNABILITY_ATTEMPTS; attempt++) {
     const artA = Math.floor(random() * GRAVITY_PLANET_ART_COUNT);
     const artB = Math.floor(random() * GRAVITY_PLANET_ART_COUNT);
 
     for (let spacing = 0; spacing < GRAVITY_SPACING_ATTEMPTS; spacing++) {
+      const starRadius = rollStarRadius(random);
       const [ra, rb] = rollPlanetRadii(random);
-      // The bigger planet can always reach the centre from a legal row; the
-      // smaller one only sometimes, so the coin flip only gets a say when it
-      // actually can — nothing should read as "the big one is the middle one"
-      // any more than as "the left one".
-      const big = Math.max(ra, rb);
-      const small = Math.min(ra, rb);
-      const blockSmall = small > CENTRE_OFFSET_MIN && random() < 0.5;
-      const rBlock = blockSmall ? small : big;
-      const rFree = blockSmall ? big : small;
+      const [ya, yb] = rollPlanetYs(random);
+      const aLeft = random() < 0.5;
+      const xa = rollPlanetX(random, aLeft ? 'left' : 'right', ra, ya, starRadius);
+      const xb = rollPlanetX(random, aLeft ? 'right' : 'left', rb, yb, starRadius);
+      // A radius/row pair too big to clear the star at all: nothing to keep,
+      // just roll the whole thing again.
+      if (xa === null || xb === null) continue;
+      const a: GravityPlanet = { x: xa, y: ya, r: ra, art: artA };
+      const b: GravityPlanet = { x: xb, y: yb, r: rb, art: artB };
 
-      const blockLeft = random() < 0.5;
-      const block = rollCentreBlocker(random, rBlock, blockLeft ? 'left' : 'right');
-      const blocker: GravityPlanet = { x: block.x, y: block.y, r: rBlock, art: artA };
-      const free: GravityPlanet = {
-        x: rollPlanetX(random, blockLeft ? 'right' : 'left', rFree),
-        y: rollCompanionY(random, block.y),
-        r: rFree,
-        art: artB,
-      };
-
-      // Which slot each lands in is a coin flip of its own, so neither index
-      // means "the blocker" to anything downstream.
-      candidate = random() < 0.5 ? [blocker, free] : [free, blocker];
-      if (surfaceGap(blocker, free) >= GRAVITY_PLANET_MIN_GAP) break;
+      candidate = { starRadius, planets: [a, b] };
+      // The star gap is guaranteed by `rollPlanetX`'s own construction; only
+      // the two planets' gap with each other is still worth re-rolling for.
+      if (surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP) break;
       // Otherwise this attempt's geometry is kept as the fallback and the
       // loop tries again — never leaves `candidate` unset.
     }
 
-    if (candidate && seatCanReachOpponent(candidate, 0) && seatCanReachOpponent(candidate, 1)) return candidate;
+    if (
+      candidate
+      && seatCanReachOpponent(candidate.planets, 0, candidate.starRadius)
+      && seatCanReachOpponent(candidate.planets, 1, candidate.starRadius)
+    ) {
+      return candidate;
+    }
   }
 
   // Fail-soft: every attempt above is a courtesy, not a guarantee — ship the
   // last geometry rather than ever refusing to start a match over it.
-  return candidate as [GravityPlanet, GravityPlanet];
+  return candidate as GravityBoard;
 }
 
 /** Host pressed start. Returns false when the room is not eligible.
@@ -366,11 +352,13 @@ export async function startGravityShooter(
   if (!host || !other) return false;
 
   const now = ctx.now();
+  const board = rollBoard(ctx.random);
   const g: Gravity = {
     roundId,
     startsAt: now,
     seats: [host, other],
-    planets: rollPlanets(ctx.random),
+    planets: board.planets,
+    starRadius: board.starRadius,
     shots: 0,
     lives: [GRAVITY_LIVES, GRAVITY_LIVES],
     turn: 0,
@@ -452,7 +440,10 @@ export async function onGravityShot(
  */
 function countShotAndMaybeReroll(ctx: Ctx, g: Gravity): void {
   g.shots += 1;
-  if (g.shots % GRAVITY_SHOTS_PER_MAP === 0) g.planets = rollPlanets(ctx.random);
+  if (g.shots % GRAVITY_SHOTS_PER_MAP !== 0) return;
+  const board = rollBoard(ctx.random);
+  g.planets = board.planets;
+  g.starRadius = board.starRadius;
 }
 
 /**

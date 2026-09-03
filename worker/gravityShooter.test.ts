@@ -1,6 +1,5 @@
 import {
   GRAVITY_LIVES,
-  GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR,
   GRAVITY_PLANET_MIN_GAP,
   GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO,
   GRAVITY_PLANET_MIN_Y_DIFF,
@@ -10,15 +9,17 @@ import {
   GRAVITY_PLANET_Y_MAX,
   GRAVITY_PLANET_Y_MIN,
   GRAVITY_SHOT_TIMEOUT_MS,
+  GRAVITY_STAR_R_MAX,
+  GRAVITY_STAR_R_MIN,
+  gravityStar,
   type GravityPlanet,
   type ServerMessage,
 } from '../shared/protocol';
 import {
-  coversBoardCentre,
   nextDeadline,
   onGravityShot,
   onPlayerGone,
-  rollPlanets,
+  rollBoard,
   seatCanReachOpponent,
   startGravityShooter,
   surfaceGap,
@@ -179,9 +180,11 @@ async function movingPlanets(): Promise<void> {
   // The re-roll is a whole fresh geometry, so it obeys every placement rule the
   // opening board does — nothing about a mid-match board is second class.
   const [a, b] = h.state()?.planets ?? [];
+  const newStar = gravityStar(h.state()?.starRadius ?? 0);
   if (a && b) {
-    check('the new board still blocks the centre', coversBoardCentre(a) || coversBoardCentre(b));
     check('and still keeps its planets apart', surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
+    check('and clear of the star', surfaceGap(a, newStar) >= GRAVITY_PLANET_MIN_GAP - 1e-9
+      && surfaceGap(b, newStar) >= GRAVITY_PLANET_MIN_GAP - 1e-9);
   }
 
   await onGravityShot(h.ctx, A, 1, 0.2, 0.5, false);
@@ -339,7 +342,9 @@ async function geometry(): Promise<void> {
   // (rollPlanetRadii/rollPlanetYs) rather than by rejection should hold for
   // every one of them, with no exceptions to go looking for.
   for (let seed = 1; seed <= 20; seed++) {
-    const [a, b] = rollPlanets(seeded(seed));
+    const board = rollBoard(seeded(seed));
+    const [a, b] = board.planets;
+    const star = gravityStar(board.starRadius);
     const sizeDiff = Math.abs(a.r - b.r) / Math.max(a.r, b.r);
     check(`seed ${seed}: the planets differ in size by at least the required ratio`,
       sizeDiff >= GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO - 1e-9, sizeDiff);
@@ -347,21 +352,15 @@ async function geometry(): Promise<void> {
       surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
     check(`seed ${seed}: their centres differ vertically by at least the required amount`,
       Math.abs(a.y - b.y) >= GRAVITY_PLANET_MIN_Y_DIFF - 1e-9, Math.abs(a.y - b.y));
-    // Both ships sit on the centre line (x = 0.5), so a straight shot always
-    // travels along it — each planet reaching that far with its own gravity
-    // (follow-up after #16) is what rules out a dead zone anywhere between
-    // them, not just "somewhere on the board".
+    // The star sits dead centre and is what makes the straight line between
+    // the ships a non-shot, so it owes both planets the same clear space they
+    // owe each other — otherwise it would just be a planet drawn on top of one.
+    check(`seed ${seed}: the star is within its own size range`,
+      board.starRadius >= GRAVITY_STAR_R_MIN - 1e-9 && board.starRadius <= GRAVITY_STAR_R_MAX + 1e-9, board.starRadius);
     for (const [label, p] of [['a', a] as const, ['b', b] as const]) {
-      check(`seed ${seed}: planet ${label}'s own gravity reaches the centre line`,
-        Math.abs(0.5 - p.x) <= GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR * p.r + 1e-9, { x: p.x, r: p.r });
+      check(`seed ${seed}: planet ${label} keeps clear of the star`,
+        surfaceGap(p, star) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(p, star));
     }
-    // And one of them physically covers the middle of the board, so the
-    // straight line between the two ships is never itself a shot.
-    check(`seed ${seed}: one planet covers the board's centre`,
-      coversBoardCentre(a) || coversBoardCentre(b), [
-        { x: a.x, y: a.y, r: a.r },
-        { x: b.x, y: b.y, r: b.r },
-      ]);
   }
 
   // seatCanReachOpponent itself, deterministically: two planets tucked well
@@ -371,8 +370,8 @@ async function geometry(): Promise<void> {
     { x: 0.2, y: 0.4, r: 0.05, art: 0 },
     { x: 0.8, y: 0.6, r: 0.08, art: 1 },
   ];
-  check('a map with room to aim through is winnable from seat 0', seatCanReachOpponent(clear, 0));
-  check('and from seat 1', seatCanReachOpponent(clear, 1));
+  check('a map with room to aim through is winnable from seat 0', seatCanReachOpponent(clear, 0, GRAVITY_STAR_R_MIN));
+  check('and from seat 1', seatCanReachOpponent(clear, 1, GRAVITY_STAR_R_MIN));
 
   // One planet large enough to swallow the shooter's own starting point
   // absorbs every possible shot, from either seat, at the very first step —
@@ -381,8 +380,8 @@ async function geometry(): Promise<void> {
     { x: 0.5, y: 0.5, r: 2, art: 0 },
     { x: -10, y: -10, r: 0.01, art: 1 },
   ];
-  check('a map with no room at all is correctly read as unwinnable from seat 0', !seatCanReachOpponent(blocked, 0));
-  check('and from seat 1', !seatCanReachOpponent(blocked, 1));
+  check('a map with no room at all is correctly read as unwinnable from seat 0', !seatCanReachOpponent(blocked, 0, GRAVITY_STAR_R_MIN));
+  check('and from seat 1', !seatCanReachOpponent(blocked, 1, GRAVITY_STAR_R_MIN));
 }
 
 for (const t of [starting, shooting, movingPlanets, garbage, timeout, ending, walkout, deadlines, solo, geometry]) {

@@ -197,6 +197,7 @@ console.log('\na round somebody won counts');
     d: {
       roundId: 1, startsAt: 0, seats: [A, B],
       planets: [{ x: 0.3, y: 0.5, r: 0.1, art: 0 }, { x: 0.7, y: 0.5, r: 0.1, art: 1 }],
+      starRadius: 0.1,
       shots: 0,
       lives: [5, 0], turn: 0, resolvesAt: 1, lastShot: null, winner, phase, solo: false,
     },
@@ -238,7 +239,8 @@ console.log('\nnothing mid-round counts');
       t: 'gravity', s: 1, d: {
         roundId: 1, startsAt: 0, seats: [A, B],
         planets: [{ x: 0.3, y: 0.5, r: 0.1, art: 0 }, { x: 0.7, y: 0.5, r: 0.1, art: 1 }],
-        shots: 0,
+        starRadius: 0.1,
+      shots: 0,
         lives: [5, 5], turn: 0, resolvesAt: 1, lastShot: null, winner: null, phase: 'running', solo: false,
       },
     },

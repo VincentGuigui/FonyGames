@@ -95,12 +95,12 @@ honest rather than about the rules:
 - **The drawn board lags the referee's.** A new board is queued, not adopted:
   the planets the shot was fired on stay put until that flight has landed, and
   only then does the new board arrive — eased into place over
-  `GRAVITY_PLANET_TWEEN_MS` (450ms), position and radius both, rather than
-  teleporting mid-flight. The two boards are paired up by SIDE for the slide
+  `GRAVITY_PLANET_TWEEN_MS` (450ms) — planet positions and radii, and the
+  star's own radius with them — rather than teleporting mid-flight. The two boards are paired up by SIDE for the slide
   (there is always exactly one planet per half), so each one travels to the new
   planet on its own side instead of crossing through the middle; each takes its
   destination's `art` from the first frame of the slide, where the movement
-  covers the sprite change. This is `game.ts`'s own `displayedPlanets`, and it
+  covers the sprite change. This is `game.ts`'s own `displayedBoard`, and it
   is the same "hold the referee's truth until the animation that justifies it
   has played" pattern as the life pips above. **Purely cosmetic** — every
   simulation still runs on `state.planets`, so what a shot does is never
@@ -109,8 +109,21 @@ honest rather than about the rules:
 The match-winning shot deliberately does NOT move the board: both phones are
 still animating that flight and its explosion against the board it was won on.
 
-**Five shape rules, each guaranteed rather than merely likely (issue #16, plus
-follow-ups on the last two):**
+**A star sits permanently in the middle of the board** (`0.5, 0.5`), and only
+its size is rolled — re-rolled with the planets, on the same schedule. It is a
+body like any other: same gravity formula, same "a missile inside my own radius
+is swallowed" rule, so every simulation just runs over the star and both
+planets and never special-cases it.
+
+The star is what makes the straight line between the two ships a non-shot. Two
+earlier rules existed to do that job with planets alone — one planet had to
+physically cover the centre, and both were pinned close to the centre line so
+their gravity reached it — and **both are now gone**: the star does it better,
+and they would in any case be unsatisfiable now that a planet must also stand
+clear of the very spot they were pinned to.
+
+**Four shape rules, each guaranteed rather than merely likely (issue #16, plus
+the star's own):**
 
 - **At least 30% size difference.** The two radii are never independently
   rolled and hoped apart — the referee picks the bigger one first, from
@@ -129,36 +142,21 @@ follow-ups on the last two):**
   Constructed the same direct way: the lower one is rolled from a range that
   always leaves the required gap of room for the higher one above it, so
   this one never needs a retry at all.
-- **No dead zone**: a straight shot along the board's own centre line
-  (`x = 0.5`, both ships sit on it — §2.2) must always come within a
-  meaningful distance of at least one planet's own gravity. The gravity
-  formula (§2.3) gives acceleration `G / k²` at distance `k · planet.r` from
-  ANY planet, regardless of its size — a size-invariant "still matters here"
-  threshold. Requiring `|0.5 - planet.x| ≤ 2 · planet.r` for BOTH planets
-  independently is a complete fix, not a partial one: each planet's own
-  influence zone then reaches the centre line by construction, so the union
-  of the two has no gap anywhere between them for a shot to slip through.
-  Constructed the same direct way as the rules above: a planet's own `x` is
-  rolled from a range bounded by its own radius, so this never needs a
-  retry either — though since it now depends on radius, `x` is rolled
-  together with size/height in the retry loop above, not beforehand.
-- **One planet always covers the board's own centre** (`0.5, 0.5`) with its
-  actual body, not merely its gravity — so the straight line between the two
-  ships is never itself a shot, and every shot has to be curved around
-  something. This is the stronger sibling of the dead-zone rule above: that
-  one guarantees the middle of the board is always *pulled on*, this one
-  guarantees the middle is *blocked*. Constructed rather than rejected: the
-  covering planet's row is rolled first (bounded by its own radius, since a
-  planet further from the centre row than it is wide could never reach the
-  centre), then its column inside whatever the radius has left over. The
-  bigger planet can always reach from a legal row and the smaller one only
-  sometimes, so a coin flip decides only when both can — nothing should read
-  as "the big one is the middle one" any more than as "the left one".
+- **50px of clear space from the STAR as well**, on exactly the same terms as
+  from each other — otherwise the star would just be a planet drawn on top of
+  one. Constructed, not rejected: rather than rolling a planet's `x` freely and
+  throwing the board away when it lands inside the star, the gap rule is solved
+  for the horizontal leg — given how far off the centre ROW the planet already
+  is, how far off the centre COLUMN must it stand? — and `x` is rolled inside
+  what remains of its half. This matters: rolled blind at a mean star size, a
+  planet landed inside the star on **25% of boards** (measured across 5000
+  seeded rolls), which no sane retry budget papers over. Constructed, it is
+  zero, and the two planets end up further apart into the bargain.
 
 **A best-effort fairness pass, on top of the shape rules.** Issue #16 asked
 directly: *"is it possible to simulate a winning trajectory from each
 player's own position, to avoid generating an impossible map?"* — yes. Once
-a candidate map satisfies the five rules above, the referee samples a
+a candidate map satisfies the four rules above, the referee samples a
 coarse fan of shots (seven angles, five strengths — widened from three
 strengths in this follow-up, once a slower speed range and a stronger `G`
 made the fast-and-strong end of the old fan miss far more real shots) from
@@ -239,8 +237,8 @@ swallowed there, ending as a plain miss) — summed over both planets. `G`
 itself is now **four times** the original brief's value: doubled once when
 the launch speed dropped (a slower missile alone doesn't feel meaningfully
 pulled unless the pull itself is also stronger), then doubled again
-alongside the centre-blocking rule in §2.1, since a shot that now has to go
-*around* a planet needs enough pull to actually come back. The
+alongside the centre-blocking rule in §2.1 (now the star's job), since a shot
+that has to go *around* something needs enough pull to actually come back. The
 simulation stops early the moment the missile is within
 `GRAVITY_HIT_RADIUS` of the opponent's ship (a hit) — **half the ship
 sprite's own drawn width, so the whole ship image is the target** rather than
@@ -325,9 +323,15 @@ Only `classic` at launch.
   **The match-ending sequence is played out in full before the results screen
   appears**, rather than being cut short by the referee's `phase: 'done'`
   arriving mid-flight. In order: the missile's flight, then
-  `impact_missile.gif` where it landed, then — only once that has actually
-  finished — `explosion.gif` centred on the **destroyed ship**, which fades out
-  underneath it. The two hold times are the GIFs' own measured durations
+  `impact_missile.gif` **centred on the ship it struck**, then — only once that
+  has actually finished — `explosion.gif` in the same place, with the destroyed
+  ship fading out underneath it.
+
+  Both use the one ship-centred position, deliberately: the simulation stops
+  the moment the missile is within a hit radius of the ship, and since that
+  radius is now half a ship width (§2.3), a burst drawn where the missile
+  actually stopped sat visibly short of the ship it had just hit — the impact
+  appeared to happen before the collision. The two hold times are the GIFs' own measured durations
   (`GRAVITY_IMPACT_GIF_MS` 540ms, `GRAVITY_EXPLOSION_GIF_MS` 960ms — 6 frames
   at 90ms and 16 at 60ms, read off the files, not estimated), so the whole
   sequence is 1.5s and the results panel waits out every millisecond of it.
@@ -470,10 +474,20 @@ readable by a screen reader like any other status bar in this catalogue.
   the outer wall in about 4s and the wall always ended it first, where now it
   cannot get there inside 7s and the budget does the ending — which is what
   the budget is for.
-- **The "no dead zone" influence factor of `2` (§2.1)** is this follow-up's
-  own untested pick, same status as the numbers above — a first playtest
-  decides whether `2` radii of "still matters" reads as generous or barely
-  there.
+- **The star's own size range (30–60px, §2.1)** is an untested first pick. It
+  is deliberately narrower than the planets' 20–100px, because the star is
+  pinned to the middle and every planet owes it the same 50px of clear space it
+  owes the other planet — a star free to grow as large as a planet can would
+  leave the planets nowhere legal to stand. Worth revisiting once it has been
+  played: too small and it stops being the obstacle it exists to be, too large
+  and the two planets get shoved into the corners every time.
+- **Whether the star should pull at all** was a judgement call, not a stated
+  requirement: it was asked for as a fixed body in the middle that planets must
+  not overlap, and it was made a full gravity body (pulls and swallows, same
+  formula) because a "sun" in a game about gravity that did not pull would be
+  a hole in the board rather than a feature of it. Easy to make it a pure
+  obstacle instead — drop it from `gravityBodies` and it stops attracting while
+  still blocking.
 - **The launch-speed retune and the doubled `G` (§2.3)** are a second
   follow-up's own untested picks, on top of the first's: a full-strength
   shot is now roughly a third of the original brief's speed (having already
@@ -489,7 +503,10 @@ readable by a screen reader like any other status bar in this catalogue.
   that back down to roughly 3.8% — still higher than before this follow-up,
   still rare and fail-soft, but worth watching, and worth widening further
   or adding retry attempts if it climbs in play.
-- **The centre-blocking rule and the second doubling of `G` (§2.1, §2.3)**
+- **Blocking the centre and the second doubling of `G` (§2.1, §2.3)** — the
+  blocking is the star's job now, but the measurements below were taken when a
+  planet did it, and the conclusion held when the star took over: 5000 seeded
+  rolls with the star in place still put winnability failures at zero.
   are a third follow-up's own picks, and the two pull in opposite
   directions on purpose: a planet in the middle makes every shot harder,
   while four times the brief's gravity makes curving around it easier. Two

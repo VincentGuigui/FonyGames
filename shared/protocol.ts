@@ -705,6 +705,12 @@ export type GravityShooterState = {
    * already showing rather than these (`game.ts`'s own `apply`).
    */
   planets: [GravityPlanet, GravityPlanet];
+  /**
+   * The star's own radius. It always sits dead centre (`gravityStar`), so its
+   * position never has to cross the wire — only how big it is this time, which
+   * is re-rolled with the planets (spec §2.1).
+   */
+  starRadius: number;
   /** Resolved shots so far, timeouts included — what the planet re-roll counts. */
   shots: number;
   lives: [number, number];
@@ -2355,6 +2361,33 @@ export const GRAVITY_PLANET_ART_COUNT = 3;
  * that seat's shot spent.
  */
 export const GRAVITY_SHOTS_PER_MAP = 2;
+
+/**
+ * The star's own radius range, same px-then-normalized shape as the planets'.
+ * Deliberately narrower than theirs: the star is pinned to the middle of the
+ * board and every planet owes it the same surface gap it owes the other planet,
+ * so a star free to grow as large as a planet can would leave the two planets
+ * nowhere legal to stand.
+ */
+export const GRAVITY_STAR_R_MIN_PX = 30;
+export const GRAVITY_STAR_R_MAX_PX = 60;
+export const GRAVITY_STAR_R_MIN = GRAVITY_STAR_R_MIN_PX / GRAVITY_REFERENCE_BOARD_PX;
+export const GRAVITY_STAR_R_MAX = GRAVITY_STAR_R_MAX_PX / GRAVITY_REFERENCE_BOARD_PX;
+
+/**
+ * The star as a body the physics can use, at its own fixed home in the middle
+ * of the board. It pulls and swallows exactly like a planet — same formula,
+ * same absorption-at-its-own-radius rule — so every simulation just runs over
+ * `gravityBodies()` and never special-cases it.
+ */
+export function gravityStar(radius: number): GravityPlanet {
+  return { x: 0.5, y: 0.5, r: radius, art: 0 };
+}
+
+/** Everything that pulls, in one list: the star first, then both planets. */
+export function gravityBodies(starRadius: number, planets: readonly [GravityPlanet, GravityPlanet]): GravityPlanet[] {
+  return [gravityStar(starRadius), ...planets];
+}
 
 /**
  * How far a planet's own gravity is required to reach, as a multiple of its

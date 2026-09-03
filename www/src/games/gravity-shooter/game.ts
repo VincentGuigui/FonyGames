@@ -1,6 +1,7 @@
 import {
   GRAVITY_MAX_STRENGTH,
   GRAVITY_SHIP_MARGIN,
+  gravityBodies,
   type GravityPlanet,
   type GravityShot,
   type PlayerId,
@@ -124,9 +125,9 @@ export const GRAVITY_MAX_STEPS = Math.ceil(GRAVITY_ONSCREEN_LIFETIME_MS / GRAVIT
  * from the original brief once the launch speed above dropped — a slower
  * missile alone still doesn't feel meaningfully pulled unless the pull
  * itself is also stronger — and doubled again after that, so four times the
- * brief's own value. A planet now also physically covers the board's centre
- * (spec §2.1), so every shot has to be curved around something rather than
- * merely nudged.
+ * brief's own value. A star also sits permanently in the middle of the board
+ * (spec §2.1) and pulls exactly like a planet does, so every shot has to be
+ * curved around something rather than merely nudged.
  */
 export const GRAVITY_G = 0.24;
 
@@ -252,7 +253,7 @@ function lifetimeZone(p: Vec, start: Vec, target: Vec): LifetimeZone {
  * always draw the same picture.
  */
 export function simulateShot(
-  planets: readonly [GravityPlanet, GravityPlanet],
+  bodies: readonly GravityPlanet[],
   shooterSeat: Seat,
   angle: number,
   strength: number,
@@ -279,7 +280,7 @@ export function simulateShot(
   for (let i = 0; i < GRAVITY_MAX_STEPS; i++) {
     let ax = 0;
     let ay = 0;
-    for (const p of planets) {
+    for (const p of bodies) {
       const dx = p.x - x;
       const dy = p.y - y;
       const distSq = dx * dx + dy * dy;
@@ -340,24 +341,31 @@ function bySide(board: readonly [GravityPlanet, GravityPlanet]): [GravityPlanet,
   return a.x <= b.x ? [a, b] : [b, a];
 }
 
-/** Position and radius eased from one board to the other. `art` is taken from
- *  the destination for the whole slide: the sprite changes as the movement
- *  starts, which reads as a new planet arriving rather than the one you were
- *  watching changing its mind at the end. */
-function tweenBoard(
-  from: readonly [GravityPlanet, GravityPlanet],
-  to: readonly [GravityPlanet, GravityPlanet],
-  t: number,
-): [GravityPlanet, GravityPlanet] {
-  const a = bySide(from);
-  const b = bySide(to);
+/** Everything the canvas needs to draw a board: the star's own size, and both
+ *  planets. Position and radius are all that ever move. */
+export type DisplayBoard = { starRadius: number; planets: [GravityPlanet, GravityPlanet] };
+
+function boardOf(state: GravityShooterState): DisplayBoard {
+  return { starRadius: state.starRadius, planets: state.planets };
+}
+
+/** Positions and radii eased from one board to the other, the star's own size
+ *  included. `art` is taken from the destination for the whole slide: the
+ *  sprite changes as the movement starts, which reads as a new planet arriving
+ *  rather than the one you were watching changing its mind at the end. */
+function tweenBoards(from: DisplayBoard, to: DisplayBoard, t: number): DisplayBoard {
+  const a = bySide(from.planets);
+  const b = bySide(to.planets);
   const mix = (index: 0 | 1): GravityPlanet => ({
     x: a[index].x + (b[index].x - a[index].x) * t,
     y: a[index].y + (b[index].y - a[index].y) * t,
     r: a[index].r + (b[index].r - a[index].r) * t,
     art: b[index].art,
   });
-  return [mix(0), mix(1)];
+  return {
+    starRadius: from.starRadius + (to.starRadius - from.starRadius) * t,
+    planets: [mix(0), mix(1)],
+  };
 }
 
 function sameShot(a: GravityShot | null, b: GravityShot): boolean {
@@ -377,9 +385,9 @@ export class GravityGame {
   #activeShot: ActiveShot | null = null;
   /** The board currently drawn, the board waiting to be, and the ease between
    *  them — see `displayedPlanets`. Purely cosmetic; physics never reads these. */
-  #shownPlanets: [GravityPlanet, GravityPlanet] | null = null;
-  #pendingPlanets: [GravityPlanet, GravityPlanet] | null = null;
-  #planetTween: { from: [GravityPlanet, GravityPlanet]; to: [GravityPlanet, GravityPlanet]; startedAt: number } | null = null;
+  #shownBoard: DisplayBoard | null = null;
+  #pendingBoard: DisplayBoard | null = null;
+  #boardTween: { from: DisplayBoard; to: DisplayBoard; startedAt: number } | null = null;
   /** The last shot this phone has already started an animation for — so an
    *  echo of a shot fired optimistically (spec §2.3) never restarts it. */
   #animatedShot: GravityShot | null = null;
@@ -445,22 +453,23 @@ export class GravityGame {
      * and dedupes on `#animatedShot`); the receiver always would.
      */
     const planetsWhenFired = this.#state?.planets ?? msg.d.planets;
+    const starWhenFired = this.#state?.starRadius ?? msg.d.starRadius;
     this.#state = msg.d;
     if (fresh) {
       this.#activeShot = null;
       this.#animatedShot = null;
       this.#aim = null;
-      this.#shownPlanets = msg.d.planets;
-      this.#pendingPlanets = null;
-      this.#planetTween = null;
+      this.#shownBoard = boardOf(msg.d);
+      this.#pendingBoard = null;
+      this.#boardTween = null;
       return;
     }
 
     // A re-rolled board is queued, never adopted on arrival: it rides the same
     // frame as the shot that triggered it, and that shot is still in the air.
-    // `displayedPlanets` below is what eventually takes it.
-    if (this.#shownPlanets && msg.d.planets !== this.#planetTarget()) {
-      this.#pendingPlanets = msg.d.planets;
+    // `displayedBoard` below is what eventually takes it.
+    if (this.#shownBoard && msg.d.planets !== this.#boardTarget()?.planets) {
+      this.#pendingBoard = boardOf(msg.d);
     }
 
     const shot = msg.d.lastShot;
@@ -472,7 +481,7 @@ export class GravityGame {
       this.#animatedShot = shot;
       this.#activeShot = {
         seat: shot.shooter,
-        result: simulateShot(planetsWhenFired, shot.shooter, shot.angle, shot.strength),
+        result: simulateShot(gravityBodies(starWhenFired, planetsWhenFired), shot.shooter, shot.angle, shot.strength),
         startedAt: this.#now(),
       };
     } else if (shot && shot.strength === 0) {
@@ -481,8 +490,8 @@ export class GravityGame {
   }
 
   /** Whichever board the display is currently heading for. */
-  #planetTarget(): [GravityPlanet, GravityPlanet] | null {
-    return this.#planetTween?.to ?? this.#pendingPlanets ?? this.#shownPlanets;
+  #boardTarget(): DisplayBoard | null {
+    return this.#boardTween?.to ?? this.#pendingBoard ?? this.#shownBoard;
   }
 
   /**
@@ -506,29 +515,29 @@ export class GravityGame {
    * iterates the pair — so mid-slide the two come back left-first (see
    * `bySide`), while a settled board is returned exactly as the referee sent it.
    */
-  displayedPlanets(): [GravityPlanet, GravityPlanet] {
-    const authoritative = this.#state?.planets;
-    if (!authoritative) return this.#shownPlanets ?? [PLACEHOLDER_PLANET, PLACEHOLDER_PLANET];
-    if (!this.#shownPlanets) {
-      this.#shownPlanets = authoritative;
-      return authoritative;
+  displayedBoard(): DisplayBoard {
+    const state = this.#state;
+    if (!state) return this.#shownBoard ?? { starRadius: 0, planets: [PLACEHOLDER_PLANET, PLACEHOLDER_PLANET] };
+    if (!this.#shownBoard) {
+      this.#shownBoard = boardOf(state);
+      return this.#shownBoard;
     }
 
-    if (this.#pendingPlanets && !this.#planetTween && !this.#activeShot) {
-      this.#planetTween = { from: this.#shownPlanets, to: this.#pendingPlanets, startedAt: this.#now() };
-      this.#pendingPlanets = null;
+    if (this.#pendingBoard && !this.#boardTween && !this.#activeShot) {
+      this.#boardTween = { from: this.#shownBoard, to: this.#pendingBoard, startedAt: this.#now() };
+      this.#pendingBoard = null;
     }
 
-    const tween = this.#planetTween;
-    if (!tween) return this.#shownPlanets;
+    const tween = this.#boardTween;
+    if (!tween) return this.#shownBoard;
 
     const progress = (this.#now() - tween.startedAt) / GRAVITY_PLANET_TWEEN_MS;
     if (progress >= 1) {
-      this.#shownPlanets = tween.to;
-      this.#planetTween = null;
-      return this.#shownPlanets;
+      this.#shownBoard = tween.to;
+      this.#boardTween = null;
+      return this.#shownBoard;
     }
-    return tweenBoard(tween.from, tween.to, easeInOut(Math.max(0, progress)));
+    return tweenBoards(tween.from, tween.to, easeInOut(Math.max(0, progress)));
   }
 
   /* ------------------------- input ------------------------- */
@@ -567,7 +576,7 @@ export class GravityGame {
     const { angle, strength } = aimFromFinger(aim.x, aim.y);
     if (strength <= 0) return null;
 
-    const result = simulateShot(s.planets, seat, angle, strength);
+    const result = simulateShot(gravityBodies(s.starRadius, s.planets), seat, angle, strength);
     const shot: GravityShot = { shooter: seat, angle, strength, hit: result.hit };
     this.#animatedShot = shot;
     this.#activeShot = { seat, result, startedAt: this.#now() };
