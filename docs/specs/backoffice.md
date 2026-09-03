@@ -94,27 +94,43 @@ commit or a deploy. A game is exactly one of these — never two at once (see §
 | `new` | Shown and playable, badged *new* (or HOT/WEEK if either applies) | Same |
 | `active` | Normal: shown and playable | Shown and playable |
 | `soon` | Shown, **greyed out, not playable**, optional short reason | **Shown and playable**, with a badge reading *soon* (or the reason, once set) |
-| `hidden` | **Absent from the hub** entirely, and not reachable | **Shown**, with a badge reading *hidden* |
+| `hidden` | **Absent from the hub** entirely, and not reachable | **Shown and playable**, with a badge reading *hidden* |
 
-**dev always shows everything**, with the badge stating what prod would do.
-That makes dev a preview of the catalogue rather than a copy of prod's
-restrictions — deliberately so, since dev exists to try things. The cost is
-that dev does not reproduce prod's blocking behaviour; if you need to verify
-the block itself, check prod or read the Worker logs — or, signed in as the
-admin on dev, flip the hub's own `Prod preview` chip (docs/specs/hub.md §3),
-which asks nothing of the server and only changes what this one browser tab
-renders.
+**dev always shows everything**, with the badge stating what prod would do —
+that makes dev a preview of the catalogue rather than a copy of prod's
+restrictions, deliberately, since dev exists to try things. **And on dev the
+room actually opens**: the dev Worker's own copy of the flag gate below is
+turned off (`DISABLE_FLAG_GATE` in `wrangler.jsonc`'s `env.dev`, checked by
+`worker/flags.ts`'s `flagGateDisabled`), so clicking a `soon`/`hidden` card
+there is not just cosmetically clickable — it plays. If you need to verify the
+real block itself, check prod, or — signed in as the admin on dev — flip the
+hub's own `Prod preview` chip (docs/specs/hub.md §3) to see the card render as
+prod would (this changes only what your browser draws, not what the dev Worker
+allows once clicked).
 
-### Why the hub cannot enforce this on its own
+### Why the hub cannot enforce this on its own, and what a direct link gets instead
 
-Hiding a card is **cosmetic**. A bookmarked or shared
-`/tap-duel/#AB2C` goes straight to the lobby and never consults the grid. So the
-state is enforced in **two places**, and the Worker is the one that counts:
+Hiding a card is **cosmetic**. A bookmarked or shared `/tap-duel/#AB2C` skips the
+grid entirely and would otherwise land straight in the lobby. So the state is
+enforced in **two places**:
 
 | Layer | Role |
 | --- | --- |
 | Hub | Presentation — hides or greys the card |
-| **Worker** | **Enforcement** — refuses to open a room for a non-active game |
+| **Worker** | **Enforcement** — refuses to open a room for a non-active game (except on dev, above) |
+
+A third layer sits in front of both, purely for the experience of following a
+stale or maliciously-shared link: `useRoom` (`www/src/core/room/useRoom.ts`)
+checks `checkSlugPlayable` (`flagGate.ts`) the moment a game screen mounts with
+a real room code, and sends the browser back to the hub (`location.href = '/'`)
+the instant it resolves `false` — before the Worker ever gets to refuse the
+connection and the player ever sees a broken lobby. It reads the same public
+`flags.json` the Worker does and fails open exactly the same way (an
+unreachable host, a bad response, or a malformed body all resolve "playable"),
+and it never fires on the dev host, for the same reason the Worker's own gate
+does not. **It is a courtesy, not the enforcement** — the Worker refusing the
+connection is still what actually stops a determined client, the same as
+before.
 
 ### The flag and `status` are different axes
 

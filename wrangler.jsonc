@@ -35,7 +35,10 @@
     // Where the published flags live (docs/specs/backoffice.md §2b). A plain var,
     // not a secret: the file is public, and an unreachable one means every game is
     // active rather than an error. Locally this usually 404s, which is fine.
-    "FLAGS_URL": "http://localhost:5173/flags.json"
+    "FLAGS_URL": "http://localhost:5173/flags.json",
+    // Same reasoning as env.dev's own copy: a bare `wrangler dev` is for trying
+    // things, not for proving the block — that's what prod is for.
+    "DISABLE_FLAG_GATE": "1"
   },
 
   "observability": { "enabled": true },
@@ -55,7 +58,10 @@
         // The dev Worker also serves local development, so localhost is
         // allowed here and nowhere else.
         "ALLOWED_ORIGINS": "https://fonygames-dev.guigui.fr,http://localhost:5173,http://127.0.0.1:5173",
-        "FLAGS_URL": "https://fonygames-dev.guigui.fr/flags.json"
+        "FLAGS_URL": "https://fonygames-dev.guigui.fr/flags.json",
+        // The one place this is '1' — see worker/index.ts's own doc comment on
+        // `DISABLE_FLAG_GATE`. Absent (enforced) everywhere else, prod included.
+        "DISABLE_FLAG_GATE": "1"
       }
     },
     "prod": {

@@ -6,6 +6,7 @@ import { loadSeat, saveSeat } from './seat';
 import { generateRoomCode, isRoomCode, ROOM_CODE_GROUP, ROOM_CODE_LENGTH } from './code';
 import { loadProfile, saveProfile } from '../profile';
 import { clearActiveRoom, setActiveRoom, updateActiveSnapshot } from './active';
+import { checkSlugPlayable } from './flagGate';
 
 /**
  * What the URL hash says about which room we are in.
@@ -145,6 +146,22 @@ export function useRoom(
     client.connect(loadProfile());
     return () => { clearActiveRoom(client); client.close(); };
   }, [code, game]);
+
+  /**
+   * A soon/hidden game accessed by a direct link — the Worker (which is where this is
+   * actually enforced, docs/specs/backoffice.md §2b) is about to refuse the connection
+   * above, which reads as a broken game. This runs alongside it rather than gating it,
+   * so an active game's normal entry never waits on a flags fetch — a blocked one just
+   * gets sent back to the hub the instant `checkSlugPlayable` resolves `false`, before
+   * or shortly after the lobby renders.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    void checkSlugPlayable(game).then((ok) => {
+      if (!ok && !cancelled) location.href = '/';
+    });
+    return () => { cancelled = true; };
+  }, [game]);
 
   const me = room?.players.find((p) => p.id === clientRef.current?.playerId);
 

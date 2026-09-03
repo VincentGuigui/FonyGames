@@ -8,6 +8,7 @@
 
 import {
   FLAGS_TIMEOUT_MS,
+  flagGateDisabled,
   makeFlagsReader,
   parseFlags,
   timedFetch,
@@ -47,6 +48,14 @@ function ok(flags: unknown): () => Promise<Response> {
 function clock(start = 1_000): { now: () => number; advance: (ms: number) => void } {
   let t = start;
   return { now: () => t, advance: (ms) => void (t += ms) };
+}
+
+function gate(): void {
+  console.log('\nthe dev Worker\'s own bypass');
+
+  check('unset means enforced', !flagGateDisabled(undefined));
+  check('anything but the exact literal means enforced', !flagGateDisabled('true') && !flagGateDisabled('yes') && !flagGateDisabled('0'));
+  check('the literal \'1\' disables it', flagGateDisabled('1'));
 }
 
 async function parsing(): Promise<void> {
@@ -273,6 +282,7 @@ async function realTimeout(): Promise<void> {
   check('at roughly the configured timeout', elapsed >= 50 && elapsed < 1_000, elapsed);
 }
 
+gate();
 for (const t of [parsing, caching, coalescing, failing, staleness, realTimeout]) {
   await t();
 }
