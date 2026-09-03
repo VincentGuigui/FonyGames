@@ -8,6 +8,8 @@ import planetArtB from './art/planet-b.png?url&no-inline';
 import planetArtC from './art/planet-c.png?url&no-inline';
 import missileArt from './art/missile.png?url&no-inline';
 import {
+  GRAVITY_EXPLOSION_GIF_MS,
+  GRAVITY_SHIP_WIDTH,
   GRAVITY_STEP_MS,
   GravityGame,
   aimFromFinger,
@@ -48,17 +50,22 @@ const AIM_FRACTION_FADE = 2 / 3;
 
 export type FlightEnd = { hit: boolean; local: Vec };
 
+/** The ship that just lost the match, and when its explosion started — it
+ *  fades out across `GRAVITY_EXPLOSION_GIF_MS` while that GIF plays (spec §4). */
+export type DyingShip = { seat: Seat; startedAt: number };
+
 type Props = {
   game: GravityGame;
   /** The shot just finished animating — the caller decides any impact GIF (spec §4). */
   onFlightEnd: (end: FlightEnd) => void;
   onShoot: (payload: { roundId: number; angle: number; strength: number; hit: boolean }) => void;
+  dying?: DyingShip | null;
 };
 
-export function GravityCanvas({ game, onFlightEnd, onShoot }: Props): JSX.Element {
+export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Props): JSX.Element {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const latest = useRef({ game, onFlightEnd, onShoot });
-  latest.current = { game, onFlightEnd, onShoot };
+  const latest = useRef({ game, onFlightEnd, onShoot, dying });
+  latest.current = { game, onFlightEnd, onShoot, dying };
 
   useEffect(() => {
     const element = canvas.current;
@@ -66,7 +73,7 @@ export function GravityCanvas({ game, onFlightEnd, onShoot }: Props): JSX.Elemen
     let frame = 0;
 
     const draw = (): void => {
-      const { game, onFlightEnd } = latest.current;
+      const { game, onFlightEnd, dying } = latest.current;
       const width = element.clientWidth;
       const height = element.clientHeight;
       if (width === 0 || height === 0) {
@@ -113,7 +120,12 @@ export function GravityCanvas({ game, onFlightEnd, onShoot }: Props): JSX.Elemen
           const px = toPixel(local);
           // The self ship always draws nearest local y=1 (bottom), by construction.
           const isSelf = mySeat !== null && seat === mySeat;
-          drawShip(ctx, px.x, px.y, width, isSelf, local.y > 0.5, dpr);
+          // The destroyed ship fades out under its own explosion rather than
+          // vanishing when the results screen replaces the board.
+          const fade = dying && dying.seat === seat
+            ? 1 - Math.min(1, Math.max(0, (performance.now() - dying.startedAt) / GRAVITY_EXPLOSION_GIF_MS))
+            : 1;
+          drawShip(ctx, px.x, px.y, width, isSelf, local.y > 0.5, dpr, fade);
         }
 
         // The fading aim preview (spec §2), while a drag is live.
@@ -286,11 +298,16 @@ function drawPlanet(ctx: CanvasRenderingContext2D, x: number, y: number, r: numb
 
 /** A half-circle-domed ship, 256x128 art (spec's own dimensions) — the dome
  *  points toward the opponent, i.e. away from local y = 1. */
-function drawShip(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidth: number, isSelf: boolean, domeUp: boolean, dpr: number): void {
-  const w = boardWidth * 0.22;
+function drawShip(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidth: number, isSelf: boolean, domeUp: boolean, dpr: number, alpha = 1): void {
+  if (alpha <= 0) return;
+  // `GRAVITY_SHIP_WIDTH`, not a literal: the hit radius is defined as half of
+  // it (`game.ts`), so a ship drawn at some other size would be a ship whose
+  // hitbox no longer matches its own image.
+  const w = boardWidth * GRAVITY_SHIP_WIDTH;
   const sprite = SHIP_ART[isSelf ? 0 : 1].at(w, dpr);
   if (sprite) {
     ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.translate(x, y);
     // The art faces one way; the opponent's own ship is drawn dome-down by
     // flipping the y axis rather than keeping a second, mirrored sprite.
@@ -300,6 +317,7 @@ function drawShip(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidt
     return;
   }
   ctx.save();
+  ctx.globalAlpha = alpha;
   ctx.fillStyle = SHIP_COLORS[isSelf ? 0 : 1];
   ctx.beginPath();
   ctx.arc(x, y, w / 2, Math.PI, 0, !domeUp);

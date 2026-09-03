@@ -696,8 +696,17 @@ export type GravityShooterState = {
    * tell the two ships apart when there is only one of it.
    */
   seats: [PlayerId, PlayerId];
-  /** Rolled once at round start, echoed unchanged on every later frame. */
+  /**
+   * Rolled at round start and re-rolled every `GRAVITY_SHOTS_PER_MAP` resolved
+   * shots (spec §2.1) — so the board both players are aiming at changes once
+   * each of them has had a turn on it, never mid-exchange. The re-roll rides
+   * the same frame that reports the shot which triggered it, which is why a
+   * client replaying `lastShot` has to simulate against the planets it was
+   * already showing rather than these (`game.ts`'s own `apply`).
+   */
   planets: [GravityPlanet, GravityPlanet];
+  /** Resolved shots so far, timeouts included — what the planet re-roll counts. */
+  shots: number;
   lives: [number, number];
   turn: 0 | 1;
   /** Deadline for the current turn's `gravity-shot` — a silent shooter is
@@ -2337,6 +2346,15 @@ export const GRAVITY_PLANET_MIN_Y_DIFF = GRAVITY_PLANET_MIN_Y_DIFF_PX / GRAVITY_
 
 /** How many pre-made planet PNGs `GravityPlanet.art` may index into. */
 export const GRAVITY_PLANET_ART_COUNT = 3;
+
+/**
+ * How many resolved shots a set of planets lasts before the referee rolls a
+ * fresh board (spec §2.1). Two means one shot apiece: the board changes only
+ * once BOTH players have aimed at it, so nobody inherits a map their opponent
+ * already had a free look at. Timeouts count — a turn that expired is still
+ * that seat's shot spent.
+ */
+export const GRAVITY_SHOTS_PER_MAP = 2;
 
 /**
  * How far a planet's own gravity is required to reach, as a multiple of its
