@@ -20,7 +20,15 @@
    share one fixed row width, that squeezed the two health-bar columns the
    instant FIGHT! appeared, then let them spring back once it was gone (issue
    #3's "health bar width changes when the game starts"). */
-.fighter-versus, .fighter-countdown, .fighter-go { grid-column: 2; min-width: 0; }
+/* `justify-self: center` is what actually centres these: as stretched grid items
+   they filled the middle track and drew from its left edge, which reads centred
+   only for a single digit nearly as wide as the track ("3") and visibly
+   off-centre for anything wider ("FIGHT!" / "COMBAT !"). Centred and shrunk to
+   content, a callout wider than the track now overflows it evenly on both
+   sides — and the middle of three equal tracks is the middle of the stage, so
+   even overflow lands centred. `min-width: 0` still has to stay for the reason
+   below; `justify-self` does not widen the track, so the health bars are safe. */
+.fighter-versus, .fighter-countdown, .fighter-go { grid-column: 2; min-width: 0; justify-self: center; white-space: nowrap; }
 .fighter-health > div { width: 100%; }
 
 /* The VS callout: full opacity for 2s, then a 500ms fade, then stays gone. */
@@ -68,18 +76,34 @@
    bars pinned to the top. 23%/77% matches FightCanvas.tsx's own leftIdle/
    rightIdle math (idleGap = width * 0.54), so it floats above the fighter it
    is actually about rather than just "their side" of the stage. */
+/* Below the fighter, not over them: the feet stand on `height * 0.74`
+   (FightCanvas.tsx's own baseline), and the old `bottom: 30%` put the label at
+   70% from the top — i.e. straight through the shins. `top: 76%` clears the
+   baseline by a couple of percent instead. Same stacked black outline the
+   countdown uses, so it survives a bright photo background; the red drop
+   shadow stays layered on top of it. */
 .fighter-combo {
   position: absolute;
   z-index: 3;
-  bottom: 30%;
+  top: 76%;
   transform: translateX(-50%);
   color: #facc15;
   font: 900 1.1rem monospace;
   text-transform: uppercase;
-  text-shadow: 2px 2px #dc2626;
+  text-shadow:
+    -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000,
+    0 -2px 0 #000, 0 2px 0 #000, -2px 0 0 #000, 2px 0 0 #000,
+    2px 2px #dc2626;
   white-space: nowrap;
   pointer-events: none;
-  animation: fighter-countdown-pop .3s ease;
+  /* Its own pop, not the countdown's: that one animates bare `transform:
+     scale()`, which drops the `translateX(-50%)` these labels are centred with
+     and jolted them half their own width to the right for the 300ms it ran. */
+  animation: fighter-combo-pop .3s ease;
+}
+@keyframes fighter-combo-pop {
+  0% { transform: translateX(-50%) scale(1.6); opacity: 0; }
+  100% { transform: translateX(-50%) scale(1); opacity: 1; }
 }
 .fighter-combo.is-blue { left: 23%; }
 .fighter-combo.is-green { left: 77%; }
