@@ -1,5 +1,6 @@
 import {
   GRAVITY_MAX_STRENGTH,
+  GRAVITY_SHIP_MARGIN,
   type GravityPlanet,
   type GravityShot,
   type PlayerId,
@@ -36,9 +37,6 @@ export function otherSeat(seat: Seat): Seat {
   return seat === 0 ? 1 : 0;
 }
 
-/** How far a ship sits from its own edge of the shared board, in world units. */
-export const GRAVITY_SHIP_MARGIN = 0.08;
-
 /** How far the finger may sit from the ship, in the shooter's own local view
  *  units, before strength caps at `GRAVITY_MAX_STRENGTH`. */
 export const GRAVITY_MAX_AIM_DISTANCE = 0.3;
@@ -46,10 +44,35 @@ export const GRAVITY_MAX_AIM_DISTANCE = 0.3;
 /** Launch speed at full strength, in world widths per second. */
 export const GRAVITY_MAX_LAUNCH_SPEED = 1.35;
 
-/** Fixed-timestep gravity integration (spec §2.3): 1/60s steps, up to 10s of
- *  flight before an unresolved shot is abandoned outright. */
+/** Fixed-timestep gravity integration (spec §2.3): 1/60s steps. */
 export const GRAVITY_STEP_MS = 1000 / 60;
-export const GRAVITY_MAX_STEPS = 600;
+
+/**
+ * How long an unresolved shot is kept alive, in ms — not one flat cap, but
+ * whichever of these three currently applies to where the missile actually
+ * is (issue #16), re-evaluated every step and reset every time the missile
+ * moves between them:
+ *
+ * - `ONSCREEN`: the missile is inside the visible `[0,1]x[0,1]` board.
+ * - `OFFSCREEN`: it has left the visible board but not yet flown past the
+ *   opponent's own ship — still worth watching loop back in (spec §2.3/§7:
+ *   the wider `GRAVITY_SIM_BOUNDS_MIN/MAX` rectangle below is what makes
+ *   that possible at all; this is a shorter leash on how long it gets to try).
+ * - `PAST_OPPONENT`: it has already flown beyond the opponent's own ship
+ *   without hitting — a shot this far past has clearly missed, so it gets
+ *   only a token extra second rather than lingering off into space.
+ *
+ * A budget resets on zone entry rather than accumulating for the whole
+ * flight: a shot that leaves the screen, curves back in, and leaves again
+ * gets a fresh `OFFSCREEN` allowance each time, the same as the first.
+ */
+export const GRAVITY_ONSCREEN_LIFETIME_MS = 20_000;
+export const GRAVITY_OFFSCREEN_LIFETIME_MS = 7_000;
+export const GRAVITY_PAST_OPPONENT_LIFETIME_MS = 1_000;
+
+/** The loop's own outer safety valve — the longest any zone above allows,
+ *  so nothing can spin forever regardless of how the zones above change. */
+export const GRAVITY_MAX_STEPS = Math.ceil(GRAVITY_ONSCREEN_LIFETIME_MS / GRAVITY_STEP_MS);
 
 /**
  * Acceleration from a planet at distance `dist`: `G * planet.r² / max(dist²,
@@ -64,10 +87,13 @@ export const GRAVITY_G = 0.06;
 export const GRAVITY_HIT_RADIUS = 0.06;
 
 /**
- * The simulation's own termination bounds — deliberately wider than the
- * visible `[0,1]x[0,1]` board (spec §2.3, §7), so a slingshot shot that
- * loops off-screen and curves back in is never clipped mid-flight. Only
- * this rectangle and `GRAVITY_MAX_STEPS` end a shot early.
+ * The simulation's own absolute termination bounds — deliberately wider than
+ * the visible `[0,1]x[0,1]` board (spec §2.3, §7), so a shot that loops
+ * off-screen and curves back in is never clipped mid-flight; the
+ * `GRAVITY_OFFSCREEN_LIFETIME_MS` budget above is the thing that actually
+ * ends a shot that leaves the visible board and does not come back, not
+ * this rectangle — this is only the unconditional outer wall for a shot
+ * that somehow gets flung far enough to leave even that generous margin.
  */
 export const GRAVITY_SIM_BOUNDS_MIN = -0.5;
 export const GRAVITY_SIM_BOUNDS_MAX = 1.5;
@@ -118,6 +144,30 @@ export type SimResult = {
   hit: boolean;
 };
 
+type LifetimeZone = 'onscreen' | 'offscreen' | 'past';
+
+const ZONE_LIFETIME_MS: Record<LifetimeZone, number> = {
+  onscreen: GRAVITY_ONSCREEN_LIFETIME_MS,
+  offscreen: GRAVITY_OFFSCREEN_LIFETIME_MS,
+  past: GRAVITY_PAST_OPPONENT_LIFETIME_MS,
+};
+
+/**
+ * Which of the three lifetime zones (`GRAVITY_ONSCREEN_LIFETIME_MS` and
+ * friends, above) a point currently falls in, relative to a shot's own start
+ * and target. `past` outranks `offscreen`: a shot that has already flown
+ * beyond its own target's row without hitting has clearly missed, regardless
+ * of whether that happens to still be inside `[0,1]x[0,1]` — the opponent's
+ * ship sits close to that edge (spec §2.2), so "just past the ship" and
+ * "off the visible board" are almost the same place.
+ */
+function lifetimeZone(p: Vec, start: Vec, target: Vec): LifetimeZone {
+  const travelDirection = Math.sign(target.y - start.y);
+  if (travelDirection !== 0 && Math.sign(p.y - target.y) === travelDirection) return 'past';
+  if (p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1) return 'onscreen';
+  return 'offscreen';
+}
+
 /**
  * The whole flight of one shot — a pure function of the match's own
  * immutable planets and the two numbers that cross the wire, so the shooter
@@ -140,6 +190,14 @@ export function simulateShot(
   let vy = v.y;
   const path: Vec[] = [{ x, y }];
   const dt = GRAVITY_STEP_MS / 1000;
+
+  // Starts `onscreen` by construction — a ship's own position is always
+  // inside the visible board. Resets every time the missile crosses into a
+  // different zone, rather than accumulating across the whole flight, so a
+  // shot that leaves the screen, loops back in, and leaves again gets a
+  // fresh budget each time (issue #16).
+  let zone: LifetimeZone = 'onscreen';
+  let zoneEnteredAtMs = 0;
 
   for (let i = 0; i < GRAVITY_MAX_STEPS; i++) {
     let ax = 0;
@@ -164,6 +222,14 @@ export function simulateShot(
     if (x < GRAVITY_SIM_BOUNDS_MIN || x > GRAVITY_SIM_BOUNDS_MAX || y < GRAVITY_SIM_BOUNDS_MIN || y > GRAVITY_SIM_BOUNDS_MAX) {
       return { path, hit: false };
     }
+
+    const elapsedMs = (i + 1) * GRAVITY_STEP_MS;
+    const nextZone = lifetimeZone({ x, y }, start, target);
+    if (nextZone !== zone) {
+      zone = nextZone;
+      zoneEnteredAtMs = elapsedMs;
+    }
+    if (elapsedMs - zoneEnteredAtMs >= ZONE_LIFETIME_MS[zone]) return { path, hit: false };
   }
   return { path, hit: false };
 }

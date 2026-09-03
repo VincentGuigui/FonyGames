@@ -1,6 +1,10 @@
 import type { GravityPlanet } from '../../../../shared/protocol';
 import {
   GRAVITY_MAX_AIM_DISTANCE,
+  GRAVITY_OFFSCREEN_LIFETIME_MS,
+  GRAVITY_ONSCREEN_LIFETIME_MS,
+  GRAVITY_PAST_OPPONENT_LIFETIME_MS,
+  GRAVITY_STEP_MS,
   aimFromFinger,
   localAimToWorldVelocity,
   shipPosition,
@@ -126,7 +130,58 @@ function targets(): void {
   check('both centred on x', seat0.x === 0.5 && seat1.x === 0.5);
 }
 
-for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets]) {
+/** No pull at all — a planet's own acceleration formula is `G * r² / ...`,
+ *  so `r = 0` is the cheapest way to isolate the lifetime-zone logic below
+ *  from the gravity integration these other tests already cover. */
+const noPlanets: [GravityPlanet, GravityPlanet] = [
+  { x: 0.5, y: 0.5, r: 0, art: 0 },
+  { x: 0.5, y: 0.5, r: 0, art: 0 },
+];
+
+function lifetime(): void {
+  console.log("\na shot's own lifetime depends on where it actually is (issue #16)");
+
+  // Zero velocity: the missile never moves from its own onscreen starting
+  // point, so nothing but the ONSCREEN budget itself can end this shot.
+  const stationary = simulateShot(noPlanets, 0, 0, 0);
+  const stationaryMs = (stationary.path.length - 1) * GRAVITY_STEP_MS;
+  check('a shot that never leaves the board lasts the full onscreen budget',
+    Math.abs(stationaryMs - GRAVITY_ONSCREEN_LIFETIME_MS) < GRAVITY_STEP_MS, stationaryMs);
+  check('and still ends as a miss', stationary.hit === false);
+
+  // A near-sideways, low-strength shot: slow enough to leave the visible
+  // board without ever reaching the opponent's own row, and without
+  // reaching the far outer wall (GRAVITY_SIM_BOUNDS_MAX) either — so only
+  // the OFFSCREEN budget can be what ends it.
+  const grazing = simulateShot(noPlanets, 0, 1.5, 0.03);
+  const target1 = shipPosition(1);
+  const leftBoard = grazing.path.findIndex((p) => p.x > 1 || p.x < 0 || p.y > 1 || p.y < 0);
+  const grazingMs = (grazing.path.length - 1) * GRAVITY_STEP_MS;
+  const timeOffscreen = grazingMs - leftBoard * GRAVITY_STEP_MS;
+  check('it does leave the visible board before ending', leftBoard > 0, leftBoard);
+  check('never crosses the opponent\'s own row', !grazing.path.some((p) => p.y < target1.y));
+  check('and ends roughly one offscreen budget after leaving it',
+    Math.abs(timeOffscreen - GRAVITY_OFFSCREEN_LIFETIME_MS) < GRAVITY_STEP_MS * 2, timeOffscreen);
+  const last = grazing.path.at(-1);
+  check('well inside the outer wall, so the budget ended it — not the wall',
+    !!last && last.x < 1.4, last);
+
+  // A shot aimed just past the opponent, missing by more than the hit
+  // radius: once it flies beyond that row, "past" always wins over
+  // "offscreen" (§ the zone-priority rule), so only the much shorter
+  // PAST_OPPONENT budget governs from there.
+  const passing = simulateShot(noPlanets, 0, 0.3, 0.1);
+  const target0 = shipPosition(1);
+  const crossedRow = passing.path.findIndex((p) => p.y < target0.y);
+  const passingMs = (passing.path.length - 1) * GRAVITY_STEP_MS;
+  const timePast = passingMs - crossedRow * GRAVITY_STEP_MS;
+  check('a near-miss that flies past the opponent is not a hit', passing.hit === false);
+  check('it does cross the opponent\'s own row', crossedRow > 0, crossedRow);
+  check('and ends roughly one past-opponent budget after crossing it — far short of the other two',
+    Math.abs(timePast - GRAVITY_PAST_OPPONENT_LIFETIME_MS) < GRAVITY_STEP_MS * 2, timePast);
+}
+
+for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, lifetime]) {
   t();
 }
 

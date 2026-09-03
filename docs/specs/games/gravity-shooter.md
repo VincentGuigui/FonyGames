@@ -30,7 +30,8 @@ viewer, never two different boards.
 
 1. Host starts the round. Two planets are placed once, at random positions
    and sizes, identical on both screens (§2.1). Ships are fixed near their
-   own edge and never move.
+   own edge and never move — a 20px further margin than the original brief
+   (issue #16), so neither ship reads as sitting right on the border.
 2. Turns strictly alternate, host first. On your turn, touch above your own
    ship — the finger's own position relative to the ship sets your shot's
    angle and strength; the missile fires toward wherever your finger is,
@@ -40,8 +41,8 @@ viewer, never two different boards.
    middle of the screen (§2.2) — a rough read on your own aim, never a
    look at the whole shot.
 4. Release, and the missile flies, curving under both planets' gravity,
-   for up to 10 seconds of flight before an unresolved shot is abandoned
-   outright.
+   for as long as where it currently is allows (§2.3) before an unresolved
+   shot is abandoned outright.
 5. A hit costs the other ship one of five lives. A miss — the missile
    either drifts off the board or is swallowed by a planet — costs
    nothing, and the turn simply passes.
@@ -77,6 +78,41 @@ round-start state, and never touched again for the rest of the match —
 unlike a puck or a position, a planet here is scenery the referee decided
 once, not a thing either side keeps re-agreeing on.
 
+**Three shape rules, each guaranteed rather than merely likely (issue #16):**
+
+- **At least 30% size difference.** The two radii are never independently
+  rolled and hoped apart — the referee picks the bigger one first, from
+  high enough in the 20–100px range that shrinking it by 30% can never push
+  the smaller one below the 20px floor, then rolls the smaller one under
+  that ceiling. Two near-identical planets read as one shape drawn twice,
+  not two different things to curve a shot around.
+- **At least 50px between their own SURFACES**, not their centres — two big
+  planets can have far-apart centres and still touch. Constructed the same
+  direct way as the size rule where possible; on the rare geometry where it
+  is not, the referee re-rolls just the sizes and heights (up to ten times)
+  before accepting whatever the last attempt was rather than ever refusing
+  to start a match over it.
+- **At least 100px of vertical separation** between the two centres, so they
+  never land on the same horizontal band and read as one wide obstacle.
+  Constructed the same direct way: the lower one is rolled from a range that
+  always leaves the required gap of room for the higher one above it, so
+  this one never needs a retry at all.
+
+**A best-effort fairness pass, on top of the shape rules.** Issue #16 asked
+directly: *"is it possible to simulate a winning trajectory from each
+player's own position, to avoid generating an impossible map?"* — yes. Once
+a candidate map satisfies the three rules above, the referee samples a
+coarse fan of shots (seven angles, three strengths) from EACH ship's own
+position, run through a small worker-local copy of the client's own gravity
+model (`worker/gravityShooter.ts`'s `seatCanReachOpponent`) purely to answer
+"does at least one of these connect" — never to decide a real shot (spec §8
+is unchanged: the referee still trusts whatever `hit` a real `gravity-shot`
+claims). If neither ship has a sampled shot that connects, the referee
+re-rolls the whole map (up to eight times) before accepting the last
+attempt regardless. Deliberately a courtesy, not a guarantee: a coarse
+21-shot fan can still miss a real but narrow window, and the last attempt is
+always shipped rather than ever blocking a match from starting over it.
+
 ### 2.2 One board, drawn twice
 
 All physics — planet positions, ship positions, the missile's own path —
@@ -104,13 +140,29 @@ not just asymptotically far away from it (the planet's own radius still
 doubles as both the softening distance near its center and its own
 absorption radius — a missile that gets within a planet's radius is
 swallowed there, ending as a plain miss) — summed over both planets. The
-simulation runs up to 600 steps (10 seconds of flight) before an
-unresolved shot is abandoned outright, or stops early the moment the
-missile is within `GRAVITY_HIT_RADIUS` of the opponent's ship (a hit) or
-leaves a generous simulation area well outside the visible board (a miss)
-— that simulation boundary is deliberately **wider than the screen
-itself** (§7), so a shot that loops off-screen and curves back in is
-never clipped mid-flight.
+simulation stops early the moment the missile is within
+`GRAVITY_HIT_RADIUS` of the opponent's ship (a hit), gets swallowed by a
+planet (a miss), leaves a generous simulation area well outside the visible
+board (a miss) — that simulation boundary is deliberately **wider than the
+screen itself** (§7), so a shot that loops off-screen and curves back in is
+never clipped mid-flight — or outstays its own welcome (issue #16), a miss:
+
+| Where the missile currently is | How long it is kept alive there |
+| --- | --- |
+| Inside the visible `[0,1]x[0,1]` board | 20s |
+| Outside the visible board, but has not yet flown past the opponent's own ship | 7s |
+| Past the opponent's own ship, without having hit it | 1s |
+
+Each budget is measured from the moment the missile most recently entered
+that zone, not accumulated across the whole flight — a shot that leaves the
+screen, curves back in, and leaves again gets a fresh 7s each time, same as
+the first. "Past the opponent" always outranks "outside the board": a shot
+that has already flown beyond its own target's row without hitting has
+clearly missed regardless of whether that happens to still read as inside
+`[0,1]` — the opponent's ship sits close to that edge, so the two are
+almost the same place. Nothing here shortens a shot that is still headed
+somewhere plausible; it only ends the ones that have obviously missed, or
+drifted, sooner than the old flat 10-second cap did.
 
 The shooter's own phone runs this simulation the instant the finger is
 released and sends the referee `{ roundId, angle, strength, hit }` — the
@@ -212,8 +264,9 @@ replay.
 | --- | --- |
 | A player leaves mid-match | The match ends immediately in the other player's favor — two fixed seats, the same rule Grid Attack/Neon Fall use, not Steady Hand's "continue without them" (which only applies at 3+ players) |
 | A shooter goes silent mid-turn | Resolved as a miss at `resolvesAt`, turn passes (§2.4) |
-| A shot that would exit the visible screen but could still curve back | Not clipped — the simulation's own termination bounds are deliberately wider than the render viewport (§2.3), only the 600-step/10s cap and the generous off-board bounds end a shot early |
+| A shot that would exit the visible screen but could still curve back | Not clipped — the simulation's own termination bounds are deliberately wider than the render viewport (§2.3); leaving the visible board costs it its 20s onscreen budget for a shorter 7s one, not the flight itself |
 | A missile enters a planet | Absorbed there — a plain miss, no special effect |
+| A shot rolled with no sampled winning trajectory from either ship | Ships anyway, after the referee's own retries are exhausted (§2.1) — the fairness pass is a courtesy, never a block on starting the match |
 | Both ships would reach 0 lives on the same turn | Cannot happen — a shot only ever affects the one player who is not currently shooting |
 | A player refreshes mid-match | Same seat, same lives/turn — the match state lives on the referee, not the phone |
 | A shot from the wrong seat, or after `resolvesAt` | Rejected |
@@ -281,3 +334,12 @@ readable by a screen reader like any other status bar in this catalogue.
   aim around.
 - **Accent colour** (`#818CF8`) is a first pass — worth revisiting once the
   real art exists.
+- **The three lifetime budgets (20s/7s/1s, §2.3)** are issue #16's own stated
+  numbers, untested against a real thumb — a 20-second on-screen shot in
+  particular is a real wait if it happens often; worth revisiting after a
+  playtest if it reads as dead air rather than a shot still worth watching.
+- **The fairness pass's own 21-shot fan (§2.1)** is coarse by design, to
+  keep a match-start check cheap — it can still occasionally accept a map
+  where the real, finer-grained client physics genuinely has no winning
+  shot from one side. Worth widening the sampled fan, or adding more retry
+  attempts, if that turns out to happen often enough to notice in play.
