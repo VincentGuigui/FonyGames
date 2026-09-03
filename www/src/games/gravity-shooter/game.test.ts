@@ -1,9 +1,13 @@
-import type { GravityPlanet } from '../../../../shared/protocol';
+import type { GravityPlanet, ServerMessage } from '../../../../shared/protocol';
 import {
+  GravityGame,
+  GRAVITY_HIT_RADIUS,
   GRAVITY_MAX_AIM_DISTANCE,
   GRAVITY_MAX_LAUNCH_SPEED,
   GRAVITY_MIN_LAUNCH_SPEED,
+  GRAVITY_OFFSCREEN_LIFETIME_MS,
   GRAVITY_PAST_OPPONENT_LIFETIME_MS,
+  GRAVITY_SHIP_WIDTH,
   GRAVITY_STEP_MS,
   aimFromFinger,
   localAimToWorldVelocity,
@@ -141,22 +145,24 @@ const noPlanets: [GravityPlanet, GravityPlanet] = [
 function lifetime(): void {
   console.log("\na shot's own lifetime depends on where it actually is (issue #16)");
 
-  // A near-sideways shot at the weakest possible pull: even the SLOWEST a
-  // missile can now fly (`GRAVITY_MIN_LAUNCH_SPEED`, a follow-up after #16)
-  // crosses the `GRAVITY_SIM_BOUNDS_MAX` margin faster than the 7s OFFSCREEN
-  // budget allows — so, unlike before that follow-up, a straight
-  // (gravity-free) sideways shot now always meets the outer wall first, not
-  // the budget. That budget still matters for a shot gravity curves back
-  // toward the board rather than straight out of it; this one just is not
-  // that shot.
+  // A near-sideways shot at the weakest possible pull: slow enough to leave
+  // the visible board without ever reaching the opponent's own row, and — now
+  // that the minimum impulse is half what it was — slow enough that the 7s
+  // OFFSCREEN budget runs out before it can reach the far
+  // `GRAVITY_SIM_BOUNDS_MAX` wall. So the budget is what ends it, which is
+  // what the spec says that budget is for.
   const grazing = simulateShot(noPlanets, 0, 1.5, 0);
   const target1 = shipPosition(1);
   const leftBoard = grazing.path.findIndex((p) => p.x > 1 || p.x < 0 || p.y > 1 || p.y < 0);
+  const timeOffscreen = (grazing.path.length - 1 - leftBoard) * GRAVITY_STEP_MS;
   check('it does leave the visible board before ending', leftBoard > 0, leftBoard);
   check('never crosses the opponent\'s own row', !grazing.path.some((p) => p.y < target1.y));
   check('and still ends as a miss', grazing.hit === false);
+  check('one offscreen budget after leaving, not a moment more',
+    Math.abs(timeOffscreen - GRAVITY_OFFSCREEN_LIFETIME_MS) < GRAVITY_STEP_MS, timeOffscreen);
   const last = grazing.path.at(-1);
-  check('ending at the outer wall, not the visible edge', !!last && last.x > 1.5 - 1e-6, last);
+  check('and well inside the outer wall, so the budget ended it — not the wall',
+    !!last && last.x < 1.5 - 0.05, last);
 
   // A shot aimed just past the opponent, missing by more than the hit
   // radius: once it flies beyond that row, "past" always wins over
@@ -173,10 +179,16 @@ function lifetime(): void {
     Math.abs(timePast - GRAVITY_PAST_OPPONENT_LIFETIME_MS) < GRAVITY_STEP_MS * 2, timePast);
 }
 
-/** No pull at all, same fixture `noPlanets` above serves — a clean read of
- *  what the speed range alone (no gravity) does to flight time. */
-const GRAVITY_FREE_MIN_IMPULSE_FRAMES = 331;
-const GRAVITY_FREE_MAX_IMPULSE_FRAMES = 166;
+/**
+ * No pull at all, same fixture `noPlanets` above serves — a clean read of what
+ * the speed range alone (no gravity) does to flight time. Both are the ship-to
+ * -ship distance minus one hit radius, over the speed for that end of the
+ * range: halving the minimum impulse roughly doubled the slow one, and widening
+ * the hitbox to the ship's full width shortened both, since the missile now
+ * counts as arrived further out.
+ */
+const GRAVITY_FREE_MIN_IMPULSE_FRAMES = 613;
+const GRAVITY_FREE_MAX_IMPULSE_FRAMES = 154;
 
 function impulseRange(): void {
   console.log('\nlaunch speed is capped, floored, and shaped by launch intensity (follow-up after #16)');
@@ -200,11 +212,14 @@ function impulseRange(): void {
   const weakest = simulateShot(noPlanets, 0, 0, 0);
   const strongest = simulateShot(noPlanets, 0, 0, 1);
   check('the weakest pull still reaches the opponent', weakest.hit === true);
-  check('taking about 5.5s — near the slow end of the display range',
+  check('taking about 10.2s — the slow end of the display range',
     weakest.path.length - 1 === GRAVITY_FREE_MIN_IMPULSE_FRAMES, weakest.path.length - 1);
   check('a full-strength pull also reaches the opponent', strongest.hit === true);
-  check('taking about 2.8s — near the fast end of the display range',
+  check('taking about 2.6s — the fast end of the display range',
     strongest.path.length - 1 === GRAVITY_FREE_MAX_IMPULSE_FRAMES, strongest.path.length - 1);
+  check('and the weakest is four times the slowest — the impulse range itself',
+    Math.abs(GRAVITY_MAX_LAUNCH_SPEED / GRAVITY_MIN_LAUNCH_SPEED - 4) < 1e-9,
+    GRAVITY_MAX_LAUNCH_SPEED / GRAVITY_MIN_LAUNCH_SPEED);
 
   // The same two shots, now with two real planets in the way — a specific,
   // known gravitational pull, not none. Both still connect (their own pull
@@ -225,7 +240,66 @@ function impulseRange(): void {
     strongestPulled.path.length < strongest.path.length, strongestPulled.path.length - 1);
 }
 
-for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, lifetime, impulseRange]) {
+function shipSizedHitbox(): void {
+  console.log('\nthe whole ship image is the target, not a dot at its centre');
+
+  // The requirement is "the hitbox is the ship's own width", so the radius has
+  // to be half of it — and derived from the same constant `GravityCanvas` draws
+  // with, not a second number that happens to agree today.
+  check('the hit DIAMETER is exactly the drawn ship width',
+    Math.abs(GRAVITY_HIT_RADIUS * 2 - GRAVITY_SHIP_WIDTH) < 1e-9, { GRAVITY_HIT_RADIUS, GRAVITY_SHIP_WIDTH });
+
+  // Fired with no planets, a shot travels dead straight, so the angle that
+  // passes a chosen distance to the side of the opponent is pure geometry:
+  // `atan(offset / the ship-to-ship distance)`. Checking just inside and just
+  // outside the radius proves this measures the hitbox rather than merely
+  // finding that everything connects.
+  const reach = shipPosition(0).y - shipPosition(1).y;
+  const offsetBy = (distance: number) => simulateShot(noPlanets, 0, Math.atan(distance / reach), 1);
+  const clipping = offsetBy(GRAVITY_HIT_RADIUS * 0.9);
+  const clearing = offsetBy(GRAVITY_HIT_RADIUS * 1.4);
+  check('a shot passing inside the sprite\'s own edge connects', clipping.hit === true, clipping.path.at(-1));
+  check('and one passing outside it still misses', clearing.hit === false, clearing.path.at(-1));
+  // The old 0.06 hitbox would have missed the first of those outright.
+  check('which the old dot-sized hitbox would not have caught', GRAVITY_HIT_RADIUS * 0.9 > 0.06);
+}
+
+function replayUsesTheBoardTheShotWasFiredOn(): void {
+  console.log('\na replayed shot flies on the board it was fired on (moving planets)');
+
+  const fired = symmetricPlanets();
+  const rerolled: [GravityPlanet, GravityPlanet] = [
+    { x: 0.35, y: 0.62, r: 0.14, art: 2 },
+    { x: 0.72, y: 0.31, r: 0.07, art: 0 },
+  ];
+  const shot = { shooter: 0 as const, angle: 0.35, strength: 0.8, hit: false };
+  const frame = (planets: [GravityPlanet, GravityPlanet], lastShot: typeof shot | null): ServerMessage => ({
+    t: 'gravity',
+    s: 1,
+    d: {
+      roundId: 7, startsAt: 0, seats: ['a', 'b'], planets, shots: 1,
+      lives: [5, 5], turn: 1, resolvesAt: 0, lastShot, winner: null, phase: 'running', solo: false,
+    },
+  });
+
+  // This phone is the RECEIVER: it never simulated the shot itself, so it
+  // builds the replay from the frame. The referee re-rolls the board in the
+  // same frame that reports the shot which triggered it, so that frame carries
+  // the new planets and a shot fired on the old ones.
+  const receiver = new GravityGame();
+  receiver.identify('b', () => 0);
+  receiver.apply(frame(fired, null));
+  receiver.apply(frame(rerolled, shot));
+
+  const onOldBoard = simulateShot(fired, 0, shot.angle, shot.strength);
+  const onNewBoard = simulateShot(rerolled, 0, shot.angle, shot.strength);
+  check('the two boards really do produce different flights',
+    JSON.stringify(onOldBoard.path) !== JSON.stringify(onNewBoard.path));
+  check('and the replay follows the board the shot was fired on',
+    JSON.stringify(receiver.activeShot?.result.path) === JSON.stringify(onOldBoard.path));
+}
+
+for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, lifetime, impulseRange, shipSizedHitbox, replayUsesTheBoardTheShotWasFiredOn]) {
   t();
 }
 

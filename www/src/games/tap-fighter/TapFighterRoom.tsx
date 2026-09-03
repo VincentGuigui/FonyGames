@@ -30,6 +30,7 @@ import {
   ACTION_LUNGE_FADE_END_MS,
   ACTION_POSE,
   FIGHTER_COLORS,
+  FIGHTER_ENCORE_POSES,
   FIGHTER_POSES,
   FIGHTER_SPRITE_COLUMNS,
   FIGHTER_SPRITE_MIRRORED,
@@ -153,6 +154,20 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   const halfBeat = ACTION_BEAT_MS / 2;
   // Negative while the reveal (VS, countdown, FIGHT) plays: no beat has landed yet.
   const beatIndex = elapsed < 0 || state.beats.length === 0 ? -1 : Math.min(state.beats.length - 1, Math.floor(elapsed / beatMs));
+  /**
+   * The match-deciding round keeps running for `FIGHTER_ENCORE_BEATS` after its
+   * last real exchange (the worker extends `endsAt` to match), holding the
+   * finish instead of cutting straight to the result. -1 whenever that is not
+   * what is happening, which is every other round and every earlier beat.
+   *
+   * Everything driven by a beat has to be muted for its duration: `beatIndex`
+   * is clamped to the final beat, so without this the last beat's own sound,
+   * combo callout and lunge would all re-fire once per encore beat as
+   * `contact` cycled back through true.
+   */
+  const encoreIndex = state.matchWinner !== null && elapsed >= state.beats.length * beatMs
+    ? Math.min(FIGHTER_ENCORE_POSES.length - 1, Math.floor((elapsed - state.beats.length * beatMs) / beatMs))
+    : -1;
   const beat = beatIndex >= 0 ? state.beats[beatIndex] : undefined;
   const withinBeat = elapsed >= 0 ? elapsed % beatMs : 0;
   // Time since the wind-up ended — negative during it, then 0…ACTION_BEAT_MS,
@@ -175,6 +190,9 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     && (loser !== null ? finalBeat?.[loser === 'blue' ? 'blueHealth' : 'greenHealth'] : finalBeat?.blueHealth) === 0;
   const lossPose = useLossPose(state.phase !== 'fighting' && (loser !== null || state.draw) && !knockedOut);
   const pose = (seat: FighterSeat) => {
+    // The finishing hold, before any of the phase-based poses below: the round
+    // is still `fighting` while it plays, so nothing else here would fire.
+    if (encoreIndex >= 0 && seat === loser) return FIGHTER_ENCORE_POSES[encoreIndex] ?? FIGHTER_POSES.defeated;
     if (state.phase !== 'fighting' && health[seat] <= 0) return FIGHTER_POSES.defeated;
     if (state.phase !== 'fighting' && (loser === seat || state.draw)) return lossPose;
     const action = beat?.[seat === 'blue' ? 'blueAction' : 'greenAction'];
@@ -203,7 +221,7 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
    * side actually threw one.
    */
   useEffect(() => {
-    if (state.phase !== 'fighting' || !contact || beatIndex < 0) return;
+    if (state.phase !== 'fighting' || encoreIndex >= 0 || !contact || beatIndex < 0) return;
     const currentBeat = state.beats[beatIndex];
     if (!currentBeat) return;
     if (currentBeat.blueAction === 'punch' || currentBeat.blueAction === 'kick') {
@@ -214,13 +232,13 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
       if (currentBeat.greenAction === 'kick') playFighterCue('kick');
       playFighterCue(currentBeat.blueHit ? 'impact' : 'avoid');
     }
-  }, [state.phase, contact, beatIndex]);
+  }, [state.phase, contact, beatIndex, encoreIndex]);
   // "Combo" reveals at the same instant the hit pose and health bar do — contact,
   // never the start of the beat — and only for as long as this exact beat is the
   // one showing (issue #9: three landed hits in a row with none received). Gated
   // on `fighting` so it cannot linger into round-over and collide with the K.O./
   // Perfect callouts below, which share the same floating-label spot.
-  const comboActive = (seat: FighterSeat) => state.phase === 'fighting' && contact && beatIndex >= 0 && comboStreak(state.beats, beatIndex, seat) >= COMBO_STREAK;
+  const comboActive = (seat: FighterSeat) => state.phase === 'fighting' && encoreIndex < 0 && contact && beatIndex >= 0 && comboStreak(state.beats, beatIndex, seat) >= COMBO_STREAK;
   // Perfect above a winner who never took a hit across the whole (possibly
   // knockout-shortened) beat timeline (issue #3) — independent of K.O./loss
   // above, and can fire alongside either.
@@ -251,10 +269,12 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
   }, [state.phase, state.roundWinner, me]);
   const backgroundUrl = backgroundFor(state.roundId);
   return <main class="fighter-game" style={{ '--fighter-blue': FIGHTER_COLORS.blue, '--fighter-green': FIGHTER_COLORS.green, ...(backgroundUrl ? { '--fighter-bg': `url(${backgroundUrl})` } : {}) } as JSX.CSSProperties}>
-    <StatusBar status={text({ en: `Round ${state.matchRound}`, fr: `Manche ${state.matchRound}` })} title={game.title} concept={game.concept} rules={game.rules} />
+    {/* No `status` here: the round number is already the middle of `.fighter-score`
+        directly below, and saying it twice on one screen read as a mistake. */}
+    <StatusBar title={game.title} concept={game.concept} rules={game.rules} />
     <div class="fighter-score"><span>{nameOf(BLUE)} {pips(displayedWins(BLUE))}</span><strong>{text({ en: 'ROUND', fr: 'MANCHE' })} {state.matchRound}</strong><span>{pips(displayedWins(GREEN))} {nameOf(GREEN)}</span></div>
     <section class="fighter-stage">
-      <FightCanvas bluePose={pose(BLUE)} greenPose={pose(GREEN)} blueAttacking={Boolean(beat?.blueAction && actionElapsed >= 0 && actionElapsed < ACTION_LUNGE_FADE_END_MS)} greenAttacking={Boolean(beat?.greenAction && actionElapsed >= 0 && actionElapsed < ACTION_LUNGE_FADE_END_MS)} beatTime={actionElapsed} />
+      <FightCanvas bluePose={pose(BLUE)} greenPose={pose(GREEN)} blueAttacking={Boolean(encoreIndex < 0 && beat?.blueAction && actionElapsed >= 0 && actionElapsed < ACTION_LUNGE_FADE_END_MS)} greenAttacking={Boolean(encoreIndex < 0 && beat?.greenAction && actionElapsed >= 0 && actionElapsed < ACTION_LUNGE_FADE_END_MS)} beatTime={actionElapsed} />
       <div class="fighter-side"><HealthBar value={health.blue} seat={BLUE} name={nameOf(BLUE)} /></div>
       {introStep?.kind === 'vs' && <div class="fighter-versus">{nameOf(BLUE)} {text({ en: 'VS', fr: 'VS' })} {nameOf(GREEN)}</div>}
       {introStep?.kind === 'count' && <div class="fighter-countdown" key={introStep.n}>{introStep.n}</div>}

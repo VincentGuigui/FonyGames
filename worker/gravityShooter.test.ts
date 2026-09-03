@@ -160,6 +160,58 @@ async function shooting(): Promise<void> {
   check('the match is not over yet', h.state()?.phase === 'running');
 }
 
+async function movingPlanets(): Promise<void> {
+  console.log('\nthe board moves once both players have shot at it');
+
+  const h = harness();
+  await startGravityShooter(h.ctx, 1, [A, B]);
+  const first = JSON.stringify(h.state()?.planets);
+  check('a fresh match starts with no shots counted', h.state()?.shots === 0, h.state()?.shots);
+
+  await onGravityShot(h.ctx, A, 1, 0.4, 0.6, false);
+  check('one shot in, the board is unchanged', JSON.stringify(h.state()?.planets) === first);
+  check('but the shot is counted', h.state()?.shots === 1, h.state()?.shots);
+
+  await onGravityShot(h.ctx, B, 1, -0.4, 0.6, false);
+  const second = JSON.stringify(h.state()?.planets);
+  check('once both have shot, the board is re-rolled', second !== first);
+  check('and the count keeps climbing', h.state()?.shots === 2, h.state()?.shots);
+  // The re-roll is a whole fresh geometry, so it obeys every placement rule the
+  // opening board does — nothing about a mid-match board is second class.
+  const [a, b] = h.state()?.planets ?? [];
+  if (a && b) {
+    check('the new board still blocks the centre', coversBoardCentre(a) || coversBoardCentre(b));
+    check('and still keeps its planets apart', surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
+  }
+
+  await onGravityShot(h.ctx, A, 1, 0.2, 0.5, false);
+  check('a third shot leaves it alone again', JSON.stringify(h.state()?.planets) === second);
+
+  // A timed-out turn spent that seat's shot just as surely as a real one, so it
+  // has to count — otherwise a silent player quietly freezes the board.
+  const t = harness();
+  await startGravityShooter(t.ctx, 1, [A, B]);
+  const before = JSON.stringify(t.state()?.planets);
+  await onGravityShot(t.ctx, A, 1, 0.3, 0.5, false);
+  t.advance(GRAVITY_SHOT_TIMEOUT_MS + 1);
+  await tick(t.ctx);
+  check('a timeout counts as a shot too', t.state()?.shots === 2, t.state()?.shots);
+  check('so it can trigger the re-roll on its own', JSON.stringify(t.state()?.planets) !== before);
+
+  // The winning shot must NOT move the board: both phones are still animating
+  // that flight and its explosion against the board it was fired on.
+  const e = harness();
+  await startGravityShooter(e.ctx, 1, [A, B]);
+  for (let i = 0; i < GRAVITY_LIVES - 1; i++) {
+    await onGravityShot(e.ctx, A, 1, 0, 1, true);
+    await onGravityShot(e.ctx, B, 1, 0, 1, false);
+  }
+  const finalBoard = JSON.stringify(e.state()?.planets);
+  await onGravityShot(e.ctx, A, 1, 0, 1, true);
+  check('the match-winning shot ends it', e.state()?.phase === 'done' && e.state()?.winner === 0);
+  check('and leaves the board it was won on in place', JSON.stringify(e.state()?.planets) === finalBoard);
+}
+
 async function garbage(): Promise<void> {
   console.log('\nwhat a crafted client cannot do');
 
@@ -333,7 +385,7 @@ async function geometry(): Promise<void> {
   check('and from seat 1', !seatCanReachOpponent(blocked, 1));
 }
 
-for (const t of [starting, shooting, garbage, timeout, ending, walkout, deadlines, solo, geometry]) {
+for (const t of [starting, shooting, movingPlanets, garbage, timeout, ending, walkout, deadlines, solo, geometry]) {
   await t();
 }
 

@@ -61,6 +61,19 @@ export const ACTION_POSE = {
 } as const;
 
 /**
+ * What the loser shows during the match-deciding round's own extra beats
+ * (`FIGHTER_ENCORE_BEATS`, one entry each) — the finish, held rather than cut
+ * to the result panel.
+ *
+ * Both are `defeated` for now, deliberately: the finishing poses these are
+ * meant to be do not exist in the sheet yet, and the K.O. frame is the one
+ * that already reads correctly for a fighter who just lost the match. Drop new
+ * rows into the sheet, add them to `FIGHTER_POSES`, and name them here — the
+ * length is what drives the count, so keep it at `FIGHTER_ENCORE_BEATS`.
+ */
+export const FIGHTER_ENCORE_POSES: readonly number[] = [FIGHTER_POSES.defeated, FIGHTER_POSES.defeated];
+
+/**
  * The wind-up before every beat's action lands: four frames, idle1→idle2→idle1→
  * idle2, `FIGHTER_WINDUP_FRAME_MS` each, before the action pose (and its canvas
  * lunge, `FightCanvas.tsx`'s `attackProgress`) takes over. A pure function of time

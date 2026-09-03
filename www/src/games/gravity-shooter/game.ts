@@ -48,14 +48,19 @@ const GRAVITY_BOARD_HEIGHT = 1 - 2 * GRAVITY_SHIP_MARGIN;
 
 /**
  * How long a straight, ungravitated shot should take to cross the whole
- * board, weakest pull to strongest — a *display* choice (a second follow-up
- * after #16), not a gravitational one: rather than leaning on `GRAVITY_G` to
- * slow a shot down, the launch speed itself is shaped so a barely-dragged
- * shot still reads as a (slow) missile in flight, and a full-strength one
- * still reads as fast, without either end feeling instant or interminable.
+ * board, weakest pull to strongest — a *display* choice, not a gravitational
+ * one: rather than leaning on `GRAVITY_G` to slow a shot down, the launch
+ * speed itself is shaped so a barely-dragged shot still reads as a (slow)
+ * missile in flight, and a full-strength one still reads as fast.
+ *
+ * The slow end doubled from 6s when the minimum impulse was halved, so the
+ * gentlest possible shot now crawls. In practice it rarely crosses anything
+ * at all: with a planet over the centre and gravity at four times the
+ * brief's value, a shot that weak is usually captured long before its own
+ * 12 seconds are up — which is the point of a floor this low.
  */
 const GRAVITY_MIN_FLIGHT_S = 3;
-const GRAVITY_MAX_FLIGHT_S = 6;
+const GRAVITY_MAX_FLIGHT_S = 12;
 
 /**
  * Launch speed at full strength, in world widths per second — roughly a
@@ -75,6 +80,8 @@ export const GRAVITY_MAX_LAUNCH_SPEED = GRAVITY_BOARD_HEIGHT / GRAVITY_MIN_FLIGH
  * `localAimToWorldVelocity`), so even a shot barely pulled off the ship
  * still reads as a slow missile in flight, capped at `GRAVITY_MAX_FLIGHT_S`,
  * rather than crawling for as long as the lifetime budgets below allow.
+ * Halved once already: a gentler floor leaves a weak shot at gravity's
+ * mercy, which is where the interesting shots are.
  */
 export const GRAVITY_MIN_LAUNCH_SPEED = GRAVITY_BOARD_HEIGHT / GRAVITY_MAX_FLIGHT_S;
 
@@ -123,8 +130,30 @@ export const GRAVITY_MAX_STEPS = Math.ceil(GRAVITY_ONSCREEN_LIFETIME_MS / GRAVIT
  */
 export const GRAVITY_G = 0.24;
 
-/** A missile within this distance of the opponent's ship is a hit (spec §2.3). */
-export const GRAVITY_HIT_RADIUS = 0.06;
+/** How wide the ship sprite is actually drawn, in world widths — the one place
+ *  that number lives, so the hitbox below and `GravityCanvas`'s own `drawShip`
+ *  cannot drift apart. */
+export const GRAVITY_SHIP_WIDTH = 0.22;
+
+/**
+ * A missile within this distance of the opponent's ship centre is a hit (spec
+ * §2.3) — half the ship's own drawn width, so **the whole ship image is the
+ * target** rather than a small dot at its middle. Derived from
+ * `GRAVITY_SHIP_WIDTH` rather than restated, so redrawing the ship bigger or
+ * smaller moves the hitbox with it.
+ */
+export const GRAVITY_HIT_RADIUS = GRAVITY_SHIP_WIDTH / 2;
+
+/**
+ * The two impact GIFs' own durations, in ms, measured off the files rather
+ * than estimated: `impact_missile.gif` is 6 frames at 90ms, `explosion.gif`
+ * 16 at 60ms. The match-ending sequence plays the missile impact, then a
+ * ship-centred explosion, and the results screen has to wait out both of them
+ * (spec §4) — so these are a timing contract, not decoration. Re-measure if
+ * either file is ever replaced.
+ */
+export const GRAVITY_IMPACT_GIF_MS = 540;
+export const GRAVITY_EXPLOSION_GIF_MS = 960;
 
 /**
  * The simulation's own absolute termination bounds — deliberately wider than
@@ -355,6 +384,16 @@ export class GravityGame {
   apply(msg: ServerMessage): void {
     if (msg.t !== 'gravity') return;
     const fresh = !this.#state || this.#state.roundId !== msg.d.roundId;
+    /**
+     * The map the shot being reported was actually FIRED on. The referee
+     * re-rolls the planets every `GRAVITY_SHOTS_PER_MAP` shots (spec §2.1),
+     * and that re-roll rides the very frame that reports the shot which
+     * triggered it — so replaying `lastShot` against the incoming planets
+     * would draw the flight through a board that did not exist when it was
+     * fired. The shooter's own phone never hits this (it simulated at release
+     * and dedupes on `#animatedShot`); the receiver always would.
+     */
+    const planetsWhenFired = this.#state?.planets ?? msg.d.planets;
     this.#state = msg.d;
     if (fresh) {
       this.#activeShot = null;
@@ -368,7 +407,7 @@ export class GravityGame {
       this.#animatedShot = shot;
       this.#activeShot = {
         seat: shot.shooter,
-        result: simulateShot(msg.d.planets, shot.shooter, shot.angle, shot.strength),
+        result: simulateShot(planetsWhenFired, shot.shooter, shot.angle, shot.strength),
         startedAt: this.#now(),
       };
     }

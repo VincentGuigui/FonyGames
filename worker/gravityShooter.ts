@@ -14,6 +14,7 @@ import {
   GRAVITY_PLANET_Y_MAX,
   GRAVITY_PLANET_Y_MIN,
   GRAVITY_SHIP_MARGIN,
+  GRAVITY_SHOTS_PER_MAP,
   GRAVITY_SHOT_TIMEOUT_MS,
   type GravityPlanet,
   type GravityShooterState,
@@ -185,7 +186,10 @@ function rollCompanionY(random: () => number, blockerY: number): number {
  * name says.
  */
 const FAIRNESS_G = 0.24;
-const FAIRNESS_HIT_RADIUS = 0.06;
+/** Half the ship's own drawn width, matching `game.ts`'s own
+ *  `GRAVITY_HIT_RADIUS` (= `GRAVITY_SHIP_WIDTH / 2`): the whole ship image is
+ *  the target, so this coarse check has to be as generous as the real one. */
+const FAIRNESS_HIT_RADIUS = 0.11;
 /** Same board-height-over-target-duration derivation as `game.ts`'s own
  *  `GRAVITY_MAX_LAUNCH_SPEED`/`GRAVITY_MIN_LAUNCH_SPEED`. */
 const FAIRNESS_BOARD_HEIGHT = 1 - 2 * GRAVITY_SHIP_MARGIN;
@@ -367,6 +371,7 @@ export async function startGravityShooter(
     startsAt: now,
     seats: [host, other],
     planets: rollPlanets(ctx.random),
+    shots: 0,
     lives: [GRAVITY_LIVES, GRAVITY_LIVES],
     turn: 0,
     resolvesAt: now + GRAVITY_SHOT_TIMEOUT_MS,
@@ -429,9 +434,25 @@ export async function onGravityShot(
 
   g.turn = opponent;
   g.resolvesAt = ctx.now() + GRAVITY_SHOT_TIMEOUT_MS;
+  countShotAndMaybeReroll(ctx, g);
   await ctx.save(g);
   broadcast(ctx, g);
   await ctx.setAlarm(g.resolvesAt);
+}
+
+/**
+ * A resolved shot's own bookkeeping, shared by a real shot and a timed-out one:
+ * count it, and roll a whole fresh board once both seats have spent a shot on
+ * this one (spec §2.1) — never mid-exchange, so neither player aims at a map
+ * the other never faced.
+ *
+ * Called only where the match CONTINUES. A match-ending shot skips it: the
+ * board it was won on is the board both phones are still animating the winning
+ * flight and explosion against.
+ */
+function countShotAndMaybeReroll(ctx: Ctx, g: Gravity): void {
+  g.shots += 1;
+  if (g.shots % GRAVITY_SHOTS_PER_MAP === 0) g.planets = rollPlanets(ctx.random);
 }
 
 /**
@@ -450,6 +471,7 @@ export async function tick(ctx: Ctx): Promise<boolean> {
   g.lastShot = { shooter, angle: 0, strength: 0, hit: false };
   g.turn = opponent;
   g.resolvesAt = ctx.now() + GRAVITY_SHOT_TIMEOUT_MS;
+  countShotAndMaybeReroll(ctx, g);
   await ctx.save(g);
   broadcast(ctx, g);
   await ctx.setAlarm(g.resolvesAt);

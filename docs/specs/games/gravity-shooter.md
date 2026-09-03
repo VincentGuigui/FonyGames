@@ -74,10 +74,22 @@ planets sit between the two ships; `x` keeps clear of the side edges and
 right, which side is a fair coin flip** — so a shot is never faced with
 both planets bunched on the same side and nothing to curve around on the
 other. `r` is mapped from the brief's 20–100px onto the shared board's own
-normalized units. `art` picks one of ~3 planet PNGs. Broadcast once, in the
-round-start state, and never touched again for the rest of the match —
-unlike a puck or a position, a planet here is scenery the referee decided
-once, not a thing either side keeps re-agreeing on.
+normalized units. `art` picks one of ~3 planet PNGs.
+
+**The board moves every `GRAVITY_SHOTS_PER_MAP` (2) resolved shots** — one
+apiece, so it only ever changes once BOTH players have aimed at it, never
+mid-exchange where one of them would inherit a map the other already had a
+free look at. A timed-out turn (§2.4) counts as that seat's shot spent, so a
+silent player cannot freeze the board. The whole geometry is re-rolled, under
+every placement rule below, not nudged.
+
+Two consequences worth knowing. The referee re-rolls in the very frame that
+reports the shot which triggered it, so **a client replaying `lastShot` must
+simulate against the planets it was already showing**, not the ones that frame
+carries — otherwise the receiving phone draws the flight through a board that
+did not exist when the shot was fired (`game.ts`'s own `apply`). And the
+match-winning shot deliberately does NOT move the board: both phones are still
+animating that flight and its explosion against the board it was won on.
 
 **Five shape rules, each guaranteed rather than merely likely (issue #16, plus
 follow-ups on the last two):**
@@ -178,7 +190,11 @@ after issue #16 reshaped it:
   linearly between this floor (strength 0, the barest drag) and
   `GRAVITY_MAX_LAUNCH_SPEED` (strength 1, a drag of the full
   `GRAVITY_MAX_AIM_DISTANCE`), rather than from zero — so even the weakest
-  possible pull still reads as a real, if slow, missile in flight.
+  possible pull still reads as a real, if slow, missile in flight. The floor
+  has since been halved again, putting the range at 4:1: a gentlest-possible
+  shot would take about 12 seconds to cross an empty board, and in practice is
+  usually captured by a planet long before that, which is the point of a floor
+  that low.
 - **Both ends derived from a target DURATION, not hand-picked speeds.** A
   straight, gravity-free flight across the board should take about 6 seconds
   at the floor and about 3 seconds at the ceiling — a *display* choice (this
@@ -208,7 +224,10 @@ pulled unless the pull itself is also stronger), then doubled again
 alongside the centre-blocking rule in §2.1, since a shot that now has to go
 *around* a planet needs enough pull to actually come back. The
 simulation stops early the moment the missile is within
-`GRAVITY_HIT_RADIUS` of the opponent's ship (a hit), gets swallowed by a
+`GRAVITY_HIT_RADIUS` of the opponent's ship (a hit) — **half the ship
+sprite's own drawn width, so the whole ship image is the target** rather than
+a dot at its centre, and derived from the same `GRAVITY_SHIP_WIDTH` the canvas
+draws with so the two cannot drift apart — gets swallowed by a
 planet (a miss), leaves a generous simulation area well outside the visible
 board (a miss) — that simulation boundary is deliberately **wider than the
 screen itself** (§7), so a shot that loops off-screen and curves back in is
@@ -277,10 +296,18 @@ Only `classic` at launch.
   arrives — seconds before either phone's own missile animation finishes —
   so each client holds the previous life count on screen until its own
   flight animation ends, the same `displayed<value>` pattern Tap Fighter's
-  round-win pips use for the identical reason. A match-ending shot's own
-  flight and impact GIF are likewise played out in full before the results
-  screen appears, rather than being cut short by the referee's `phase:
-  'done'` arriving mid-flight.
+  round-win pips use for the identical reason.
+
+  **The match-ending sequence is played out in full before the results screen
+  appears**, rather than being cut short by the referee's `phase: 'done'`
+  arriving mid-flight. In order: the missile's flight, then
+  `impact_missile.gif` where it landed, then — only once that has actually
+  finished — `explosion.gif` centred on the **destroyed ship**, which fades out
+  underneath it. The two hold times are the GIFs' own measured durations
+  (`GRAVITY_IMPACT_GIF_MS` 540ms, `GRAVITY_EXPLOSION_GIF_MS` 960ms — 6 frames
+  at 90ms and 16 at 60ms, read off the files, not estimated), so the whole
+  sequence is 1.5s and the results panel waits out every millisecond of it.
+  Re-measure both if either file is replaced.
 - **Results**: the shared `GameOverScreen`, `rows[].value` a plain win/lose
   word per player — no numeric score anywhere, the same non-numeric
   `OverRow` shape Tic-Tac-Tic-Tac-Toe's own `symbol(id)` already uses.
@@ -392,11 +419,13 @@ readable by a screen reader like any other status bar in this catalogue.
 ## 12. Open questions
 
 - **`G` (gravity strength) and `GRAVITY_HIT_RADIUS`** — `G` is now four
-  times the original brief's value across two follow-ups (§2.3),
-  `GRAVITY_HIT_RADIUS` still that original stated default — both untuned
-  against a real thumb. A first playtest decides whether shots now curve
-  enough to feel skillful without becoming unpredictable, or too much to
-  feel controllable.
+  times the original brief's value across two follow-ups (§2.3), and the hit
+  radius is no longer a tuned number at all: it is half the ship sprite's
+  own width by definition. Both still untuned against a real thumb. A first
+  playtest decides whether shots now curve enough to feel skillful without
+  becoming unpredictable, or too much to feel controllable — and whether a
+  ship-sized hitbox makes landing a hit too easy now that it is roughly twice
+  the old radius.
 - **The planet-radius-as-both-softening-and-absorption-radius choice**
   means the strongest pull on a missile happens right before it would be
   swallowed, with no gradual "graze and get flung" zone. Worth revisiting
@@ -408,11 +437,15 @@ readable by a screen reader like any other status bar in this catalogue.
   numbers, untested against a real thumb — a 20-second on-screen shot in
   particular is a real wait if it happens often; worth revisiting after a
   playtest if it reads as dead air rather than a shot still worth watching.
-  Worth noting: since the launch-speed follow-up below, the fastest a
-  straight, gravity-free flight can cross the whole board is about 3s and
-  the slowest about 6s — both now well under the 20s onscreen budget, so
-  that budget realistically only ever governs a shot gravity has bent into
-  looping or lingering, not a shot flying more or less directly.
+  Worth noting how the speed changes moved these around. A straight,
+  gravity-free crossing now takes about 2.6s at full strength and about 10.2s
+  at the floor, so the 20s ONSCREEN budget still only ever governs a shot
+  gravity has bent into looping or lingering. The 7s OFFSCREEN budget,
+  however, went from unreachable back to load-bearing when the minimum
+  impulse was halved: at the old floor a sideways shot crossed the margin to
+  the outer wall in about 4s and the wall always ended it first, where now it
+  cannot get there inside 7s and the budget does the ending — which is what
+  the budget is for.
 - **The "no dead zone" influence factor of `2` (§2.1)** is this follow-up's
   own untested pick, same status as the numbers above — a first playtest
   decides whether `2` radii of "still matters" reads as generous or barely
