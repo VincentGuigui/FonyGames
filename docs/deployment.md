@@ -10,6 +10,11 @@ Two things deploy from the same workflow, on the same trigger, independently:
 They are separate jobs on purpose: a Worker problem must not stop the hub from
 shipping, and vice versa. No manual upload, ever — the branch *is* the trigger.
 
+A third job, `close-issues`, deploys nothing — it runs only on `prod`, only
+after both jobs above succeed, and closes whichever GitHub issues the commits
+newly reached by that push reference with `Refs #N` (`docs/conventions/commits.md`
+"GitHub issues").
+
 Workflow: [`.github/workflows/main.yml`](../.github/workflows/main.yml)
 
 ## 1. Branch model

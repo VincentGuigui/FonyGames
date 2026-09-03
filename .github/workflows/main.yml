@@ -604,3 +604,61 @@ jobs:
         fi
 
         echo "Room server healthy at https://$HOST/health — $(cat /tmp/health)"
+
+  # Closes what a prod deploy actually finishes — docs/conventions/commits.md's own
+  # "an issue tracks a piece of work to production, not to merge" rule, automated
+  # rather than done by hand. `needs:` on both deploy jobs means this is skipped
+  # outright (GitHub's own default) if either one failed, so nothing is ever closed
+  # for a deploy that did not actually happen.
+  close-issues:
+    name: ✅ Close issues shipped in this deploy
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'prod'
+    needs: [web-deploy, worker-deploy]
+    permissions:
+      # The only job here that writes anything outside its own run.
+      contents: read
+      issues: write
+    steps:
+    - name: 🚚 Get latest code
+      uses: actions/checkout@v6
+      with:
+        # `git log before..after` below needs the actual history, not just the
+        # tip — a shallow clone would have no idea what `before` even is once
+        # prod is more than one commit behind (the normal case: dev/prod are
+        # fast-forwarded in a batch, not one commit at a time).
+        fetch-depth: 0
+
+    - name: 🔎 Find and close referenced issues
+      env:
+        GH_TOKEN: ${{ github.token }}
+        BEFORE: ${{ github.event.before }}
+        AFTER: ${{ github.sha }}
+      run: |
+        # A manual workflow_dispatch run, or the branch's very first push, carries
+        # no real "before" commit to diff from — nothing to scan, not an error.
+        if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+          echo "No previous commit on this branch to diff from — nothing to scan."
+          exit 0
+        fi
+
+        # docs/conventions/commits.md: commits reference an issue with `Refs #N`,
+        # deliberately never a GitHub closing keyword (Fixes/Closes/Resolves) —
+        # those close the instant a commit reaches the DEFAULT branch (`main`),
+        # which is before this project counts anything as done. This scans every
+        # commit newly reachable by THIS push for that same `Refs #N` marker
+        # instead, and closes it only now, on prod.
+        ISSUES=$(git log "$BEFORE..$AFTER" --format=%B | grep -ioE 'refs #[0-9]+' | grep -oE '[0-9]+' | sort -un)
+
+        if [ -z "$ISSUES" ]; then
+          echo "No 'Refs #N' issue references in this push."
+          exit 0
+        fi
+
+        for n in $ISSUES; do
+          echo "Closing issue #$n"
+          gh issue close "$n" \
+            --comment "Deployed to prod in ${AFTER:0:7}." \
+            --repo "${{ github.repository }}" \
+          || echo "::warning::Could not close issue #$n — already closed, or does not exist."
+        done
