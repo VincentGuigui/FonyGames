@@ -1,7 +1,7 @@
 import { isRoomCode, normaliseRoomCode } from '../www/src/core/room/code';
 import { gameSlug, originAllowed } from './router';
 import { Room } from './Room';
-import { makeFlagsReader, timedFetch, type FlagsReader } from './flags';
+import { flagGateDisabled, makeFlagsReader, timedFetch, type FlagsReader } from './flags';
 import { isPlayable, type FlagState } from '../shared/flags';
 
 export { Room };
@@ -34,6 +34,15 @@ export type Env = {
    * the admin token, which is break-glass access to everything.
    */
   PLAYS_TOKEN?: string;
+  /**
+   * `'1'` to bypass the flag gate below entirely — set only on the dev Worker
+   * (`wrangler.jsonc`'s `env.dev`). docs/specs/backoffice.md §2b already has the hub
+   * show every game on dev as clickable ("dev exists to try things"); before this,
+   * clicking one that was `soon`/`hidden` still failed to connect. This removes that
+   * mismatch rather than adding a new one — verifying the real block still means
+   * checking prod, exactly as the doc already says.
+   */
+  DISABLE_FLAG_GATE?: string;
 };
 
 /**
@@ -122,8 +131,12 @@ export default {
      * Fail open, and no `try` around it: `stateOf` answers `active` for a dead
      * host, a 404, a truncated body or an unset URL, and `worker/flags.test.ts` asserts
      * each of those. A `catch` here would suggest the contract is weaker than it is.
+     *
+     * `flagGateDisabled` short-circuits before the fetch, not after: the dev Worker
+     * has no business asking flags.json's opinion when it is not going to act on it.
      */
-    const state: FlagState = game ? await flags(env).stateOf(game) : 'active';
+    const state: FlagState =
+      !game || flagGateDisabled(env.DISABLE_FLAG_GATE) ? 'active' : await flags(env).stateOf(game);
 
     // The whole reason for Durable Objects: this name always resolves to the
     // same object, anywhere in the world, with no routing table of our own.

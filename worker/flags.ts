@@ -33,6 +33,18 @@ import type { FlagState, GameFlag } from '../shared/flags';
 import { DEFAULT_FLAG } from '../shared/flags';
 import { gameSlug } from './router';
 
+/**
+ * `'1'` bypasses the flag gate entirely — set only on the dev Worker's own env
+ * (`wrangler.jsonc`'s `env.dev`). docs/specs/backoffice.md §2b already has the hub
+ * show every game on dev as clickable ("dev exists to try things"); before this,
+ * clicking one that was `soon`/`hidden` still failed to connect. This removes that
+ * mismatch rather than adding a new one — verifying the real block still means
+ * checking prod, exactly as the doc already says.
+ */
+export function flagGateDisabled(disableFlagGate: string | undefined): boolean {
+  return disableFlagGate === '1';
+}
+
 /** How long a fetched copy is fresh. */
 export const FLAGS_TTL_MS = 60_000;
 

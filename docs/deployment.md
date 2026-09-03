@@ -219,10 +219,15 @@ credentials and reading them buys an attacker nothing:
 | --- | --- |
 | `ALLOWED_ORIGINS` | Comma-separated origins the room server accepts sockets from |
 | `FLAGS_URL` | URL of `flags.json` on the web host, which the Worker reads to enforce a flag |
+| `DISABLE_FLAG_GATE` | `'1'` to bypass the flag gate entirely. Set only on `env.dev` (and the local block) |
 
 `FLAGS_URL` is per environment, so the dev Worker reads the dev host's flags. It is a
 plain URL to a public file — reading it buys an attacker nothing, and the Worker
 fails open if it is wrong ([specs/backoffice.md](specs/backoffice.md) §2b).
+
+`DISABLE_FLAG_GATE` is absent (enforced) on `prod` and must stay that way — it exists
+so dev, which already shows every game as clickable, also lets you actually play one
+that is `soon`/`hidden` ([specs/backoffice.md](specs/backoffice.md) §2b).
 
 ### 3.6 What the deploy checks, and what it cannot
 
