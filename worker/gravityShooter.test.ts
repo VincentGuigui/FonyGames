@@ -1,5 +1,6 @@
 import {
   GRAVITY_LIVES,
+  GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR,
   GRAVITY_PLANET_MIN_GAP,
   GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO,
   GRAVITY_PLANET_MIN_Y_DIFF,
@@ -293,6 +294,14 @@ async function geometry(): Promise<void> {
       surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
     check(`seed ${seed}: their centres differ vertically by at least the required amount`,
       Math.abs(a.y - b.y) >= GRAVITY_PLANET_MIN_Y_DIFF - 1e-9, Math.abs(a.y - b.y));
+    // Both ships sit on the centre line (x = 0.5), so a straight shot always
+    // travels along it — each planet reaching that far with its own gravity
+    // (follow-up after #16) is what rules out a dead zone anywhere between
+    // them, not just "somewhere on the board".
+    for (const [label, p] of [['a', a] as const, ['b', b] as const]) {
+      check(`seed ${seed}: planet ${label}'s own gravity reaches the centre line`,
+        Math.abs(0.5 - p.x) <= GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR * p.r + 1e-9, { x: p.x, r: p.r });
+    }
   }
 
   // seatCanReachOpponent itself, deterministically: two planets tucked well

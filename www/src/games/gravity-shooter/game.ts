@@ -41,8 +41,14 @@ export function otherSeat(seat: Seat): Seat {
  *  units, before strength caps at `GRAVITY_MAX_STRENGTH`. */
 export const GRAVITY_MAX_AIM_DISTANCE = 0.3;
 
-/** Launch speed at full strength, in world widths per second. */
-export const GRAVITY_MAX_LAUNCH_SPEED = 1.35;
+/**
+ * Launch speed at full strength, in world widths per second — half the
+ * original brief's value (issue follow-up after #16). A faster missile
+ * crosses a planet's own influence zone before gravity has time to bend it
+ * anywhere; halving the speed keeps the flight time (and so gravity's own
+ * effect) meaningful even from a full-strength shot.
+ */
+export const GRAVITY_MAX_LAUNCH_SPEED = 0.675;
 
 /** Fixed-timestep gravity integration (spec §2.3): 1/60s steps. */
 export const GRAVITY_STEP_MS = 1000 / 60;
