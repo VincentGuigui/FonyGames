@@ -1,8 +1,8 @@
 import type { GravityPlanet } from '../../../../shared/protocol';
 import {
   GRAVITY_MAX_AIM_DISTANCE,
-  GRAVITY_OFFSCREEN_LIFETIME_MS,
-  GRAVITY_ONSCREEN_LIFETIME_MS,
+  GRAVITY_MAX_LAUNCH_SPEED,
+  GRAVITY_MIN_LAUNCH_SPEED,
   GRAVITY_PAST_OPPONENT_LIFETIME_MS,
   GRAVITY_STEP_MS,
   aimFromFinger,
@@ -141,47 +141,91 @@ const noPlanets: [GravityPlanet, GravityPlanet] = [
 function lifetime(): void {
   console.log("\na shot's own lifetime depends on where it actually is (issue #16)");
 
-  // Zero velocity: the missile never moves from its own onscreen starting
-  // point, so nothing but the ONSCREEN budget itself can end this shot.
-  const stationary = simulateShot(noPlanets, 0, 0, 0);
-  const stationaryMs = (stationary.path.length - 1) * GRAVITY_STEP_MS;
-  check('a shot that never leaves the board lasts the full onscreen budget',
-    Math.abs(stationaryMs - GRAVITY_ONSCREEN_LIFETIME_MS) < GRAVITY_STEP_MS, stationaryMs);
-  check('and still ends as a miss', stationary.hit === false);
-
-  // A near-sideways, low-strength shot: slow enough to leave the visible
-  // board without ever reaching the opponent's own row, and without
-  // reaching the far outer wall (GRAVITY_SIM_BOUNDS_MAX) either — so only
-  // the OFFSCREEN budget can be what ends it.
-  const grazing = simulateShot(noPlanets, 0, 1.5, 0.06);
+  // A near-sideways shot at the weakest possible pull: even the SLOWEST a
+  // missile can now fly (`GRAVITY_MIN_LAUNCH_SPEED`, a follow-up after #16)
+  // crosses the `GRAVITY_SIM_BOUNDS_MAX` margin faster than the 7s OFFSCREEN
+  // budget allows — so, unlike before that follow-up, a straight
+  // (gravity-free) sideways shot now always meets the outer wall first, not
+  // the budget. That budget still matters for a shot gravity curves back
+  // toward the board rather than straight out of it; this one just is not
+  // that shot.
+  const grazing = simulateShot(noPlanets, 0, 1.5, 0);
   const target1 = shipPosition(1);
   const leftBoard = grazing.path.findIndex((p) => p.x > 1 || p.x < 0 || p.y > 1 || p.y < 0);
-  const grazingMs = (grazing.path.length - 1) * GRAVITY_STEP_MS;
-  const timeOffscreen = grazingMs - leftBoard * GRAVITY_STEP_MS;
   check('it does leave the visible board before ending', leftBoard > 0, leftBoard);
   check('never crosses the opponent\'s own row', !grazing.path.some((p) => p.y < target1.y));
-  check('and ends roughly one offscreen budget after leaving it',
-    Math.abs(timeOffscreen - GRAVITY_OFFSCREEN_LIFETIME_MS) < GRAVITY_STEP_MS * 2, timeOffscreen);
+  check('and still ends as a miss', grazing.hit === false);
   const last = grazing.path.at(-1);
-  check('well inside the outer wall, so the budget ended it — not the wall',
-    !!last && last.x < 1.4, last);
+  check('ending at the outer wall, not the visible edge', !!last && last.x > 1.5 - 1e-6, last);
 
   // A shot aimed just past the opponent, missing by more than the hit
   // radius: once it flies beyond that row, "past" always wins over
   // "offscreen" (§ the zone-priority rule), so only the much shorter
   // PAST_OPPONENT budget governs from there.
-  const passing = simulateShot(noPlanets, 0, 0.3, 0.2);
+  const passing = simulateShot(noPlanets, 0, 0.3, 0);
   const target0 = shipPosition(1);
   const crossedRow = passing.path.findIndex((p) => p.y < target0.y);
   const passingMs = (passing.path.length - 1) * GRAVITY_STEP_MS;
   const timePast = passingMs - crossedRow * GRAVITY_STEP_MS;
   check('a near-miss that flies past the opponent is not a hit', passing.hit === false);
   check('it does cross the opponent\'s own row', crossedRow > 0, crossedRow);
-  check('and ends roughly one past-opponent budget after crossing it — far short of the other two',
+  check('and ends roughly one past-opponent budget after crossing it',
     Math.abs(timePast - GRAVITY_PAST_OPPONENT_LIFETIME_MS) < GRAVITY_STEP_MS * 2, timePast);
 }
 
-for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, lifetime]) {
+/** No pull at all, same fixture `noPlanets` above serves — a clean read of
+ *  what the speed range alone (no gravity) does to flight time. */
+const GRAVITY_FREE_MIN_IMPULSE_FRAMES = 331;
+const GRAVITY_FREE_MAX_IMPULSE_FRAMES = 166;
+
+function impulseRange(): void {
+  console.log('\nlaunch speed is capped, floored, and shaped by launch intensity (follow-up after #16)');
+
+  // The finger's own two extremes map to the two ends of the speed range,
+  // not from zero: `GRAVITY_MIN_LAUNCH_SPEED` (barely dragged) up to
+  // `GRAVITY_MAX_LAUNCH_SPEED` (dragged the full `GRAVITY_MAX_AIM_DISTANCE`).
+  const min = localAimToWorldVelocity(0, 0, 0);
+  const max = localAimToWorldVelocity(0, 1, 0);
+  check('the weakest possible pull still moves, at the speed floor',
+    near(Math.hypot(min.x, min.y), GRAVITY_MIN_LAUNCH_SPEED), min);
+  check('a full-strength pull moves at the speed ceiling',
+    near(Math.hypot(max.x, max.y), GRAVITY_MAX_LAUNCH_SPEED), max);
+
+  // A dead-centre shot with no planets in the way always lands — it travels
+  // straight down the centre line onto the opponent's own ship, the same
+  // invariant `symmetry()` above exercises for a planet-flanked shot — so
+  // its own frame count is a clean, deterministic read of how long each end
+  // of the speed range takes to cross the board on its own, with gravity
+  // contributing nothing.
+  const weakest = simulateShot(noPlanets, 0, 0, 0);
+  const strongest = simulateShot(noPlanets, 0, 0, 1);
+  check('the weakest pull still reaches the opponent', weakest.hit === true);
+  check('taking about 5.5s — near the slow end of the display range',
+    weakest.path.length - 1 === GRAVITY_FREE_MIN_IMPULSE_FRAMES, weakest.path.length - 1);
+  check('a full-strength pull also reaches the opponent', strongest.hit === true);
+  check('taking about 2.8s — near the fast end of the display range',
+    strongest.path.length - 1 === GRAVITY_FREE_MAX_IMPULSE_FRAMES, strongest.path.length - 1);
+
+  // The same two shots, now with two real planets in the way — a specific,
+  // known gravitational pull, not none. Both still connect (their own pull
+  // sits on the centre line the shot already travels, same as `symmetry()`
+  // above), and both arrive sooner than the gravity-free baseline just
+  // above: doubling `GRAVITY_G` (this follow-up's first change) means the
+  // planets' own attraction toward the board's own middle band now measurably
+  // shortens the flight at BOTH ends of the strength range, not just a
+  // fraction of a step.
+  const planets = symmetricPlanets();
+  const weakestPulled = simulateShot(planets, 0, 0, 0);
+  const strongestPulled = simulateShot(planets, 0, 0, 1);
+  check('gravity still lets the weakest pull connect', weakestPulled.hit === true);
+  check('arriving sooner than the gravity-free flight did',
+    weakestPulled.path.length < weakest.path.length, weakestPulled.path.length - 1);
+  check('gravity still lets a full-strength shot connect', strongestPulled.hit === true);
+  check('arriving sooner than the gravity-free flight did, too',
+    strongestPulled.path.length < strongest.path.length, strongestPulled.path.length - 1);
+}
+
+for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, lifetime, impulseRange]) {
   t();
 }
 

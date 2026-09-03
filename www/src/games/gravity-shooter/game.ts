@@ -41,14 +41,42 @@ export function otherSeat(seat: Seat): Seat {
  *  units, before strength caps at `GRAVITY_MAX_STRENGTH`. */
 export const GRAVITY_MAX_AIM_DISTANCE = 0.3;
 
+/** Straight-line world distance between the two ships (spec §2.2) — what a
+ *  bottom-to-top flight actually covers, used below to turn a target
+ *  flight DURATION into a speed rather than picking one by feel. */
+const GRAVITY_BOARD_HEIGHT = 1 - 2 * GRAVITY_SHIP_MARGIN;
+
 /**
- * Launch speed at full strength, in world widths per second — half the
- * original brief's value (issue follow-up after #16). A faster missile
- * crosses a planet's own influence zone before gravity has time to bend it
- * anywhere; halving the speed keeps the flight time (and so gravity's own
- * effect) meaningful even from a full-strength shot.
+ * How long a straight, ungravitated shot should take to cross the whole
+ * board, weakest pull to strongest — a *display* choice (a second follow-up
+ * after #16), not a gravitational one: rather than leaning on `GRAVITY_G` to
+ * slow a shot down, the launch speed itself is shaped so a barely-dragged
+ * shot still reads as a (slow) missile in flight, and a full-strength one
+ * still reads as fast, without either end feeling instant or interminable.
  */
-export const GRAVITY_MAX_LAUNCH_SPEED = 0.675;
+const GRAVITY_MIN_FLIGHT_S = 3;
+const GRAVITY_MAX_FLIGHT_S = 6;
+
+/**
+ * Launch speed at full strength, in world widths per second — roughly a
+ * third of this game's previous value (a second follow-up after #16, on top
+ * of the earlier halving): the weaker the missile, the more of its flight
+ * gravity gets to shape, so cutting the ceiling further keeps that true even
+ * at a full-strength pull. Derived from `GRAVITY_MIN_FLIGHT_S` above rather
+ * than hand-picked again, so the "about 3 seconds, full strength" display
+ * target is exactly what this constant produces, not a number that
+ * quietly drifts away from it the next time either changes.
+ */
+export const GRAVITY_MAX_LAUNCH_SPEED = GRAVITY_BOARD_HEIGHT / GRAVITY_MIN_FLIGHT_S;
+
+/**
+ * Launch speed at the weakest possible pull — a floor, not zero. Strength
+ * scales speed BETWEEN this and `GRAVITY_MAX_LAUNCH_SPEED` (see
+ * `localAimToWorldVelocity`), so even a shot barely pulled off the ship
+ * still reads as a slow missile in flight, capped at `GRAVITY_MAX_FLIGHT_S`,
+ * rather than crawling for as long as the lifetime budgets below allow.
+ */
+export const GRAVITY_MIN_LAUNCH_SPEED = GRAVITY_BOARD_HEIGHT / GRAVITY_MAX_FLIGHT_S;
 
 /** Fixed-timestep gravity integration (spec §2.3): 1/60s steps. */
 export const GRAVITY_STEP_MS = 1000 / 60;
@@ -85,9 +113,12 @@ export const GRAVITY_MAX_STEPS = Math.ceil(GRAVITY_ONSCREEN_LIFETIME_MS / GRAVIT
  * planet.r²)` — mass proportional to the planet's own area, so a bigger
  * planet pulls harder at any given distance, not just asymptotically far
  * from it. The radius doubles as both the softening distance near its
- * centre and its own missile-absorption radius (spec §2.3, §12).
+ * centre and its own missile-absorption radius (spec §2.3, §12). Doubled
+ * from the original brief (a third follow-up after #16) now that the launch
+ * speed above is so much lower — a slower missile alone still doesn't feel
+ * meaningfully pulled unless the pull itself is also stronger.
  */
-export const GRAVITY_G = 0.06;
+export const GRAVITY_G = 0.12;
 
 /** A missile within this distance of the opponent's ship is a hit (spec §2.3). */
 export const GRAVITY_HIT_RADIUS = 0.06;
@@ -123,10 +154,13 @@ export function viewTransform(seat: Seat, p: Vec): Vec {
  * A local aim — angle from straight up (toward the opponent), positive
  * clockwise; strength 0..1 — turned into a world-frame launch velocity.
  * `viewTransform`'s own derivative is a negation (a translation drops out of
- * a direction), so seat 1's shot is just seat 0's, flipped.
+ * a direction), so seat 1's shot is just seat 0's, flipped. Speed scales
+ * LINEARLY from `GRAVITY_MIN_LAUNCH_SPEED` (strength 0) up to
+ * `GRAVITY_MAX_LAUNCH_SPEED` (strength 1) rather than from zero, so the
+ * weakest possible pull is still a real, if slow, shot.
  */
 export function localAimToWorldVelocity(angle: number, strength: number, seat: Seat): Vec {
-  const speed = strength * GRAVITY_MAX_LAUNCH_SPEED;
+  const speed = GRAVITY_MIN_LAUNCH_SPEED + strength * (GRAVITY_MAX_LAUNCH_SPEED - GRAVITY_MIN_LAUNCH_SPEED);
   const local = { x: Math.sin(angle) * speed, y: -Math.cos(angle) * speed };
   return seat === 0 ? local : { x: -local.x, y: -local.y };
 }
