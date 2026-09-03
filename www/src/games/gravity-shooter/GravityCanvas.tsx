@@ -104,9 +104,13 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
       ctx.fillRect(0, 0, width, height);
 
       if (state) {
-        const planetPx = state.planets.map((p) => ({ ...toPixel(toLocal(p)), r: p.r * width }));
-        for (let i = 0; i < state.planets.length; i++) {
-          const planet = state.planets[i];
+        // `displayedPlanets`, not `state.planets`: a re-rolled board waits for
+        // the shot in flight to land and then eases into place (spec §2.1).
+        // Only the drawing uses it — every simulation stays on `state.planets`.
+        const drawnPlanets = game.displayedPlanets();
+        const planetPx = drawnPlanets.map((p) => ({ ...toPixel(toLocal(p)), r: p.r * width }));
+        for (let i = 0; i < drawnPlanets.length; i++) {
+          const planet = drawnPlanets[i];
           const px = planetPx[i];
           if (!planet || !px) continue;
           drawPlanet(ctx, px.x, px.y, px.r, planet.art, dpr);

@@ -155,6 +155,11 @@ export const GRAVITY_HIT_RADIUS = GRAVITY_SHIP_WIDTH / 2;
 export const GRAVITY_IMPACT_GIF_MS = 540;
 export const GRAVITY_EXPLOSION_GIF_MS = 960;
 
+/** How long a re-rolled board takes to slide and resize into place, once the
+ *  shot that changed it has finished flying (`displayedPlanets`). Short
+ *  enough to be over before the next player has finished taking aim. */
+export const GRAVITY_PLANET_TWEEN_MS = 450;
+
 /**
  * The simulation's own absolute termination bounds — deliberately wider than
  * the visible `[0,1]x[0,1]` board (spec §2.3, §7), so a shot that loops
@@ -314,6 +319,47 @@ export type ActiveShot = {
   startedAt: number;
 };
 
+/** Drawn only in the impossible case of a board being asked for before one
+ *  has ever arrived — a real state always carries two planets. */
+const PLACEHOLDER_PLANET: GravityPlanet = { x: 0.5, y: 0.5, r: 0, art: 0 };
+
+/** Slow at both ends, quick through the middle — a board that eases into place
+ *  rather than starting and stopping dead. */
+function easeInOut(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+/**
+ * Both boards ordered left planet first. The referee shuffles which slot each
+ * planet lands in, so pairing by slot would send them across each other
+ * through the middle of the board; pairing by side (there is always exactly one
+ * per half, spec §2.1) keeps each slide short and uncrossed.
+ */
+function bySide(board: readonly [GravityPlanet, GravityPlanet]): [GravityPlanet, GravityPlanet] {
+  const [a, b] = board;
+  return a.x <= b.x ? [a, b] : [b, a];
+}
+
+/** Position and radius eased from one board to the other. `art` is taken from
+ *  the destination for the whole slide: the sprite changes as the movement
+ *  starts, which reads as a new planet arriving rather than the one you were
+ *  watching changing its mind at the end. */
+function tweenBoard(
+  from: readonly [GravityPlanet, GravityPlanet],
+  to: readonly [GravityPlanet, GravityPlanet],
+  t: number,
+): [GravityPlanet, GravityPlanet] {
+  const a = bySide(from);
+  const b = bySide(to);
+  const mix = (index: 0 | 1): GravityPlanet => ({
+    x: a[index].x + (b[index].x - a[index].x) * t,
+    y: a[index].y + (b[index].y - a[index].y) * t,
+    r: a[index].r + (b[index].r - a[index].r) * t,
+    art: b[index].art,
+  });
+  return [mix(0), mix(1)];
+}
+
 function sameShot(a: GravityShot | null, b: GravityShot): boolean {
   return !!a && a.shooter === b.shooter && a.angle === b.angle && a.strength === b.strength && a.hit === b.hit;
 }
@@ -329,6 +375,11 @@ export class GravityGame {
   #state: GravityShooterState | null = null;
   #aim: Vec | null = null;
   #activeShot: ActiveShot | null = null;
+  /** The board currently drawn, the board waiting to be, and the ease between
+   *  them — see `displayedPlanets`. Purely cosmetic; physics never reads these. */
+  #shownPlanets: [GravityPlanet, GravityPlanet] | null = null;
+  #pendingPlanets: [GravityPlanet, GravityPlanet] | null = null;
+  #planetTween: { from: [GravityPlanet, GravityPlanet]; to: [GravityPlanet, GravityPlanet]; startedAt: number } | null = null;
   /** The last shot this phone has already started an animation for — so an
    *  echo of a shot fired optimistically (spec §2.3) never restarts it. */
   #animatedShot: GravityShot | null = null;
@@ -399,18 +450,85 @@ export class GravityGame {
       this.#activeShot = null;
       this.#animatedShot = null;
       this.#aim = null;
+      this.#shownPlanets = msg.d.planets;
+      this.#pendingPlanets = null;
+      this.#planetTween = null;
       return;
     }
 
+    // A re-rolled board is queued, never adopted on arrival: it rides the same
+    // frame as the shot that triggered it, and that shot is still in the air.
+    // `displayedPlanets` below is what eventually takes it.
+    if (this.#shownPlanets && msg.d.planets !== this.#planetTarget()) {
+      this.#pendingPlanets = msg.d.planets;
+    }
+
     const shot = msg.d.lastShot;
-    if (shot && !sameShot(this.#animatedShot, shot)) {
+    // A zero-strength shot is the referee's own marker for a turn that timed
+    // out (spec §2.4) — nobody aimed it. Animating it would fly a full-speed
+    // missile (the launch speed has a floor) straight into the opponent and
+    // then report a miss, which is exactly as confusing as it sounds.
+    if (shot && shot.strength > 0 && !sameShot(this.#animatedShot, shot)) {
       this.#animatedShot = shot;
       this.#activeShot = {
         seat: shot.shooter,
         result: simulateShot(planetsWhenFired, shot.shooter, shot.angle, shot.strength),
         startedAt: this.#now(),
       };
+    } else if (shot && shot.strength === 0) {
+      this.#animatedShot = shot;
     }
+  }
+
+  /** Whichever board the display is currently heading for. */
+  #planetTarget(): [GravityPlanet, GravityPlanet] | null {
+    return this.#planetTween?.to ?? this.#pendingPlanets ?? this.#shownPlanets;
+  }
+
+  /**
+   * The board to DRAW this frame, which is deliberately not always the board
+   * the referee currently has (spec §2.1):
+   *
+   * 1. While a shot is in flight, the planets it was fired on stay put. The
+   *    missile is flying a trajectory that board shaped, so swapping underneath
+   *    it would show the shot curving around planets that are no longer there.
+   * 2. Once the flight is done, the new board is eased in over
+   *    `GRAVITY_PLANET_TWEEN_MS` — position and radius both — rather than
+   *    teleporting.
+   *
+   * Only ever cosmetic: every simulation (a real shot, the aim preview, the
+   * referee's own fairness check) uses `state.planets`, the authoritative
+   * board, so what a shot does is never decided by where the art has slid to.
+   * Advances the tween as a side effect, which is why the canvas calls it once
+   * per frame rather than caching it.
+   *
+   * Nothing downstream cares which slot each planet lands in — the canvas just
+   * iterates the pair — so mid-slide the two come back left-first (see
+   * `bySide`), while a settled board is returned exactly as the referee sent it.
+   */
+  displayedPlanets(): [GravityPlanet, GravityPlanet] {
+    const authoritative = this.#state?.planets;
+    if (!authoritative) return this.#shownPlanets ?? [PLACEHOLDER_PLANET, PLACEHOLDER_PLANET];
+    if (!this.#shownPlanets) {
+      this.#shownPlanets = authoritative;
+      return authoritative;
+    }
+
+    if (this.#pendingPlanets && !this.#planetTween && !this.#activeShot) {
+      this.#planetTween = { from: this.#shownPlanets, to: this.#pendingPlanets, startedAt: this.#now() };
+      this.#pendingPlanets = null;
+    }
+
+    const tween = this.#planetTween;
+    if (!tween) return this.#shownPlanets;
+
+    const progress = (this.#now() - tween.startedAt) / GRAVITY_PLANET_TWEEN_MS;
+    if (progress >= 1) {
+      this.#shownPlanets = tween.to;
+      this.#planetTween = null;
+      return this.#shownPlanets;
+    }
+    return tweenBoard(tween.from, tween.to, easeInOut(Math.max(0, progress)));
   }
 
   /* ------------------------- input ------------------------- */
