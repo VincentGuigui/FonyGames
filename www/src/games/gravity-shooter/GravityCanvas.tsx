@@ -7,6 +7,7 @@ import planetArtA from './art/planet-a.png?url&no-inline';
 import planetArtB from './art/planet-b.png?url&no-inline';
 import planetArtC from './art/planet-c.png?url&no-inline';
 import missileArt from './art/missile.png?url&no-inline';
+import { gravityBodies, type GravityPlanet } from '../../../../shared/protocol';
 import {
   GRAVITY_EXPLOSION_GIF_MS,
   GRAVITY_SHIP_WIDTH,
@@ -14,6 +15,7 @@ import {
   GravityGame,
   aimFromFinger,
   shipPosition,
+  otherSeat,
   simulateShot,
   viewTransform,
   type Seat,
@@ -48,7 +50,16 @@ const PLANET_FALLBACK = ['#94A3B8', '#A78BFA', '#FCA5A5'];
 const AIM_FRACTION_SOLID = 1 / 3;
 const AIM_FRACTION_FADE = 2 / 3;
 
-export type FlightEnd = { hit: boolean; local: Vec };
+export type FlightEnd = {
+  hit: boolean;
+  /** Where the missile actually stopped, in the viewer's own local space. */
+  local: Vec;
+  /** The ship it was aimed at, same local space — where a hit's own impact
+   *  really happened. The simulation stops a whole hit radius (half a ship
+   *  width) short of this, so a burst drawn at `local` sits visibly short of
+   *  the ship it just struck. */
+  target: Vec;
+};
 
 /** The ship that just lost the match, and when its explosion started — it
  *  fades out across `GRAVITY_EXPLOSION_GIF_MS` while that GIF plays (spec §4). */
@@ -107,8 +118,11 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
         // `displayedPlanets`, not `state.planets`: a re-rolled board waits for
         // the shot in flight to land and then eases into place (spec §2.1).
         // Only the drawing uses it — every simulation stays on `state.planets`.
-        const drawnPlanets = game.displayedPlanets();
-        const planetPx = drawnPlanets.map((p) => ({ ...toPixel(toLocal(p)), r: p.r * width }));
+        const drawnBoard = game.displayedBoard();
+        const drawnPlanets = drawnBoard.planets;
+        const starPx = toPixel(toLocal({ x: 0.5, y: 0.5 }));
+        drawStar(ctx, starPx.x, starPx.y, drawnBoard.starRadius * width);
+        const planetPx = drawnPlanets.map((p: GravityPlanet) => ({ ...toPixel(toLocal(p)), r: p.r * width }));
         for (let i = 0; i < drawnPlanets.length; i++) {
           const planet = drawnPlanets[i];
           const px = planetPx[i];
@@ -154,7 +168,13 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
           }
           if (elapsed >= flightMs) {
             const end = shot.result.path.at(-1);
-            if (end) onFlightEnd({ hit: shot.result.hit, local: toLocal(end) });
+            if (end) {
+              onFlightEnd({
+                hit: shot.result.hit,
+                local: toLocal(end),
+                target: toLocal(shipPosition(otherSeat(shot.seat))),
+              });
+            }
             game.clearActiveShot();
           }
         }
@@ -225,7 +245,7 @@ function simulatePreviewPath(game: GravityGame, aim: Vec): Vec[] {
   if (!state || seat === null) return [];
   if (aim.x === 0 && aim.y === 0) return [shipPosition(seat)];
   const { angle, strength } = aimFromFinger(aim.x, aim.y);
-  return simulateShot(state.planets, seat, angle, strength).path;
+  return simulateShot(gravityBodies(state.starRadius, state.planets), seat, angle, strength).path;
 }
 
 /** The dashed preview: solid for the near third of the screen, fading out
@@ -294,6 +314,38 @@ function drawPlanet(ctx: CanvasRenderingContext2D, x: number, y: number, r: numb
   }
   ctx.save();
   ctx.fillStyle = PLANET_FALLBACK[artIndex % PLANET_FALLBACK.length] ?? PLANET_FALLBACK[0]!;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * The star at the middle of the board (spec §2.1). Drawn procedurally rather
+ * than from a sprite, for the reason `docs/design/illustrations.md` gives:
+ * sprites may only be translated, scaled and rotated, and this one's radius is
+ * re-rolled every couple of shots and eased between sizes as it changes — a
+ * shape that genuinely changes over time stays code, not art. A corona twice
+ * the body's own radius sells the heat without pretending to be a light source
+ * the rest of the board reacts to.
+ */
+function drawStar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  if (r <= 0) return;
+  ctx.save();
+  const corona = ctx.createRadialGradient(x, y, r * 0.6, x, y, r * 2);
+  corona.addColorStop(0, 'rgba(253, 224, 71, 0.42)');
+  corona.addColorStop(0.5, 'rgba(249, 115, 22, 0.16)');
+  corona.addColorStop(1, 'rgba(249, 115, 22, 0)');
+  ctx.fillStyle = corona;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  const body = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.15, x, y, r);
+  body.addColorStop(0, '#fffbeb');
+  body.addColorStop(0.45, '#fde047');
+  body.addColorStop(1, '#f97316');
+  ctx.fillStyle = body;
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();

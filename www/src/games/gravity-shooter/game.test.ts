@@ -1,4 +1,4 @@
-import type { GravityPlanet, ServerMessage } from '../../../../shared/protocol';
+import { gravityBodies, type GravityPlanet, type ServerMessage } from '../../../../shared/protocol';
 import {
   GravityGame,
   GRAVITY_HIT_RADIUS,
@@ -278,7 +278,7 @@ function replayUsesTheBoardTheShotWasFiredOn(): void {
     t: 'gravity',
     s: 1,
     d: {
-      roundId: 7, startsAt: 0, seats: ['a', 'b'], planets, shots: 1,
+      roundId: 7, startsAt: 0, seats: ['a', 'b'], planets, starRadius: 0, shots: 1,
       lives: [5, 5], turn: 1, resolvesAt: 0, lastShot, winner: null, phase: 'running', solo: false,
     },
   });
@@ -320,30 +320,30 @@ function movingBoardIsHeldThenEased(): void {
     t: 'gravity',
     s: 1,
     d: {
-      roundId: 3, startsAt: 0, seats: ['a', 'b'], planets, shots: 2,
+      roundId: 3, startsAt: 0, seats: ['a', 'b'], planets, starRadius: planets === fired ? 0.08 : 0.14, shots: 2,
       lives: [5, 5], turn: 1, resolvesAt: 0, lastShot, winner: null, phase: 'running', solo: false,
     },
   });
 
   game.apply(frame(fired, null));
-  check('the opening board is drawn as-is', JSON.stringify(game.displayedPlanets()) === JSON.stringify(fired));
+  check('the opening board is drawn as-is', JSON.stringify(game.displayedBoard().planets) === JSON.stringify(fired));
 
   // The frame that reports the shot also carries the new board.
   game.apply(frame(rerolled, shot));
   check('the referee has already moved on', JSON.stringify(game.state?.planets) === JSON.stringify(rerolled));
-  check('but the drawn board stays where the shot was fired', JSON.stringify(game.displayedPlanets()) === JSON.stringify(fired));
+  check('but the drawn board stays where the shot was fired', JSON.stringify(game.displayedBoard().planets) === JSON.stringify(fired));
   check('because that shot is still in the air', game.activeShot !== null);
 
   // Mid-flight: still held, however long the flight runs.
   clock += 2_000;
-  check('and it is still held mid-flight', JSON.stringify(game.displayedPlanets()) === JSON.stringify(fired));
+  check('and it is still held mid-flight', JSON.stringify(game.displayedBoard().planets) === JSON.stringify(fired));
 
   // The canvas clears the shot when the flight animation finishes.
   game.clearActiveShot();
   // Position and radius only: the art is the destination's from the first
   // frame of the slide (by design — the movement masks the sprite change), and
   // the pair comes back side-ordered while a tween is running.
-  const atStart = game.displayedPlanets();
+  const atStart = game.displayedBoard().planets;
   const geometry = (board: readonly GravityPlanet[]) =>
     JSON.stringify([...board].sort((p, q) => p.x - q.x).map(({ x, y, r }) => [x, y, r]));
   check('the slide starts from the old board, not a jump', geometry(atStart) === geometry(fired), atStart);
@@ -351,17 +351,41 @@ function movingBoardIsHeldThenEased(): void {
   // The left planet slides 0.2 -> 0.26 and grows 0.05 -> 0.15, so halfway
   // through it must be strictly inside both of those ranges.
   clock += GRAVITY_PLANET_TWEEN_MS / 2;
-  const midway = game.displayedPlanets();
+  const midway = game.displayedBoard().planets;
   const left = midway[0].x <= midway[1].x ? midway[0] : midway[1];
   check('halfway through, the left planet is between its two positions', left.x > 0.2 && left.x < 0.26, left.x);
   check('and between its two sizes', left.r > 0.05 && left.r < 0.15, left.r);
+  const midStar = game.displayedBoard().starRadius;
+  check('and the star is easing between its own two sizes too',
+    midStar > Math.min(0.08, 0.14) && midStar < Math.max(0.08, 0.14), midStar);
   check('with one planet still on each half of the board',
     (midway[0].x < 0.5) !== (midway[1].x < 0.5), midway.map((p) => p.x));
 
   clock += GRAVITY_PLANET_TWEEN_MS;
-  const settled = game.displayedPlanets();
+  const settled = game.displayedBoard().planets;
   check('once it is over, the drawn board is exactly the referee\'s own',
     JSON.stringify(settled) === JSON.stringify(rerolled), settled);
+}
+
+function theStarBlocksTheMiddle(): void {
+  console.log('\nthe star in the middle is a body like any other');
+
+  // The same dead-centre, full-strength shot, with and without the star. Both
+  // ships sit on x = 0.5, so this is the shot the star exists to rule out.
+  const clearRun = simulateShot(noPlanets, 0, 0, 1);
+  const throughTheStar = simulateShot(gravityBodies(0.1, noPlanets), 0, 0, 1);
+  check('without it, straight up the middle connects', clearRun.hit === true);
+  check('with it, the same shot never arrives', throughTheStar.hit === false);
+  const swallowedAt = throughTheStar.path.at(-1);
+  check('it is swallowed at the star, not somewhere else',
+    !!swallowedAt && Math.hypot(swallowedAt.x - 0.5, swallowedAt.y - 0.5) <= 0.1 + 1e-6, swallowedAt);
+
+  // And it pulls, rather than just being a hole in the board: an off-centre
+  // shot that misses it entirely still comes out on a different path.
+  const offCentre = simulateShot(noPlanets, 0, 0.9, 1);
+  const offCentreNearStar = simulateShot(gravityBodies(0.1, noPlanets), 0, 0.9, 1);
+  check('and a shot that passes it is bent by it',
+    JSON.stringify(offCentre.path) !== JSON.stringify(offCentreNearStar.path));
 }
 
 function timedOutTurnIsNotAFlight(): void {
@@ -374,7 +398,7 @@ function timedOutTurnIsNotAFlight(): void {
     t: 'gravity',
     s: 1,
     d: {
-      roundId: 4, startsAt: 0, seats: ['a', 'b'], planets, shots: 1,
+      roundId: 4, startsAt: 0, seats: ['a', 'b'], planets, starRadius: 0, shots: 1,
       lives: [5, 5], turn: 1, resolvesAt: 0, lastShot, winner: null, phase: 'running', solo: false,
     },
   });
@@ -393,7 +417,7 @@ function timedOutTurnIsNotAFlight(): void {
   check('a real shot after one still flies', game.activeShot !== null);
 }
 
-for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, lifetime, impulseRange, shipSizedHitbox, replayUsesTheBoardTheShotWasFiredOn, movingBoardIsHeldThenEased, timedOutTurnIsNotAFlight]) {
+for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, lifetime, impulseRange, shipSizedHitbox, replayUsesTheBoardTheShotWasFiredOn, movingBoardIsHeldThenEased, theStarBlocksTheMiddle, timedOutTurnIsNotAFlight]) {
   t();
 }
 

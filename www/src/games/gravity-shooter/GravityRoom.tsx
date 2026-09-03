@@ -20,8 +20,6 @@ import {
   GravityGame,
   GRAVITY_EXPLOSION_GIF_MS,
   GRAVITY_IMPACT_GIF_MS,
-  shipPosition,
-  viewTransform,
   type Seat,
 } from './game';
 import { GravityCanvas, type DyingShip, type FlightEnd } from './GravityCanvas';
@@ -110,7 +108,12 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
   const onFlightEnd = useCallback(
     (end: FlightEnd) => {
       if (end.hit) {
-        addBurst('missile', end.local);
+        // `end.target`, not `end.local`: the simulation stops as soon as the
+        // missile is within a hit radius of the ship, which is half a ship
+        // width short of it, so a burst drawn where the missile stopped played
+        // visibly before the collision. Both GIFs now use the one ship-centred
+        // position the canvas computes.
+        addBurst('missile', end.target);
         // The referee's own broadcast — which decides `phase`/`winner` — arrives
         // well before the flight animation finishes, so by the time the flight
         // ends `game.state` already knows whether this was the killing blow
@@ -127,10 +130,9 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
            * the frame the flight ended, cutting both GIFs off.
            */
           const loser: Seat = finished.winner === 0 ? 1 : 0;
-          const atShip = viewTransform(game.mySeat ?? 0, shipPosition(loser));
           setFinaleRunning(true);
           setTimeout(() => {
-            addBurst('explosion', atShip);
+            addBurst('explosion', end.target);
             setDying({ seat: loser, startedAt: performance.now() });
           }, GRAVITY_IMPACT_GIF_MS);
           setTimeout(() => setFinaleRunning(false), GRAVITY_IMPACT_GIF_MS + GRAVITY_EXPLOSION_GIF_MS);
