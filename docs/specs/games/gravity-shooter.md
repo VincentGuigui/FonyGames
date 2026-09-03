@@ -37,9 +37,10 @@ viewer, never two different boards.
    angle and strength; the missile fires toward wherever your finger is,
    like a targeting reticle, not away from it like a slingshot.
 3. While your finger is down, a dashed preview of the shot's own path is
-   shown, fully visible only near your own ship, fading to nothing by the
-   middle of the screen (§2.2) — a rough read on your own aim, never a
-   look at the whole shot.
+   shown: solid across the near third of the screen, fading through the
+   middle third, and gone for the last third before the opponent (§2.2) — a
+   real read on your own aim, but never a look at where the shot actually
+   lands.
 4. Release, and the missile flies, curving under both planets' gravity,
    for as long as where it currently is allows (§2.3) before an unresolved
    shot is abandoned outright.
@@ -78,8 +79,8 @@ round-start state, and never touched again for the rest of the match —
 unlike a puck or a position, a planet here is scenery the referee decided
 once, not a thing either side keeps re-agreeing on.
 
-**Four shape rules, each guaranteed rather than merely likely (issue #16, plus
-a follow-up on the fourth):**
+**Five shape rules, each guaranteed rather than merely likely (issue #16, plus
+follow-ups on the last two):**
 
 - **At least 30% size difference.** The two radii are never independently
   rolled and hoped apart — the referee picks the bigger one first, from
@@ -111,11 +112,23 @@ a follow-up on the fourth):**
   rolled from a range bounded by its own radius, so this never needs a
   retry either — though since it now depends on radius, `x` is rolled
   together with size/height in the retry loop above, not beforehand.
+- **One planet always covers the board's own centre** (`0.5, 0.5`) with its
+  actual body, not merely its gravity — so the straight line between the two
+  ships is never itself a shot, and every shot has to be curved around
+  something. This is the stronger sibling of the dead-zone rule above: that
+  one guarantees the middle of the board is always *pulled on*, this one
+  guarantees the middle is *blocked*. Constructed rather than rejected: the
+  covering planet's row is rolled first (bounded by its own radius, since a
+  planet further from the centre row than it is wide could never reach the
+  centre), then its column inside whatever the radius has left over. The
+  bigger planet can always reach from a legal row and the smaller one only
+  sometimes, so a coin flip decides only when both can — nothing should read
+  as "the big one is the middle one" any more than as "the left one".
 
 **A best-effort fairness pass, on top of the shape rules.** Issue #16 asked
 directly: *"is it possible to simulate a winning trajectory from each
 player's own position, to avoid generating an impossible map?"* — yes. Once
-a candidate map satisfies the four rules above, the referee samples a
+a candidate map satisfies the five rules above, the referee samples a
 coarse fan of shots (seven angles, five strengths — widened from three
 strengths in this follow-up, once a slower speed range and a stronger `G`
 made the fast-and-strong end of the old fan miss far more real shots) from
@@ -140,6 +153,15 @@ is **how it is drawn**: the seat that is not "y = 1" flips every point
 at the bottom. Nothing about physics, the wire messages, or the referee
 ever needs to know which seat is which — the flip lives entirely in the
 canvas renderer.
+
+**The aim preview's own fade is a screen distance, not a fraction of the
+path.** It is solid across the near third of the shooter's own screen, fades
+out through the middle third, and is gone for the last third before the
+opponent. Measured from where each segment actually sits on screen rather
+than from how far along the path it is, so a slow or hard-curving shot fades
+in the same place a fast straight one does — and a shot that loops back into
+the visible band is drawn again rather than cut off at its first faded
+segment.
 
 ### 2.3 The shot: aimed locally, resolved locally, trusted by the referee
 
@@ -180,9 +202,11 @@ not just asymptotically far away from it (the planet's own radius still
 doubles as both the softening distance near its center and its own
 absorption radius — a missile that gets within a planet's radius is
 swallowed there, ending as a plain miss) — summed over both planets. `G`
-itself is now double the original brief's value too, this same follow-up:
-a slower missile alone doesn't feel meaningfully pulled unless the pull
-itself is also stronger. The
+itself is now **four times** the original brief's value: doubled once when
+the launch speed dropped (a slower missile alone doesn't feel meaningfully
+pulled unless the pull itself is also stronger), then doubled again
+alongside the centre-blocking rule in §2.1, since a shot that now has to go
+*around* a planet needs enough pull to actually come back. The
 simulation stops early the moment the missile is within
 `GRAVITY_HIT_RADIUS` of the opponent's ship (a hit), gets swallowed by a
 planet (a miss), leaves a generous simulation area well outside the visible
@@ -367,11 +391,12 @@ readable by a screen reader like any other status bar in this catalogue.
 
 ## 12. Open questions
 
-- **`G` (gravity strength) and `GRAVITY_HIT_RADIUS`** — `G` doubled in a
-  follow-up on top of the original brief's value (§2.3), `GRAVITY_HIT_RADIUS`
-  still that original stated default — both untuned against a real thumb. A
-  first playtest decides whether shots now curve enough to feel skillful
-  without becoming unpredictable, or too much to feel controllable.
+- **`G` (gravity strength) and `GRAVITY_HIT_RADIUS`** — `G` is now four
+  times the original brief's value across two follow-ups (§2.3),
+  `GRAVITY_HIT_RADIUS` still that original stated default — both untuned
+  against a real thumb. A first playtest decides whether shots now curve
+  enough to feel skillful without becoming unpredictable, or too much to
+  feel controllable.
 - **The planet-radius-as-both-softening-and-absorption-radius choice**
   means the strongest pull on a missile happens right before it would be
   swallowed, with no gradual "graze and get flung" zone. Worth revisiting
@@ -407,3 +432,21 @@ readable by a screen reader like any other status bar in this catalogue.
   that back down to roughly 3.8% — still higher than before this follow-up,
   still rare and fail-soft, but worth watching, and worth widening further
   or adding retry attempts if it climbs in play.
+- **The centre-blocking rule and the second doubling of `G` (§2.1, §2.3)**
+  are a third follow-up's own picks, and the two pull in opposite
+  directions on purpose: a planet in the middle makes every shot harder,
+  while four times the brief's gravity makes curving around it easier. Two
+  measurements across 5000 seeded rolls, worth re-checking if any of these
+  constants move again:
+  - The fairness pass's own miss rate fell from roughly 3.8% to **zero** —
+    with this much pull, the sampled fan finds a way around the blocker on
+    every map it was given. That is the pre-check reporting success, not a
+    guarantee about the real client physics.
+  - Pinning one planet to the middle while the other still owes it 100px of
+    vertical separation is genuinely tight geometry, and the surface-gap
+    retry budget had to rise from 10 to 60 attempts to keep the two planets
+    from overlapping (4.2% of maps overlapped at 10, 0.02% at 30, none at
+    60). The mean radius barely moved (0.0886 → 0.0878), so the retries are
+    not quietly selecting for small planets — but if the y band or the
+    separation rule is ever retightened, this is the budget that will feel
+    it first.
