@@ -38,6 +38,19 @@ The workflow can also be run manually (`workflow_dispatch`) — useful after
 rotating a credential — but a job guard makes it a no-op unless it is run from
 `dev` or `prod`.
 
+### 1.1 Reporting branch state at the end of a task
+
+An agent finishing a change states where `main`/`dev`/`prod` actually stand,
+as a plain three-line list, one branch per line — 🟢 for "up to date with
+what was just done" (pushed, or merged and pushed), 🔴 for "not yet" (nothing
+beyond a commit id or a status word):
+
+```
+🟢 main
+🔴 dev
+🔴 prod
+```
+
 ## 2. GitHub Environments
 
 Two environments exist in **Settings → Environments**, named **exactly** like
