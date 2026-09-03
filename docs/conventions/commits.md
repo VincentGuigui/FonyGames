@@ -129,6 +129,10 @@ An issue tracks a piece of work from pick-up to production, not to merge —
   project counts an issue as done.
 - **Merging to `main`, deploying to `dev`**: the issue stays open. `dev` is
   a place to verify a change, not the finish line.
-- **Deploying to `prod`**: close the issue by hand, with a comment naming
-  what shipped (and the commit/merge it shipped in). This is the one step
-  that actually marks it done.
+- **Deploying to `prod`**: closed automatically. `.github/workflows/main.yml`'s
+  `close-issues` job runs after a successful `prod` deploy, scans every commit
+  newly reachable by that push for `Refs #N`, and closes each one with a
+  comment naming the commit it shipped in — the same "prod, not merge, is
+  done" rule above, just no longer a step a person has to remember. It only
+  ever fires from `Refs #N`, never a closing keyword, for the reason above; an
+  issue a commit forgot to reference stays open and needs closing by hand.
