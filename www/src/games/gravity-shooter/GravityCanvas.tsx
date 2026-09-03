@@ -40,8 +40,11 @@ const BG_TOP = '#0a0a18';
 const BG_LOW = '#161033';
 const SHIP_COLORS: [string, string] = ['#38BDF8', '#F472B6'];
 const PLANET_FALLBACK = ['#94A3B8', '#A78BFA', '#FCA5A5'];
+/** How much of the shooter's own screen the aim preview covers, measured
+ *  from the shooter's own edge: solid across the near third, fading through
+ *  the middle third, gone for the last third before the opponent (spec §2.2). */
 const AIM_FRACTION_SOLID = 1 / 3;
-const AIM_FRACTION_FADE = 1 / 2;
+const AIM_FRACTION_FADE = 2 / 3;
 
 export type FlightEnd = { hit: boolean; local: Vec };
 
@@ -117,7 +120,7 @@ export function GravityCanvas({ game, onFlightEnd, onShoot }: Props): JSX.Elemen
         const aim = game.aim;
         if (aim && mySeat !== null) {
           const preview = simulatePreviewPath(game, aim);
-          drawDashedPath(ctx, preview.map((p) => toPixel(toLocal(p))), width);
+          drawDashedPath(ctx, preview.map((p) => toPixel(toLocal(p))), width, height);
         }
 
         // The missile in flight, or resolving (spec §2.3).
@@ -209,10 +212,11 @@ function simulatePreviewPath(game: GravityGame, aim: Vec): Vec[] {
   return simulateShot(state.planets, seat, angle, strength).path;
 }
 
-/** The dashed preview: solid for the near third of the screen (spec §2), then
- *  fading to nothing by the middle — drawn per-segment since canvas has no
- *  built-in gradient-along-a-path. */
-function drawDashedPath(ctx: CanvasRenderingContext2D, points: Vec[], width: number): void {
+/** The dashed preview: solid for the near third of the screen, fading out
+ *  across the middle third, gone for the last third before the opponent
+ *  (spec §2.2) — drawn per-segment since canvas has no built-in
+ *  gradient-along-a-path. */
+function drawDashedPath(ctx: CanvasRenderingContext2D, points: Vec[], width: number, height: number): void {
   if (points.length < 2) return;
   ctx.save();
   ctx.setLineDash([6, 6]);
@@ -221,11 +225,14 @@ function drawDashedPath(ctx: CanvasRenderingContext2D, points: Vec[], width: num
     const a = points[i - 1];
     const b = points[i];
     if (!a || !b) continue;
-    // Opacity by how far along the shooter's own local screen the segment is —
-    // full near the shooter, fading out by mid-screen, gone after (spec §2).
-    const localY = 1 - i / points.length; // approximate: first points are near the shooter
-    const alpha = opacityFor(localY);
-    if (alpha <= 0) break;
+    // Opacity by where the segment actually SITS on the shooter's own screen,
+    // not by how far along the path it is — the fade is a screen distance
+    // (spec §2.2), so a slow or hard-curving shot has to fade in the same
+    // place a fast straight one does.
+    const alpha = opacityFor(b.y / height);
+    // A shot that loops back toward the shooter can re-enter the visible
+    // band, so this cannot stop at the first faded segment.
+    if (alpha <= 0) continue;
     ctx.globalAlpha = alpha;
     ctx.strokeStyle = SHIP_COLORS[0];
     ctx.beginPath();

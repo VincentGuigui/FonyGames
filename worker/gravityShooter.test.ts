@@ -14,6 +14,7 @@ import {
   type ServerMessage,
 } from '../shared/protocol';
 import {
+  coversBoardCentre,
   nextDeadline,
   onGravityShot,
   onPlayerGone,
@@ -302,6 +303,13 @@ async function geometry(): Promise<void> {
       check(`seed ${seed}: planet ${label}'s own gravity reaches the centre line`,
         Math.abs(0.5 - p.x) <= GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR * p.r + 1e-9, { x: p.x, r: p.r });
     }
+    // And one of them physically covers the middle of the board, so the
+    // straight line between the two ships is never itself a shot.
+    check(`seed ${seed}: one planet covers the board's centre`,
+      coversBoardCentre(a) || coversBoardCentre(b), [
+        { x: a.x, y: a.y, r: a.r },
+        { x: b.x, y: b.y, r: b.r },
+      ]);
   }
 
   // seatCanReachOpponent itself, deterministically: two planets tucked well

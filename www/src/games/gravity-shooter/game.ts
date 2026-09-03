@@ -114,11 +114,14 @@ export const GRAVITY_MAX_STEPS = Math.ceil(GRAVITY_ONSCREEN_LIFETIME_MS / GRAVIT
  * planet pulls harder at any given distance, not just asymptotically far
  * from it. The radius doubles as both the softening distance near its
  * centre and its own missile-absorption radius (spec §2.3, §12). Doubled
- * from the original brief (a third follow-up after #16) now that the launch
- * speed above is so much lower — a slower missile alone still doesn't feel
- * meaningfully pulled unless the pull itself is also stronger.
+ * from the original brief once the launch speed above dropped — a slower
+ * missile alone still doesn't feel meaningfully pulled unless the pull
+ * itself is also stronger — and doubled again after that, so four times the
+ * brief's own value. A planet now also physically covers the board's centre
+ * (spec §2.1), so every shot has to be curved around something rather than
+ * merely nudged.
  */
-export const GRAVITY_G = 0.12;
+export const GRAVITY_G = 0.24;
 
 /** A missile within this distance of the opponent's ship is a hit (spec §2.3). */
 export const GRAVITY_HIT_RADIUS = 0.06;
