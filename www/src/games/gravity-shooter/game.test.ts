@@ -153,7 +153,7 @@ function lifetime(): void {
   // board without ever reaching the opponent's own row, and without
   // reaching the far outer wall (GRAVITY_SIM_BOUNDS_MAX) either — so only
   // the OFFSCREEN budget can be what ends it.
-  const grazing = simulateShot(noPlanets, 0, 1.5, 0.03);
+  const grazing = simulateShot(noPlanets, 0, 1.5, 0.06);
   const target1 = shipPosition(1);
   const leftBoard = grazing.path.findIndex((p) => p.x > 1 || p.x < 0 || p.y > 1 || p.y < 0);
   const grazingMs = (grazing.path.length - 1) * GRAVITY_STEP_MS;
@@ -170,7 +170,7 @@ function lifetime(): void {
   // radius: once it flies beyond that row, "past" always wins over
   // "offscreen" (§ the zone-priority rule), so only the much shorter
   // PAST_OPPONENT budget governs from there.
-  const passing = simulateShot(noPlanets, 0, 0.3, 0.1);
+  const passing = simulateShot(noPlanets, 0, 0.3, 0.2);
   const target0 = shipPosition(1);
   const crossedRow = passing.path.findIndex((p) => p.y < target0.y);
   const passingMs = (passing.path.length - 1) * GRAVITY_STEP_MS;

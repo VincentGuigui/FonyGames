@@ -2339,6 +2339,22 @@ export const GRAVITY_PLANET_MIN_Y_DIFF = GRAVITY_PLANET_MIN_Y_DIFF_PX / GRAVITY_
 export const GRAVITY_PLANET_ART_COUNT = 3;
 
 /**
+ * How far a planet's own gravity is required to reach, as a multiple of its
+ * own radius — the rule that rules out a "dead zone" a shot could cross
+ * along the centre line without either planet mattering to it (follow-up
+ * after issue #16). The gravity model (`GRAVITY_G * r² / max(dist², r²)`)
+ * gives acceleration `G / k²` at distance `k * r` from ANY planet, regardless
+ * of its own size — a size-invariant way to say "still significant here".
+ * `k = 2` (a quarter of peak pull) is that follow-up's own untested pick
+ * (spec §12). Since both ships sit on the board's own centre line (`x =
+ * 0.5`, spec §2.2), requiring `|0.5 - planet.x| <= k * planet.r` for BOTH
+ * planets independently is a complete fix, not a partial one: it puts each
+ * planet's own influence zone in contact with the centre line, so their
+ * union has no gap for a straight shot to slip through anywhere between them.
+ */
+export const GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR = 2;
+
+/**
  * How far a ship sits from its own edge of the shared board (spec §2.2), in
  * world units — the one board-geometry fact both the client (drawing the
  * ship, aiming from it, simulating a shot's start/target point) and the

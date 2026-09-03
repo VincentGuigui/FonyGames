@@ -78,7 +78,8 @@ round-start state, and never touched again for the rest of the match —
 unlike a puck or a position, a planet here is scenery the referee decided
 once, not a thing either side keeps re-agreeing on.
 
-**Three shape rules, each guaranteed rather than merely likely (issue #16):**
+**Four shape rules, each guaranteed rather than merely likely (issue #16, plus
+a follow-up on the fourth):**
 
 - **At least 30% size difference.** The two radii are never independently
   rolled and hoped apart — the referee picks the bigger one first, from
@@ -97,6 +98,19 @@ once, not a thing either side keeps re-agreeing on.
   Constructed the same direct way: the lower one is rolled from a range that
   always leaves the required gap of room for the higher one above it, so
   this one never needs a retry at all.
+- **No dead zone**: a straight shot along the board's own centre line
+  (`x = 0.5`, both ships sit on it — §2.2) must always come within a
+  meaningful distance of at least one planet's own gravity. The gravity
+  formula (§2.3) gives acceleration `G / k²` at distance `k · planet.r` from
+  ANY planet, regardless of its size — a size-invariant "still matters here"
+  threshold. Requiring `|0.5 - planet.x| ≤ 2 · planet.r` for BOTH planets
+  independently is a complete fix, not a partial one: each planet's own
+  influence zone then reaches the centre line by construction, so the union
+  of the two has no gap anywhere between them for a shot to slip through.
+  Constructed the same direct way as the rules above: a planet's own `x` is
+  rolled from a range bounded by its own radius, so this never needs a
+  retry either — though since it now depends on radius, `x` is rolled
+  together with size/height in the retry loop above, not beforehand.
 
 **A best-effort fairness pass, on top of the shape rules.** Issue #16 asked
 directly: *"is it possible to simulate a winning trajectory from each
@@ -131,6 +145,13 @@ where the touch began — sets angle and strength: distance from the ship
 maps to strength (capped at `GRAVITY_MAX_AIM_DISTANCE`), and the missile
 fires toward the finger, a targeting reticle rather than a slingshot pulled
 back and released opposite the drag.
+
+`GRAVITY_MAX_LAUNCH_SPEED` (a full-strength shot's own speed) is half the
+original brief's value, a follow-up after issue #16: a faster missile spends
+less time inside a planet's own pull, so the same gravity model curved it
+less no matter how the planets were placed. Halving the top speed keeps
+gravity's own effect meaningful even at full strength, on top of the "no
+dead zone" placement rule above.
 
 The shot is simulated with a fixed-timestep (1/60s) gravity integration:
 each planet pulls the missile toward it with acceleration
@@ -343,3 +364,13 @@ readable by a screen reader like any other status bar in this catalogue.
   where the real, finer-grained client physics genuinely has no winning
   shot from one side. Worth widening the sampled fan, or adding more retry
   attempts, if that turns out to happen often enough to notice in play.
+- **The halved `GRAVITY_MAX_LAUNCH_SPEED` and the "no dead zone" influence
+  factor of `2` (§2.1, §2.3)** are both this follow-up's own untested picks,
+  same status as the numbers above — a first playtest decides whether a
+  full-strength shot now feels sluggish rather than merely more curved, and
+  whether `2` radii of "still matters" reads as generous or barely there.
+  The fairness pass's own miss rate — final maps that still read as
+  unwinnable from one seat after every retry is exhausted — rose from
+  roughly 0.75% to roughly 1.8% (measured across 5000 seeded rolls) now
+  that `x` is also constrained by the dead-zone rule; still rare and still
+  fail-soft, but worth watching if it climbs further alongside future tuning.

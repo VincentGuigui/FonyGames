@@ -4,6 +4,7 @@ import {
   GRAVITY_MAX_STRENGTH,
   GRAVITY_MIN_PLAYERS,
   GRAVITY_PLANET_ART_COUNT,
+  GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR,
   GRAVITY_PLANET_MIN_GAP,
   GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO,
   GRAVITY_PLANET_MIN_Y_DIFF,
@@ -68,16 +69,39 @@ export function nextDeadline(g: Gravity): number {
 }
 
 /**
+ * One planet's own `x`, on the given half of the board and close enough to
+ * the centre line for its own gravity to still matter there (follow-up after
+ * issue #16 — see `GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR`'s own doc comment
+ * for why "close enough" scales with `r`). The `Math.max`/`Math.min` against
+ * the edge margin is defensive — a big enough planet's own influence already
+ * reaches past the margin, so this never asks a planet to sit closer to the
+ * ships than the margin already allows.
+ */
+function rollPlanetX(random: () => number, side: 'left' | 'right', r: number): number {
+  const maxOffset = GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR * r;
+  if (side === 'left') {
+    const lo = Math.max(GRAVITY_PLANET_X_MARGIN, 0.5 - maxOffset);
+    return lo + random() * (0.5 - lo);
+  }
+  const hi = Math.min(1 - GRAVITY_PLANET_X_MARGIN, 0.5 + maxOffset);
+  return 0.5 + random() * (hi - 0.5);
+}
+
+/**
  * Both planets' own `x`, one per half of the board — never on the same side
  * (a genuine complaint: two planets both left, or both right, leaves the
  * other side of the board with nothing to curve a shot at all). Which
  * planet gets which half is still a fair coin flip; nothing about a
  * planet's own identity should read as "the left one" or "the right one".
+ * Takes each planet's own radius because how close it must sit to the centre
+ * depends on it (`rollPlanetX`) — so this has to run after radii are rolled,
+ * not before.
  */
-function rollPlanetXs(random: () => number): [number, number] {
-  const left = GRAVITY_PLANET_X_MARGIN + random() * (0.5 - GRAVITY_PLANET_X_MARGIN);
-  const right = 0.5 + random() * (0.5 - GRAVITY_PLANET_X_MARGIN);
-  return random() < 0.5 ? [left, right] : [right, left];
+function rollPlanetXs(random: () => number, ra: number, rb: number): [number, number] {
+  const aLeft = random() < 0.5;
+  const xa = rollPlanetX(random, aLeft ? 'left' : 'right', ra);
+  const xb = rollPlanetX(random, aLeft ? 'right' : 'left', rb);
+  return [xa, xb];
 }
 
 /**
@@ -137,7 +161,7 @@ export function surfaceGap(a: GravityPlanet, b: GravityPlanet): number {
  */
 const FAIRNESS_G = 0.06;
 const FAIRNESS_HIT_RADIUS = 0.06;
-const FAIRNESS_LAUNCH_SPEED = 1.35;
+const FAIRNESS_LAUNCH_SPEED = 0.675;
 const FAIRNESS_STEP_S = 1 / 60;
 /** 4s of flight — generous for a shot that actually connects; this check
  *  only needs to find ONE, not describe the whole flight. */
@@ -215,24 +239,28 @@ const GRAVITY_SPACING_ATTEMPTS = 10;
 
 /**
  * Both planets, rolled once with the referee's own fair `random()` (spec
- * §2.1): never on the same side (`rollPlanetXs`), sized and spaced apart
- * enough to read as two different obstacles rather than one blob
- * (`rollPlanetRadii`/`rollPlanetYs`/`surfaceGap`, issue #16), and — best
- * effort, never a hard requirement — checked against `seatCanReachOpponent`
- * for BOTH players before shipping, so a genuinely impossible map is rare
- * rather than merely unlikely.
+ * §2.1): never on the same side, sized and spaced apart enough to read as
+ * two different obstacles rather than one blob (`rollPlanetRadii`/
+ * `rollPlanetYs`/`surfaceGap`, issue #16), never leaving a "dead zone" a shot
+ * could cross without either planet's own gravity mattering to it
+ * (`rollPlanetXs`, follow-up after #16), and — best effort, never a hard
+ * requirement — checked against `seatCanReachOpponent` for BOTH players
+ * before shipping, so a genuinely impossible map is rare rather than merely
+ * unlikely. `x` is rolled together with radii in the inner loop, not once
+ * per outer attempt, because how close a planet must sit to the centre now
+ * depends on its own radius (`rollPlanetX`).
  */
 export function rollPlanets(random: () => number): [GravityPlanet, GravityPlanet] {
   let candidate: [GravityPlanet, GravityPlanet] | null = null;
 
   for (let attempt = 0; attempt < GRAVITY_WINNABILITY_ATTEMPTS; attempt++) {
-    const [xa, xb] = rollPlanetXs(random);
     const artA = Math.floor(random() * GRAVITY_PLANET_ART_COUNT);
     const artB = Math.floor(random() * GRAVITY_PLANET_ART_COUNT);
 
     for (let spacing = 0; spacing < GRAVITY_SPACING_ATTEMPTS; spacing++) {
       const [ra, rb] = rollPlanetRadii(random);
       const [ya, yb] = rollPlanetYs(random);
+      const [xa, xb] = rollPlanetXs(random, ra, rb);
       const a: GravityPlanet = { x: xa, y: ya, r: ra, art: artA };
       const b: GravityPlanet = { x: xb, y: yb, r: rb, art: artB };
       candidate = [a, b];
