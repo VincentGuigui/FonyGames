@@ -156,16 +156,23 @@ export function surfaceGap(a: GravityPlanet, b: GravityPlanet): number {
  * "does at least one reasonable shot from here connect," a fuzzy yes/no a
  * slightly different constant here or there cannot get wrong in a way that
  * matters. If `game.ts`'s own `GRAVITY_G`/`GRAVITY_HIT_RADIUS`/
- * `GRAVITY_MAX_LAUNCH_SPEED` are ever retuned, update these to match, or this
- * check quietly stops meaning what its own name says.
+ * `GRAVITY_MAX_LAUNCH_SPEED`/`GRAVITY_MIN_LAUNCH_SPEED` are ever retuned,
+ * update these to match, or this check quietly stops meaning what its own
+ * name says.
  */
-const FAIRNESS_G = 0.06;
+const FAIRNESS_G = 0.12;
 const FAIRNESS_HIT_RADIUS = 0.06;
-const FAIRNESS_LAUNCH_SPEED = 0.675;
+/** Same board-height-over-target-duration derivation as `game.ts`'s own
+ *  `GRAVITY_MAX_LAUNCH_SPEED`/`GRAVITY_MIN_LAUNCH_SPEED`. */
+const FAIRNESS_BOARD_HEIGHT = 1 - 2 * GRAVITY_SHIP_MARGIN;
+const FAIRNESS_LAUNCH_SPEED = FAIRNESS_BOARD_HEIGHT / 3;
+const FAIRNESS_MIN_LAUNCH_SPEED = FAIRNESS_BOARD_HEIGHT / 6;
 const FAIRNESS_STEP_S = 1 / 60;
-/** 4s of flight — generous for a shot that actually connects; this check
- *  only needs to find ONE, not describe the whole flight. */
-const FAIRNESS_MAX_STEPS = 240;
+/** 8s of flight — generous even for the slowest sampled pull (up to 6s
+ *  straight-line at the true floor, more once gravity curves it, more still
+ *  on a diagonal); this check only needs to find ONE connecting shot, not
+ *  describe the whole flight. */
+const FAIRNESS_MAX_STEPS = 480;
 /** Same wide margin `GRAVITY_SIM_BOUNDS_MIN/MAX` gives the real simulation
  *  (spec §2.3/§7), so a shot that would genuinely loop back in is not
  *  written off as unreachable just because this coarse check gave up early. */
@@ -182,7 +189,7 @@ function fairnessShipPosition(seat: 0 | 1): { x: number; y: number } {
 function fairnessShotConnects(planets: readonly [GravityPlanet, GravityPlanet], shooterSeat: 0 | 1, angle: number, strength: number): boolean {
   const start = fairnessShipPosition(shooterSeat);
   const target = fairnessShipPosition(shooterSeat === 0 ? 1 : 0);
-  const speed = strength * FAIRNESS_LAUNCH_SPEED;
+  const speed = FAIRNESS_MIN_LAUNCH_SPEED + strength * (FAIRNESS_LAUNCH_SPEED - FAIRNESS_MIN_LAUNCH_SPEED);
   const localVx = Math.sin(angle) * speed;
   const localVy = -Math.cos(angle) * speed;
   let x = start.x;
@@ -216,7 +223,12 @@ function fairnessShotConnects(planets: readonly [GravityPlanet, GravityPlanet], 
 /** A coarse fan of angles/strengths — wide enough to catch an obviously
  *  reachable shot without costing more than a few dozen cheap simulations. */
 const FAIRNESS_ANGLES_DEG = [-60, -40, -20, 0, 20, 40, 60];
-const FAIRNESS_STRENGTHS = [0.5, 0.75, 1];
+/** Widened after this follow-up's own launch-speed/gravity retune: a
+ *  full-strength-only-ish fan (the old `[0.5, 0.75, 1]`) missed a lot more
+ *  real shots once the speed range dropped and `GRAVITY_G` doubled — a
+ *  weaker pull now spends much longer exposed to a much stronger pull, so a
+ *  reachable shot is more likely to sit at the gentler end of the range. */
+const FAIRNESS_STRENGTHS = [0.15, 0.35, 0.5, 0.75, 1];
 
 /** Can at least one reasonable shot from `seat` reach the opponent? */
 export function seatCanReachOpponent(planets: readonly [GravityPlanet, GravityPlanet], seat: 0 | 1): boolean {

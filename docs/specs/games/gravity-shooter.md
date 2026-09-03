@@ -115,17 +115,20 @@ a follow-up on the fourth):**
 **A best-effort fairness pass, on top of the shape rules.** Issue #16 asked
 directly: *"is it possible to simulate a winning trajectory from each
 player's own position, to avoid generating an impossible map?"* — yes. Once
-a candidate map satisfies the three rules above, the referee samples a
-coarse fan of shots (seven angles, three strengths) from EACH ship's own
-position, run through a small worker-local copy of the client's own gravity
-model (`worker/gravityShooter.ts`'s `seatCanReachOpponent`) purely to answer
-"does at least one of these connect" — never to decide a real shot (spec §8
-is unchanged: the referee still trusts whatever `hit` a real `gravity-shot`
-claims). If neither ship has a sampled shot that connects, the referee
-re-rolls the whole map (up to eight times) before accepting the last
-attempt regardless. Deliberately a courtesy, not a guarantee: a coarse
-21-shot fan can still miss a real but narrow window, and the last attempt is
-always shipped rather than ever blocking a match from starting over it.
+a candidate map satisfies the four rules above, the referee samples a
+coarse fan of shots (seven angles, five strengths — widened from three
+strengths in this follow-up, once a slower speed range and a stronger `G`
+made the fast-and-strong end of the old fan miss far more real shots) from
+EACH ship's own position, run through a small worker-local copy of the
+client's own gravity model (`worker/gravityShooter.ts`'s
+`seatCanReachOpponent`) purely to answer "does at least one of these
+connect" — never to decide a real shot (spec §8 is unchanged: the referee
+still trusts whatever `hit` a real `gravity-shot` claims). If neither ship
+has a sampled shot that connects, the referee re-rolls the whole map (up to
+eight times) before accepting the last attempt regardless. Deliberately a
+courtesy, not a guarantee: a coarse 35-shot fan can still miss a real but
+narrow window, and the last attempt is always shipped rather than ever
+blocking a match from starting over it.
 
 ### 2.2 One board, drawn twice
 
@@ -146,12 +149,28 @@ maps to strength (capped at `GRAVITY_MAX_AIM_DISTANCE`), and the missile
 fires toward the finger, a targeting reticle rather than a slingshot pulled
 back and released opposite the drag.
 
-`GRAVITY_MAX_LAUNCH_SPEED` (a full-strength shot's own speed) is half the
-original brief's value, a follow-up after issue #16: a faster missile spends
-less time inside a planet's own pull, so the same gravity model curved it
-less no matter how the planets were placed. Halving the top speed keeps
-gravity's own effect meaningful even at full strength, on top of the "no
-dead zone" placement rule above.
+Launch speed is no longer a single ceiling scaled by strength — two follow-ups
+after issue #16 reshaped it:
+
+- **A speed FLOOR, not zero** (`GRAVITY_MIN_LAUNCH_SPEED`). Speed scales
+  linearly between this floor (strength 0, the barest drag) and
+  `GRAVITY_MAX_LAUNCH_SPEED` (strength 1, a drag of the full
+  `GRAVITY_MAX_AIM_DISTANCE`), rather than from zero — so even the weakest
+  possible pull still reads as a real, if slow, missile in flight.
+- **Both ends derived from a target DURATION, not hand-picked speeds.** A
+  straight, gravity-free flight across the board should take about 6 seconds
+  at the floor and about 3 seconds at the ceiling — a *display* choice (this
+  follow-up's own framing), not a gravitational one: the speed range is
+  shaped for how long a shot should feel like it's in the air, independently
+  of how much gravity then bends it. Both constants divide the ship-to-ship
+  world distance by the relevant duration, so retuning either duration
+  retunes the matching speed automatically.
+
+Together with `GRAVITY_MAX_LAUNCH_SPEED` already sitting at roughly a third
+of the original brief's value (this halved once, for issue #16's own
+follow-up, then roughly thirded again for this one), a full-strength shot is
+far slower than the original brief — spending much more of its flight
+exposed to a planet's own pull.
 
 The shot is simulated with a fixed-timestep (1/60s) gravity integration:
 each planet pulls the missile toward it with acceleration
@@ -160,7 +179,10 @@ planet's own area, so a bigger planet pulls harder at any given distance,
 not just asymptotically far away from it (the planet's own radius still
 doubles as both the softening distance near its center and its own
 absorption radius — a missile that gets within a planet's radius is
-swallowed there, ending as a plain miss) — summed over both planets. The
+swallowed there, ending as a plain miss) — summed over both planets. `G`
+itself is now double the original brief's value too, this same follow-up:
+a slower missile alone doesn't feel meaningfully pulled unless the pull
+itself is also stronger. The
 simulation stops early the moment the missile is within
 `GRAVITY_HIT_RADIUS` of the opponent's ship (a hit), gets swallowed by a
 planet (a miss), leaves a generous simulation area well outside the visible
@@ -345,9 +367,11 @@ readable by a screen reader like any other status bar in this catalogue.
 
 ## 12. Open questions
 
-- **`G` (gravity strength) and `GRAVITY_HIT_RADIUS`** are stated defaults,
-  untuned against a real thumb — a first playtest decides whether shots
-  curve enough to feel skillful without becoming unpredictable.
+- **`G` (gravity strength) and `GRAVITY_HIT_RADIUS`** — `G` doubled in a
+  follow-up on top of the original brief's value (§2.3), `GRAVITY_HIT_RADIUS`
+  still that original stated default — both untuned against a real thumb. A
+  first playtest decides whether shots now curve enough to feel skillful
+  without becoming unpredictable, or too much to feel controllable.
 - **The planet-radius-as-both-softening-and-absorption-radius choice**
   means the strongest pull on a missile happens right before it would be
   swallowed, with no gradual "graze and get flung" zone. Worth revisiting
@@ -359,18 +383,27 @@ readable by a screen reader like any other status bar in this catalogue.
   numbers, untested against a real thumb — a 20-second on-screen shot in
   particular is a real wait if it happens often; worth revisiting after a
   playtest if it reads as dead air rather than a shot still worth watching.
-- **The fairness pass's own 21-shot fan (§2.1)** is coarse by design, to
-  keep a match-start check cheap — it can still occasionally accept a map
-  where the real, finer-grained client physics genuinely has no winning
-  shot from one side. Worth widening the sampled fan, or adding more retry
-  attempts, if that turns out to happen often enough to notice in play.
-- **The halved `GRAVITY_MAX_LAUNCH_SPEED` and the "no dead zone" influence
-  factor of `2` (§2.1, §2.3)** are both this follow-up's own untested picks,
-  same status as the numbers above — a first playtest decides whether a
-  full-strength shot now feels sluggish rather than merely more curved, and
-  whether `2` radii of "still matters" reads as generous or barely there.
-  The fairness pass's own miss rate — final maps that still read as
-  unwinnable from one seat after every retry is exhausted — rose from
-  roughly 0.75% to roughly 1.8% (measured across 5000 seeded rolls) now
-  that `x` is also constrained by the dead-zone rule; still rare and still
-  fail-soft, but worth watching if it climbs further alongside future tuning.
+  Worth noting: since the launch-speed follow-up below, the fastest a
+  straight, gravity-free flight can cross the whole board is about 3s and
+  the slowest about 6s — both now well under the 20s onscreen budget, so
+  that budget realistically only ever governs a shot gravity has bent into
+  looping or lingering, not a shot flying more or less directly.
+- **The "no dead zone" influence factor of `2` (§2.1)** is this follow-up's
+  own untested pick, same status as the numbers above — a first playtest
+  decides whether `2` radii of "still matters" reads as generous or barely
+  there.
+- **The launch-speed retune and the doubled `G` (§2.3)** are a second
+  follow-up's own untested picks, on top of the first's: a full-strength
+  shot is now roughly a third of the original brief's speed (having already
+  been halved once for the first follow-up), a barely-dragged shot has a
+  speed floor for the first time, and `G` is double the original brief's
+  value. A first playtest decides whether this reads as "gravity finally
+  matters" or "every shot feels sluggish." The fairness pass's own fan
+  (§2.1) had to widen alongside it — the old three-strength fan's own miss
+  rate jumped from roughly 1.8% to roughly 33% of freshly-rolled maps
+  (measured across 5000 seeded rolls) once speed dropped and `G` doubled,
+  since a winning shot was now far more likely to sit at a gentler strength
+  the old fan never sampled; widening it to five strengths (§2.1) brought
+  that back down to roughly 3.8% — still higher than before this follow-up,
+  still rare and fail-soft, but worth watching, and worth widening further
+  or adding retry attempts if it climbs in play.
