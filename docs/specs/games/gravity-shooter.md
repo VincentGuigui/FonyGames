@@ -83,13 +83,31 @@ free look at. A timed-out turn (§2.4) counts as that seat's shot spent, so a
 silent player cannot freeze the board. The whole geometry is re-rolled, under
 every placement rule below, not nudged.
 
-Two consequences worth knowing. The referee re-rolls in the very frame that
-reports the shot which triggered it, so **a client replaying `lastShot` must
-simulate against the planets it was already showing**, not the ones that frame
-carries — otherwise the receiving phone draws the flight through a board that
-did not exist when the shot was fired (`game.ts`'s own `apply`). And the
-match-winning shot deliberately does NOT move the board: both phones are still
-animating that flight and its explosion against the board it was won on.
+The referee re-rolls in the very frame that reports the shot which triggered
+it — which arrives seconds before either phone has finished animating that
+shot. Two things follow from that, and both are about keeping the picture
+honest rather than about the rules:
+
+- **A client replaying `lastShot` simulates against the planets it was already
+  showing**, not the ones that frame carries, or the receiving phone would draw
+  the flight through a board that did not exist when the shot was fired
+  (`game.ts`'s own `apply`).
+- **The drawn board lags the referee's.** A new board is queued, not adopted:
+  the planets the shot was fired on stay put until that flight has landed, and
+  only then does the new board arrive — eased into place over
+  `GRAVITY_PLANET_TWEEN_MS` (450ms), position and radius both, rather than
+  teleporting mid-flight. The two boards are paired up by SIDE for the slide
+  (there is always exactly one planet per half), so each one travels to the new
+  planet on its own side instead of crossing through the middle; each takes its
+  destination's `art` from the first frame of the slide, where the movement
+  covers the sprite change. This is `game.ts`'s own `displayedPlanets`, and it
+  is the same "hold the referee's truth until the animation that justifies it
+  has played" pattern as the life pips above. **Purely cosmetic** — every
+  simulation still runs on `state.planets`, so what a shot does is never
+  decided by where the art has slid to.
+
+The match-winning shot deliberately does NOT move the board: both phones are
+still animating that flight and its explosion against the board it was won on.
 
 **Five shape rules, each guaranteed rather than merely likely (issue #16, plus
 follow-ups on the last two):**
@@ -267,7 +285,13 @@ referee alarm at that deadline. If a `gravity-shot` never arrives — a
 backgrounded tab, a dropped connection — the referee's own `tick()`
 resolves the turn as a miss and passes it to the other player, the same
 shape as Tap Fighter's own no-lock-in default
-(`worker/tapFighter.ts`). `GRAVITY_SHOT_TIMEOUT_MS` is generous (well past
+(`worker/tapFighter.ts`). It is recorded as a zero-strength `lastShot`, which
+is the referee's own marker for "nobody aimed this" — and **clients do not
+animate it**. Since the launch speed has a floor (§2.3), simulating a
+zero-strength shot would fly a real missile straight up the centre line and,
+with a ship-sized hitbox, visibly connect, while the referee's `hit: false`
+means no life is lost. A turn that expired simply passes.
+`GRAVITY_SHOT_TIMEOUT_MS` is generous (well past
 the 3-second flight itself) since it only has to cover "did the message
 ever arrive," not the flight time.
 
