@@ -2311,20 +2311,59 @@ export const GRAVITY_REFERENCE_BOARD_PX = 400;
 export const GRAVITY_PLANET_R_MIN = 20 / GRAVITY_REFERENCE_BOARD_PX;
 export const GRAVITY_PLANET_R_MAX = 100 / GRAVITY_REFERENCE_BOARD_PX;
 
+/**
+ * How different the two planets' own radii must be, as a fraction of the
+ * larger one (issue #16) — two near-identical planets read as one shape
+ * drawn twice, not two different things to curve a shot around.
+ */
+export const GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO = 0.3;
+
+/**
+ * How far apart the two planets' own SURFACES must land — centre distance
+ * minus both radii — never their centres alone (issue #16): two big planets
+ * can have far-apart centres and still touch. Same px-then-normalized shape
+ * as the radius range above.
+ */
+export const GRAVITY_PLANET_MIN_GAP_PX = 50;
+export const GRAVITY_PLANET_MIN_GAP = GRAVITY_PLANET_MIN_GAP_PX / GRAVITY_REFERENCE_BOARD_PX;
+
+/**
+ * How far apart the two planets' own centres must sit vertically (issue
+ * #16) — otherwise they can land on the same horizontal band and read as
+ * one wide obstacle rather than two separate things to route between.
+ */
+export const GRAVITY_PLANET_MIN_Y_DIFF_PX = 100;
+export const GRAVITY_PLANET_MIN_Y_DIFF = GRAVITY_PLANET_MIN_Y_DIFF_PX / GRAVITY_REFERENCE_BOARD_PX;
+
 /** How many pre-made planet PNGs `GravityPlanet.art` may index into. */
 export const GRAVITY_PLANET_ART_COUNT = 3;
+
+/**
+ * How far a ship sits from its own edge of the shared board (spec §2.2), in
+ * world units — the one board-geometry fact both the client (drawing the
+ * ship, aiming from it, simulating a shot's start/target point) and the
+ * referee (issue #16's own map-fairness pre-check, `worker/gravityShooter.ts`)
+ * need to agree on, so it lives here rather than with the client-only tuning
+ * below. 0.08 was the original brief; issue #16 asked for the ships to sit a
+ * further 20px from the edge.
+ */
+export const GRAVITY_SHIP_MARGIN = 0.08 + 20 / GRAVITY_REFERENCE_BOARD_PX;
 
 /**
  * A pull's own strength is normalized 0..1 client-side; the referee clamps
  * an incoming `gravity-shot` to this range before re-broadcasting it, so a
  * malformed payload cannot produce `NaN`/`Infinity` in a replay (spec §6).
  *
- * The gravity simulation itself — step size, planet pull, hit radius,
- * simulation bounds — is NOT here. Same reasoning Sling Puck's own physics
- * gives for staying out of `shared/` (`www/src/games/sling-puck/physics.ts`):
- * the referee never runs it and never needs to agree with it (spec §8), so
- * it lives with the two clients that do, in
- * `www/src/games/gravity-shooter/game.ts`.
+ * The gravity simulation's own FEEL — step size, pull strength, hit radius,
+ * launch speed, simulation bounds — is NOT here. Same reasoning Sling Puck's
+ * own physics gives for staying out of `shared/`
+ * (`www/src/games/sling-puck/physics.ts`): the referee never needs to agree
+ * with the client's copy bit-for-bit, since it never adjudicates a claimed
+ * hit with it (spec §8) — so it lives with the two clients that do, in
+ * `www/src/games/gravity-shooter/game.ts`. `worker/gravityShooter.ts` keeps
+ * its own small, deliberately approximate copy for a different job (issue
+ * #16): sanity-checking a freshly-rolled map before it ships, not deciding
+ * any one shot.
  */
 export const GRAVITY_MAX_STRENGTH = 1;
 

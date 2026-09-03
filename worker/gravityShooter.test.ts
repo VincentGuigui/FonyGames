@@ -1,18 +1,25 @@
 import {
   GRAVITY_LIVES,
+  GRAVITY_PLANET_MIN_GAP,
+  GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO,
+  GRAVITY_PLANET_MIN_Y_DIFF,
   GRAVITY_PLANET_R_MAX,
   GRAVITY_PLANET_R_MIN,
   GRAVITY_PLANET_X_MARGIN,
   GRAVITY_PLANET_Y_MAX,
   GRAVITY_PLANET_Y_MIN,
   GRAVITY_SHOT_TIMEOUT_MS,
+  type GravityPlanet,
   type ServerMessage,
 } from '../shared/protocol';
 import {
   nextDeadline,
   onGravityShot,
   onPlayerGone,
+  rollPlanets,
+  seatCanReachOpponent,
   startGravityShooter,
+  surfaceGap,
   tick,
   type Ctx,
   type Gravity,
@@ -271,7 +278,45 @@ async function deadlines(): Promise<void> {
   check('and nothing is left to wait for', nextDeadline(h.state() as Gravity) === Infinity);
 }
 
-for (const t of [starting, shooting, garbage, timeout, ending, walkout, deadlines, solo]) {
+async function geometry(): Promise<void> {
+  console.log('\nthe map is playable, not just legal (issue #16)');
+
+  // Across a run of seeds, not just one — a rule guaranteed by CONSTRUCTION
+  // (rollPlanetRadii/rollPlanetYs) rather than by rejection should hold for
+  // every one of them, with no exceptions to go looking for.
+  for (let seed = 1; seed <= 20; seed++) {
+    const [a, b] = rollPlanets(seeded(seed));
+    const sizeDiff = Math.abs(a.r - b.r) / Math.max(a.r, b.r);
+    check(`seed ${seed}: the planets differ in size by at least the required ratio`,
+      sizeDiff >= GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO - 1e-9, sizeDiff);
+    check(`seed ${seed}: their surfaces are at least the required gap apart`,
+      surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
+    check(`seed ${seed}: their centres differ vertically by at least the required amount`,
+      Math.abs(a.y - b.y) >= GRAVITY_PLANET_MIN_Y_DIFF - 1e-9, Math.abs(a.y - b.y));
+  }
+
+  // seatCanReachOpponent itself, deterministically: two planets tucked well
+  // clear of the straight line between the ships must let a nearly-straight
+  // shot through for both of them.
+  const clear: [GravityPlanet, GravityPlanet] = [
+    { x: 0.2, y: 0.4, r: 0.05, art: 0 },
+    { x: 0.8, y: 0.6, r: 0.08, art: 1 },
+  ];
+  check('a map with room to aim through is winnable from seat 0', seatCanReachOpponent(clear, 0));
+  check('and from seat 1', seatCanReachOpponent(clear, 1));
+
+  // One planet large enough to swallow the shooter's own starting point
+  // absorbs every possible shot, from either seat, at the very first step —
+  // the one configuration this check exists to catch.
+  const blocked: [GravityPlanet, GravityPlanet] = [
+    { x: 0.5, y: 0.5, r: 2, art: 0 },
+    { x: -10, y: -10, r: 0.01, art: 1 },
+  ];
+  check('a map with no room at all is correctly read as unwinnable from seat 0', !seatCanReachOpponent(blocked, 0));
+  check('and from seat 1', !seatCanReachOpponent(blocked, 1));
+}
+
+for (const t of [starting, shooting, garbage, timeout, ending, walkout, deadlines, solo, geometry]) {
   await t();
 }
 
