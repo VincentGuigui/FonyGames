@@ -4,7 +4,7 @@
 | --- | --- |
 | **Slug** | `gravity-shooter` |
 | **Catchy sentence** | *Bend your shot around a planet and blow up their ship* |
-| **Illustration** | `www/src/games/gravity-shooter/art/card.svg` — a missile mid-flight, its dashed trail curving hard around a planet toward a ship at the top of frame |
+| **Illustration** | `www/src/games/gravity-shooter/art/card.svg` — a missile mid-flight, its dashed trail curving hard around a planet toward a ship at the top of frame. **Generated** by `generate-card.mjs` from this game's own sprites, with the trail flown by this game's own `simulateShot` — see [../../design/illustrations.md](../../design/illustrations.md) |
 | **Players** | 2 — exactly |
 | **Round length** | 1–3 min |
 | **Inputs** | touch (aim above the ship, release) |
