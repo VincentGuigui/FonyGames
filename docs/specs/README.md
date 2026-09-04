@@ -42,7 +42,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Aliens love cows](games/aliens-love-cows.md) | *Pick a barn. Dodge the beam* | touch | 2–8 | 🎮 beta — the hover/transit/abduction timing and a full 8-cow pileup on one barn untested on real thumbs |
 | [Tiles Surfer](games/tiles-surfer.md) | *Tap the tile the instant it hits the line* | touch | 1–8 | 🎮 beta — spawn cadence, safety cap and difficulty curve untested on real thumbs |
 | [Gravity Shooter](games/gravity-shooter.md) | *Bend your shot around a planet and blow up their ship* | touch | 2 | 🎮 beta — gravity strength and hit radius untested on real thumbs |
-| [Asteroid Race](games/asteroid-race.md) | *Dodge the rocks, blast the rest, get there first* | orientation + touch | 1–8 | ✅ approved — not yet built ([#24](https://github.com/VincentGuigui/FonyGames/issues/24)) |
+| [Asteroid Race](games/asteroid-race.md) | *Dodge the rocks, blast the rest, get there first* | orientation + touch | 1–8 | 🎮 beta — the field's own numbers untested on real thumbs ([#24](https://github.com/VincentGuigui/FonyGames/issues/24)) |
 
 ### Idea notes (not yet specs)
 
