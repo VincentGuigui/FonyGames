@@ -1,4 +1,4 @@
-import { gravityBodies, type GravityPlanet, type ServerMessage } from '../../../../shared/protocol';
+import { GRAVITY_SHOT_TIMEOUT_MS, gravityBodies, type GravityPlanet, type ServerMessage } from '../../../../shared/protocol';
 import {
   GravityGame,
   GRAVITY_HIT_RADIUS,
@@ -9,12 +9,15 @@ import {
   GRAVITY_PLANET_TWEEN_MS,
   GRAVITY_PAST_OPPONENT_LIFETIME_MS,
   GRAVITY_SHIP_WIDTH,
+  GRAVITY_SHOT_BLINK_MAX_HZ,
+  GRAVITY_SHOT_BLINK_START_MS,
   GRAVITY_STEP_MS,
   aimFromFinger,
   contactPoint,
   headingBetween,
   localAimToWorldVelocity,
   shipPosition,
+  shotClockPulseAlpha,
   simulateShot,
   viewTransform,
 } from './game';
@@ -381,6 +384,10 @@ function theStarBlocksTheMiddle(): void {
   const swallowedAt = throughTheStar.path.at(-1);
   check('it is swallowed at the star, not somewhere else',
     !!swallowedAt && Math.hypot(swallowedAt.x - 0.5, swallowedAt.y - 0.5) <= 0.1 + 1e-6, swallowedAt);
+  check('and the result says exactly where — for the impact GIF to land on',
+    JSON.stringify(throughTheStar.absorbedAt) === JSON.stringify(swallowedAt), throughTheStar.absorbedAt);
+  check('a shot that connects instead carries no absorption point',
+    clearRun.absorbedAt === undefined);
 
   // And it pulls, rather than just being a hole in the board: an off-centre
   // shot that misses it entirely still comes out on a different path.
@@ -458,7 +465,56 @@ function timedOutTurnIsNotAFlight(): void {
   check('a real shot after one still flies', game.activeShot !== null);
 }
 
-for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, lifetime, impulseRange, shipSizedHitbox, replayUsesTheBoardTheShotWasFiredOn, movingBoardIsHeldThenEased, theStarBlocksTheMiddle, missileAimAndImpact, timedOutTurnIsNotAFlight]) {
+function shotClockCountdown(): void {
+  console.log("\nthe shot clock: a blink that speeds up, and a drag that cannot outlive it");
+
+  check('solid well before the blink threshold', shotClockPulseAlpha(0) === 1);
+  check('still solid right up to it', shotClockPulseAlpha(GRAVITY_SHOT_BLINK_START_MS - 1) === 1);
+
+  // Once it starts, the pulse never goes fully invisible or over full opacity.
+  for (const elapsed of [GRAVITY_SHOT_BLINK_START_MS, GRAVITY_SHOT_BLINK_START_MS + 500, GRAVITY_SHOT_TIMEOUT_MS, GRAVITY_SHOT_TIMEOUT_MS + 5_000]) {
+    const alpha = shotClockPulseAlpha(elapsed);
+    check(`alpha at ${elapsed}ms stays in [0.35, 1]`, alpha >= 0.35 - 1e-9 && alpha <= 1 + 1e-9, alpha);
+  }
+
+  // Past the deadline the ramp is clamped rather than accelerating further, so
+  // one full cycle at the top rate (5Hz) later lands on the same phase.
+  const atDeadline = shotClockPulseAlpha(GRAVITY_SHOT_TIMEOUT_MS + 100);
+  const oneCycleLater = shotClockPulseAlpha(GRAVITY_SHOT_TIMEOUT_MS + 100 + 1000 / GRAVITY_SHOT_BLINK_MAX_HZ);
+  check('the pulse rate is capped at the deadline, not still accelerating',
+    Math.abs(atDeadline - oneCycleLater) < 1e-6, { atDeadline, oneCycleLater });
+
+  // A live drag cannot be released once its own deadline has passed — the
+  // client cuts it off itself rather than waiting on the referee to reject it.
+  let clock = 0;
+  const game = new GravityGame();
+  game.identify('a', () => clock);
+  const frame = (resolvesAt: number): ServerMessage => ({
+    t: 'gravity',
+    s: 1,
+    d: {
+      roundId: 1, startsAt: 0, seats: ['a', 'a'], planets: symmetricPlanets(), starRadius: 0, shots: 0,
+      lives: [5, 5], turn: 0, resolvesAt, lastShot: null, winner: null, phase: 'running', solo: true,
+    },
+  });
+  game.apply(frame(10_000));
+  check('can aim before the deadline', game.canAim);
+  check('and can begin a drag', game.beginAim());
+  game.updateAim(0, -GRAVITY_MAX_AIM_DISTANCE);
+
+  clock = 10_000;
+  check('cannot aim once the deadline has passed', !game.canAim);
+  check('the drag is still there — only the canvas actually cancels it', game.aim !== null);
+  check('but releasing it now fires nothing', game.releaseAim() === null);
+
+  // canAim is read live off the current clock, not cached from when the drag
+  // began — turning the clock back proves it, though only the referee's own
+  // clock ever moves forward for real.
+  clock = 5_000;
+  check('and recovers once the clock is back before the deadline', game.canAim);
+}
+
+for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, lifetime, impulseRange, shipSizedHitbox, replayUsesTheBoardTheShotWasFiredOn, movingBoardIsHeldThenEased, theStarBlocksTheMiddle, missileAimAndImpact, timedOutTurnIsNotAFlight, shotClockCountdown]) {
   t();
 }
 

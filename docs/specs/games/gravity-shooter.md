@@ -36,12 +36,12 @@ viewer, never two different boards.
    ship — the finger's own position relative to the ship sets your shot's
    angle and strength; the missile fires toward wherever your finger is,
    like a targeting reticle, not away from it like a slingshot.
-3. While your finger is down, the missile itself sits on the launch point just
-   above your ship, **swinging in real time to face wherever your finger is**,
-   and a dashed preview of its path is shown: solid across the near third of
-   the screen, fading through the middle third, and gone for the last third
-   before the opponent (§2.2) — a real read on your own aim, but never a look
-   at where the shot actually lands.
+3. While your finger is down, the missile itself sits at the top-centre of
+   your own ship's sprite, **swinging in real time to face wherever your
+   finger is**, and a dashed preview of its path is shown: solid across the
+   near third of the screen, fading through the middle third, and gone for
+   the last third before the opponent (§2.2) — a real read on your own aim,
+   but never a look at where the shot actually lands.
 4. Release, and the missile flies, curving under the star's and both planets'
    gravity and **turning to point along its own trajectory** as it goes, for as
    long as where it currently is allows (§2.3) before an unresolved shot is
@@ -274,21 +274,37 @@ therefore only ever cosmetic.
 
 ### 2.4 The shot clock
 
-Every turn opens with `resolvesAt = now + GRAVITY_SHOT_TIMEOUT_MS` (**10s**)
+Every turn opens with `resolvesAt = now + GRAVITY_SHOT_TIMEOUT_MS` (**13s**)
 and a referee alarm at that deadline. Run it out and **the missile goes off in
 your own hands**: the shooter loses one of their OWN lives, which can end the
 match on the spot, and the turn passes. It is a shot clock, not merely a
 backstop against a phone that went quiet — which is why it is short enough to
 feel like one, and why dithering now costs something.
 
-The referee records it as a zero-strength `lastShot`, its marker for "nobody
-aimed this", and **clients do not animate it flying**. Since the launch speed
-has a floor (§2.3), simulating a zero-strength shot would send a real missile
-straight up the centre line and — with a ship-sized hitbox — visibly connect,
-while the referee's own `hit: false` meant nothing happened. Instead the blast
-is drawn on the shooter's own ship, the life pips follow it immediately (there
-is no flight to hold the news back for), and if it was their last life the same
-impact-then-explosion send-off plays as for a winning shot (§4).
+**The last few seconds blink.** From 9s into a turn, the shooter's own ship
+starts pulsing — a slow blink (2 per second) that speeds up linearly as
+`resolvesAt` gets closer, reaching 5 per second right at the deadline
+(`game.ts`'s own `shotClockPulseAlpha`, timed off `resolvesAt` itself so both
+phones blink the same shooter in step). It never goes fully invisible — a
+blinking ship is still a ship — it just gets harder to ignore.
+
+**A drag that outlives its own clock cannot be released as a shot.** The
+client checks the same deadline every frame (`GravityGame.canAim`): a finger
+already down when `resolvesAt` passes has its aim cancelled outright — the
+dashed preview and the aiming missile disappear rather than sitting there
+waiting to be released into a shot the referee would reject anyway. The
+referee's own check (§6) is the actual authority; the client-side cancel is
+just for not leaving a dead drag on screen.
+
+The referee records the timeout as a zero-strength `lastShot`, its marker for
+"nobody aimed this", and **clients do not animate it flying**. Since the
+launch speed has a floor (§2.3), simulating a zero-strength shot would send a
+real missile straight up the centre line and — with a ship-sized hitbox —
+visibly connect, while the referee's own `hit: false` meant nothing happened.
+Instead the blast is drawn on the shooter's own ship, the life pips follow it
+immediately (there is no flight to hold the news back for), and if it was
+their last life the same impact-then-explosion send-off plays as for a
+winning shot (§4).
 
 A phone that has genuinely gone quiet is still covered: the turn always passes
 either way, so nothing stalls.
@@ -307,12 +323,17 @@ Only `classic` at launch.
 - **Round**: a `<canvas>` board — two planets, two ships, a turn indicator,
   a row of five life-pips per ship (same idiom Pass the Bomb/Steady Hand
   already use). Touching above your own ship on your turn shows the fading
-  dashed aim preview (§2.2); releasing plays the missile's flight,
-  followed by `impact_missile.gif` on a hit and, on the life-ending hit,
-  `explosion.gif` straight after (both reused from UFO Hunt's own art,
-  copied into this game's own `art/` folder). Rendered on `<canvas>`, the
-  same reasoning as every other continuously-animated board in this
-  catalogue (Neon Fall §13, Tiles Surfer §4) — not a DOM-diffing job.
+  dashed aim preview (§2.2); releasing plays the missile's flight, followed by
+  `impact_missile.gif` **wherever the flight actually ended** — on the
+  opponent's ship for a hit, or on whichever planet swallowed it for a
+  miss-by-absorption — and, on the life-ending hit, `explosion.gif` straight
+  after (both reused from UFO Hunt's own art, copied into this game's own
+  `art/` folder). A planet's own absorption radius is its drawn radius (unlike
+  a ship's, which is bigger than its sprite — §2.3), so that impact needs no
+  extra geometry to land on the hull: the point the simulation stopped at
+  already is one. Rendered on `<canvas>`, the same reasoning as every other
+  continuously-animated board in this catalogue (Neon Fall §13, Tiles Surfer
+  §4) — not a DOM-diffing job.
   **The life pips never spoil a shot still in flight.** The referee decides
   a hit and broadcasts the new life count the instant a `gravity-shot`
   arrives — seconds before either phone's own missile animation finishes —
@@ -390,11 +411,12 @@ replay.
 | A player leaves mid-match | The match ends immediately in the other player's favor — two fixed seats, the same rule Grid Attack/Neon Fall use, not Steady Hand's "continue without them" (which only applies at 3+ players) |
 | A shooter goes silent mid-turn | The shot clock runs out at `resolvesAt`: it costs them one of their own lives and the turn passes (§2.4) |
 | A shot that would exit the visible screen but could still curve back | Not clipped — the simulation's own termination bounds are deliberately wider than the render viewport (§2.3); leaving the visible board costs it its 20s onscreen budget for a shorter 7s one, not the flight itself |
-| A missile enters a planet | Absorbed there — a plain miss, no special effect |
+| A missile enters a planet | Absorbed there — a plain miss, but `impact_missile.gif` still plays at the point it was absorbed (§4) |
 | A shot rolled with no sampled winning trajectory from either ship | Ships anyway, after the referee's own retries are exhausted (§2.1) — the fairness pass is a courtesy, never a block on starting the match |
 | Both ships would reach 0 lives on the same turn | Cannot happen — a shot only ever affects the one player who is not currently shooting |
 | A player refreshes mid-match | Same seat, same lives/turn — the match state lives on the referee, not the phone |
 | A shot from the wrong seat, or after `resolvesAt` | Rejected |
+| A finger still down when `resolvesAt` passes | The client cancels the aim itself (§2.4) — the drag never becomes a shot the referee would reject anyway |
 
 ## 8. Anti-cheat
 

@@ -137,6 +137,10 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
 
   const onFlightEnd = useCallback(
     (end: FlightEnd) => {
+      // A shot swallowed by a planet gets the same impact GIF a ship hit
+      // does, played where it was actually absorbed — a miss is still a
+      // collision, just not with the ship it was aimed at.
+      if (end.planetImpact) addBurst('missile', end.planetImpact);
       if (end.hit) {
         // `end.contact` — where the flight actually met the hull. Not
         // `end.local` (the simulation stops a hit radius out, floating above

@@ -2439,9 +2439,11 @@ export const GRAVITY_MAX_STRENGTH = 1;
  * missile goes off in their own hands: the shooter loses one of their own
  * lives and the turn passes. It is a shot clock now, not just a backstop
  * against a phone that went quiet, which is why it is short enough to feel
- * like one.
+ * like one. The last few seconds blink increasingly fast on the shooter's
+ * own ship (`game.ts`'s own `GRAVITY_SHOT_BLINK_START_MS`) — a client-only
+ * cosmetic, so that constant lives there rather than here.
  */
-export const GRAVITY_SHOT_TIMEOUT_MS = 10_000;
+export const GRAVITY_SHOT_TIMEOUT_MS = 13_000;
 
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const GRAVITY_MIN_PLAYERS = PLAYERS['gravity-shooter'][0];

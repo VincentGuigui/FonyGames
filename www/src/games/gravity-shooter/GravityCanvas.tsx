@@ -7,7 +7,7 @@ import planetArtA from './art/planet-a.png?url&no-inline';
 import planetArtB from './art/planet-b.png?url&no-inline';
 import planetArtC from './art/planet-c.png?url&no-inline';
 import missileArt from './art/missile.png?url&no-inline';
-import { gravityBodies, type GravityPlanet } from '../../../../shared/protocol';
+import { GRAVITY_SHOT_TIMEOUT_MS, gravityBodies, type GravityPlanet } from '../../../../shared/protocol';
 import {
   GRAVITY_EXPLOSION_GIF_MS,
   GRAVITY_SHIP_WIDTH,
@@ -18,6 +18,7 @@ import {
   contactPoint,
   headingBetween,
   otherSeat,
+  shotClockPulseAlpha,
   simulateShot,
   viewTransform,
   type Seat,
@@ -63,6 +64,10 @@ export type FlightEnd = {
    *  — the impact's own place, which is neither where the simulation stopped
    *  (a hit radius short, floating above the ship) nor the ship's centre. */
   contact: Vec;
+  /** Where a planet swallowed the missile, same local space — null for every
+   *  other ending. A planet's own absorption radius is its drawn radius, so
+   *  this needs no `contactPoint` walk-back the way a ship's hit does. */
+  planetImpact: Vec | null;
 };
 
 /** The ship that just lost the match, and when its explosion started — it
@@ -135,6 +140,12 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
         }
 
         const mySeat = game.mySeat;
+        // The shot clock's own countdown (spec §2.4): the ship whose turn it
+        // is starts blinking `GRAVITY_SHOT_BLINK_START_MS` in, faster as
+        // `resolvesAt` gets closer. Timed off `state.resolvesAt` itself
+        // rather than a locally-tracked start, so both phones blink the same
+        // shooter in step without agreeing on anything but that one number.
+        const turnElapsedMs = GRAVITY_SHOT_TIMEOUT_MS - (state.resolvesAt - game.now());
         const shipSeats: Seat[] = [0, 1];
         for (const seat of shipSeats) {
           const world = shipPosition(seat);
@@ -146,27 +157,37 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
           // vanishing when the results screen replaces the board.
           const fade = dying && dying.seat === seat
             ? 1 - Math.min(1, Math.max(0, (performance.now() - dying.startedAt) / GRAVITY_EXPLOSION_GIF_MS))
-            : 1;
+            : state.phase === 'running' && seat === state.turn
+              ? shotClockPulseAlpha(turnElapsedMs)
+              : 1;
           drawShip(ctx, px.x, px.y, width, isSelf, local.y > 0.5, dpr, fade);
         }
+
+        // A live drag can outlive its own shot clock — `canAim` catches the
+        // deadline passing, and this is where that gets acted on: cancelled
+        // rather than left to release into a shot the referee will reject.
+        if (game.aim && !game.canAim) game.cancelAim();
 
         // The fading aim preview (spec §2), while a drag is live.
         const aim = game.aim;
         if (aim && mySeat !== null) {
           const preview = simulatePreviewPath(game, aim);
           drawDashedPath(ctx, preview.map((p) => toPixel(toLocal(p))), width, height);
-          // The missile itself, sitting on the launch point and swinging to
-          // face the finger as it moves — the shot's own start, shown before
-          // it is taken rather than appearing out of nowhere on release.
-          // Drawn in LOCAL space directly: the shooter always sees themselves
-          // at the bottom, so the launch point is seat 0's own position and
-          // the aim angle needs no view flip. Offset in PIXELS rather than
-          // world units — the ship's drawn height is a fraction of the board's
-          // WIDTH (the art is 2:1), so subtracting it from a `y` in world units
-          // would move the missile by the wrong amount on any board that is not
-          // square.
+          // The missile itself, sitting at the top-centre of the ship's own
+          // sprite and swinging to face the finger as it moves — the shot's
+          // own start, shown before it is taken rather than appearing out of
+          // nowhere on release. Drawn in LOCAL space directly: the shooter
+          // always sees themselves at the bottom, so the launch point is seat
+          // 0's own position and the aim angle needs no view flip. The
+          // vertical offset comes from the ship sprite's OWN rasterised
+          // height (same lookup `drawShip` itself uses), not a fraction of
+          // the board's width assumed to match it — a real PNG whose aspect
+          // ratio drifts from 2:1 would otherwise float the missile off the
+          // hull.
           const launchPx = toPixel(shipPosition(0));
-          const shipPxHeight = (width * GRAVITY_SHIP_WIDTH) / 2;
+          const shipPxWidth = width * GRAVITY_SHIP_WIDTH;
+          const ownShip = SHIP_ART[0].at(shipPxWidth, dpr);
+          const shipPxHeight = ownShip ? ownShip.h : shipPxWidth / 2;
           drawMissile(ctx, launchPx.x, launchPx.y - shipPxHeight, width, dpr, aimFromFinger(aim.x, aim.y).angle);
         }
 
@@ -202,6 +223,7 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
                 local: toLocal(end),
                 target: targetLocal,
                 contact: { x: hull.x / width, y: hull.y / height },
+                planetImpact: shot.result.absorbedAt ? toLocal(shot.result.absorbedAt) : null,
               });
             }
             game.clearActiveShot();
