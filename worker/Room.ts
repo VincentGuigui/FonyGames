@@ -120,6 +120,16 @@ import {
   type Gravity,
 } from './gravityShooter';
 import {
+  nextDeadline as asteroidDeadline,
+  onAsteroidReport,
+  onPlayerGone as asteroidPlayerGone,
+  startAsteroidRace,
+  tick as asteroidTick,
+  toState as asteroidToState,
+  type AsteroidRace,
+  type Ctx as AsteroidCtx,
+} from './asteroidRace';
+import {
   nextDeadline as ttttDeadline,
   onSelect as onTtttSelect,
   onTap as onTtttTap,
@@ -472,6 +482,11 @@ export class Room extends DurableObject<Env> {
         if (id) await onGravityShot(this.#gravityCtx(), id, msg.d.roundId, msg.d.angle, msg.d.strength, msg.d.hit);
         return;
       }
+      case 'asteroid-report': {
+        const id = this.#idOf(ws);
+        if (id) await onAsteroidReport(this.#asteroidCtx(), id, msg.d.roundId, msg.d.distance, msg.d.lives, msg.d.hits, msg.d.at);
+        return;
+      }
       case 'tttt-select': {
         const id = this.#idOf(ws); if (id) await onTtttSelect(this.#ttttCtx(), id, msg.d.roundId, msg.d.metaCell); return;
       }
@@ -676,6 +691,12 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const racing = await this.#asteroid();
+    if (racing && racing.phase === 'running' && Date.now() >= asteroidDeadline(racing)) {
+      await asteroidTick(this.#asteroidCtx());
+      await this.#rearm();
+      return;
+    }
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over' && Date.now() >= ttttDeadline(tttt)) {
       await ttttTick(this.#ttttCtx()); await this.#rearm(); return;
@@ -796,6 +817,8 @@ export class Room extends DurableObject<Env> {
     if (surfing && surfing.phase !== 'done') return;
     const shooting = await this.#gravity();
     if (shooting && shooting.phase !== 'done') return;
+    const racing = await this.#asteroid();
+    if (racing && racing.phase !== 'done') return;
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over') return;
     const fighter = await this.#fighter();
@@ -823,6 +846,7 @@ export class Room extends DurableObject<Env> {
       mode === 'abduct' ||
       mode === 'tiles' ||
       mode === 'gravity' ||
+      mode === 'asteroid' ||
       mode === 'tttt'
       || mode === 'fighter'
     ) {
@@ -846,6 +870,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'abduct') started = await startAbduct(this.#abductCtx(), roundId, ids, solo);
       else if (mode === 'tiles') started = await startTilesSurfer(this.#tilesCtx(), roundId, ids, solo);
       else if (mode === 'gravity') started = await startGravityShooter(this.#gravityCtx(), roundId, ids, solo);
+      else if (mode === 'asteroid') started = await startAsteroidRace(this.#asteroidCtx(), roundId, ids, solo);
       else if (mode === 'tttt') started = await startTttt(this.#ttttCtx(), roundId, ids, symbols, solo);
       else if (mode === 'fighter') started = await startTapFighter(this.#fighterCtx(), roundId, ids, solo);
       // `direct` is the default because it needs no explanation: grab your icon
@@ -919,7 +944,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'tttt', 'fighter', 'roundId', 'scores']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'tttt', 'fighter', 'roundId', 'scores']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -1223,6 +1248,21 @@ export class Room extends DurableObject<Env> {
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#gravity(),
       save: (s) => this.ctx.storage.put('gravity', s),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #asteroid(): Promise<AsteroidRace | null> {
+    return (await this.ctx.storage.get<AsteroidRace>('asteroid')) ?? null;
+  }
+
+  #asteroidCtx(): AsteroidCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#asteroid(),
+      save: (s) => this.ctx.storage.put('asteroid', s),
       setAlarm: () => this.#rearm(),
     };
   }
@@ -1596,6 +1636,13 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'gravity', s: this.#nextSeq(), d: gravityToState(shooting) });
     }
 
+    /* Asteroid Race: fully public too — every run is its own phone's business,
+       so the ladder is all there is to send (spec §6). */
+    const racing = await this.#asteroid();
+    if (racing && racing.phase !== 'done') {
+      this.#send(ws, { t: 'asteroid', s: this.#nextSeq(), d: asteroidToState(racing) });
+    }
+
     await this.#broadcastPresence(ws);
   }
 
@@ -1675,6 +1722,9 @@ export class Room extends DurableObject<Env> {
     // Gravity Shooter is the same shape as Grid Attack: two fixed seats, and a
     // phone leaving ends the match rather than shrinking it.
     await gravityPlayerGone(this.#gravityCtx(), id);
+    // Asteroid Race freezes rather than eliminates: nobody was racing them
+    // directly, and their lives are still theirs to come back to (spec §7).
+    await asteroidPlayerGone(this.#asteroidCtx(), id);
     // Neon Fall is the same shape as Grid Attack: two fixed seats, and a phone
     // leaving means one of the roles is simply gone — there is no game left.
     await neonPlayerGone(this.#neonCtx(), id);
@@ -1784,6 +1834,9 @@ export class Room extends DurableObject<Env> {
 
     const shooting = await this.#gravity();
     if (shooting?.phase === 'running') return gravityDeadline(shooting);
+
+    const racing = await this.#asteroid();
+    if (racing?.phase === 'running') return asteroidDeadline(racing);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);
