@@ -1,9 +1,11 @@
 # Asteroid Race
 
-> Status: **draft — awaiting approval** ([issue #24](https://github.com/VincentGuigui/FonyGames/issues/24)).
-> Nothing is built. Every number below is a stated guess (§12), and two design
-> calls the issue did not settle — the win condition (§2) and why the missile
-> exists at all (§2.3) — are proposals, flagged as such.
+> Status: **approved, not yet built** ([issue #24](https://github.com/VincentGuigui/FonyGames/issues/24)).
+> Approved as written on 2026-09-04, §12's open proposals included: the fixed
+> track and lives-as-budget win condition (§2), two-axis tilt (§5), live shards
+> (§2.3) and 1–8 players all stand as specced. Every number below is still a
+> stated guess (§12) — approval is of the design, not of the constants, which
+> need a thumb before this leaves beta.
 
 | | |
 | --- | --- |
@@ -14,7 +16,7 @@
 | **Round length** | ~50–60 s of flying, hard cap 120 s (§7) |
 | **Inputs** | orientation (tilt) to fly · touch for the two buttons |
 | **Accent colour** | `#A3E635` |
-| **Status** | draft — awaiting approval |
+| **Status** | approved — not yet built |
 
 ## 1. Pitch
 
