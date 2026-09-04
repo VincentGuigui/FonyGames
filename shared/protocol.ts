@@ -2434,10 +2434,14 @@ export const GRAVITY_SHIP_MARGIN = 0.08 + 20 / GRAVITY_REFERENCE_BOARD_PX;
  */
 export const GRAVITY_MAX_STRENGTH = 1;
 
-/** How long a turn waits for its own `gravity-shot` before the referee
- *  resolves it as a miss and passes the turn on (spec §2.4) — comfortably
- *  longer than the 3s flight itself, since it only covers message arrival. */
-export const GRAVITY_SHOT_TIMEOUT_MS = 15_000;
+/**
+ * How long a player has to take their shot (spec §2.4). Dawdle past it and the
+ * missile goes off in their own hands: the shooter loses one of their own
+ * lives and the turn passes. It is a shot clock now, not just a backstop
+ * against a phone that went quiet, which is why it is short enough to feel
+ * like one.
+ */
+export const GRAVITY_SHOT_TIMEOUT_MS = 10_000;
 
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const GRAVITY_MIN_PLAYERS = PLAYERS['gravity-shooter'][0];

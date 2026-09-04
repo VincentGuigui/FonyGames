@@ -15,6 +15,8 @@ import {
   GravityGame,
   aimFromFinger,
   shipPosition,
+  contactPoint,
+  headingBetween,
   otherSeat,
   simulateShot,
   viewTransform,
@@ -54,11 +56,13 @@ export type FlightEnd = {
   hit: boolean;
   /** Where the missile actually stopped, in the viewer's own local space. */
   local: Vec;
-  /** The ship it was aimed at, same local space — where a hit's own impact
-   *  really happened. The simulation stops a whole hit radius (half a ship
-   *  width) short of this, so a burst drawn at `local` sits visibly short of
-   *  the ship it just struck. */
+  /** The ship it was aimed at, same local space — the centre of the blast when
+   *  that ship is destroyed. */
   target: Vec;
+  /** Where the flight actually met the hull, same local space (`contactPoint`)
+   *  — the impact's own place, which is neither where the simulation stopped
+   *  (a hit radius short, floating above the ship) nor the ship's centre. */
+  contact: Vec;
 };
 
 /** The ship that just lost the match, and when its explosion started — it
@@ -151,6 +155,19 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
         if (aim && mySeat !== null) {
           const preview = simulatePreviewPath(game, aim);
           drawDashedPath(ctx, preview.map((p) => toPixel(toLocal(p))), width, height);
+          // The missile itself, sitting on the launch point and swinging to
+          // face the finger as it moves — the shot's own start, shown before
+          // it is taken rather than appearing out of nowhere on release.
+          // Drawn in LOCAL space directly: the shooter always sees themselves
+          // at the bottom, so the launch point is seat 0's own position and
+          // the aim angle needs no view flip. Offset in PIXELS rather than
+          // world units — the ship's drawn height is a fraction of the board's
+          // WIDTH (the art is 2:1), so subtracting it from a `y` in world units
+          // would move the missile by the wrong amount on any board that is not
+          // square.
+          const launchPx = toPixel(shipPosition(0));
+          const shipPxHeight = (width * GRAVITY_SHIP_WIDTH) / 2;
+          drawMissile(ctx, launchPx.x, launchPx.y - shipPxHeight, width, dpr, aimFromFinger(aim.x, aim.y).angle);
         }
 
         // The missile in flight, or resolving (spec §2.3).
@@ -164,15 +181,27 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
             const trail = shot.result.path.slice(0, idx + 1).map((p) => toPixel(toLocal(p)));
             drawTrail(ctx, trail, viewSeat === shot.seat ? SHIP_COLORS[0] : SHIP_COLORS[1]);
             const px = toPixel(toLocal(point));
-            drawMissile(ctx, px.x, px.y, width, dpr);
+            // Nose along the tangent: the step it just took, or the step it is
+            // about to take on the very first frame, when there is no previous.
+            const previous = shot.result.path[Math.max(0, idx - 1)] ?? point;
+            const next = shot.result.path[idx + 1] ?? point;
+            const from = idx > 0 ? toPixel(toLocal(previous)) : px;
+            const to = idx > 0 ? px : toPixel(toLocal(next));
+            drawMissile(ctx, px.x, px.y, width, dpr, headingBetween(from, to));
           }
           if (elapsed >= flightMs) {
             const end = shot.result.path.at(-1);
             if (end) {
+              const targetLocal = toLocal(shipPosition(otherSeat(shot.seat)));
+              const endPx = toPixel(toLocal(end));
+              const shipPx = toPixel(targetLocal);
+              const shipW = width * GRAVITY_SHIP_WIDTH;
+              const hull = contactPoint(endPx, shipPx, shipW, shipW / 2);
               onFlightEnd({
                 hit: shot.result.hit,
                 local: toLocal(end),
-                target: toLocal(shipPosition(otherSeat(shot.seat))),
+                target: targetLocal,
+                contact: { x: hull.x / width, y: hull.y / height },
               });
             }
             game.clearActiveShot();
@@ -382,11 +411,20 @@ function drawShip(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidt
   ctx.restore();
 }
 
-function drawMissile(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidth: number, dpr: number): void {
+/**
+ * The missile, nose-first along `heading` — the angle its travel makes with
+ * straight-up, positive clockwise, the same convention `aimFromFinger` uses.
+ * The art is drawn pointing up, so the rotation is the heading itself.
+ */
+function drawMissile(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidth: number, dpr: number, heading = 0): void {
   const w = boardWidth * 0.05;
   const sprite = missileSprite.at(w, dpr);
   if (sprite) {
-    ctx.drawImage(sprite.source, x - sprite.w / 2, y - sprite.h / 2, sprite.w, sprite.h);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(heading);
+    ctx.drawImage(sprite.source, -sprite.w / 2, -sprite.h / 2, sprite.w, sprite.h);
+    ctx.restore();
     return;
   }
   ctx.save();
@@ -396,3 +434,4 @@ function drawMissile(ctx: CanvasRenderingContext2D, x: number, y: number, boardW
   ctx.fill();
   ctx.restore();
 }
+

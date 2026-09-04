@@ -72,39 +72,16 @@ export function nextDeadline(g: Gravity): number {
 }
 
 /**
- * One planet's own `x`, on its own half of the board, inside the edge margin
- * and far enough out to clear the star.
- *
- * It used to be pinned CLOSE to the centre line so its own gravity reached the
- * middle (the old `GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR` rule). The star now
- * sits in the middle permanently and does that job better than either planet
- * could — so that rule is gone, and the opposite constraint takes its place:
- * a planet has to stand clear of the star, which occupies exactly where those
- * planets used to be sent.
+ * One planet's own `x`: anywhere on its own half of the board inside the edge
+ * margin, and nothing else. Two rules have been tried here and both are gone —
+ * pinning a planet CLOSE to the centre so its gravity reached it, then pushing
+ * it far enough out to clear the star. A planet may now sit over the middle of
+ * the board and overlap the star outright; only the other planet is owed room
+ * (`GRAVITY_PLANET_MIN_GAP`).
  */
-function rollPlanetX(
-  random: () => number,
-  side: 'left' | 'right',
-  r: number,
-  y: number,
-  starRadius: number,
-): number | null {
-  // How far off the centre column this planet has to stand to owe the star its
-  // full surface gap, given how far off the centre ROW it already is. Solving
-  // the gap rule for the horizontal leg rather than rolling `x` blind and
-  // rejecting: at a mean star size, a blind roll landed inside the star a
-  // quarter of the time, which no sane retry budget can paper over.
-  const needed = GRAVITY_PLANET_MIN_GAP + r + starRadius;
-  const dy = y - 0.5;
-  const minOffset = Math.sqrt(Math.max(0, needed * needed - dy * dy));
-  if (side === 'left') {
-    const hi = 0.5 - minOffset;
-    if (hi < GRAVITY_PLANET_X_MARGIN) return null; // this size/row simply cannot clear the star
-    return GRAVITY_PLANET_X_MARGIN + random() * (hi - GRAVITY_PLANET_X_MARGIN);
-  }
-  const lo = 0.5 + minOffset;
-  if (lo > 1 - GRAVITY_PLANET_X_MARGIN) return null;
-  return lo + random() * (1 - GRAVITY_PLANET_X_MARGIN - lo);
+function rollPlanetX(random: () => number, side: 'left' | 'right'): number {
+  if (side === 'left') return GRAVITY_PLANET_X_MARGIN + random() * (0.5 - GRAVITY_PLANET_X_MARGIN);
+  return 0.5 + random() * (0.5 - GRAVITY_PLANET_X_MARGIN);
 }
 
 /**
@@ -305,17 +282,12 @@ export function rollBoard(random: () => number): GravityBoard {
       const [ra, rb] = rollPlanetRadii(random);
       const [ya, yb] = rollPlanetYs(random);
       const aLeft = random() < 0.5;
-      const xa = rollPlanetX(random, aLeft ? 'left' : 'right', ra, ya, starRadius);
-      const xb = rollPlanetX(random, aLeft ? 'right' : 'left', rb, yb, starRadius);
-      // A radius/row pair too big to clear the star at all: nothing to keep,
-      // just roll the whole thing again.
-      if (xa === null || xb === null) continue;
-      const a: GravityPlanet = { x: xa, y: ya, r: ra, art: artA };
-      const b: GravityPlanet = { x: xb, y: yb, r: rb, art: artB };
+      const a: GravityPlanet = { x: rollPlanetX(random, aLeft ? 'left' : 'right'), y: ya, r: ra, art: artA };
+      const b: GravityPlanet = { x: rollPlanetX(random, aLeft ? 'right' : 'left'), y: yb, r: rb, art: artB };
 
       candidate = { starRadius, planets: [a, b] };
-      // The star gap is guaranteed by `rollPlanetX`'s own construction; only
-      // the two planets' gap with each other is still worth re-rolling for.
+      // The two planets owe each other room; neither owes the star any — a
+      // planet is free to sit over the middle of the board and overlap it.
       if (surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP) break;
       // Otherwise this attempt's geometry is kept as the fallback and the
       // loop tries again — never leaves `candidate` unset.
@@ -447,9 +419,14 @@ function countShotAndMaybeReroll(ctx: Ctx, g: Gravity): void {
 }
 
 /**
- * The alarm. A shooter who never sent `gravity-shot` costs them the turn,
- * not the match (spec §2.4) — resolved as a miss, same as Tap Fighter's own
- * no-lock-in default for a silent planning phase.
+ * The alarm — the shot clock running out (spec §2.4). Taking too long is no
+ * longer free: the missile goes off in the dawdler's own hands and costs THEM
+ * a life, which can end the match on the spot. The turn still passes either
+ * way, so a phone that has simply gone quiet cannot stall anything.
+ *
+ * A zero-strength `lastShot` is the marker for it, which is how a client tells
+ * this apart from a real miss: nobody aimed it, so nothing is animated flying
+ * (`game.ts`'s own `apply`), and the blast is drawn on the shooter's own ship.
  */
 export async function tick(ctx: Ctx): Promise<boolean> {
   const g = await ctx.load();
@@ -460,6 +437,13 @@ export async function tick(ctx: Ctx): Promise<boolean> {
   const opponent = otherSeat(shooter);
 
   g.lastShot = { shooter, angle: 0, strength: 0, hit: false };
+  g.lives[shooter] = Math.max(0, g.lives[shooter] - 1);
+
+  if (g.lives[shooter] <= 0) {
+    await finish(ctx, g, opponent);
+    return false;
+  }
+
   g.turn = opponent;
   g.resolvesAt = ctx.now() + GRAVITY_SHOT_TIMEOUT_MS;
   countShotAndMaybeReroll(ctx, g);

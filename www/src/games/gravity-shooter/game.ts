@@ -312,6 +312,35 @@ export function simulateShot(
   return { path, hit: false };
 }
 
+/** Heading from one point to the next, in `drawMissile`'s own convention:
+ *  0 is straight up the screen, growing clockwise. */
+export function headingBetween(from: Vec, to: Vec): number {
+  return Math.atan2(to.x - from.x, from.y - to.y);
+}
+
+/**
+ * Where the missile's own flight actually meets the ship it hit, in pixels.
+ * The simulation stops as soon as the missile is within `GRAVITY_HIT_RADIUS`
+ * of the ship's CENTRE, and that circle is far taller than the ship art (the
+ * sprite is twice as wide as it is high, and the board is taller than it is
+ * wide), so the last simulated point floats above the ship rather than
+ * touching it. Walking from there toward the centre and stopping at the
+ * sprite's own ellipse puts the burst on the hull.
+ */
+export function contactPoint(from: Vec, shipCentre: Vec, shipW: number, shipH: number): Vec {
+  const dx = shipCentre.x - from.x;
+  const dy = shipCentre.y - from.y;
+  const a = shipW / 2;
+  const b = shipH / 2;
+  // Solve for the smallest t in [0,1] with the point on the ship's ellipse.
+  const qa = (dx * dx) / (a * a) + (dy * dy) / (b * b);
+  if (qa <= 0) return shipCentre;
+  const start = ((from.x - shipCentre.x) ** 2) / (a * a) + ((from.y - shipCentre.y) ** 2) / (b * b);
+  if (start <= 1) return from; // already touching the hull
+  const t = 1 - 1 / Math.sqrt(start);
+  return { x: from.x + dx * t, y: from.y + dy * t };
+}
+
 /** A shot in flight (or just resolved), for the canvas to animate. */
 export type ActiveShot = {
   seat: Seat;

@@ -36,14 +36,16 @@ viewer, never two different boards.
    ship — the finger's own position relative to the ship sets your shot's
    angle and strength; the missile fires toward wherever your finger is,
    like a targeting reticle, not away from it like a slingshot.
-3. While your finger is down, a dashed preview of the shot's own path is
-   shown: solid across the near third of the screen, fading through the
-   middle third, and gone for the last third before the opponent (§2.2) — a
-   real read on your own aim, but never a look at where the shot actually
-   lands.
-4. Release, and the missile flies, curving under both planets' gravity,
-   for as long as where it currently is allows (§2.3) before an unresolved
-   shot is abandoned outright.
+3. While your finger is down, the missile itself sits on the launch point just
+   above your ship, **swinging in real time to face wherever your finger is**,
+   and a dashed preview of its path is shown: solid across the near third of
+   the screen, fading through the middle third, and gone for the last third
+   before the opponent (§2.2) — a real read on your own aim, but never a look
+   at where the shot actually lands.
+4. Release, and the missile flies, curving under the star's and both planets'
+   gravity and **turning to point along its own trajectory** as it goes, for as
+   long as where it currently is allows (§2.3) before an unresolved shot is
+   abandoned outright.
 5. A hit costs the other ship one of five lives. A miss — the missile
    either drifts off the board or is swallowed by a planet — costs
    nothing, and the turn simply passes.
@@ -119,11 +121,9 @@ The star is what makes the straight line between the two ships a non-shot. Two
 earlier rules existed to do that job with planets alone — one planet had to
 physically cover the centre, and both were pinned close to the centre line so
 their gravity reached it — and **both are now gone**: the star does it better,
-and they would in any case be unsatisfiable now that a planet must also stand
-clear of the very spot they were pinned to.
+and holds the middle whatever the planets do.
 
-**Four shape rules, each guaranteed rather than merely likely (issue #16, plus
-the star's own):**
+**Three shape rules, each guaranteed rather than merely likely (issue #16):**
 
 - **At least 30% size difference.** The two radii are never independently
   rolled and hoped apart — the referee picks the bigger one first, from
@@ -142,21 +142,17 @@ the star's own):**
   Constructed the same direct way: the lower one is rolled from a range that
   always leaves the required gap of room for the higher one above it, so
   this one never needs a retry at all.
-- **50px of clear space from the STAR as well**, on exactly the same terms as
-  from each other — otherwise the star would just be a planet drawn on top of
-  one. Constructed, not rejected: rather than rolling a planet's `x` freely and
-  throwing the board away when it lands inside the star, the gap rule is solved
-  for the horizontal leg — given how far off the centre ROW the planet already
-  is, how far off the centre COLUMN must it stand? — and `x` is rolled inside
-  what remains of its half. This matters: rolled blind at a mean star size, a
-  planet landed inside the star on **25% of boards** (measured across 5000
-  seeded rolls), which no sane retry budget papers over. Constructed, it is
-  zero, and the two planets end up further apart into the bargain.
+**The star owes the planets nothing, and they owe it nothing.** A planet is
+free to sit over the middle of the board and overlap the star outright — only
+the two planets owe each other room. Measured across 5000 seeded rolls, a
+planet overlaps the star on about 59% of boards, which is the intended
+freedom rather than a defect; planets draw over the star, so the overlap reads
+as one body passing in front of another.
 
 **A best-effort fairness pass, on top of the shape rules.** Issue #16 asked
 directly: *"is it possible to simulate a winning trajectory from each
 player's own position, to avoid generating an impossible map?"* — yes. Once
-a candidate map satisfies the four rules above, the referee samples a
+a candidate map satisfies the three rules above, the referee samples a
 coarse fan of shots (seven angles, five strengths — widened from three
 strengths in this follow-up, once a slower speed range and a stronger `G`
 made the fast-and-strong end of the old fan miss far more real shots) from
@@ -276,22 +272,26 @@ decide the outcome, which has already arrived as `hit`/the new lives
 count. Any tiny floating-point difference between two phones' replays is
 therefore only ever cosmetic.
 
-### 2.4 Turns don't stall on a silent phone
+### 2.4 The shot clock
 
-Every turn opens with `resolvesAt = now + GRAVITY_SHOT_TIMEOUT_MS` and a
-referee alarm at that deadline. If a `gravity-shot` never arrives — a
-backgrounded tab, a dropped connection — the referee's own `tick()`
-resolves the turn as a miss and passes it to the other player, the same
-shape as Tap Fighter's own no-lock-in default
-(`worker/tapFighter.ts`). It is recorded as a zero-strength `lastShot`, which
-is the referee's own marker for "nobody aimed this" — and **clients do not
-animate it**. Since the launch speed has a floor (§2.3), simulating a
-zero-strength shot would fly a real missile straight up the centre line and,
-with a ship-sized hitbox, visibly connect, while the referee's `hit: false`
-means no life is lost. A turn that expired simply passes.
-`GRAVITY_SHOT_TIMEOUT_MS` is generous (well past
-the 3-second flight itself) since it only has to cover "did the message
-ever arrive," not the flight time.
+Every turn opens with `resolvesAt = now + GRAVITY_SHOT_TIMEOUT_MS` (**10s**)
+and a referee alarm at that deadline. Run it out and **the missile goes off in
+your own hands**: the shooter loses one of their OWN lives, which can end the
+match on the spot, and the turn passes. It is a shot clock, not merely a
+backstop against a phone that went quiet — which is why it is short enough to
+feel like one, and why dithering now costs something.
+
+The referee records it as a zero-strength `lastShot`, its marker for "nobody
+aimed this", and **clients do not animate it flying**. Since the launch speed
+has a floor (§2.3), simulating a zero-strength shot would send a real missile
+straight up the centre line and — with a ship-sized hitbox — visibly connect,
+while the referee's own `hit: false` meant nothing happened. Instead the blast
+is drawn on the shooter's own ship, the life pips follow it immediately (there
+is no flight to hold the news back for), and if it was their last life the same
+impact-then-explosion send-off plays as for a winning shot (§4).
+
+A phone that has genuinely gone quiet is still covered: the turn always passes
+either way, so nothing stalls.
 
 ## 3. Modes / variations
 
@@ -323,15 +323,18 @@ Only `classic` at launch.
   **The match-ending sequence is played out in full before the results screen
   appears**, rather than being cut short by the referee's `phase: 'done'`
   arriving mid-flight. In order: the missile's flight, then
-  `impact_missile.gif` **centred on the ship it struck**, then — only once that
-  has actually finished — `explosion.gif` in the same place, with the destroyed
-  ship fading out underneath it.
+  `impact_missile.gif` **at the exact point the flight met the hull**, then —
+  only once that has actually finished — `explosion.gif` centred on the
+  destroyed ship, which fades out underneath it.
 
-  Both use the one ship-centred position, deliberately: the simulation stops
-  the moment the missile is within a hit radius of the ship, and since that
-  radius is now half a ship width (§2.3), a burst drawn where the missile
-  actually stopped sat visibly short of the ship it had just hit — the impact
-  appeared to happen before the collision. The two hold times are the GIFs' own measured durations
+  Those two positions are deliberately different. The simulation stops as soon
+  as the missile is within a hit radius of the ship's CENTRE, and that circle is
+  far taller than the ship art (the sprite is twice as wide as it is high, and
+  the board is taller than it is wide), so the last simulated point floats above
+  the ship rather than touching it — an impact drawn there plays before the
+  collision. `contactPoint` walks from that point toward the ship's centre and
+  stops on the sprite's own ellipse, which is where the two actually met. The
+  ship's own explosion still belongs at its centre. The two hold times are the GIFs' own measured durations
   (`GRAVITY_IMPACT_GIF_MS` 540ms, `GRAVITY_EXPLOSION_GIF_MS` 960ms — 6 frames
   at 90ms and 16 at 60ms, read off the files, not estimated), so the whole
   sequence is 1.5s and the results panel waits out every millisecond of it.
@@ -385,7 +388,7 @@ replay.
 | Case | Behaviour |
 | --- | --- |
 | A player leaves mid-match | The match ends immediately in the other player's favor — two fixed seats, the same rule Grid Attack/Neon Fall use, not Steady Hand's "continue without them" (which only applies at 3+ players) |
-| A shooter goes silent mid-turn | Resolved as a miss at `resolvesAt`, turn passes (§2.4) |
+| A shooter goes silent mid-turn | The shot clock runs out at `resolvesAt`: it costs them one of their own lives and the turn passes (§2.4) |
 | A shot that would exit the visible screen but could still curve back | Not clipped — the simulation's own termination bounds are deliberately wider than the render viewport (§2.3); leaving the visible board costs it its 20s onscreen budget for a shorter 7s one, not the flight itself |
 | A missile enters a planet | Absorbed there — a plain miss, no special effect |
 | A shot rolled with no sampled winning trajectory from either ship | Ships anyway, after the referee's own retries are exhausted (§2.1) — the fairness pass is a courtesy, never a block on starting the match |

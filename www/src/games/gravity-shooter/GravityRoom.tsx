@@ -20,6 +20,8 @@ import {
   GravityGame,
   GRAVITY_EXPLOSION_GIF_MS,
   GRAVITY_IMPACT_GIF_MS,
+  shipPosition,
+  viewTransform,
   type Seat,
 } from './game';
 import { GravityCanvas, type DyingShip, type FlightEnd } from './GravityCanvas';
@@ -74,13 +76,47 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
   /** The match-ending GIF sequence is still playing — see `onFlightEnd`. */
   const [finaleRunning, setFinaleRunning] = useState(false);
   const [dying, setDying] = useState<DyingShip | null>(null);
+  /** The last timed-out turn this phone has already reacted to, so a re-sent
+   *  frame does not blow the same ship up twice. */
+  const blownUpAt = useRef(-1);
+
+  const addBurst = useCallback((kind: Burst['kind'], pos: { x: number; y: number }): void => {
+    const id = ++burstId.current;
+    setBursts((prev) => [...prev, { id, kind, x: Math.min(1, Math.max(0, pos.x)), y: Math.min(1, Math.max(0, pos.y)) }]);
+    setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), BURST_MS[kind]);
+  }, []);
 
   const onGame = useCallback(
     (msg: ServerMessage) => {
       game.apply(msg);
+      /**
+       * A turn that ran out the shot clock (spec §2.4): the referee marks it
+       * with a zero-strength `lastShot` and takes a life off the SHOOTER. There
+       * is no flight to watch, so unlike a real shot there is nothing to hold
+       * the news back for — the blast goes off on their own ship right now, and
+       * the pips follow it immediately rather than waiting for an
+       * `onFlightEnd` that will never come.
+       */
+      if (msg.t === 'gravity' && msg.d.lastShot?.strength === 0 && msg.d.shots !== blownUpAt.current) {
+        blownUpAt.current = msg.d.shots;
+        const victim = msg.d.lastShot.shooter;
+        const at = viewTransform(game.mySeat ?? 0, shipPosition(victim));
+        addBurst('missile', at);
+        setDisplayedLives(msg.d.lives);
+        // A shot clock that ends the match earns the same send-off a winning
+        // shot gets, rather than cutting straight to the results panel.
+        if (msg.d.phase === 'done') {
+          setFinaleRunning(true);
+          setTimeout(() => {
+            addBurst('explosion', at);
+            setDying({ seat: victim, startedAt: performance.now() });
+          }, GRAVITY_IMPACT_GIF_MS);
+          setTimeout(() => setFinaleRunning(false), GRAVITY_IMPACT_GIF_MS + GRAVITY_EXPLOSION_GIF_MS);
+        }
+      }
       redraw((n) => n + 1);
     },
-    [game],
+    [game, addBurst],
   );
 
   const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
@@ -99,21 +135,14 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
     setDying(null);
   }, [game, roundId]);
 
-  const addBurst = useCallback((kind: Burst['kind'], pos: { x: number; y: number }): void => {
-    const id = ++burstId.current;
-    setBursts((prev) => [...prev, { id, kind, x: Math.min(1, Math.max(0, pos.x)), y: Math.min(1, Math.max(0, pos.y)) }]);
-    setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), BURST_MS[kind]);
-  }, []);
-
   const onFlightEnd = useCallback(
     (end: FlightEnd) => {
       if (end.hit) {
-        // `end.target`, not `end.local`: the simulation stops as soon as the
-        // missile is within a hit radius of the ship, which is half a ship
-        // width short of it, so a burst drawn where the missile stopped played
-        // visibly before the collision. Both GIFs now use the one ship-centred
-        // position the canvas computes.
-        addBurst('missile', end.target);
+        // `end.contact` — where the flight actually met the hull. Not
+        // `end.local` (the simulation stops a hit radius out, floating above
+        // the ship) and not `end.target` either (the ship's centre, which is
+        // where the ship's own explosion belongs, not the missile's impact).
+        addBurst('missile', end.contact);
         // The referee's own broadcast — which decides `phase`/`winner` — arrives
         // well before the flight animation finishes, so by the time the flight
         // ends `game.state` already knows whether this was the killing blow
