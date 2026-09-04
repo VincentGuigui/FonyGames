@@ -1,5 +1,7 @@
 import {
   applyTilesSurfer,
+  beatAt,
+  beatsAt,
   bestStreak,
   isPerfect,
   reportDue,
@@ -8,12 +10,14 @@ import {
   tilesImpact,
   trackForTile,
   TILES_COMMENT_MS,
+  TILES_MAX_BEATS,
   TILES_MISS_COMMENT,
+  TILES_TILE_POINTS,
   TilesRun,
   windowMsFor,
   type TilesSurferView,
 } from './game';
-import { TILES_LIVES, TILES_TRACK_COUNT, type ServerMessage, type TilesSurferState } from '../../../../shared/protocol';
+import { TILES_LIVES, TILES_SPAWN_INTERVAL_MS, TILES_TRACK_COUNT, type ServerMessage, type TilesSurferState } from '../../../../shared/protocol';
 
 /**
  * Tiles Surfer, client side. Spec: docs/specs/games/tiles-surfer.md
@@ -126,7 +130,7 @@ function run(): void {
   const lineY = 500;
   const crossAt = tile.spawnedAt + tile.fallMs;
 
-  r.tap(tile.track, crossAt, tileHeightPx, lineY);
+  r.press(tile.track, crossAt, tileHeightPx, lineY);
   check('a perfectly-timed tap scores full marks', r.score === 10, r.score);
   check('a perfect tap counts toward perfects', r.perfects === 1);
   check('the streak grows', r.longestStreak === 1);
@@ -140,7 +144,7 @@ function run(): void {
   const early = r.tiles.find((t) => t.spawnedAt === 600)!;
   const beforeMiss = r.lives;
   const speedBeforeMiss = r.speedMul;
-  r.tap(early.track, early.spawnedAt + early.fallMs - 1_000, tileHeightPx, lineY);
+  r.press(early.track, early.spawnedAt + early.fallMs - 1_000, tileHeightPx, lineY);
   check('an early tap is a miss, not a score', r.lives === beforeMiss - 1);
   check('a miss resets the streak', r.longestStreak === 1 && r.perfects === 1);
   check('a miss softens speed, never below the starting speed', r.speedMul < speedBeforeMiss && r.speedMul >= 1);
@@ -150,10 +154,13 @@ function run(): void {
   r.pruneComments(early.spawnedAt + early.fallMs + TILES_COMMENT_MS + 10_000);
   check('every comment is gone once its own window has passed', r.comments.length === 0);
 
-  // Tapping a lane with nothing in flight does nothing at all.
+  // Pressing a lane with nothing in it is a press that landed nothing, and
+  // costs the same life any other early press does (spec §2.2). It used to be
+  // free, which made mashing every lane strictly better than reading the board.
   const beforeIdleTap = { lives: r.lives, score: r.score };
-  r.tap(4, 999_999, tileHeightPx, lineY);
-  check('tapping an empty lane is a no-op', r.lives === beforeIdleTap.lives && r.score === beforeIdleTap.score);
+  r.press(4, 999_999, tileHeightPx, lineY);
+  check('pressing an empty lane costs a life', r.lives === beforeIdleTap.lives - 1, r.lives);
+  check('and scores nothing for it', r.score === beforeIdleTap.score);
 
   // sweepMissed: a tile whose window has fully closed, never tapped, costs a life.
   const sweeper = new TilesRun(2);
@@ -172,7 +179,7 @@ function run(): void {
   for (let i = 0; i < TILES_LIVES; i++) {
     dying.spawnDue(i * 10_000);
     const dt = dying.tiles[dying.tiles.length - 1]!;
-    dying.tap(dt.track, dt.spawnedAt + dt.fallMs - 5_000, tileHeightPx, lineY);
+    dying.press(dt.track, dt.spawnedAt + dt.fallMs - 5_000, tileHeightPx, lineY);
   }
   check('lives bottom out at zero, not negative', dying.lives === 0);
   check('a dead run stops being alive', !dying.alive);
@@ -180,7 +187,7 @@ function run(): void {
   const beforeDead = { score: dying.score, lives: dying.lives, tiles: dying.tiles.length };
   dying.spawnDue(999_999);
   check('a dead run never spawns another tile', dying.tiles.length === beforeDead.tiles);
-  dying.tap(0, 999_999, tileHeightPx, lineY);
+  dying.press(0, 999_999, tileHeightPx, lineY);
   check('a dead run ignores taps entirely', dying.score === beforeDead.score && dying.lives === beforeDead.lives);
 }
 
@@ -195,7 +202,7 @@ function reactionAverage(): void {
   r.spawnDue(0);
   const t0 = r.tiles[0]!;
   const crossAt0 = t0.spawnedAt + t0.fallMs;
-  r.tap(t0.track, crossAt0 + 50, tileHeightPx, lineY);
+  r.press(t0.track, crossAt0 + 50, tileHeightPx, lineY);
   check('one tap: the average is that tap\'s own offset', r.avgReactionMs === 50, r.avgReactionMs);
 
   check('not due until a checkpoint is crossed', !reportDue(r, 0));
@@ -234,9 +241,111 @@ function projecting(): void {
 }
 
 trackAssignment();
+/**
+ * Long tiles: two or more consecutive tiles down the same lane are one tile to
+ * press and hold (spec §2.2b).
+ *
+ * The lanes are a pure function of `roundId`, so a real run to test against is
+ * found rather than fabricated — these are the rounds the game actually deals.
+ * Round 1 puts a two-run at index 3; round 3 puts five in a row from index 3,
+ * which is where the cap earns its keep.
+ */
+function holds(): void {
+  console.log('\nlong tiles: press and hold (§2.2b)');
+
+  const tileHeightPx = 100;
+  const lineY = 500;
+
+  check('a lone tile is one beat', beatsAt(1, 0) === 1);
+  check('two in a lane merge', beatsAt(1, 3) === 2, beatsAt(1, 3));
+  check('and a longer run is capped rather than drawn off the screen',
+    beatsAt(3, 3) === TILES_MAX_BEATS, beatsAt(3, 3));
+
+  // Spawning: the merged tiles are gone from the stream, not merely drawn
+  // together — the run occupies its own slots and the next tile follows it.
+  const r = new TilesRun(1);
+  r.spawnDue(3 * TILES_SPAWN_INTERVAL_MS);
+  const long = r.tiles.find((tile) => tile.beats > 1);
+  check('the run spawns as one tile', !!long && long.beats === 2, r.tiles.map((t) => t.beats));
+  check('and only one, not two stacked in the same lane',
+    r.tiles.filter((tile) => tile.track === long?.track).length === 1);
+  r.spawnDue(5 * TILES_SPAWN_INTERVAL_MS);
+  check('the tile after it is the one that follows the whole run',
+    r.tiles.some((tile) => tile.spawnedAt === 5 * TILES_SPAWN_INTERVAL_MS));
+
+  // Pressing the head: precision-scored like any tap, but the tile stays.
+  const head = long!;
+  const crossAt = head.spawnedAt + head.fallMs;
+  r.press(head.track, crossAt, tileHeightPx, lineY);
+  check('the head is scored on precision, like any other tap', r.score === TILES_TILE_POINTS, r.score);
+  check('and the tile is held rather than consumed', head.held && r.tiles.includes(head));
+  check('one beat banked so far', head.scored === 1);
+
+  // Holding: each further beat banks the full tile as it reaches the line.
+  r.awardHolds(beatAt(head, 1) - 1);
+  check('nothing is banked before the next beat arrives', r.score === TILES_TILE_POINTS, r.score);
+  const livesBefore = r.lives;
+  r.awardHolds(beatAt(head, 1));
+  check('holding through a beat banks a whole tile', r.score === TILES_TILE_POINTS * 2, r.score);
+  check('a played-out tile retires itself', !r.tiles.includes(head));
+  check('and costs nothing', r.lives === livesBefore);
+  check('a held beat is not a precision tap, so it does not inflate perfects',
+    r.perfects === 1 && r.longestStreak === 1, { perfects: r.perfects, streak: r.longestStreak });
+
+  // Letting go early: keep what was banked, lose one life — never one per beat.
+  const dropped = new TilesRun(3);
+  dropped.spawnDue(3 * TILES_SPAWN_INTERVAL_MS);
+  const four = dropped.tiles.find((tile) => tile.beats === TILES_MAX_BEATS)!;
+  dropped.press(four.track, four.spawnedAt + four.fallMs, tileHeightPx, lineY);
+  dropped.awardHolds(beatAt(four, 1));
+  const banked = dropped.score;
+  const before = dropped.lives;
+  dropped.release(four.track, beatAt(four, 1) + 10);
+  check('a dropped hold keeps what it banked', dropped.score === banked && banked === TILES_TILE_POINTS * 2, dropped.score);
+  check('and costs exactly one life, not one per unplayed beat', dropped.lives === before - 1, dropped.lives);
+  check('the dropped tile is gone', !dropped.tiles.includes(four));
+  check('with a skull over its own lane',
+    dropped.comments.at(-1)?.text === TILES_MISS_COMMENT && dropped.comments.at(-1)?.track === four.track);
+
+  // Missing the head of a long tile is one miss, not four.
+  const ignored = new TilesRun(3);
+  ignored.spawnDue(3 * TILES_SPAWN_INTERVAL_MS);
+  const untouched = ignored.tiles.find((tile) => tile.beats === TILES_MAX_BEATS)!;
+  // On its own, so the earlier tiles' own misses are not counted as this one's.
+  ignored.tiles = [untouched];
+  const livesAtStart = ignored.lives;
+  ignored.sweepMissed(beatAt(untouched, 0) + windowMsFor(untouched.fallMs, tileHeightPx, lineY) + 1, tileHeightPx, lineY);
+  check('a long tile nobody presses costs one life, whatever it was worth',
+    ignored.lives === livesAtStart - 1, ignored.lives);
+
+  // Releasing a lane nobody is holding is not a drop, and a finger still down
+  // after the last beat is not one either.
+  const clean = new TilesRun(1);
+  clean.spawnDue(3 * TILES_SPAWN_INTERVAL_MS);
+  const livesClean = clean.lives;
+  clean.release(0, 1_000);
+  check('releasing an empty lane costs nothing', clean.lives === livesClean);
+  const stillHeld = clean.tiles.find((tile) => tile.beats > 1)!;
+  clean.press(stillHeld.track, stillHeld.spawnedAt + stillHeld.fallMs, tileHeightPx, lineY);
+  clean.awardHolds(beatAt(stillHeld, stillHeld.beats - 1));
+  clean.release(stillHeld.track, beatAt(stillHeld, stillHeld.beats - 1) + 500);
+  check('letting go after the last beat is not a drop', clean.lives === livesClean, clean.lives);
+
+  // A second finger on a lane that is already held is not a fresh mistake.
+  const twoThumbs = new TilesRun(1);
+  twoThumbs.spawnDue(3 * TILES_SPAWN_INTERVAL_MS);
+  const busy = twoThumbs.tiles.find((tile) => tile.beats > 1)!;
+  twoThumbs.press(busy.track, busy.spawnedAt + busy.fallMs, tileHeightPx, lineY);
+  const livesHeld = twoThumbs.lives;
+  twoThumbs.press(busy.track, busy.spawnedAt + busy.fallMs + 50, tileHeightPx, lineY);
+  check('a second finger on a held lane is ignored, not punished', twoThumbs.lives === livesHeld);
+}
+
+
 scoring();
 comments();
 run();
+holds();
 reactionAverage();
 projecting();
 
