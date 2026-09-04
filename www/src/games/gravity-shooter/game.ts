@@ -1,6 +1,7 @@
 import {
   GRAVITY_MAX_STRENGTH,
   GRAVITY_SHIP_MARGIN,
+  GRAVITY_SHOT_TIMEOUT_MS,
   gravityBodies,
   type GravityPlanet,
   type GravityShot,
@@ -156,6 +157,40 @@ export const GRAVITY_HIT_RADIUS = GRAVITY_SHIP_WIDTH / 2;
 export const GRAVITY_IMPACT_GIF_MS = 540;
 export const GRAVITY_EXPLOSION_GIF_MS = 960;
 
+/**
+ * The shot clock's own visible warning (spec §2.4): the shooter's ship starts
+ * blinking once this much of `GRAVITY_SHOT_TIMEOUT_MS` has elapsed, at a slow
+ * pulse that speeds up as the deadline gets closer — `shotClockPulseAlpha`
+ * below turns "how long into this turn" into the ship's own opacity. Purely
+ * cosmetic, so — same reasoning as every other constant in this section —
+ * it stays out of `shared/protocol.ts` even though the timeout itself lives
+ * there.
+ */
+export const GRAVITY_SHOT_BLINK_START_MS = 9_000;
+/** Pulses per second at the moment blinking starts. */
+export const GRAVITY_SHOT_BLINK_MIN_HZ = 2;
+/** Pulses per second right at the deadline itself. */
+export const GRAVITY_SHOT_BLINK_MAX_HZ = 5;
+
+/**
+ * The shooter's own ship opacity for this instant of its turn: solid until
+ * `GRAVITY_SHOT_BLINK_START_MS`, then a sine pulse whose rate ramps linearly
+ * from `GRAVITY_SHOT_BLINK_MIN_HZ` up to `GRAVITY_SHOT_BLINK_MAX_HZ` by the
+ * time `elapsedMs` reaches `GRAVITY_SHOT_TIMEOUT_MS`. Never fully invisible —
+ * a blinking ship is still a ship. Driven entirely by `elapsedMs` (time since
+ * the turn opened, from the referee's own `resolvesAt`) rather than wall-clock
+ * time, so two phones watching the same shooter blink in step without needing
+ * to agree on anything but that one number.
+ */
+export function shotClockPulseAlpha(elapsedMs: number): number {
+  if (elapsedMs < GRAVITY_SHOT_BLINK_START_MS) return 1;
+  const span = GRAVITY_SHOT_TIMEOUT_MS - GRAVITY_SHOT_BLINK_START_MS;
+  const t = Math.min(1, (elapsedMs - GRAVITY_SHOT_BLINK_START_MS) / span);
+  const hz = GRAVITY_SHOT_BLINK_MIN_HZ + t * (GRAVITY_SHOT_BLINK_MAX_HZ - GRAVITY_SHOT_BLINK_MIN_HZ);
+  const wave = 0.5 + 0.5 * Math.sin(2 * Math.PI * hz * (elapsedMs / 1000));
+  return 0.35 + 0.65 * wave;
+}
+
 /** How long a re-rolled board takes to slide and resize into place, once the
  *  shot that changed it has finished flying (`displayedPlanets`). Short
  *  enough to be over before the next player has finished taking aim. */
@@ -220,6 +255,12 @@ export type SimResult = {
   /** World-frame points, start to finish — the caller draws these in its own view. */
   path: Vec[];
   hit: boolean;
+  /** Where a planet swallowed the missile, world-frame — undefined for every
+   *  other ending (a hit, a drift-off, a timeout). The planet's own
+   *  absorption radius IS its drawn radius (unlike a ship's hit radius,
+   *  which is larger than its sprite), so the point the simulation stops at
+   *  is already the impact location — no `contactPoint` walk-back needed. */
+  absorbedAt?: Vec;
 };
 
 type LifetimeZone = 'onscreen' | 'offscreen' | 'past';
@@ -285,7 +326,7 @@ export function simulateShot(
       const dy = p.y - y;
       const distSq = dx * dx + dy * dy;
       const dist = Math.sqrt(distSq);
-      if (dist <= p.r) return { path, hit: false }; // swallowed by the planet
+      if (dist <= p.r) return { path, hit: false, absorbedAt: { x, y } }; // swallowed by the planet
       const a = (GRAVITY_G * p.r * p.r) / Math.max(distSq, p.r * p.r);
       ax += (a * dx) / dist;
       ay += (a * dy) / dist;
@@ -456,9 +497,19 @@ export class GravityGame {
     return !!this.#state && this.#state.phase === 'running' && this.mySeat === this.#state.turn;
   }
 
-  /** Aiming is only ever mine to do, and only between my own shots. */
+  /** Aiming is only ever mine to do, only between my own shots, and only
+   *  before my own shot clock runs out (spec §2.4) — past `resolvesAt` the
+   *  referee will reject it anyway, so a drag already in progress is cut off
+   *  rather than left to release into a shot that never lands. */
   get canAim(): boolean {
-    return this.isMyTurn && !this.#activeShot;
+    return this.isMyTurn && !this.#activeShot && !!this.#state && this.#now() < this.#state.resolvesAt;
+  }
+
+  /** The clock this phone is using to judge its own shot clock — `identify`'s
+   *  own `now`, exposed so the canvas can time the blink (`shotClockPulseAlpha`)
+   *  off the same clock everything else here already uses. */
+  now(): number {
+    return this.#now();
   }
 
   get aim(): Vec | null {
@@ -600,7 +651,10 @@ export class GravityGame {
     this.#aim = null;
     const s = this.#state;
     const seat = this.mySeat;
-    if (!aim || !s || seat === null) return null;
+    // The deadline can pass between the last frame's `canAim` check (which
+    // cancels a live drag once it does) and this call — belt and braces
+    // against firing a shot the referee has already moved past.
+    if (!aim || !s || seat === null || this.#now() >= s.resolvesAt) return null;
 
     const { angle, strength } = aimFromFinger(aim.x, aim.y);
     if (strength <= 0) return null;
