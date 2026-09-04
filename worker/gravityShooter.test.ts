@@ -11,7 +11,6 @@ import {
   GRAVITY_SHOT_TIMEOUT_MS,
   GRAVITY_STAR_R_MAX,
   GRAVITY_STAR_R_MIN,
-  gravityStar,
   type GravityPlanet,
   type ServerMessage,
 } from '../shared/protocol';
@@ -180,11 +179,8 @@ async function movingPlanets(): Promise<void> {
   // The re-roll is a whole fresh geometry, so it obeys every placement rule the
   // opening board does — nothing about a mid-match board is second class.
   const [a, b] = h.state()?.planets ?? [];
-  const newStar = gravityStar(h.state()?.starRadius ?? 0);
   if (a && b) {
     check('and still keeps its planets apart', surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
-    check('and clear of the star', surfaceGap(a, newStar) >= GRAVITY_PLANET_MIN_GAP - 1e-9
-      && surfaceGap(b, newStar) >= GRAVITY_PLANET_MIN_GAP - 1e-9);
   }
 
   await onGravityShot(h.ctx, A, 1, 0.2, 0.5, false);
@@ -237,7 +233,7 @@ async function garbage(): Promise<void> {
 }
 
 async function timeout(): Promise<void> {
-  console.log('\na silent shooter does not stall the match');
+  console.log('\nthe shot clock: dawdle and the missile goes off in your hands');
 
   const h = harness();
   await startGravityShooter(h.ctx, 1, [A, B]);
@@ -250,8 +246,10 @@ async function timeout(): Promise<void> {
   h.advance(2);
   await tick(h.ctx);
   check('the turn passes once the deadline is up', h.state()?.turn === 1, h.state()?.turn);
-  check('resolved as a plain miss', h.state()?.lastShot?.hit === false);
-  check('nobody loses a life for it', h.state()?.lives[0] === GRAVITY_LIVES && h.state()?.lives[1] === GRAVITY_LIVES);
+  check('marked as nobody-aimed-this, not a real miss', h.state()?.lastShot?.hit === false && h.state()?.lastShot?.strength === 0);
+  // The dawdler pays for it themselves — the opponent is untouched.
+  check('the shooter loses one of their OWN lives', h.state()?.lives[0] === GRAVITY_LIVES - 1, h.state()?.lives[0]);
+  check('and the opponent loses nothing', h.state()?.lives[1] === GRAVITY_LIVES, h.state()?.lives[1]);
   check('and a fresh deadline is set', (h.state()?.resolvesAt ?? 0) > firstDeadline);
 
   // A shot that arrives at or after its own deadline is too late — the tick
@@ -259,7 +257,23 @@ async function timeout(): Promise<void> {
   h.advance(GRAVITY_SHOT_TIMEOUT_MS + 1);
   await onGravityShot(h.ctx, B, 1, 0.1, 0.1, true);
   check('a shot after its own deadline is ignored', h.state()?.turn === 1, h.state()?.turn);
-  check('and lives are untouched', h.state()?.lives[0] === GRAVITY_LIVES);
+  check('and it costs the opponent nothing', h.state()?.lives[0] === GRAVITY_LIVES - 1, h.state()?.lives[0]);
+
+  // Running the clock out on your last life ends the match, exactly as being
+  // shot on it would.
+  const e = harness();
+  await startGravityShooter(e.ctx, 1, [A, B]);
+  for (let i = 0; i < GRAVITY_LIVES; i++) {
+    // Seat 0 dawdles; seat 1 answers instantly, so the clock only ever runs
+    // out on seat 0.
+    e.advance(GRAVITY_SHOT_TIMEOUT_MS + 1);
+    await tick(e.ctx);
+    if (e.state()?.phase !== 'running') break;
+    await onGravityShot(e.ctx, B, 1, 0.2, 0.5, false);
+  }
+  check('running the clock out on the last life ends the match', e.state()?.phase === 'done', e.state()?.phase);
+  check('and hands the win to the other seat', e.state()?.winner === 1, e.state()?.winner);
+  check('with the dawdler on zero', e.state()?.lives[0] === 0, e.state()?.lives[0]);
 }
 
 async function ending(): Promise<void> {
@@ -344,7 +358,6 @@ async function geometry(): Promise<void> {
   for (let seed = 1; seed <= 20; seed++) {
     const board = rollBoard(seeded(seed));
     const [a, b] = board.planets;
-    const star = gravityStar(board.starRadius);
     const sizeDiff = Math.abs(a.r - b.r) / Math.max(a.r, b.r);
     check(`seed ${seed}: the planets differ in size by at least the required ratio`,
       sizeDiff >= GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO - 1e-9, sizeDiff);
@@ -352,15 +365,11 @@ async function geometry(): Promise<void> {
       surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
     check(`seed ${seed}: their centres differ vertically by at least the required amount`,
       Math.abs(a.y - b.y) >= GRAVITY_PLANET_MIN_Y_DIFF - 1e-9, Math.abs(a.y - b.y));
-    // The star sits dead centre and is what makes the straight line between
-    // the ships a non-shot, so it owes both planets the same clear space they
-    // owe each other — otherwise it would just be a planet drawn on top of one.
+    // The star owes the planets nothing and they owe it nothing: a planet may
+    // sit over the middle of the board and overlap it outright. Only its own
+    // size is a rule.
     check(`seed ${seed}: the star is within its own size range`,
       board.starRadius >= GRAVITY_STAR_R_MIN - 1e-9 && board.starRadius <= GRAVITY_STAR_R_MAX + 1e-9, board.starRadius);
-    for (const [label, p] of [['a', a] as const, ['b', b] as const]) {
-      check(`seed ${seed}: planet ${label} keeps clear of the star`,
-        surfaceGap(p, star) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(p, star));
-    }
   }
 
   // seatCanReachOpponent itself, deterministically: two planets tucked well

@@ -11,6 +11,8 @@ import {
   GRAVITY_SHIP_WIDTH,
   GRAVITY_STEP_MS,
   aimFromFinger,
+  contactPoint,
+  headingBetween,
   localAimToWorldVelocity,
   shipPosition,
   simulateShot,
@@ -388,6 +390,45 @@ function theStarBlocksTheMiddle(): void {
     JSON.stringify(offCentre.path) !== JSON.stringify(offCentreNearStar.path));
 }
 
+function missileAimAndImpact(): void {
+  console.log('\nwhere the missile points, and where its impact actually lands');
+
+  // Heading is the aim convention: 0 straight up the screen, clockwise positive.
+  check('straight up reads as zero', Math.abs(headingBetween({ x: 5, y: 9 }, { x: 5, y: 1 })) < 1e-9);
+  check('to the right is a quarter turn clockwise',
+    Math.abs(headingBetween({ x: 0, y: 0 }, { x: 4, y: 0 }) - Math.PI / 2) < 1e-9);
+  check('to the left is the same, the other way',
+    Math.abs(headingBetween({ x: 0, y: 0 }, { x: -4, y: 0 }) + Math.PI / 2) < 1e-9);
+  // Straight up is what a fresh full-strength shot does, and it must agree with
+  // what `aimFromFinger` calls straight up — the aiming missile and the flying
+  // one use the same convention or they visibly disagree at the moment of release.
+  check('and it agrees with the aim angle', Math.abs(headingBetween({ x: 0, y: 1 }, { x: 1, y: 0 })
+    - aimFromFinger(1, -1).angle) < 1e-9);
+
+  // The ship's drawn box, in pixels, on a portrait board.
+  const ship = { x: 210, y: 100 };
+  const shipW = 92;
+  const shipH = 46;
+  // A missile stopping well above the ship — what the hit radius actually
+  // produces — is walked down to the hull rather than left hanging.
+  const above = contactPoint({ x: 210, y: 20 }, ship, shipW, shipH);
+  check('a shot stopping short is brought down to the hull',
+    Math.abs(above.x - 210) < 1e-9 && Math.abs(above.y - (ship.y - shipH / 2)) < 1e-6, above);
+  check('and that is nearer the ship than where it stopped', above.y > 20);
+  check('but not as far in as the ship centre', above.y < ship.y);
+
+  // One arriving from the side lands on the side of the hull, not the top.
+  const fromLeft = contactPoint({ x: 40, y: 100 }, ship, shipW, shipH);
+  check('a side-on shot lands on the side of the hull',
+    Math.abs(fromLeft.x - (ship.x - shipW / 2)) < 1e-6 && Math.abs(fromLeft.y - 100) < 1e-9, fromLeft);
+
+  // Already touching: left where it is rather than dragged inward.
+  const touching = { x: ship.x + 5, y: ship.y + 5 };
+  const inside = contactPoint(touching, ship, shipW, shipH);
+  check('a shot already on the hull is left where it is',
+    inside.x === touching.x && inside.y === touching.y, inside);
+}
+
 function timedOutTurnIsNotAFlight(): void {
   console.log('\na turn that timed out is not a shot anybody fired');
 
@@ -417,7 +458,7 @@ function timedOutTurnIsNotAFlight(): void {
   check('a real shot after one still flies', game.activeShot !== null);
 }
 
-for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, lifetime, impulseRange, shipSizedHitbox, replayUsesTheBoardTheShotWasFiredOn, movingBoardIsHeldThenEased, theStarBlocksTheMiddle, timedOutTurnIsNotAFlight]) {
+for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, lifetime, impulseRange, shipSizedHitbox, replayUsesTheBoardTheShotWasFiredOn, movingBoardIsHeldThenEased, theStarBlocksTheMiddle, missileAimAndImpact, timedOutTurnIsNotAFlight]) {
   t();
 }
 
