@@ -188,44 +188,50 @@
   <g transform="translate(82 40) scale(1)" fill="#C084FC"><ellipse rx="9" ry="6.5"/><circle cx="8" cy="-3" r="4.5"/><circle cx="-1" cy="-6" r="3.5"/><path d="M-8 1 Q-17 3 -15 -4" fill="none" stroke="#C084FC" stroke-width="2"/></g>
   <g transform="translate(100 60) scale(0.82)" fill="#C084FC"><ellipse rx="9" ry="6.5"/><circle cx="8" cy="-3" r="4.5"/><circle cx="-1" cy="-6" r="3.5"/><path d="M-8 1 Q-17 3 -15 -4" fill="none" stroke="#C084FC" stroke-width="2"/></g>
 </g>
-  <rect x="80" y="60" width="40" height="30" fill="#818CF8" opacity="0.16"/>
+  <rect x="80" y="60" width="40" height="30" fill="#A3E635" opacity="0.16"/>
   <g opacity="0.4" transform="translate(80.000 60.000) scale(0.3333)">
   <!--
-    Gravity Shooter — hub card illustration.
+    Asteroid Race — hub card illustration.
     Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
 
-    Transparent: the accent tint behind it is painted by CSS, so it is both the
-    placeholder before this file loads and the backdrop after.
+    The game in one glance: a ship low in frame, seen from behind, threading a
+    corridor of grey rocks that fade into black, with the tube's guide rings
+    receding to a vanishing point.
 
-    Colours are literal hexes on purpose. This is loaded through an img element,
-    which is a separate document with no access to the page's CSS: a currentColor
-    fill would render black on a dark card, and a CSS variable would make the shape
-    vanish entirely.
+    Transparent background: the accent tint behind it is painted by CSS, so it
+    is both the placeholder before this file loads and the backdrop after.
 
-    Note for editing by hand: an img-loaded SVG is parsed as strict XML, so a
-    doubled hyphen inside a comment is illegal and silently kills the whole file.
+    Colours are literal hexes on purpose — an img-loaded SVG has no access to
+    the page's CSS, so currentColor would render black and a CSS variable would
+    make the shape vanish.
   -->
-  <circle cx="66" cy="46" r="16" fill="#818CF8" opacity="0.22"/>
-  <circle cx="66" cy="46" r="16" fill="none" stroke="#818CF8" stroke-width="1.5" opacity="0.5"/>
-  <circle cx="60" cy="41" r="3.4" fill="#818CF8" opacity="0.35"/>
-  <circle cx="72" cy="52" r="2.2" fill="#818CF8" opacity="0.3"/>
+  <g fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <!-- the tube, receding -->
+    <ellipse cx="60" cy="34" rx="7" ry="5" stroke="#334155" stroke-width="1"/>
+    <ellipse cx="60" cy="34" rx="18" ry="13" stroke="#334155" stroke-width="1"/>
+    <ellipse cx="60" cy="34" rx="34" ry="24" stroke="#3F4E63" stroke-width="1.2"/>
+    <ellipse cx="60" cy="34" rx="56" ry="40" stroke="#475569" stroke-width="1.4"/>
 
-  <!-- The missile's own curving trail, bending hard around the planet. -->
-  <path d="M18 78 C 34 66, 40 54, 52 60 S 78 34, 92 16"
-        fill="none" stroke="#818CF8" stroke-width="1.6" stroke-dasharray="3 3" opacity="0.75"/>
+    <!-- far rocks, nearly gone into the black -->
+    <path d="M52 30 L56 28 L58 31 L55 34 L51 33 Z" fill="#475569"/>
+    <path d="M68 37 L72 36 L73 39 L70 41 L67 40 Z" fill="#3F4E63"/>
 
-  <!-- The missile itself, mid-flight past the planet. -->
-  <g transform="translate(60,58) rotate(35)">
-    <rect x="-2.4" y="-6.5" width="4.8" height="13" rx="2.2" fill="#818CF8"/>
+    <!-- a mid-distance small rock -->
+    <path d="M83 26 L90 23 L95 27 L93 34 L86 35 L81 31 Z" fill="#9CA3AF"/>
+
+    <!-- the near large rock, the one that splits -->
+    <path d="M24 40 L36 33 L48 39 L47 53 L34 59 L22 52 Z" fill="#4B5563" stroke="#94A3B8" stroke-width="1.5"/>
+
+    <!-- the ship, low and centre, seen from behind -->
+    <path d="M60 62 L78 74 L71 77 L60 71 L49 77 L42 74 Z" fill="#334155" stroke="#64748B" stroke-width="1.6"/>
+    <path d="M60 58 L66 72 L60 76 L54 72 Z" fill="#94A3B8" stroke="#CBD5E1" stroke-width="1.6"/>
+    <path d="M60 62 L63 69 L60 71 L57 69 Z" fill="#A3E635"/>
+    <ellipse cx="55" cy="75" rx="3" ry="2" fill="#FDE047"/>
+    <ellipse cx="65" cy="75" rx="3" ry="2" fill="#FDE047"/>
+
+    <!-- the crosshair, dead ahead -->
+    <path d="M56 30 L53 27 M64 30 L67 27 M56 38 L53 41 M64 38 L67 41" stroke="#A3E635" stroke-width="1.6"/>
   </g>
-
-  <!-- The distant starship, dome up, waiting at the far end of the shot. -->
-  <path d="M84 16 a8 8 0 0 1 16 0 z" fill="#818CF8"/>
-  <rect x="82" y="16" width="20" height="2.4" rx="1" fill="#818CF8" opacity="0.7"/>
-
-  <!-- The shooter's own ship, bottom left, where the shot started. -->
-  <path d="M10 84 a8 8 0 0 1 16 0 z" fill="#818CF8" opacity="0.85"/>
-  <rect x="8" y="84" width="20" height="2.4" rx="1" fill="#818CF8" opacity="0.6"/>
 </g>
 
   <ellipse cx="60" cy="76.0" rx="18" ry="3.2" fill="#F3E9D2" opacity="0.28"/>
