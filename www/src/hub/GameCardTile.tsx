@@ -59,7 +59,7 @@ export function GameCardTile({
   const meta = [
     game.showPlayerCount === false ? null : who,
     game.showDuration === false ? null : game.duration,
-    game.inputs.map((i) => INPUT_LABEL[i]).join(' + '),
+    game.showInputs === false ? null : game.inputs.map((i) => INPUT_LABEL[i]).join(' + '),
   ]
     .filter((part): part is string => part !== null)
     .join(' · ');

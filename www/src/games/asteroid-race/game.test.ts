@@ -260,6 +260,41 @@ function flying(): void {
   check('holding a tilt moves the ship across the tube', run.x > 1, run.x);
   check('but never through its wall', Math.hypot(run.x, run.y) <= ASTEROID_REACH + 1e-9, { x: run.x, y: run.y });
 
+  /*
+   * Both axes, checked against what the CAMERA does with them rather than
+   * against the sign of a field. The vertical one shipped inverted: a climb
+   * drove the ship into the floor of the tube, because world y is up-positive
+   * (that is `project`'s own convention) and `step` was subtracting. Nothing
+   * caught it, because the test above only ever held the x axis.
+   */
+  const flown = (sx: number, sy: number) => {
+    const r = new AsteroidRun(2);
+    for (let i = 0; i < 20; i++) r.step(1000 / 60, sx, sy);
+    return r;
+  };
+  const rockAhead = (r: AsteroidRun) => project({ x: 0, y: 0, z: r.distance + 100 }, r)!;
+  const level = rockAhead(flown(0, 0));
+
+  const climbed = flown(0, 1);
+  check('a climb raises the ship', climbed.y > 0, climbed.y);
+  check('and the world drops down the screen to say so', rockAhead(climbed).oy > level.oy);
+
+  const dived = flown(0, -1);
+  check('a dive lowers it', dived.y < 0, dived.y);
+  check('and the world rises to say so', rockAhead(dived).oy < level.oy);
+
+  const right = flown(1, 0);
+  check('steering right moves right', right.x > 0, right.x);
+  check('and the world slides left to say so', rockAhead(right).ox < 0);
+
+  const left = flown(-1, 0);
+  check('steering left moves left', left.x < 0, left.x);
+  check('and the world slides right to say so', rockAhead(left).ox > 0);
+
+  const diagonal = flown(1, 1);
+  check('and both axes work at once, not one or the other',
+    diagonal.x > 0 && diagonal.y > 0, { x: diagonal.x, y: diagonal.y });
+
   // Boost: faster while it lasts, then a cooldown before the next one.
   const boosted = new AsteroidRun(2);
   check('the first boost is free', boosted.boost() === true);
@@ -413,10 +448,14 @@ function autopilot(run: AsteroidRun): { gatesShot: number } {
     }
     const targetX = sealed ? 0 : bestX;
     const targetY = sealed ? 0 : bestY;
+    // Both steers point AT the target. This read `-(targetY - run.y)` while
+    // `step` subtracted its own y — two inversions that cancelled, which is
+    // exactly why twelve races finished green over a vertical axis that was
+    // upside down for anyone actually holding a phone.
     run.step(
       1000 / 60,
       Math.max(-1, Math.min(1, (targetX - run.x) / 0.4)),
-      Math.max(-1, Math.min(1, -(targetY - run.y) / 0.4)),
+      Math.max(-1, Math.min(1, (targetY - run.y) / 0.4)),
     );
     if (!sealed && bestClear > 3 && nearestZ - run.distance > 120) run.boost();
   }
