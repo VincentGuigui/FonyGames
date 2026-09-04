@@ -19,8 +19,8 @@ export const CARD: GameCard = {
   concept: 'Five lanes, your own board — land the timing and it speeds up, miss it and you lose a life.',
   rules: [
     'Tiles fall down five lanes. Tap the lane the instant one hits the line.',
-    'Dead on time scores the most. Early or late is a miss and costs a life.',
-    'Five lives. Last player still standing wins.',
+    'A long tile is held — keep your finger down to bank every beat.',
+    'Press with nothing there and it still costs a life. Five lives.',
   ],
   art: { src: art, alt: 'A dark lane of glowing pavement tiles falling toward a bright line' },
   fr: {
@@ -28,8 +28,8 @@ export const CARD: GameCard = {
     concept: 'Cinq voies, votre propre plateau — visez juste et ça accélère, ratez et vous perdez une vie.',
     rules: [
       'Des tuiles tombent sur cinq voies. Tapez la voie pile quand une tuile touche la ligne.',
-      'Pile à l’heure rapporte le plus. Trop tôt ou trop tard, c’est raté et une vie en moins.',
-      'Cinq vies. Le dernier joueur debout gagne.',
+      'Une tuile longue se maintient — gardez le doigt posé pour tout encaisser.',
+      'Appuyer dans le vide coûte aussi une vie. Cinq vies.',
     ],
     art: { alt: 'Une voie sombre de tuiles lumineuses tombant vers une ligne brillante' },
   },

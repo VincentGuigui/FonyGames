@@ -86,13 +86,49 @@ after the tile's leading (bottom) edge reached the line the tap landed.
 score = clamp(10 * (1 - offsetMs / windowMs), 0, 10)
 ```
 
-A tap before the leading edge arrives, or after `offsetMs` exceeds
-`windowMs` (the tile's trailing edge has now passed the line too) is a
-**miss** — 0 points, one life gone, same consequence whether the tap was
-early or simply too late. A **perfect** tap is one that rounds to the
+**A press that lands nothing is a miss** — 0 points, one life gone —
+whether it was early, too late, or on a lane with nothing in it at all.
+That last case used to be free: a lane with no tile in flight was simply
+ignored, which made mashing every lane strictly better than reading the
+board, since a mash that arrived early cost nothing whenever the lane
+happened to be empty. Pressing when there is no tile on the line is the
+purest form of pressing too early, and it is priced the same. A **perfect** tap is one that rounds to the
 full 10 (`Math.round(score) === 10`) — not a separate tolerance constant,
 the same "the score already says it" reasoning Tap Tap Music uses for not
 tracking a redundant accuracy stat next to its own clock.
+
+### 2.2b Consecutive tiles in one lane are one long tile, held
+
+**Two or more tiles in a row down the same lane are dealt as a single long
+tile** — press it as its head reaches the line, then keep the finger down.
+The lanes are a pure function of `roundId` (§2.1), so every phone merges the
+identical runs without anything crossing the wire.
+
+This started as a drawing problem and turned into a mechanic. Consecutive
+tiles are `TILES_SPAWN_INTERVAL_MS` apart, which at the opening speed is less
+than a tile's own height: two in a lane already *overlapped* on screen and read
+as one badly-drawn tile. Drawing them as one honest tile only works if holding
+it is what playing it means.
+
+| | |
+| --- | --- |
+| **The head** | Scored on precision exactly like any other tap — the same formula, the same window, the same perfect tier |
+| **Each further beat** | Reaches the line `TILES_SPAWN_INTERVAL_MS` after the one before it. Held through, it banks a **whole tile** (`TILES_TILE_POINTS`) |
+| **Letting go early** | Keeps every beat already banked, loses the rest, and costs **one** life |
+| **Never pressing it** | One life, exactly as missing the single tile it replaced would have |
+
+**A long tile can only ever cost one life.** Not one per beat — a run of four
+tiles that merged is one opportunity and one mistake, never four of either.
+Otherwise a long tile would be a strictly worse deal than the tiles it
+replaced, and the honest drawing would have made the game harder by accident.
+
+**A held beat does not count toward perfects or the longest streak.** Those
+measure timing, and a finger already down has no timing left to measure — the
+press that started the hold was judged on precision like any other tap.
+
+Runs are capped at `TILES_MAX_BEATS` (4): five in a row is a 1-in-625 roll, and
+the tile it would draw is longer than the screen above the line. A longer run
+is served as a full-length tile and then whatever is left.
 
 ### 2.3 The difficulty curve is a speed multiplier, not the fall time itself
 
