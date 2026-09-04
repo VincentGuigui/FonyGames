@@ -1,0 +1,159 @@
+/*
+ * Asteroid Race's round screen. Spec: docs/specs/games/asteroid-race.md §4
+ *
+ * The corridor is drawn on `AsteroidCanvas.tsx`; this is the chrome around it,
+ * filling the viewport the way every other canvas game here does
+ * (gravity-shooter.css, tiles-surfer.css, neon.css) — a tube wants every pixel
+ * of height it can get.
+ *
+ * The two buttons and the life pips are written to directly by the render loop
+ * through `--charge` and `--progress`, never re-rendered by Preact at frame
+ * rate: a gradient stop moving sixty times a second is the one thing here that
+ * would cost real frames.
+ */
+
+.asteroid {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #05070d;
+  color: var(--color-text);
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.asteroid > .statusbar {
+  flex: 0 0 auto;
+  padding: max(0.75rem, env(safe-area-inset-top)) 1rem 0;
+}
+
+.asteroid__board {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+.asteroid__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* The whole board is the fallback stick (spec §5), so the browser must not
+     claim the drag for scrolling or zooming. */
+  touch-action: none;
+}
+
+/* --------------------------- the HUD, over the tube --------------------- */
+
+.asteroid__lives {
+  position: absolute;
+  top: var(--space-2);
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: 1.35rem;
+  letter-spacing: 0.15em;
+  color: var(--game-accent, #a3e635);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.9);
+  pointer-events: none;
+}
+
+/** How far down the track, as a bar under the status bar. */
+.asteroid__progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgb(148 163 184 / 0.25);
+  pointer-events: none;
+}
+
+.asteroid__progress::after {
+  content: '';
+  display: block;
+  height: 100%;
+  width: var(--progress, 0%);
+  background: var(--game-accent, #a3e635);
+}
+
+/* ------------------------------ the two buttons ------------------------- */
+
+.asteroid__controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  display: flex;
+  justify-content: space-between;
+  padding: 0 var(--space-3);
+  gap: var(--space-3);
+}
+
+/*
+ * Thumb zone, both bottom corners, ≥ 56px (ui-guidelines §1). Two buttons and
+ * a tilted phone is a two-thumb grip, which is what this game asks for.
+ *
+ * The fill IS the cooldown: `--charge` runs 0% to 100% as the button
+ * recharges, so "can I fire" is readable without a number on it.
+ */
+.asteroid__button {
+  min-width: 5.5rem;
+  min-height: 56px;
+  padding: var(--space-2) var(--space-3);
+  border: 2px solid currentColor;
+  border-radius: var(--radius-2, 12px);
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background:
+    linear-gradient(to top, currentColor 0 var(--charge, 0%), transparent var(--charge, 0%) 100%),
+    rgb(2 6 23 / 0.55);
+  background-blend-mode: soft-light, normal;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.asteroid__button--boost {
+  color: #fb923c;
+}
+
+.asteroid__button--missile {
+  color: #a3e635;
+}
+
+.asteroid__button:active {
+  transform: translateY(1px);
+}
+
+/* --- the impact gif, the same file Gravity Shooter uses (spec §4) -------- */
+
+.asteroid__impact {
+  position: absolute;
+  width: 110px;
+  height: 110px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: asteroid-impact-in 120ms ease-out both;
+}
+
+@keyframes asteroid-impact-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .asteroid__impact {
+    animation: none;
+  }
+
+  .asteroid__button:active {
+    transform: none;
+  }
+}

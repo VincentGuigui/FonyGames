@@ -254,6 +254,17 @@ export class AsteroidRun {
     return left <= 0 ? 1 : Math.max(0, 1 - left / ASTEROID_MISSILE_COOLDOWN_MS);
   }
 
+  /** Where the last shot landed, for the tracer to draw a line to. */
+  lastShotAt: Vec3 | null = null;
+
+  /** What a shot fired right now would take — what the reticle locks onto, and
+   *  what the canvas brackets so a player can see whether they are about to
+   *  spend a missile on the wrong rock (spec §2.3). */
+  lockedTarget(): Rock | null {
+    if (this.done) return null;
+    return reticlePick(this.rocksNear(this.distance, this.distance + ASTEROID_MISSILE_RANGE), this);
+  }
+
   /** How long ago the last shot was fired, for the tracer — null once it is
    *  older than `ASTEROID_TRACER_MS`. */
   get tracerAgeMs(): number | null {
@@ -328,6 +339,7 @@ export class AsteroidRun {
 
     this.#missileReadyAtMs = this.elapsedMs + ASTEROID_MISSILE_COOLDOWN_MS;
     this.#shotAtMs = this.elapsedMs;
+    this.lastShotAt = { x: target.x, y: target.y, z: target.z };
     this.#destroyed.add(target.id);
 
     if (target.size === 'large') {
