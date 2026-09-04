@@ -10,7 +10,7 @@ import { useGameText } from '../../core/i18n/gameText';
 import type { PlayerId, ServerMessage, TttState } from '../../../../shared/protocol';
 import { useSoloTesting } from '../../core/useSolo';
 import { enoughToStart } from '../../../../shared/players';
-import { TttGame } from './game';
+import { TttGame, TTT_PULSE_MS, TTT_STAMP_MS, finaleLine, finaleStage, type TttFinaleStage } from './game';
 import { GameSwitcher } from '../../lobby/GameSwitcher';
 import './ttt.css';
 
@@ -36,6 +36,30 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
   const players = room.room.room?.players ?? [];
   const [swap, setSwap] = useState(false);
   const [transitionNow, setTransitionNow] = useState(Date.now());
+  /**
+   * The winning finale (spec §4). Started the first time this phone sees a
+   * won match rather than from a server clock: it is cosmetic, it is the same
+   * length for everybody, and a phone that arrives late should see it from
+   * where it arrived rather than miss it or catch the tail.
+   */
+  const [beat, setBeat] = useState<TttFinaleStage>('done');
+  const line = state ? finaleLine(state) : null;
+  // Keyed on the round NUMBER, not on the state object: a re-sent frame would
+  // otherwise re-run this effect, and its own cleanup would clear the timers
+  // that were about to end the finale — leaving the results panel behind a
+  // celebration that never finishes.
+  const finaleRound = state && line ? state.roundId : null;
+  useEffect(() => {
+    if (finaleRound === null) return;
+    setBeat(finaleStage(0));
+    const toLine = window.setTimeout(() => setBeat('line'), TTT_STAMP_MS);
+    const toDone = window.setTimeout(() => setBeat('done'), TTT_STAMP_MS + TTT_PULSE_MS);
+    return () => {
+      window.clearTimeout(toLine);
+      window.clearTimeout(toDone);
+    };
+  }, [finaleRound]);
+  const stage: TttFinaleStage = finaleRound === null ? 'done' : beat;
   const ids = players.map((player) => player.id);
   const x = swap ? ids[1] : ids[0];
   const o = swap ? ids[0] : ids[1];
@@ -50,6 +74,13 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
     return () => window.clearTimeout(timer);
   }, [state?.reopenedAt, client]);
 
+  if (state && line && stage !== 'done') {
+    return <main class="tttt-game">
+      <h1>{game.title}</h1>
+      <p>{text({ en: `${playerName(state.winner)} wins the whole thing`, fr: `${playerName(state.winner)} remporte la partie` })}</p>
+      <Finale state={state} stage={stage} line={line} />
+    </main>;
+  }
   if (state?.phase === 'over') {
     return <GameOverScreen accent={game.accent} title={game.title} concept={game.concept} rules={game.rules} slug={game.slug} winner={state.winner}
       rows={players.map((player) => ({ id: player.id, name: player.name, avatar: player.avatar, value: symbol(player.id) }))}
@@ -71,6 +102,35 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
     canStart={room.room.isHost && enoughToStart(ids.length, [2, 2], solo)} startLabel={t.common.startRound} onStart={start}
     note={room.room.isHost ? text({ en: 'Choose the symbol assignment before starting.', fr: 'Choisissez les symboles avant de commencer.' }) : text({ en: 'The host starts the round.', fr: 'The host starts the round.' })}
     extras={room.room.isHost && ids.length === 2 ? <div class="tttt-assignment"><span>{assignment}</span><button class="tttt-change" type="button" onClick={() => setSwap(!swap)}>{text({ en: 'Change', fr: 'Changer' })}</button></div> : null} />;
+}
+
+/**
+ * The two beats of the finale (spec §4), drawn from the same pieces the live
+ * board uses so the win is shown on the board it happened on.
+ *
+ * `stamp` keeps the child grid that was just won on screen with the winner's
+ * symbol over it; `line` returns to the meta grid with the three aligned
+ * symbols pulsing. Neither is interactive — this is a replay of what just
+ * happened, and a stray tap on it should do nothing at all.
+ */
+function Finale({ state, stage, line }: { state: TttState; stage: TttFinaleStage; line: readonly [number, number, number] }): JSX.Element {
+  if (stage === 'stamp') {
+    const mark = state.miniWinner === 'x' || state.miniWinner === 'o' ? state.miniWinner : null;
+    return <section class="tttt-board tttt-board--stamp">
+      <div class="tttt-stamp">
+        <div class="tttt-mini">
+          {state.small.map((value) => <span class="tttt-cell" aria-hidden="true">{value?.toUpperCase() ?? ''}</span>)}
+        </div>
+        {mark && <span class="tttt-stamp__mark">{mark.toUpperCase()}</span>}
+      </div>
+    </section>;
+  }
+  return <section class="tttt-board">
+    {state.meta.map((value, cell) => <div
+      class={`tttt-meta ${value === 'x' || value === 'o' ? 'tttt-meta--claimed' : ''} ${line.includes(cell) ? 'tttt-meta--winning' : ''}`}
+      aria-hidden="true"
+    >{value === 'x' || value === 'o' ? value.toUpperCase() : ''}</div>)}
+  </section>;
 }
 
 function Board({ state, now, onSelect, onTap }: { state: TttState; now: number; onSelect: (cell: number) => void; onTap: (cell: number) => void }): JSX.Element {
