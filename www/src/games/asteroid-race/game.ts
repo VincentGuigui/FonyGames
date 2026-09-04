@@ -376,10 +376,16 @@ export class AsteroidRun {
 
     const from: Vec3 = { x: this.x, y: this.y, z: this.distance };
 
+    // **World y is up-positive**, which is the projection's own convention
+    // (`project` measures a point DOWN from a camera sitting at `y + CAM_UP`),
+    // so a positive steer climbs. This read `-=` when it was written, which
+    // silently drove the ship into the floor of the tube whenever the player
+    // asked it to climb; the flight test only ever exercised the x axis, so
+    // nothing caught it. Both directions are pinned against the projection now.
     const sx = clamp(steerX, -1, 1);
     const sy = clamp(steerY, -1, 1);
     this.x += sx * ASTEROID_STEER_SPEED * dt;
-    this.y -= sy * ASTEROID_STEER_SPEED * dt;
+    this.y += sy * ASTEROID_STEER_SPEED * dt;
     // Clamped to the tube as a circle, not a box: the corridor is round, and a
     // box would let a hull corner sit outside the wall it is drawn against.
     const reach = Math.hypot(this.x, this.y);

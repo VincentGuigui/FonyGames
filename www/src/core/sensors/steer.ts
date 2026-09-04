@@ -97,13 +97,14 @@ export function trackSteer(sensitivityDeg = SENSITIVITY_DEG): SteerTracker {
 /* ------------------------------------------------------------------ */
 
 /**
- * How many degrees of **pitch** reach full vertical steer. Larger than the
- * roll figure above on purpose: a phone is held at whatever pitch is
- * comfortable and is rolled far more freely than it is tipped, so the same
- * 20° that reads as a deliberate roll reads as a fidget in beta. A guess —
- * needs a playtest, like every other number in that spec.
+ * How many degrees of **pitch** reach full vertical steer. A little coarser
+ * than the roll figure above, because a phone is held at whatever pitch is
+ * comfortable and drifts there, so the same 20° that reads as a deliberate
+ * roll reads as a fidget in beta — but only a little: at 30° a full climb
+ * needed a tip so large that flying up read as not working at all. A guess,
+ * like every other number in that spec.
  */
-export const PITCH_SENSITIVITY_DEG = 30;
+export const PITCH_SENSITIVITY_DEG = 22;
 
 export type Steer2 = { x: number; y: number };
 

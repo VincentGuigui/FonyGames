@@ -271,6 +271,17 @@ and explicitly calibrated); this game needs the same math on `beta` as well,
 so `steer.ts` gains a two-axis variant rather than this game reading a raw
 event.
 
+**World y is up-positive**, which is the projection's own convention: the
+camera sits at `y + ASTEROID_CAM_UP` and measures everything down from there.
+The first build got this backwards and subtracted the vertical steer, so
+tipping the phone to climb drove the ship into the floor of the tube and
+vertical control read as simply not working. Both directions are now pinned
+against the projection in `game.test.ts` — a climb has to move the world DOWN
+the screen — rather than against the sign of a field, because the sign of a
+field is exactly what was wrong and the tests still passed: the test
+autopilot negated its own vertical steer to match, so two inversions
+cancelled and twelve races finished green over an axis nobody could fly.
+
 Following [../../device-capabilities.md](../../device-capabilities.md) §4
 exactly: calibrated at round start against however the player is holding the
 phone, low-pass filtered, sampled at device rate, acted on at ≤ 60 Hz.
@@ -344,7 +355,7 @@ these, §8):
 | `ASTEROID_CAM_BACK` / `_UP` | 14 / 3.4 | Behind and above, so the middle of the screen is clear |
 | `ASTEROID_FOCAL` | 2.4 | Field of view, in board widths per unit at unit distance |
 | `ASTEROID_HORIZON` | 0.42 | The vanishing point, as a fraction of board height |
-| `PITCH_SENSITIVITY_DEG` | 30 | Larger than roll's 20: a phone is rolled freely and tipped deliberately |
+| `PITCH_SENSITIVITY_DEG` | 22 | A little coarser than roll's 20, since resting pitch drifts more. Was 30, which needed a tip so large that climbing read as not working |
 
 ## 6. Networking
 

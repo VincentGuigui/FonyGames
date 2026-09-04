@@ -109,6 +109,13 @@ export type GameCard = {
   showPlayerCount?: boolean;
   /** Same, for the duration half. */
   showDuration?: boolean;
+  /**
+   * Same, for the input modality. Random Game's own "touch" describes tapping
+   * a card, which every card takes — it is not a promise about how the game on
+   * the other side is played, and reading "touch" next to a die that lands you
+   * in a motion game is worse than reading nothing.
+   */
+  showInputs?: boolean;
   inputs: GameInput[];
   /** 1–3 of `GameTag`. See that type's own comment. */
   tags: GameTag[];
