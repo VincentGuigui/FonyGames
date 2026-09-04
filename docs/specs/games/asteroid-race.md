@@ -1,11 +1,13 @@
 # Asteroid Race
 
-> Status: **approved, not yet built** ([issue #24](https://github.com/VincentGuigui/FonyGames/issues/24)).
-> Approved as written on 2026-09-04, §12's open proposals included: the fixed
-> track and lives-as-budget win condition (§2), two-axis tilt (§5), live shards
-> (§2.3) and 1–8 players all stand as specced. Every number below is still a
-> stated guess (§12) — approval is of the design, not of the constants, which
-> need a thumb before this leaves beta.
+> Status: **built, beta** ([issue #24](https://github.com/VincentGuigui/FonyGames/issues/24)).
+> Approved as written on 2026-09-04 — the fixed track and lives-as-budget win
+> condition (§2), two-axis tilt (§5), live shards (§2.3) and 1–8 players all
+> stand. Building it moved several numbers and settled two things the design
+> could not settle on paper: what a gate actually has to be made of (§2.3), and
+> how often one can arrive before the game is about gates rather than about
+> flying. Both are recorded where they happened, with the measurement that
+> caused them. **The numbers are still untested on a real thumb** (§12).
 
 | | |
 | --- | --- |
@@ -16,7 +18,7 @@
 | **Round length** | ~50–60 s of flying, hard cap 120 s (§7) |
 | **Inputs** | orientation (tilt) to fly · touch for the two buttons |
 | **Accent colour** | `#A3E635` |
-| **Status** | approved — not yet built |
+| **Status** | built, beta — every number still untested on a real thumb |
 
 ## 1. Pitch
 
@@ -73,9 +75,11 @@ had one (§4).
 
 ### 2.1 One field, dealt by arithmetic
 
-**Nothing about the field goes on the wire.** `asteroidAt(roundId, index)` is
-a pure function in `game.ts` returning one rock's `{ x, y, z, r, size }`, and
+**Nothing about the field goes on the wire.** `formationAt(roundId, index)` is
+a pure function in `field.ts` returning every rock in one formation, and
 `roundId` — already broadcast, already unique per round — is its only input.
+(The spec first called it `asteroidAt` and had it return a single rock; a gate
+only means anything as a set, so the unit it deals in is the formation.)
 Every phone therefore generates the identical field from nothing, the same
 device [tiles-surfer.md](tiles-surfer.md) §2.1 uses for its lane sequence and
 [ufo-hunt.md](ufo-hunt.md) uses for its saucer's position.
@@ -93,6 +97,19 @@ missiles clear *your* rocks, and nobody else's run is affected because there
 are no collisions between players (§2.2). What every player is guaranteed is
 the field as *dealt* — identical rocks in identical places, so a race between
 two phones is a race between two players and never between two boards.
+
+### 2.1b The corridor is a tube
+
+The ship flies down the middle of a tube of radius `ASTEROID_CORRIDOR_R` and
+cannot leave it. That is not scenery, it is what makes §2.3 possible at all:
+**an open field can always be flown around**, so a formation that must be shot
+could not exist in one. A tube can be sealed.
+
+It is drawn as faint rings receding to the vanishing point — visible but
+clearly secondary to the rocks, the same call Neon Fall §2.1 makes for its lane
+guides. The rings do a second job the spec did not anticipate and would not
+give up now: a ring sweeping past the ship is the depth cue the issue asked
+for, and it says how fast you are going in a way nothing static can.
 
 ### 2.2 Nobody can see your ship
 
@@ -115,22 +132,52 @@ Steering is free. Forward speed does not depend on how hard you are turning,
 so a rock you can swerve around costs you nothing, and a game of only
 swervable rocks would make the missile button decoration.
 
-So the field deals **gates**: a formation with no gap wide enough for a ship,
-one large rock in the middle. A gate is not a wall — shoot the middle rock and
-its two halves drift apart in opposite directions, opening the lane you then
-fly through. That is the issue's own sentence ("each part drifts in opposite
+So the field deals **gates**: a formation with no way through at all, and one
+large rock in the middle that opens it. Shoot the middle rock and its two
+halves drift apart in opposite directions, opening the lane you then fly
+through. That is the issue's own sentence ("each part drifts in opposite
 directions (random) to clear the middle") read as the reason the mechanic is
 there rather than as a visual detail.
 
+**What a gate is actually made of, and why it took measuring.** Ten rocks in a
+ring at `ASTEROID_GATE_RING_R`, around one large rock at the axis. The obvious
+construction — six rocks, checked radially (ring to centre rock, ring to wall)
+and between adjacent surfaces — *looks* sealed and is not. The hole is the
+**diagonal corner** out near the wall, where a hull slips past two adjacent
+ring rocks at once, and no ring radius closes it at six. `game.test.ts` proves
+the seal by sweeping the whole cross-section on a fine grid rather than by
+trusting arithmetic in a comment, which is the only reason this was caught
+before it shipped.
+
+**Shooting it opens the middle immediately, but barely.** Two halves sitting
+where their parent was block less than it did, so a sliver appears the instant
+the shot lands and widens as they drift. Blast it early and you fly through a
+comfortable gap; blast it late and you thread it. That came out of the
+geometry rather than being designed in, and it is better than the binary the
+spec first described.
+
 **The shards stay live.** They are two small rocks now, moving, and they can
 still take a life — otherwise shooting a gate would be free and the decision
-would collapse the other way. Blast it early and you fly through the middle of
-a widening gap; blast it late and you fly through two rocks still leaving.
+would collapse the other way.
 
-Gates are dealt roughly every `ASTEROID_GATE_EVERY` formations, which at the
-numbers in §5b is one about every 6 s against a 3 s missile cooldown — so a
-gate is always answerable, and a missile spent on a rock you could have dodged
-is a missile you might miss at the next one.
+**A gate gets clear air**: the two formations before one are empty, and so is
+the one after. Without it the corridor is still delivering rocks to dodge
+while the gate is asking for the two things a gate asks — be lined up on the
+middle, and have shot it early enough for the halves to be out of the way —
+and the answer to a gate becomes luck rather than nerve. It reads well, too:
+the tube empties, and then there is a wall.
+
+**And the beam takes the NEAREST rock it passes through**, which makes aiming
+a real decision rather than a formality: answer a gate from off-centre and the
+missile takes a ring rock, burns its cooldown, and leaves the gate shut. This
+is why the reticle shows what it is locked on (§4) — the trap is fair, but
+only if it is visible.
+
+Gates are dealt roughly one formation in `ASTEROID_GATE_EVERY`, which is about
+one every twelve seconds: four or five in a race, each an event. One in seven
+was tried first and was **nine deaths in ten** — a race whose scatters are a
+warm-up for a precision test every four seconds is one game pretending to be
+another.
 
 ### 2.4 The fog may never hide a rock you still have to dodge
 
@@ -184,11 +231,19 @@ Only `classic` if this is approved. Recorded, not built:
     is inside `ASTEROID_WARN_Z`, thickening and pulsing as it closes. The
     pulse is not decoration: it is what keeps the warning from being a colour
     on its own (§11).
-  - A reticle at the middle of the screen, showing what the missile would take
-    and dimming while it recharges.
-  - **HUD**: five life pips *and* the number, your place in the ladder
-    ("2nd of 4"), and distance to go as a thin bar. The ladder strip along the
-    top edge carries every player's avatar by progress.
+  - **A reticle at the middle of the screen, showing what the missile would
+    actually take** — it brackets the locked rock, and more heavily when that
+    rock is a large one. This is not decoration: the beam takes the nearest
+    rock it passes through, so answering a gate from off-centre spends the
+    missile on the ring (§2.3). The trap is fair; it has to be visible. The
+    reticle dims while the missile recharges.
+  - **HUD**: five life pips, your place in the ladder ("2 of 4" in the status
+    bar), and distance covered as a thin bar along the top. The shared
+    `Scoreboard` carries every player's own progress.
+    The pips, both button charges and the bar are written straight into the DOM
+    by the render loop rather than re-rendered by Preact: they change every
+    frame, and re-rendering the room sixty times a second to move a gradient
+    stop is the one performance mistake this game could actually feel.
   - **Boost bottom-left, missile bottom-right**, ≥ 56 px, in the thumb zone
     (ui-guidelines §1), each filling back up as it recharges. Two buttons and
     a tilted phone is a two-thumb grip, which is what this game asks for and
@@ -238,7 +293,12 @@ grip is stick-left, buttons-right.
 
 ### 5b. The numbers, and what each one is for
 
-Distances are in **ship lengths**. All of these are guesses (§12).
+Distances are in **ship lengths**. Every one of these is still a guess against
+a real thumb (§12) — what they are not is arbitrary: the four marked ⚖ were
+moved by the autopilot measurement in §13, and the note says what moved them.
+
+**Shared with the referee** (`shared/protocol.ts` — it clamps a report with
+these, §8):
 
 | Constant | Value | Why |
 | --- | --- | --- |
@@ -247,20 +307,44 @@ Distances are in **ship lengths**. All of these are guesses (§12).
 | `ASTEROID_BOOST_MULTIPLIER` | 1.8 | A perfect boosting run saves ~10 s over a cruising one |
 | `ASTEROID_BOOST_MS` | 2000 | Long enough to clear a straight, short enough to regret |
 | `ASTEROID_BOOST_COOLDOWN_MS` | 9000 | ~6 boosts in a 60 s race |
-| `ASTEROID_MISSILE_COOLDOWN_MS` | 3000 | Half a gate's spacing (§2.3) |
 | `ASTEROID_LIVES` | 5 | The issue's own number |
 | `ASTEROID_STUN_MS` | 1000 | The issue's own number — ~40 units, about what a boost buys |
-| `ASTEROID_R_SMALL` / `ASTEROID_R_LARGE` | 1.2 / 3.0 | A large rock is ~2.5× a small one on screen, which is the size cue (§4) |
-| `ASTEROID_SPLIT_DRIFT` | 12 /s | Two shards clear a ship's width in ~0.2 s |
+| `ASTEROID_ROUND_CAP_MS` | 120000 | Nobody wants a race that never ends |
+| `ASTEROID_REPORT_MS` | 1000 | The ladder's own cadence (§6) |
+| `ASTEROID_AWAY_MS` | 3000 | A run freezes after this, and no report may claim more (§8) |
+| `ASTEROID_CLAIM_SLACK` | 20 | Half a second of cruising, so clock jitter is not punished |
+
+**The field** (`field.ts`):
+
+| Constant | Value | Why |
+| --- | --- | --- |
+| `ASTEROID_CORRIDOR_R` | 7 | The tube (§2.1b). A hull may reach 6.2 of it |
+| `ASTEROID_SHIP_R` | 0.8 | The hull's own collision radius |
 | `ASTEROID_SPACING` | 35 | A formation about every 0.9 s at cruise |
-| `ASTEROID_GATE_EVERY` | 7 | A gate about every 6 s |
+| `ASTEROID_R_SMALL` ⚖ | 1.7 | Set by the gate: ten of these have to seal the tube |
+| `ASTEROID_R_LARGE` | 3.0 | The one that splits — 1.8× the small one on screen |
+| `ASTEROID_GATE_EVERY` ⚖ | 14 | About one gate every 12 s. Was 7, and that was nine deaths in ten |
+| `ASTEROID_GATE_RING` ⚖ | 10 | Six leaves a diagonal hole at the wall at every radius (§2.3) |
+| `ASTEROID_GATE_RING_R` ⚖ | 5.0 | Closes the corner with room to spare |
+| `ASTEROID_SPLIT_DRIFT` | 18 | The middle is properly open about a fifth of a second after the shot |
+
+**The flight and the view** (`game.ts`):
+
+| Constant | Value | Why |
+| --- | --- | --- |
+| `ASTEROID_STEER_SPEED` | 14 /s | Crosses the tube in ~0.9 s. At 9 it was sluggish enough to eat the whole gate approach |
+| `ASTEROID_MISSILE_COOLDOWN_MS` | 3000 | A quarter of the gap between gates, so a gate is always answerable |
+| `ASTEROID_MISSILE_RANGE` | 400 | Ten seconds of cruising — a gate is shootable long before it matters |
+| `ASTEROID_MISSILE_R` | 0.9 | The beam's own radius. A reticle you have to thread is not a reticle |
+| `ASTEROID_RETICLE_LEAD_Z` | 120 | Where the crosshair is drawn. Cosmetic; the beam is a cylinder |
 | `ASTEROID_WARN_Z` | 60 | The red halo: 1.5 s at cruise, 0.8 s boosting |
 | `ASTEROID_CLEAR_Z` | 150 | Fully lit — and ≥ `ASTEROID_REACTION_MS` at boost (§2.4) |
 | `ASTEROID_DRAW_Z` | 600 | Beyond this, nothing is drawn |
 | `ASTEROID_REACTION_MS` | 1200 | The reaction time §2.4's inequality is written against |
-| `ASTEROID_ROUND_CAP_MS` | 120000 | Nobody wants a race that never ends |
-| `ASTEROID_REPORT_MS` | 1000 | The ladder's own cadence (§6) |
-| `ASTEROID_AWAY_MS` | 3000 | How long a phone may go quiet before it freezes (§7, §8) |
+| `ASTEROID_CAM_BACK` / `_UP` | 14 / 3.4 | Behind and above, so the middle of the screen is clear |
+| `ASTEROID_FOCAL` | 2.4 | Field of view, in board widths per unit at unit distance |
+| `ASTEROID_HORIZON` | 0.42 | The vanishing point, as a fraction of board height |
+| `PITCH_SENSITIVITY_DEG` | 30 | Larger than roll's 20: a phone is rolled freely and tipped deliberately |
 
 ## 6. Networking
 
@@ -276,7 +360,7 @@ The phone owns its own flight.
 
 ```ts
 // client -> server, on a 1 s tick, plus immediately on a life change or a finish
-{ t: 'asteroid-report', d: { roundId, distance, lives, hits } }
+{ t: 'asteroid-report', d: { roundId, distance, lives, hits, at } }
 
 // server -> everyone, on its own 1 s tick
 { t: 'asteroid', d: {
@@ -289,7 +373,7 @@ The phone owns its own flight.
 
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
-| `asteroid-report` | client → server | `{roundId, distance, lives, hits}` | How far I have got, what it has cost me — clamped on arrival (§8), never taken as read |
+| `asteroid-report` | client → server | `{roundId, distance, lives, hits, at}` | How far I have got, what it has cost me — clamped on arrival (§8), never taken as read. `at` is this phone's own estimate of server time |
 | `asteroid` | server → everyone | see above | Everyone's last-reported run, plus the race's own phase and winner. Nothing here is private |
 
 **Latency tolerance.** Nothing in the loop is frame-perfect between players —
@@ -297,13 +381,19 @@ you are racing a clock and a field, not reacting to another phone
 ([../../multiplayer.md](../../multiplayer.md) §6). 300 ms of lag moves your
 avatar on somebody else's ladder strip and changes nothing about your run.
 
-**The finish is scored on server-received order, corrected by client
-timestamp** — multiplayer.md §6 requires a real race to say which it does, and
-this is it: two reports claiming the line in the same tick are ordered by the
-client timestamp inside them, and only if those tie does arrival order break
-it. The margin this protects is real (a report can sit 100–300 ms in flight),
-and the correction is bounded by the same claim window as everything else
-(§8).
+**The finish is scored on server-received order, and the client timestamp
+records the time rather than deciding the place.** multiplayer.md §6 requires a
+real race to say which it does, so: the first crossing report to arrive ends
+the race and takes it; `at`, clamped into the window it could honestly name, is
+what the results screen shows as that player's time.
+
+The spec first said the timestamp would *order* two crossings and arrival would
+only break a tie. Building it showed that cannot happen: a Durable Object
+handles one message at a time, so the second crossing arrives after the race is
+already over, and honouring an earlier stamp would mean holding the result open
+and then taking the win back off somebody who had already been shown it. Two
+players crossing within one round-trip of each other is rare; a winner that
+changes on screen is not something to trade for it.
 
 **Empty reports are never sent, and the last one is flushed.** A phone with
 its `requestAnimationFrame` stopped has nothing new to say, and saying it
@@ -323,7 +413,7 @@ tick that may not come (the `tiles-report` closing-frame lesson,
 | Orientation denied | The virtual stick (§5), same race, same field |
 | Everyone runs out of lives before the line | The furthest wins, on the distance they died at. Nobody finishing is a legitimate result, not a void round |
 | The 120 s cap arrives | The furthest wins. A tie at the top is an unranked tie, the convention every other game's cap already uses |
-| Two players cross in the same tick | §6's rule: client timestamp first, arrival order only as a fallback |
+| Two players cross within a round-trip of each other | The first report to arrive takes it (§6). The other keeps its own distance and its own place |
 | Solo room | A time trial. `winner: null`, and the results screen shows the finish time rather than a placing (tiles-surfer.md §7's own solo answer) |
 | Fewer than 1 connected player | Start disabled |
 | A report for a stale `roundId` | Ignored |
@@ -400,30 +490,33 @@ memory only, for the life of the round; nothing is stored.
 
 ## 12. Open questions
 
-1. **The win condition** (§2) — fixed track and lives as the budget, as
-   specced, or `endless` with five hits ending the run? The issue says neither.
-2. **Two axes or one.** Tilting up and down as well as left and right is the
-   reading a perspective corridor invites, and it is what makes a gate a hole
-   rather than a doorway. One axis is easier to control on a real phone and
-   halves the fallback's job. Needs a playtest, and it changes the field
-   generator.
-3. **Every number in §5b is a guess** — `ASTEROID_CRUISE_SPEED`,
-   `ASTEROID_SPACING`, `ASTEROID_GATE_EVERY` and `ASTEROID_CLEAR_Z` are the
-   four that decide whether the game is playable at all, and none of them has
-   been in front of a thumb.
-4. **Do the shards stay live** (§2.3)? Specced yes, because a free gate is not
-   a decision. If that reads as punishing in play, harmless shards are the
-   dial.
+Settled by building it, and recorded here so they are not re-opened by
+accident: the win condition (§2, as specced), two axes (§5, as specced), live
+shards (§2.3, as specced), 1–8 players (as specced), and what a gate is made of
+(§2.3, ten ring rocks — measured, not chosen).
+
+Still open:
+
+1. **Every number in §5b is untested on a real thumb.** The four marked ⚖ were
+   moved by an autopilot (§13), which is a fairness instrument and not a
+   player: it has perfect information and no reaction time, so it is wrong
+   about difficulty in both directions at once. `ASTEROID_STEER_SPEED`,
+   `ASTEROID_GATE_EVERY` and `ASTEROID_CLEAR_Z` are the three most likely to be
+   wrong in a hand.
+2. **Is a gate readable in the moment?** A player has to recognise a wall with
+   no hole, decide the answer is the middle, get there, and shoot early enough
+   — inside the ~1.75 s of clear air plus whatever they saw coming. The
+   autopilot does it comfortably; a person may need the gate telegraphed more
+   loudly than "the tube empties".
+3. **Does the fallback stick compete with the buttons?** Tilt leaves both
+   thumbs free. The stick takes one, and the two buttons want the other.
+4. **Is `PITCH_SENSITIVITY_DEG` right for a phone held at a table?** Pitch is
+   calibrated against however it is held, but the comfortable *range* around
+   that pose is much smaller than roll's.
 5. **Should a boost be usable while stunned**, buying back some of the second
-   it costs? Specced no — a stun you can pay your way out of is not a
-   punishment — but it is the kind of thing that makes a race feel generous.
-6. **1–8 players, confirmed?** The field is deterministic, so a solo time
-   trial is genuinely playable and worth having on the hub; 2–8 would keep the
-   catalogue's usual shape instead.
-7. **A ladder strip, or full lanes?** Shake Rush gives the whole screen to
-   everyone's positions; this game gives it to the corridor and squeezes them
-   into a strip (§4). If the strip reads as an afterthought, the corridor may
-   have to give up some height.
+   it costs? Built as no.
+6. **A ladder strip, or full lanes?** Built as the shared `Scoreboard`. If it
+   reads as an afterthought, the corridor may have to give up some height.
 
 ## 13. Rendering: plain `<canvas>`, and where the maths lives
 
@@ -437,10 +530,14 @@ and adds no dependency (AGENTS.md §3.3).
 The perspective is arithmetic, not a 3D engine: one focal length, `scale =
 FOCAL / (z + cameraBack)`, and a camera offset above and behind the hull.
 Everything that decides an outcome is a pure function in
-`www/src/games/asteroid-race/game.ts` — `asteroidAt`, the projection, the
-collision test, the split, the reticle pick, the fog ramp — so it can be
-tested without a canvas, the same split Sling Puck's `physics.ts` and Gravity
-Shooter's `game.ts` already use.
+`www/src/games/asteroid-race/` and split in two, since one file would have
+outgrown the 300-line guidance in
+[../../conventions/code-style.md](../../conventions/code-style.md): `field.ts`
+is the deterministic field (`formationAt`, the gate, the split) and `game.ts`
+is the flight (the projection, the swept collision test, the reticle pick, the
+fog ramp, and `AsteroidRun` itself). Neither imports a canvas, so a whole race
+can be flown in a test — the same split Sling Puck's `physics.ts` and Gravity
+Shooter's `game.ts` already use. `render.ts` draws, and decides nothing.
 
 **Asteroids are drawn, not sprited**, and this is the one exception to
 [../../design/illustrations.md](../../design/illustrations.md) §4 worth
@@ -451,17 +548,43 @@ shapes. A sprite may only be translated, scaled and rotated — the tint and the
 split are neither, the same reason Gravity Shooter's star is procedural. The
 **ship** is a sprite, because it never changes shape.
 
+### 13.1 The autopilot is the fairness pass
+
+Gravity Shooter checks a freshly-rolled board with `seatCanReachOpponent`
+before it ships it (that spec's §2.1). This game cannot do that per board,
+because the board is the whole race — so the check runs over whole races
+instead, in `game.test.ts`.
+
+**An autopilot flies twelve rounds end to end.** It reads the next wall of
+rocks, aims at the widest hole in it, and when a wall has no hole at all lines
+up the middle and shoots it — but only once the crosshair is actually on the
+big rock, because a player reads that off the reticle and so must it. Every one
+of the twelve has to finish, and the pilot still has to spend lives doing it,
+so the assertion is "this field can be flown", never "this field is easy".
+
+It is also what moved the four ⚖ numbers in §5b. With the first set it finished
+**1 race in 12**; with the shipped set, **12 of 12**. Both figures are honest
+about what they measure: the pilot has perfect information and no hands, which
+is exactly why it is a fairness instrument and not a difficulty one.
+
 Tests, per [../../testing.md](../../testing.md) §2 — every scoring and win
 rule, and every threshold with a trace that must trigger and one that must
 not:
 
-- `worker/asteroidRace.test.ts` — the referee: `reachableBy`'s clamp and its
-  claim window, lives only going down, the finish going to the first crosser,
-  the cap handing it to the furthest, a stale `roundId`, the solo `winner:
-  null`, and an away run freezing. Registered as `npm run test:asteroid`.
-- `www/src/games/asteroid-race/game.test.ts` — the flight: two phones deriving
-  the identical field from one `roundId`, the projection, a collision that must
-  register and a near-miss that must not, a gate being genuinely impassable
-  until it is shot, the split clearing the middle, the reticle picking the
-  nearest rock and not the biggest, and §2.4's fog inequality asserted against
-  the shipped constants. Registered as `npm run test:asteroid-ui`.
+- `worker/asteroidRace.test.ts` — the referee, 75 checks: `reachableBy`'s clamp
+  and its claim window (a phone that flies the race in one silent frame does
+  not finish it; an honest cruising run is never clipped), lives only going
+  down, the finish going to the first crosser, the cap handing it to the
+  furthest with a dead heat unranked, a stale `roundId`, the solo `winner:
+  null`, an away run freezing, and a full-room frame fitting inside 1 KB.
+  Registered as `npm run test:asteroid`.
+- `www/src/games/asteroid-race/game.test.ts` — the flight, 87 checks: two
+  phones deriving the identical field from one `roundId`, the projection, a
+  collision that must register and a near-miss that must not, a dropped frame
+  that must not tunnel through a rock, **a gate with no hull position in the
+  whole cross-section that gets through**, the split opening the middle and
+  only the middle, the reticle taking the nearest rock and not the biggest, the
+  off-centre shot that takes a ring rock and leaves the gate shut, §2.4's fog
+  inequality asserted against the shipped constants, and §13.1's twelve races.
+  Registered as `npm run test:asteroid-ui`.
+- `www/src/core/sensors/steer.test.ts` gains the two-axis filter's own checks.

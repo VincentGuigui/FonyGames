@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" width="120" height="90">
+  <!--
+    Asteroid Race — the player's own ship, seen from behind and slightly above.
+    Spec: docs/specs/games/asteroid-race.md §4 · style: docs/design/illustrations.md
+
+    Drawn nose-away, because the camera sits behind it: what the player sees is
+    the back of the hull, two engine bells and the swept wings either side.
+
+    Colours are literal hexes on purpose — an img-loaded SVG is a separate
+    document with no access to the page's CSS, so currentColor would render
+    black on a dark board and a CSS variable would erase the shape entirely.
+  -->
+  <g fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <!-- wings -->
+    <path d="M60 34 L104 66 L88 72 L60 58 L32 72 L16 66 Z" fill="#334155" stroke="#64748B" stroke-width="2"/>
+    <!-- hull -->
+    <path d="M60 26 L74 60 L60 68 L46 60 Z" fill="#94A3B8" stroke="#CBD5E1" stroke-width="2"/>
+    <!-- canopy, catching the light from ahead -->
+    <path d="M60 34 L67 52 L60 56 L53 52 Z" fill="#A3E635" stroke="#D9F99D" stroke-width="1.5"/>
+    <!-- engine bells -->
+    <ellipse cx="51" cy="65" rx="6" ry="4" fill="#1E293B" stroke="#94A3B8" stroke-width="1.5"/>
+    <ellipse cx="69" cy="65" rx="6" ry="4" fill="#1E293B" stroke="#94A3B8" stroke-width="1.5"/>
+    <ellipse cx="51" cy="65" rx="3" ry="2" fill="#FDE047"/>
+    <ellipse cx="69" cy="65" rx="3" ry="2" fill="#FDE047"/>
+  </g>
+</svg>

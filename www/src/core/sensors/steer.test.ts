@@ -1,4 +1,4 @@
-import { SENSITIVITY_DEG, steerFilter } from './steer';
+import { PITCH_SENSITIVITY_DEG, SENSITIVITY_DEG, steer2Filter, steerFilter } from './steer';
 
 /**
  * The tilt-to-steer math.
@@ -79,6 +79,32 @@ console.log('\nrecalibrating clears the filter\'s memory');
 
   f.calibrate();
   check('recalibrating snaps straight back to centre, not a slow decay', f.read() === 0);
+}
+
+console.log('\ntwo axes, for a game that flies a tube (asteroid-race.md §5)');
+{
+  const f = steer2Filter();
+  // Calibrated against however the phone is being held, not against zero.
+  f.sample(12, 40);
+  f.calibrate();
+  check('a held pose is the new centre', f.read().x === 0 && f.read().y === 0, f.read());
+
+  for (let i = 0; i < 100; i++) f.sample(12 + SENSITIVITY_DEG, 40);
+  check('rolling right steers right', Math.abs(f.read().x - 1) < 0.01, f.read().x);
+  check('and does not touch the other axis', Math.abs(f.read().y) < 1e-9, f.read().y);
+
+  const g = steer2Filter();
+  g.sample(0, 0);
+  g.calibrate();
+  for (let i = 0; i < 100; i++) g.sample(0, -PITCH_SENSITIVITY_DEG);
+  check('tipping the top edge away climbs', Math.abs(g.read().y - 1) < 0.01, g.read().y);
+  check('while roll stays put', Math.abs(g.read().x) < 1e-9, g.read().x);
+
+  for (let i = 0; i < 200; i++) g.sample(0, -PITCH_SENSITIVITY_DEG * 10);
+  check('and a wild tip is clamped, not amplified', g.read().y <= 1 + 1e-9, g.read().y);
+
+  g.calibrate();
+  check('recalibrating recentres both axes at once', g.read().x === 0 && g.read().y === 0, g.read());
 }
 
 if (failures > 0) throw new Error(`${failures} check(s) failed`);

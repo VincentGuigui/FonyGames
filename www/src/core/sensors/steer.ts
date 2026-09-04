@@ -90,3 +90,89 @@ export function trackSteer(sensitivityDeg = SENSITIVITY_DEG): SteerTracker {
     stop: () => window.removeEventListener('deviceorientation', listener),
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Two axes: a flight stick rather than a lane steer                    */
+/* Spec: docs/specs/games/asteroid-race.md §5                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How many degrees of **pitch** reach full vertical steer. Larger than the
+ * roll figure above on purpose: a phone is held at whatever pitch is
+ * comfortable and is rolled far more freely than it is tipped, so the same
+ * 20° that reads as a deliberate roll reads as a fidget in beta. A guess —
+ * needs a playtest, like every other number in that spec.
+ */
+export const PITCH_SENSITIVITY_DEG = 30;
+
+export type Steer2 = { x: number; y: number };
+
+export type Steer2Filter = {
+  /** Feed one raw reading: `gamma` is roll, `beta` is pitch, both in degrees. */
+  sample: (gamma: number, beta: number) => void;
+  /** Anchor the last-sampled pair as centre, and clear the filter's memory. */
+  calibrate: () => void;
+  /** The current filtered steer. `x` is right-positive, `y` is up-positive. */
+  read: () => Steer2;
+};
+
+/**
+ * The same filter as `steerFilter`, on both axes — Asteroid Race flies a tube
+ * rather than five lanes, so it needs up and down as well as left and right
+ * (spec §5).
+ *
+ * Deliberately two independent `steerFilter`s rather than a new
+ * implementation: the calibration and the clamp are the whole rule, they are
+ * already tested, and a second copy of them is a second thing to get wrong.
+ * `beta` is inverted here so that tipping the phone's top edge AWAY from you —
+ * the gesture a flight stick makes for "climb" — reads as positive `y`.
+ */
+export function steer2Filter(
+  rollDeg = SENSITIVITY_DEG,
+  pitchDeg = PITCH_SENSITIVITY_DEG,
+  smoothing = SMOOTHING,
+): Steer2Filter {
+  const roll = steerFilter(rollDeg, smoothing);
+  const pitch = steerFilter(pitchDeg, smoothing);
+  return {
+    sample: (gamma, beta) => {
+      roll.sample(gamma);
+      pitch.sample(beta);
+    },
+    calibrate: () => {
+      roll.calibrate();
+      pitch.calibrate();
+    },
+    read: () => ({ x: roll.read(), y: -pitch.read() }),
+  };
+}
+
+export type Steer2Tracker = {
+  read: () => Steer2;
+  calibrate: () => void;
+  ready: () => boolean;
+  stop: () => void;
+};
+
+/** Start watching both axes. Nothing is reported until the first real event. */
+export function trackSteer2(rollDeg = SENSITIVITY_DEG, pitchDeg = PITCH_SENSITIVITY_DEG): Steer2Tracker {
+  const filter = steer2Filter(rollDeg, pitchDeg);
+  let samples = 0;
+
+  const listener = (e: DeviceOrientationEvent): void => {
+    // Both or neither: a reading with one axis missing would calibrate one
+    // filter against a real value and the other against a zero it never saw.
+    if (e.gamma === null || e.beta === null) return;
+    samples += 1;
+    filter.sample(e.gamma, e.beta);
+  };
+
+  window.addEventListener('deviceorientation', listener);
+
+  return {
+    read: filter.read,
+    calibrate: filter.calibrate,
+    ready: () => samples > 0,
+    stop: () => window.removeEventListener('deviceorientation', listener),
+  };
+}

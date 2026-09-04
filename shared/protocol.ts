@@ -268,6 +268,15 @@ export type ClientMessage =
    * deliberately does not re-derive it, by direct instruction (spec §8).
    */
   | { t: 'gravity-shot'; d: { roundId: number; angle: number; strength: number; hit: boolean } }
+  /**
+   * Asteroid Race: how far I have got and what it has cost me, on a 1 s tick
+   * plus immediately on a life change or a finish (spec §6). Nothing about the
+   * flight itself is here — no position, no steer, no missile, no boost —
+   * because nobody else can see my ship, so the room has nothing to draw with
+   * them (spec §2.2). `at` is this phone's own estimate of server time, used
+   * to record WHEN a crossing happened, never to decide that it did.
+   */
+  | { t: 'asteroid-report'; d: { roundId: number; distance: number; lives: number; hits: number; at: number } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
@@ -649,6 +658,45 @@ export type TilesSurferState = {
   phase: 'running' | 'done';
 };
 
+/**
+ * Asteroid Race: one player's own run down the field (spec §6).
+ *
+ * Everything here is what an `asteroid-report` claimed, clamped on arrival to
+ * what the clock actually allows (`reachableBy` in worker/asteroidRace.ts) —
+ * the referee owns the ranking and the finish, never the flight, because the
+ * flight happens on a phone nobody else is looking at (spec §2.2, §8).
+ */
+export type AsteroidRun = {
+  /** Ship lengths down the track. Never decreases within a round. */
+  distance: number;
+  lives: number;
+  /** Rocks clipped so far — shown, never scored (spec §2). */
+  hits: number;
+  /** Server time they crossed the line, or null. */
+  finishedAt: number | null;
+  /** No report for `ASTEROID_AWAY_MS`: their ship is frozen on the ladder
+   *  until one arrives (spec §7). Recomputed by the referee's own tick. */
+  away: boolean;
+};
+
+/**
+ * Asteroid Race: the whole race, fully public — every run is its own phone's
+ * business (spec §2.2), so there is nothing here that is private to begin
+ * with, the same shape Tiles Surfer's own state already is for the same
+ * reason.
+ */
+export type AsteroidRaceState = {
+  roundId: number;
+  startsAt: number;
+  /** The 120 s cap. Reaching it hands the race to whoever is furthest (spec §7). */
+  endsAt: number;
+  /** Each player's own last-reported run. Present for everyone from the start,
+   *  at zero, so the ladder has a full field to draw before anybody moves. */
+  runs: Record<PlayerId, AsteroidRun>;
+  winner: PlayerId | null;
+  phase: 'running' | 'done';
+};
+
 /** Gravity Shooter: one of the two planets between the ships (spec §2.1).
  *  Rolled once by the referee at round start and never touched again. */
 export type GravityPlanet = {
@@ -946,6 +994,8 @@ export type ServerMessage =
   | { t: 'tiles'; s: number; d: TilesSurferState }
   /** Gravity Shooter: the whole match — planets, lives, turn, phase, winner. */
   | { t: 'gravity'; s: number; d: GravityShooterState }
+  /** Asteroid Race: everyone's last-reported run, fully public — spec §6. */
+  | { t: 'asteroid'; s: number; d: AsteroidRaceState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
    * Tap Tap Music: sent to **one player only** — their own cleared
@@ -1681,6 +1731,7 @@ const CLIENT_TYPES = new Set([
   'abduct-pick',
   'tiles-report',
   'gravity-shot',
+  'asteroid-report',
   'switch-game',
 ]);
 
@@ -2448,3 +2499,63 @@ export const GRAVITY_SHOT_TIMEOUT_MS = 13_000;
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const GRAVITY_MIN_PLAYERS = PLAYERS['gravity-shooter'][0];
 export const GRAVITY_MAX_PLAYERS = PLAYERS['gravity-shooter'][1];
+
+/* ------------------------------------------------------------------ */
+/* Asteroid Race (docs/specs/games/asteroid-race.md)                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Only the constants the REFEREE needs are here — the ones it clamps a report
+ * with (`reachableBy`), plus the race's own length, lives and cap. Everything
+ * about the field, the view and the missile is client-only tuning and lives in
+ * `www/src/games/asteroid-race/game.ts`, the same split Gravity Shooter's own
+ * physics already uses: the referee never simulates a flight (spec §2.2, §8),
+ * so it has no use for a rock's radius or a fog distance and no need to agree
+ * with the phone about either.
+ *
+ * Distances are in **ship lengths** throughout (spec §5b).
+ */
+
+/** The finish line. 60 s of clean cruising. */
+export const ASTEROID_TRACK_LENGTH = 2400;
+
+/** Forward speed with nothing pressed — the ship never throttles, it only
+ *  steers (spec §2), so this and the boost below are the whole speed model. */
+export const ASTEROID_CRUISE_SPEED = 40;
+
+/** Boost: how much faster, for how long, and how long until the next one.
+ *  The referee needs all three to know the fastest run physically available
+ *  in a given elapsed time (spec §8) — it never sees a boost being used. */
+export const ASTEROID_BOOST_MULTIPLIER = 1.8;
+export const ASTEROID_BOOST_MS = 2_000;
+export const ASTEROID_BOOST_COOLDOWN_MS = 9_000;
+
+/** Clip a rock and you stand still this long, blinking (spec §2, the issue's
+ *  own second). Also what each reported hit takes off `reachableBy`'s bound. */
+export const ASTEROID_STUN_MS = 1_000;
+
+export const ASTEROID_LIVES = 5;
+
+/** The hard cap. Nobody wants a race that never ends (spec §7). */
+export const ASTEROID_ROUND_CAP_MS = 120_000;
+
+/** How often a phone reports, and how often the referee broadcasts the
+ *  ladder. One second each way keeps 8 players inside Profile A (spec §6). */
+export const ASTEROID_REPORT_MS = 1_000;
+
+/**
+ * How long a phone may go quiet before its run freezes on the ladder — and,
+ * more load-bearing, the most flying any single report may claim (spec §8).
+ * Without that second job a silent phone could bank a minute and spend it in
+ * one frame, satisfying `reachableBy` and arriving from a standing start;
+ * Shake Rush's own `RUSH_AWAY_MS` closes the identical hole.
+ */
+export const ASTEROID_AWAY_MS = 3_000;
+
+/** Slack on `reachableBy`, in ship lengths — half a second of cruising, so a
+ *  phone whose clock estimate is a little off is not quietly slowed. */
+export const ASTEROID_CLAIM_SLACK = 20;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const ASTEROID_MIN_PLAYERS = PLAYERS['asteroid-race'][0];
+export const ASTEROID_MAX_PLAYERS = PLAYERS['asteroid-race'][1];
