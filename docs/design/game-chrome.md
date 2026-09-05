@@ -33,12 +33,32 @@ joins later still starts unready; existing players do not need to press Ready be
 rounds. The shared result screen only shows Ready to an unready guest and holds Play again
 / Next round for the host until that late guest is resolved.
 
-Sensor games pass one local `readyBlocked` fact into the shared chrome. Ready (or Start
-for the host) stays disabled until that game's primer has resolved: permission granted,
-permission declined, an unsupported sensor with its documented fallback, or an explicit
-fallback route. A late spectator can run the same setup action from the result screen.
-The browser owns this part because sensor permissions never leave the phone; the Worker
-owns the room-wide guest flags.
+Sensor games reach the shared chrome through two local facts, and which one a game uses
+depends on whether its permission leaves the player anything to decide
+([../device-capabilities.md](../device-capabilities.md) §2 rule 3).
+
+**A permission with a fallback blocks: `readyBlocked`.** Ready (or Start for the host)
+stays disabled until that game's primer has resolved — permission granted, permission
+declined, an unsupported sensor with its documented fallback, or an explicit fallback
+route. A late spectator can run the same setup action from the result screen through
+`onReadySetup`. Neon Fall, Asteroid Race, Pass the Bomb and Ghost Hunt work this way.
+
+**A permission with no alternative rides the tap instead: `onBeforeReady`.** It runs
+from the Ready tap, or the host's Start tap, before either takes effect, and resolving
+false abandons the tap. Steady Hand, Shake Rush and UFO Hunt work this way, because
+there is nothing for a primer button to offer a choice between — see
+[../device-capabilities.md](../device-capabilities.md) §2 rule 3 for the reasoning and
+for the two traps: the request has to start before the handler's first `await` or iOS
+has already discarded the gesture, and it has to be on Ready and not only on Start or
+every guest arrives without the sensor.
+
+The two are not exclusive. UFO Hunt asks from the tap *and* sets `readyBlocked` once a
+refusal exists, because it is the one game that refuses to start without its sensors;
+the motion games leave `readyBlocked` false throughout, because a refusal there is a
+spectator seat rather than a locked door.
+
+The browser owns all of this because sensor permissions never leave the phone; the
+Worker owns the room-wide guest flags.
 
 ### Why the start button stays in flow
 
@@ -158,6 +178,9 @@ Two smaller pieces are shared once a second game needs them:
 
 - `core/ui/PermissionPrimer.tsx` owns the common sensor-primer panel, resolved state and
   action layout; each game still supplies its own translated explanation and fallback.
+  Its `action` is optional, and that is the whole difference between the two shapes
+  above: a no-alternative game passes an explanation with no button and lets Ready fire
+  the prompt, and only shows an action again once there is a refusal to retry.
 - `core/ui/SoundToggle.tsx` owns the immediate `aria-pressed` mute control; each game
   supplies its translated on/off wording and keeps its own sound implementation.
 

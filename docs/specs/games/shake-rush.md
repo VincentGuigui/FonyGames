@@ -98,8 +98,20 @@ places that interpret an accelerometer.
 
 Permission is requested from a **tap in the lobby**, never on arrival — iOS
 refuses the prompt outside a user gesture and remembers a denial
-([device-capabilities.md](../../device-capabilities.md) §2). Same primer pattern
-as [pass-the-bomb.md](pass-the-bomb.md) §11b.
+([device-capabilities.md](../../device-capabilities.md) §2). It is no longer the
+same primer pattern as [pass-the-bomb.md](pass-the-bomb.md) §11b, and the reason is
+exactly the difference between the two games: Pass the Bomb has a PASS IT button for
+anyone who says no, so its primer button is a real choice, and this one does not, so
+its primer button was only a tap in front of a foregone conclusion. **Ready fires the
+prompt here — Start, if you are the host**
+([issue #29](https://github.com/VincentGuigui/FonyGames/issues/29); `onBeforeReady`
+in [game-chrome.md](../../design/game-chrome.md) §1). The explanation panel stays.
+
+The same tap still arms the audio graph (§5b): an `AudioContext` may only start
+inside a user gesture, and Ready is one.
+
+A refusal does not swallow the tap — the race starts and this phone spectates, per
+the table below.
 
 **Fallbacks: there are none, and the card says so.**
 

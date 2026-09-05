@@ -148,7 +148,19 @@ implements §2.1 — the third interpreter beside `bump.ts` and `shake.ts`, and
 like them the only place that reads raw samples.
 
 Permission is requested from a tap in the lobby, never on arrival
-([device-capabilities.md](../../device-capabilities.md) §2).
+([device-capabilities.md](../../device-capabilities.md) §2) — and since there is no
+fallback to choose between (below), **that tap is Ready, or Start for the host**,
+not a button of its own. A primer button in front of a permission the player has no
+alternative to only ever delays the same answer, so the panel keeps the explanation
+and loses the button ([issue #29](https://github.com/VincentGuigui/FonyGames/issues/29);
+`onBeforeReady` in [game-chrome.md](../../design/game-chrome.md) §1).
+
+A refusal does **not** swallow that tap. It cannot: refusing here means spectating,
+which is a way to be in the round rather than a way to be kept out of it, so the
+round starts anyway and the lobby says plainly that this phone has no meter. That is
+the opposite of UFO Hunt, whose own no-fallback permissions really do block
+([ufo-hunt.md](ufo-hunt.md) §5.3) — the difference is whether there is a seat left
+for somebody who said no.
 
 **Fallbacks: there are none, and the card says so.**
 

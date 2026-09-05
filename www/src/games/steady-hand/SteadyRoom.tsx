@@ -24,14 +24,17 @@ import { PermissionPrimer } from '../../core/ui/PermissionPrimer';
 /**
  * Steady Hand's room screen. Spec: docs/specs/games/steady-hand.md
  *
- * The second game to need a motion permission, and it follows Pass the Bomb's pattern
- * exactly: nothing is requested on arrival, the primer is a button, and
- * `requestMotion()` is the first thing its handler does — iOS refuses the prompt
+ * The second game to need a motion permission. Nothing is requested on arrival, and
+ * `requestMotion()` is the first thing the handler does — iOS refuses the prompt
  * outside a user gesture and remembers a denial.
  *
- * Where it differs is that there is **no fallback** (spec §5). "Hold a phone still" has
- * no touch equivalent, so a player without motion access spectates, and the lobby says
- * so before anyone starts rather than after they are stuck.
+ * Where it differs from Pass the Bomb is that there is **no fallback** (spec §5).
+ * "Hold a phone still" has no touch equivalent, so a player without motion access
+ * spectates — and because there is nothing to choose between, **the prompt rides on
+ * Ready (or Start, for the host) rather than on a button of its own**. A separate
+ * primer button in front of a permission you have no alternative to is a tap that
+ * only ever delays the same answer (issue #29, device-capabilities.md §2). The panel
+ * stays; only its button is gone, so the explanation still arrives first.
  */
 export function SteadyRoom(props: { game: GameCard }): JSX.Element {
   return (
@@ -114,6 +117,18 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
     if (!granted) room.setError(text({ en: 'No motion access — you can watch, but not play this one.', fr: 'Pas d’accès au mouvement — vous pouvez regarder, mais pas jouer.' }));
   }
 
+  /**
+   * What Ready and Start hang the permission on. Always resolves true: a refusal is a
+   * spectator seat here, not a locked door (spec §5), so it must not swallow the tap
+   * — and asking a second time would spend the one re-ask device-capabilities.md §2
+   * allows on somebody who has already said no.
+   */
+  async function ensureMotion(): Promise<boolean> {
+    if (motionAsked || support === 'unsupported') return true;
+    await enableMotion();
+    return true;
+  }
+
   /*
    * The result, on the shared end screen (core/ui/GameOver.tsx). Steady Hand used to drop
    * straight back to the lobby with the times hidden in the player list's tags, so the
@@ -127,8 +142,7 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
     return (
       <GameOverScreen
         room={room}
-        readyBlocked={support !== 'unsupported' && !motionAsked}
-        onReadySetup={enableMotion}
+        onBeforeReady={ensureMotion}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
@@ -182,8 +196,8 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
       canStart={room.isHost && enoughPlayers}
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'steady', solo } })}
-      readyBlocked={support !== 'unsupported' && !motionAsked}
-      note={note(room.isHost, room.connected, motionOn, solo, text)}
+      onBeforeReady={ensureMotion}
+      note={note(room.isHost, room.connected, motionOn, motionAsked, solo, text)}
       playerTag={(id) => {
         if (!state) return null;
         if (state.winner === id) return text({ en: 'won', fr: 'gagnant' });
@@ -210,7 +224,7 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
             support={support}
             on={motionOn}
             asked={motionAsked}
-            onEnable={enableMotion}
+            isHost={room.isHost}
           />
         </>
       }
@@ -219,22 +233,26 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
 }
 
 /**
- * The permission primer, and the honest version of a refusal.
+ * The permission explanation, and the honest version of a refusal.
  *
- * Never auto-requested: a prompt before the player knows what the game is gets denied,
- * and on iOS a denial is remembered, so asking early spends the permission for good
- * (docs/device-capabilities.md §2).
+ * No button of its own: this game has no fallback, so the prompt is fired by Ready or
+ * Start instead (the file docblock, issue #29). The panel is still here and still
+ * arrives first, because the rule that survives is the one that matters — a player
+ * reads what the sensor is for BEFORE the system prompt lands on them. Never
+ * auto-requested either: a prompt before the player knows what the game is gets
+ * denied, and on iOS a denial is remembered, so asking early spends the permission
+ * for good (docs/device-capabilities.md §2).
  */
 function MotionPrimer({
   support,
   on,
   asked,
-  onEnable,
+  isHost,
 }: {
   support: MotionSupport;
   on: boolean;
   asked: boolean;
-  onEnable: () => void;
+  isHost: boolean;
 }): JSX.Element {
   const text = useGameText();
   const heading = text({ en: 'Holding still', fr: 'Rester immobile' });
@@ -255,18 +273,21 @@ function MotionPrimer({
 
   return (
     <PermissionPrimer heading={heading}
-      body={text({ en: 'Measuring how still you are holding the phone needs permission to read its motion. Nothing is recorded — the only thing sent is one number per fifth of a second, never the readings themselves.', fr: 'Mesurer l’immobilité du téléphone nécessite l’accès à son mouvement. Rien n’est enregistré — seul un nombre est envoyé cinq fois par seconde, jamais les mesures.' })}
-      action={{ label: text({ en: 'Turn on the meter', fr: 'Activer la jauge' }), onClick: onEnable }} />
+      body={`${text({ en: 'Measuring how still you are holding the phone needs permission to read its motion. Nothing is recorded — the only thing sent is one number per fifth of a second, never the readings themselves.', fr: 'Mesurer l’immobilité du téléphone nécessite l’accès à son mouvement. Rien n’est enregistré — seul un nombre est envoyé cinq fois par seconde, jamais les mesures.' })} ${isHost
+        ? text({ en: 'Start the round and your phone will ask.', fr: 'Démarrez la manche et votre téléphone vous le demandera.' })
+        : text({ en: 'Tap Ready and your phone will ask.', fr: 'Touchez Prêt et votre téléphone vous le demandera.' })}`} />
   );
 }
 
-function note(isHost: boolean, connected: number, motionOn: boolean, solo: boolean, text: GameText): string {
+function note(isHost: boolean, connected: number, motionOn: boolean, motionAsked: boolean, solo: boolean, text: GameText): string {
   if (!solo && connected < STEADY_MIN_PLAYERS) {
     const missing = STEADY_MIN_PLAYERS - connected;
     return text({ en: `Need ${missing} more player${missing === 1 ? '' : 's'} — being still alone proves nothing.`, fr: `Il manque ${missing} joueur${missing === 1 ? '' : 's'} — rester immobile seul ne prouve rien.` });
   }
   if (connected > STEADY_MAX_PLAYERS) return text({ en: `${STEADY_MAX_PLAYERS} players is the most this one takes.`, fr: `${STEADY_MAX_PLAYERS} joueurs maximum.` });
   if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
-  if (!motionOn) return text({ en: 'Turn on the meter above, or start and watch.', fr: 'Activez la jauge ci-dessus, ou démarrez pour regarder.' });
+  // Only once a refusal is a fact: before that, starting IS how the meter gets asked
+  // for, so telling the host to turn it on first would be pointing at nothing.
+  if (motionAsked && !motionOn) return text({ en: 'No meter on this phone — start anyway and watch.', fr: 'Pas de jauge sur ce téléphone — démarrez quand même pour regarder.' });
   return text({ en: 'Arms out. It gets harder the longer it goes on.', fr: 'Bras tendus. La difficulté augmente avec le temps.' });
 }

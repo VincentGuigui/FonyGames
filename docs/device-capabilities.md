@@ -24,16 +24,34 @@ Local dev therefore needs an HTTPS dev server or a tunnel — see
 ## 2. Permission rules
 
 1. **Never request a permission on the hub.** Only inside a game lobby.
-2. **Always show a primer first**: one sentence saying what the game does with
-   it ("Pass the Bomb needs motion to feel your phone tap another one."), plus the
-   button that triggers the real prompt. iOS requires that tap anyway.
-3. **Request only what the chosen mode needs.** A local mode that doesn't use
+2. **Always explain first**: one sentence saying what the game does with it
+   ("Pass the Bomb needs motion to feel your phone tap another one."), on screen
+   before the system prompt can appear. The explanation is never optional.
+3. **What fires the prompt depends on whether there is a choice to make.** iOS
+   needs the request to come from a user gesture either way; the question is
+   *which* gesture.
+   - **A permission with a fallback gets its own button.** The player is choosing
+     between two ways to play, so the choice needs somewhere to live — Neon Fall's
+     tilt against its tap zones, Asteroid Race's tilt against its virtual stick.
+   - **A permission with no alternative is asked for by Ready — or by Start, for
+     the host.** Steady Hand, Shake Rush and UFO Hunt cannot be played without
+     their sensor, so a button in front of it adds a tap without adding a
+     decision: whoever wants to play is going to answer the same prompt either
+     way. The explanation panel stays; only its button goes
+     ([issue #29](https://github.com/VincentGuigui/FonyGames/issues/29)). The
+     plumbing is `onBeforeReady` on `GameLobby`/`ReadyButton`/`GameOver` — see
+     [design/game-chrome.md](design/game-chrome.md) §1.
+   - **It must be on Ready, not only on Start.** Ghost Hunt shipped asking from
+     Start alone, and every guest arrived unable to aim: the host is the one
+     player whose own tap is not the one being tested.
+4. **Request only what the chosen mode needs.** A local mode that doesn't use
    GPS must not ask for GPS.
-4. **Denied is a supported state**, not an error screen. Offer the touch
+5. **Denied is a supported state**, not an error screen. Offer the touch
    fallback declared in the game's spec, or explain in one line why this mode
    can't run and point to a mode that can.
-5. Re-asking is allowed at most once per session, and only from an explicit
-   "Enable" button.
+6. Re-asking is allowed at most once per session, and only from an explicit
+   "Enable"/"Try again" button — which is why a Ready that already carries the
+   request must not fire it a second time for somebody who has already refused.
 
 ## 3. Bump detection (shared definition)
 

@@ -197,6 +197,20 @@ the saucer in the sky above you, and your phone's motion sensor to aim at
 it — without both there's nothing to point at."* — rather than degrading to
 a dark ground or a touch-dragged panorama.
 
+**Which tap.** Ready, or Start for the host — not a primer button of its own
+([issue #29](https://github.com/VincentGuigui/FonyGames/issues/29); `onBeforeReady`
+in [../../design/game-chrome.md](../../design/game-chrome.md) §1). This game has
+the strongest version of the argument for it: there is exactly one way to play,
+so a button offering to enable the only route is offering nothing. The host's
+Start already worked this way; what changed is that a guest's Ready does too,
+which is the half Ghost Hunt originally got wrong.
+
+**Blocked by a refusal, not by silence.** `readyBlocked` is false until somebody
+has actually said no, because before that the disabled button would be the very
+one that does the asking. Once a refusal exists it blocks as described above, and
+the primer's *Try again* is the way back — the one re-ask
+[device-capabilities.md](../../device-capabilities.md) §2 allows.
+
 This is the same category of exception Shake Rush and Steady Hand already
 carry for motion, argued the same way: the mechanic **is** the sensor, not a
 layer on top of a touch-first game. Ghost Hunt itself proves the fallback is
