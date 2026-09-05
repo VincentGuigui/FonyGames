@@ -107,5 +107,47 @@ console.log('\ntwo axes, for a game that flies a tube (asteroid-race.md §5)');
   check('recalibrating recentres both axes at once', g.read().x === 0 && g.read().y === 0, g.read());
 }
 
+console.log('\ncalibrating before any real sample defers rather than anchoring at zero');
+{
+  // The actual shape of every call site in this codebase: a tracker is
+  // created and calibrated in the same synchronous tick, which is always
+  // before the browser's first async `deviceorientation` event can possibly
+  // fire — so `calibrate()` is always the FIRST thing to happen, never the
+  // second. Anchoring at the filter's own default of 0 in that case is a
+  // real bug, not a hypothetical: 0 is a legitimate orientation (flat, screen
+  // up), and locking onto it regardless of how the phone is actually held
+  // only reads as correct for an axis whose natural resting pose happens to
+  // already be near 0.
+  //
+  // Pitch (`beta`) is not that axis. Holding a phone upright to play — the
+  // ordinary way to hold it for this — reads close to 90°, not 0. Calibrating
+  // against a phantom zero before the first sample pinned the filtered steer
+  // at (90 - 0) / 22°, clamped to a full 1 — maximum climb-or-dive, deflected
+  // from the very first frame, before the player had tilted anything at all.
+  // The only way to cancel that phantom offset back toward neutral was to
+  // physically bring the phone's own beta toward 0 — pointing the screen at
+  // the floor — which is exactly the bug as reported: "need to point to the
+  // floor to move the ship vertically."
+  const f = steerFilter(PITCH_SENSITIVITY_DEG);
+  f.calibrate(); // no sample yet — this must not lock ref at 0
+  for (let i = 0; i < 50; i++) f.sample(90); // the ordinary upright-hold pose
+  check('holding the phone in its normal pose reads as centred, not pegged',
+    Math.abs(f.read()) < 0.01, f.read());
+
+  // And it still behaves like an ordinary calibration from there: tilting
+  // away from that same held pose steers, by the amount actually tilted.
+  for (let i = 0; i < 100; i++) f.sample(90 + PITCH_SENSITIVITY_DEG);
+  check('and tilting away from the held pose still steers correctly',
+    Math.abs(f.read() - 1) < 0.01, f.read());
+
+  // The two-axis filter carries the fix through unchanged, since it is built
+  // from two of these.
+  const g = steer2Filter(SENSITIVITY_DEG, PITCH_SENSITIVITY_DEG);
+  g.calibrate();
+  for (let i = 0; i < 50; i++) g.sample(0, 90);
+  check('the same holds for the two-axis filter asteroid-race actually uses',
+    Math.abs(g.read().y) < 0.01, g.read());
+}
+
 if (failures > 0) throw new Error(`${failures} check(s) failed`);
 console.log(`\nall passed (${checks} checks)`);
