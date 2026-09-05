@@ -69,12 +69,14 @@ const OWN_ACCENT = '#F3E9D2';
  * Cows were never in this list, and why Gravity Shooter left it when its card
  * became generated from its own sprites (that one tile alone took this file to
  * 64 KB against a 40 KB cap, and the guard at the bottom caught it). Asteroid
- * Race took its place.
+ * Race took Gravity Shooter's place, and then left the same way when its own
+ * ship became a generated crop of `ship.png` (asteroid-race.md §13); UFO Hunt
+ * took its place.
  */
 const MOSAIC = [
   'tic-tac-tic-tac-toe', 'shake-rush', 'steady-hand',
   'pass-the-bomb', 'tiles-surfer', 'neon-fall',
-  'tap-duel', 'cat-and-mouse', 'asteroid-race',
+  'tap-duel', 'cat-and-mouse', 'ufo-hunt',
 ];
 
 const CELL_W = 40;
