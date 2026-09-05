@@ -13,7 +13,7 @@
 | --- | --- |
 | **Slug** | `asteroid-race` |
 | **Catchy sentence** | *Dodge the rocks, blast the rest, get there first* |
-| **Illustration** | `www/src/games/asteroid-race/art/card.svg` — a starship seen from behind and slightly above, threading a corridor of grey asteroids that fade into black, lime engine flare |
+| **Illustration** | `www/src/games/asteroid-race/art/card.svg` — the real ship, banked hard into a turn (a generated crop of `art/ship.png`, §13), threading a corridor of grey asteroids that fade into black, lime crosshair dead ahead |
 | **Players** | 1–8 |
 | **Round length** | ~50–60 s of flying, hard cap 120 s (§7) |
 | **Inputs** | orientation (tilt) to fly · touch for the two buttons |
@@ -659,6 +659,25 @@ and column 4 its "viewed from the left" (row 0 "from above", row 4 "from
 below"); steering right or climbing walks toward the higher index on both
 axes. **Untested on a real thumb** (§12): if a bank reads backwards in the
 hand, `shipFrame()` in `render.ts` is the one place to flip it.
+
+**The hub card is generated, not hand-drawn, for the same reason the ship
+stopped being a static vector shape.** `generate-card.mjs` crops one fixed
+cell straight out of `art/ship.png` — the sheet's own top-right, banked hard
+into a turn rather than sitting level, the more legible read of the two motion
+axes at a glance — and embeds it as a base64 `<image>` over the same hand-drawn
+tube, rocks and crosshair the card always had. A card has no steer, so the
+cell is named outright (`FRAME` in the script) rather than derived the way
+`shipFrame()` derives one at runtime. `art/.card-manifest.json` hashes the
+script's own source plus `ship.png`, so a redrawn sheet or a moved frame both
+mark the card stale; `npm run test:asteroid-card` (part of `npm test`) fails
+on a stale one, `npm run art:asteroid-card` regenerates it
+([illustrations.md](../../design/illustrations.md) §4).
+
+Asteroid Race's own card leaving hand-drawn vector cost Random Game's mosaic
+its tile: a lifted `card.svg` arrives at its embedding game's full weight, and
+this one went from a simple shape to a real cropped sprite. UFO Hunt took its
+place in the mosaic — the same swap that put Asteroid Race there in the first
+place when Gravity Shooter's own card left it the same way.
 
 ### 13.1 The autopilot is the fairness pass
 
