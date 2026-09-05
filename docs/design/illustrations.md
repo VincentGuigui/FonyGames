@@ -188,6 +188,12 @@ Tap Fighter's two runtime sprite sheets are authored PNGs: `fighter1.png` and
 `fighter2.png`. Each is a transparent 4×2 grid of 256 px frames; the second sheet
 is already mirrored, so the canvas and CSS use it directly without runtime transforms.
 
+Asteroid Race's ship is the same pattern on a 2-axis grid rather than a 1-axis
+one: `ship.png` is a transparent 5×5 sheet, one authored pose per camera angle,
+picked each frame by that game's own `steerX`/`steerY` (asteroid-race.md §13)
+straight off `drawImage`'s source rect — no CSS involved, since that game
+already draws entirely on `<canvas>`.
+
 **Four cards are exceptions to "cards are pure vector":** Tap Fighter, Aliens
 love cows, Random Game and Gravity Shooter. Every other card redraws its
 sprite's shape as fresh paths (this section's Goat Siege/Sling Puck/Spill

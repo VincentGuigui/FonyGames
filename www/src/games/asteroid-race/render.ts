@@ -1,5 +1,4 @@
-import { art } from '../../core/art/sprites';
-import shipArt from './art/ship.svg?url&no-inline';
+import shipSheet from './art/ship.png?url&no-inline';
 import { ASTEROID_CORRIDOR_R, ASTEROID_R_SMALL, type Rock } from './field';
 import {
   ASTEROID_DRAW_Z,
@@ -24,11 +23,45 @@ import {
  * silhouette comes from its own seed so every phone draws the same one, it is
  * scaled continuously by distance, it is faded toward the background by the
  * fog, and it splits into two smaller shapes. A sprite may only be translated,
- * scaled and rotated; the fade and the split are neither. The **ship** is a
- * sprite, because it never changes shape.
+ * scaled and rotated.
+ *
+ * **The ship is a sprite too, picked rather than deformed** — `ship.png` is a
+ * transparent 5×5 sheet of the same authored model viewed from a grid of
+ * camera angles (columns run right→left, rows run above→below), and steering
+ * only ever picks which of the 25 frames to blit: still a translation and a
+ * scale, never a reshape. `core/art/sprites.ts`'s `art()` rasterises one whole
+ * image per size bucket, which is the wrong tool for a sheet — the raw
+ * `Image` + `drawImage(sx, sy, sw, sh, …)` slice below is the same pattern
+ * Tap Fighter's own runtime sprite sheets already use (illustrations.md §4).
  */
 
-const shipSprite = art(shipArt);
+/** Column 0 reads as the sheet's own "viewed from the right" pose and column 4
+ *  its "viewed from the left" (row 0 "from above", row 4 "from below") —
+ *  steering right or climbing walks toward the higher index on each axis, the
+ *  same direction both axes use. Untested on a real thumb (spec §12): if a
+ *  bank reads backwards, this is the one place to flip it. */
+const SHIP_SHEET_COLS = 5;
+const SHIP_SHEET_ROWS = 5;
+const shipImage = new Image();
+shipImage.src = shipSheet;
+
+/** `prefers-reduced-motion` freezes the ship on its own centre frame (spec
+ *  §11) — read once, since it cannot change under a running round. */
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function clampUnit(v: number): number {
+  return Math.min(1, Math.max(-1, v));
+}
+
+function shipFrame(steerX: number, steerY: number): { col: number; row: number } {
+  if (REDUCED_MOTION) {
+    return { col: (SHIP_SHEET_COLS - 1) / 2, row: (SHIP_SHEET_ROWS - 1) / 2 };
+  }
+  return {
+    col: Math.round(((clampUnit(steerX) + 1) / 2) * (SHIP_SHEET_COLS - 1)),
+    row: Math.round(((clampUnit(steerY) + 1) / 2) * (SHIP_SHEET_ROWS - 1)),
+  };
+}
 
 const BG = '#05070D';
 /** Large rocks dark, small rocks light — the issue's own two greys. Size is
@@ -87,7 +120,13 @@ function toPixel(p: { ox: number; oy: number }, view: View): { x: number; y: num
   return { x: view.width / 2 + p.ox * view.width, y: view.height * ASTEROID_HORIZON + p.oy * view.width };
 }
 
-export function draw(ctx: CanvasRenderingContext2D, run: AsteroidRun, stars: Star[], view: View): void {
+export function draw(
+  ctx: CanvasRenderingContext2D,
+  run: AsteroidRun,
+  stars: Star[],
+  view: View,
+  steer: { x: number; y: number },
+): void {
   const { width, height } = view;
   ctx.fillStyle = BG;
   ctx.fillRect(0, 0, width, height);
@@ -102,7 +141,7 @@ export function draw(ctx: CanvasRenderingContext2D, run: AsteroidRun, stars: Sta
 
   drawReticle(ctx, run, view);
   drawTracer(ctx, run, view);
-  drawShip(ctx, run, view);
+  drawShip(ctx, run, view, steer);
 }
 
 function drawStars(ctx: CanvasRenderingContext2D, run: AsteroidRun, stars: Star[], view: View): void {
@@ -252,7 +291,7 @@ function drawTracer(ctx: CanvasRenderingContext2D, run: AsteroidRun, view: View)
  * as reddening: proximity has to be legible without relying on the colour
  * (ui-guidelines §2), and a pulse also reads at a glance mid-flight.
  */
-function drawShip(ctx: CanvasRenderingContext2D, run: AsteroidRun, view: View): void {
+function drawShip(ctx: CanvasRenderingContext2D, run: AsteroidRun, view: View, steer: { x: number; y: number }): void {
   const p = project({ x: run.x, y: run.y, z: run.distance }, run);
   if (!p) return;
   const px = toPixel(p, view);
@@ -276,11 +315,18 @@ function drawShip(ctx: CanvasRenderingContext2D, run: AsteroidRun, view: View): 
   let alpha = 1;
   if (run.stunned) alpha = 0.25 + 0.75 * (Math.sin((run.elapsedMs / 1000) * Math.PI * 2 * 6) > 0 ? 1 : 0);
 
-  const sprite = shipSprite.at(w, view.dpr);
   ctx.save();
   ctx.globalAlpha = alpha;
-  if (sprite) {
-    ctx.drawImage(sprite.source, px.x - sprite.w / 2, px.y - sprite.h / 2, sprite.w, sprite.h);
+  if (shipImage.complete && shipImage.naturalWidth > 0) {
+    const frameW = shipImage.naturalWidth / SHIP_SHEET_COLS;
+    const frameH = shipImage.naturalHeight / SHIP_SHEET_ROWS;
+    const { col, row } = shipFrame(steer.x, steer.y);
+    const drawH = w * (frameH / frameW);
+    ctx.drawImage(
+      shipImage,
+      col * frameW, row * frameH, frameW, frameH,
+      px.x - w / 2, px.y - drawH / 2, w, drawH,
+    );
   } else {
     ctx.fillStyle = RETICLE;
     ctx.beginPath();

@@ -248,7 +248,10 @@ Only `classic` if this is approved. Recorded, not built:
 - **Round — the corridor**, drawn identically on every phone (each showing its
   own run):
   - The ship low-centre, drawn from behind and below the camera, banking a
-    little with your steer. Above and around it, the field.
+    little with your steer — an authored 5×5 pose grid (`art/ship.png`), one
+    frame per (steerX, steerY) quantised to five steps a side, so the sell is
+    real frames rather than a claim: this was prose with nothing behind it
+    until it shipped (§13). Above and around it, the field.
   - **The middle of the screen is clear** — the camera sits behind and above
     the hull for exactly this reason (the issue's own framing), because the
     middle of the screen is both where you are going and where the reticle is.
@@ -639,8 +642,23 @@ arguing for: a rock's silhouette is generated from its own index (so every
 phone draws the same rock), it is scaled continuously by distance, it is
 tinted toward the background by the fog, and it splits into two smaller
 shapes. A sprite may only be translated, scaled and rotated — the tint and the
-split are neither, the same reason Gravity Shooter's star is procedural. The
-**ship** is a sprite, because it never changes shape.
+split are neither, the same reason Gravity Shooter's star is procedural.
+
+**The ship is a sprite too — picked, never deformed.** `art/ship.png` is an
+authored, transparent 5×5 sheet: the same model viewed from a grid of camera
+angles, columns running right→left and rows above→below. `render.ts` slices
+one of the 25 frames straight out of it with `drawImage`'s source rect (the
+same technique Tap Fighter's own runtime sheets use,
+[illustrations.md](../../design/illustrations.md) §4) — no `art()` rasteriser,
+since that helper caches one whole image per size bucket and a sheet needs a
+sub-rectangle instead. Steering only ever chooses *which* frame: column from
+`steerX`, row from `steerY`, each rounded to the nearest of five steps, so the
+bank the spec always described in prose (§4) is 25 real poses rather than a
+single static hull. Column 0 is the sheet's own "viewed from the right" pose
+and column 4 its "viewed from the left" (row 0 "from above", row 4 "from
+below"); steering right or climbing walks toward the higher index on both
+axes. **Untested on a real thumb** (§12): if a bank reads backwards in the
+hand, `shipFrame()` in `render.ts` is the one place to flip it.
 
 ### 13.1 The autopilot is the fairness pass
 
