@@ -31,8 +31,11 @@ function clamp(v: number, min: number, max: number): number {
 }
 
 export type SteerFilter = {
-  /** Feed one raw `gamma` reading, in degrees. */
-  sample: (gamma: number) => void;
+  /** Feed one raw `gamma` reading, in degrees, and how many ms since the last
+   *  one — the same `dtMs` shape `AsteroidRun.step` takes, and for the same
+   *  reason: a filter that read a clock itself could not be flown
+   *  deterministically in a test. Only `recenterMs > 0` ever looks at it. */
+  sample: (gamma: number, dtMs: number) => void;
   /** Anchor the last-sampled gamma as centre, and clear the filter's memory. */
   calibrate: () => void;
   /** The current filtered steer, −1..1. */
@@ -42,8 +45,12 @@ export type SteerFilter = {
 /**
  * The pure math, DOM-free and exported for the test — the calibration and the
  * clamp are the whole rule, and worth asserting rather than eyeballing.
+ *
+ * `recenterMs` is 0 by default — a fixed reference, exactly the behaviour
+ * this game has always had. `steer2Filter` below is the one caller that
+ * passes something else; see its own doc comment for why.
  */
-export function steerFilter(sensitivityDeg = SENSITIVITY_DEG, smoothing = SMOOTHING): SteerFilter {
+export function steerFilter(sensitivityDeg = SENSITIVITY_DEG, smoothing = SMOOTHING, recenterMs = 0): SteerFilter {
   let latestGamma = 0;
   let ref = 0;
   let filtered = 0;
@@ -64,14 +71,24 @@ export function steerFilter(sensitivityDeg = SENSITIVITY_DEG, smoothing = SMOOTH
   let pendingCalibrate = false;
 
   return {
-    sample: (gamma) => {
-      latestGamma = gamma;
-      hasSample = true;
+    sample: (gamma, dtMs) => {
       if (pendingCalibrate) {
         ref = gamma;
         filtered = 0;
         pendingCalibrate = false;
+      } else if (recenterMs > 0 && hasSample) {
+        // A slow, continuous re-anchor: `ref` creeps toward wherever the
+        // phone actually is, rather than staying pinned at the one instant
+        // `calibrate()` ran. Exponential rather than a fixed step per sample,
+        // so it does the same thing regardless of how often
+        // `deviceorientation` actually fires. `recenterMs` is a half-life in
+        // spirit, not a hard deadline: a phone held dead still for that long
+        // drifts about two-thirds of the way to reading as centred.
+        const k = 1 - Math.exp(-Math.max(0, dtMs) / recenterMs);
+        ref += (gamma - ref) * k;
       }
+      latestGamma = gamma;
+      hasSample = true;
       const raw = clamp((gamma - ref) / sensitivityDeg, -1, 1);
       filtered += (raw - filtered) * smoothing;
     },
@@ -99,11 +116,14 @@ export type SteerTracker = {
 export function trackSteer(sensitivityDeg = SENSITIVITY_DEG): SteerTracker {
   const filter = steerFilter(sensitivityDeg);
   let samples = 0;
+  let lastAt = performance.now();
 
   const listener = (e: DeviceOrientationEvent): void => {
     if (e.gamma === null) return;
     samples += 1;
-    filter.sample(e.gamma);
+    const now = performance.now();
+    filter.sample(e.gamma, now - lastAt);
+    lastAt = now;
   };
 
   window.addEventListener('deviceorientation', listener);
@@ -131,11 +151,35 @@ export function trackSteer(sensitivityDeg = SENSITIVITY_DEG): SteerTracker {
  */
 export const PITCH_SENSITIVITY_DEG = 22;
 
+/**
+ * How long a held tilt takes to start reading as the new centre — a half-life
+ * in spirit, per `steerFilter`'s own `recenterMs` doc comment. Asteroid Race's
+ * only, not Neon Fall's: a lane game's whole feel is a fixed reference you
+ * bank against, but a flight stick is held for a whole race, and a one-time
+ * `calibrate()` at the rules panel stops matching wherever the hand has
+ * settled by the time it matters. Without this, the only way back to centre
+ * after a hard tilt is to return the phone to that exact original angle —
+ * fine for a two-second gate answer, not for the arm fatigue thirty seconds in.
+ *
+ * Picked by simulating a held tilt at real device event rates (`steer.test.ts`
+ * — a single artificial giant `dtMs` does not behave like the same duration
+ * spent at ~60 Hz, because `SMOOTHING` still only ever moves the *output*
+ * a fixed fraction per sample, so the two constants have to be checked
+ * together rather than each in isolation): at 20 s, holding a real steering
+ * tilt for a two-second gate answer only loses ~10% of its deflection, and a
+ * tilt held for the length of an average race (60 s) is ~95% recentred by the
+ * end — long enough to leave a deliberate maneuver alone, short enough to
+ * absorb a whole race's worth of arm fatigue. A guess, like every other
+ * number in that spec.
+ */
+export const ASTEROID_RECENTER_MS = 20_000;
+
 export type Steer2 = { x: number; y: number };
 
 export type Steer2Filter = {
-  /** Feed one raw reading: `gamma` is roll, `beta` is pitch, both in degrees. */
-  sample: (gamma: number, beta: number) => void;
+  /** Feed one raw reading: `gamma` is roll, `beta` is pitch, both in degrees,
+   *  plus how many ms since the last one (`steerFilter`'s own `sample`). */
+  sample: (gamma: number, beta: number, dtMs: number) => void;
   /** Anchor the last-sampled pair as centre, and clear the filter's memory. */
   calibrate: () => void;
   /** The current filtered steer. `x` is right-positive, `y` is up-positive. */
@@ -157,13 +201,14 @@ export function steer2Filter(
   rollDeg = SENSITIVITY_DEG,
   pitchDeg = PITCH_SENSITIVITY_DEG,
   smoothing = SMOOTHING,
+  recenterMs = ASTEROID_RECENTER_MS,
 ): Steer2Filter {
-  const roll = steerFilter(rollDeg, smoothing);
-  const pitch = steerFilter(pitchDeg, smoothing);
+  const roll = steerFilter(rollDeg, smoothing, recenterMs);
+  const pitch = steerFilter(pitchDeg, smoothing, recenterMs);
   return {
-    sample: (gamma, beta) => {
-      roll.sample(gamma);
-      pitch.sample(beta);
+    sample: (gamma, beta, dtMs) => {
+      roll.sample(gamma, dtMs);
+      pitch.sample(beta, dtMs);
     },
     calibrate: () => {
       roll.calibrate();
@@ -184,13 +229,16 @@ export type Steer2Tracker = {
 export function trackSteer2(rollDeg = SENSITIVITY_DEG, pitchDeg = PITCH_SENSITIVITY_DEG): Steer2Tracker {
   const filter = steer2Filter(rollDeg, pitchDeg);
   let samples = 0;
+  let lastAt = performance.now();
 
   const listener = (e: DeviceOrientationEvent): void => {
     // Both or neither: a reading with one axis missing would calibrate one
     // filter against a real value and the other against a zero it never saw.
     if (e.gamma === null || e.beta === null) return;
     samples += 1;
-    filter.sample(e.gamma, e.beta);
+    const now = performance.now();
+    filter.sample(e.gamma, e.beta, now - lastAt);
+    lastAt = now;
   };
 
   window.addEventListener('deviceorientation', listener);
