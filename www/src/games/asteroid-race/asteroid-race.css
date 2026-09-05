@@ -39,8 +39,8 @@
   width: 100%;
   height: 100%;
   display: block;
-  /* The whole board is the fallback stick (spec §5), so the browser must not
-     claim the drag for scrolling or zooming. */
+  /* Nothing on the board is draggable, but a stray swipe must not scroll or
+     zoom the page out from under a round either. */
   touch-action: none;
 }
 

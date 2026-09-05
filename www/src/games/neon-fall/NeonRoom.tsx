@@ -86,13 +86,26 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const holdingExplosion =
     game.explodedAt !== null && (client?.now() ?? Date.now()) - game.explodedAt < NEON_EXPLOSION_MS;
 
-  async function enableTilt(): Promise<void> {
+  async function enableTilt(): Promise<boolean> {
     setOrientationAsked(true);
     const granted = await requestOrientation();
     setOrientationOn(granted);
     if (!granted) {
-      room.setError(text({ en: 'No tilt access — you can still be the protector, or drop back to tap zones as the glider.', fr: 'Pas d’accès à l’inclinaison — vous pouvez protéger, ou utiliser les zones tactiles comme planeur.' }));
+      room.setError(text({ en: 'No tilt access — and the glider has no other way to steer, so this round cannot include you.', fr: 'Pas d’accès à l’inclinaison — et le planeur n’a aucun autre moyen de se diriger, cette manche ne peut donc pas vous inclure.' }));
     }
+    return granted;
+  }
+
+  /**
+   * What Ready and Start hang the tilt on. The tap zones are gone (spec §5), so a
+   * refusal swallows the tap — and it has to apply to BOTH seats, because the host
+   * can swap them: a player who refused while sitting as protector would otherwise
+   * be handed the glider with nothing to fly it with.
+   */
+  async function ensureTilt(): Promise<boolean> {
+    if (orientationOn) return true;
+    if (support === 'unsupported') return false;
+    return enableTilt();
   }
 
   const state = game.state;
@@ -112,7 +125,6 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         accent={card.accent}
         client={client}
         players={players}
-        orientationOn={orientationOn}
       />
     );
   }
@@ -123,8 +135,9 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     return (
       <GameOverScreen
         room={room}
-        readyBlocked={support !== 'unsupported' && !orientationAsked}
-        onReadySetup={enableTilt}
+        readyBlocked={support === 'unsupported' || (orientationAsked && !orientationOn)}
+        onReadySetup={() => void enableTilt()}
+        onBeforeReady={ensureTilt}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
@@ -161,7 +174,8 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       canStart={room.isHost && enoughToStart(room.connected, [NEON_MIN_PLAYERS, NEON_MAX_PLAYERS], solo)}
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'neon', ...(roles ? { roles } : {}), solo } })}
-      readyBlocked={support !== 'unsupported' && !orientationAsked}
+      readyBlocked={support === 'unsupported' || (orientationAsked && !orientationOn)}
+      onBeforeReady={ensureTilt}
       playerTag={(id) => {
         if (!roles) return null;
         if (id === roles.glider) return text({ en: 'glider', fr: 'planeur' });
@@ -172,10 +186,10 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         room.isHost ? (
           <>
             <SeatPicker a={a} b={b} swapped={swapped} onSwap={() => setSwapped((s) => !s)} />
-            <TiltPrimer support={support} on={orientationOn} asked={orientationAsked} onEnable={enableTilt} />
+            <TiltPrimer support={support} on={orientationOn} asked={orientationAsked} isHost={room.isHost} onEnable={() => void enableTilt()} />
           </>
         ) : (
-          <TiltPrimer support={support} on={orientationOn} asked={orientationAsked} onEnable={enableTilt} />
+          <TiltPrimer support={support} on={orientationOn} asked={orientationAsked} isHost={room.isHost} onEnable={() => void enableTilt()} />
         )
       }
     />
@@ -215,29 +229,44 @@ function SeatPicker({
 }
 
 /**
- * The tilt permission primer. Shown to both players — either could be the
- * glider once the host picks — and the honest fallback: refused tilt is not
- * dead-ended, it drops to held tap zones (spec §5).
+ * The tilt explanation. Shown to both players — either could be the glider once
+ * the host picks, which is also why a refusal stops both of them: there are no
+ * tap zones behind it any more (spec §5). No button before the first ask, since
+ * Ready and Start do that now (issue #29); Try again after a refusal.
  */
 function TiltPrimer({
   support,
   on,
   asked,
+  isHost,
   onEnable,
 }: {
   support: OrientationSupport;
   on: boolean;
   asked: boolean;
+  isHost: boolean;
   onEnable: () => void;
 }): JSX.Element {
   const text = useGameText();
   const heading = text({ en: 'Tilt to fly', fr: 'Incliner pour voler' });
-  if (support === 'unsupported' || (asked && !on)) {
-    return <PermissionPrimer heading={heading} body={`${support === 'unsupported'
-      ? text({ en: 'This phone has no tilt sensor.', fr: 'Ce téléphone n’a pas de capteur d’inclinaison.' })
-      : text({ en: 'Tilt was turned down.', fr: 'L’accès à l’inclinaison a été refusé.' })} ${text(
-      { en: 'If you end up the glider, you will get two tap zones instead — hold either side to drift that way.', fr: 'Si vous êtes le planeur, deux zones tactiles remplaceront l’inclinaison — maintenez un côté pour vous déplacer.' },
-    )}`} />;
+  if (support === 'unsupported') {
+    return <PermissionPrimer heading={heading} body={text({
+      en: 'This phone has no tilt sensor, and the glider has no other way to steer — Neon Fall cannot run here.',
+      fr: 'Ce téléphone n’a pas de capteur d’inclinaison, et le planeur n’a aucun autre moyen de se diriger — Neon Fall ne peut pas fonctionner ici.',
+    })} />;
+  }
+
+  if (asked && !on) {
+    return (
+      <PermissionPrimer
+        heading={heading}
+        body={text({
+          en: 'Tilt was turned down. Either seat can end up the glider, and the glider has nothing else to steer with — the tap zones are gone — so the round cannot include this phone.',
+          fr: 'L’inclinaison a été refusée. Chaque siège peut devenir le planeur, et le planeur n’a rien d’autre pour se diriger — les zones tactiles ont disparu — cette manche ne peut donc pas inclure ce téléphone.',
+        })}
+        action={{ label: text({ en: 'Try again', fr: 'Réessayer' }), onClick: onEnable }}
+      />
+    );
   }
 
   if (on) {
@@ -247,7 +276,8 @@ function TiltPrimer({
 
   return (
     <PermissionPrimer heading={heading}
-      body={text({ en: 'If you end up the glider, tilting steers you. Nothing is recorded — only a single steering number ever leaves the phone, never the raw tilt.', fr: 'Si vous êtes le planeur, l’inclinaison vous dirige. Rien n’est enregistré — seul un nombre de direction quitte le téléphone, jamais l’inclinaison brute.' })}
-      action={{ label: text({ en: 'Turn on tilt', fr: 'Activer l’inclinaison' }), onClick: onEnable }} />
+      body={`${text({ en: 'If you end up the glider, tilting steers you. Nothing is recorded — only a single steering number ever leaves the phone, never the raw tilt.', fr: 'Si vous êtes le planeur, l’inclinaison vous dirige. Rien n’est enregistré — seul un nombre de direction quitte le téléphone, jamais l’inclinaison brute.' })} ${isHost
+        ? text({ en: 'Start the round and your phone will ask.', fr: 'Démarrez la manche et votre téléphone vous le demandera.' })
+        : text({ en: 'Tap Ready and your phone will ask.', fr: 'Touchez Prêt et votre téléphone vous le demandera.' })}`} />
   );
 }

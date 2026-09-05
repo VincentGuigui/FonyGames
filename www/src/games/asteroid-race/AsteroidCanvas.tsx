@@ -24,8 +24,6 @@ export type Report = { distance: number; lives: number; hits: number };
 
 type Props = {
   roundId: number;
-  /** Tilt is on. False falls back to the virtual stick (spec §5). */
-  tilt: boolean;
   onReport: (report: Report) => void;
   /** A rock was clipped, at this fraction of the board — for the impact GIF. */
   onHit: (at: { x: number; y: number }) => void;
@@ -36,7 +34,7 @@ type Props = {
   onFinished: (report: Report) => void;
 };
 
-export function AsteroidCanvas({ roundId, tilt, onReport, onHit, onDestroyed, onFinished }: Props): JSX.Element {
+export function AsteroidCanvas({ roundId, onReport, onHit, onDestroyed, onFinished }: Props): JSX.Element {
   const text = useGameText();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pipsRef = useRef<HTMLParagraphElement>(null);
@@ -44,8 +42,8 @@ export function AsteroidCanvas({ roundId, tilt, onReport, onHit, onDestroyed, on
   const boostRef = useRef<HTMLButtonElement>(null);
   const missileRef = useRef<HTMLButtonElement>(null);
   const runRef = useRef<AsteroidRun | null>(null);
-  const latest = useRef({ tilt, onReport, onHit, onDestroyed, onFinished });
-  latest.current = { tilt, onReport, onHit, onDestroyed, onFinished };
+  const latest = useRef({ onReport, onHit, onDestroyed, onFinished });
+  latest.current = { onReport, onHit, onDestroyed, onFinished };
 
   useEffect(() => {
     const element = canvasRef.current;
@@ -62,21 +60,13 @@ export function AsteroidCanvas({ roundId, tilt, onReport, onHit, onDestroyed, on
 
     /** Tilt, when it is on. The game never touches a raw orientation event —
      *  `core/sensors` is the only place this codebase reads one (spec §5). */
-    let tracker: Steer2Tracker | null = null;
-    if (latest.current.tilt) {
-      tracker = trackSteer2();
-      // Safe to call immediately, before any real `deviceorientation` event
-      // has arrived: `steerFilter.calibrate()` now defers to the first real
-      // sample in that case rather than anchoring at a bogus zero (see its
-      // own doc comment — this is exactly the call site that used to hit it).
-      tracker.calibrate();
-    }
-
-    /** The fallback: drag anywhere on the board and the ship follows the
-     *  thumb's offset from where it went down (spec §5). Two axes rule out Neon
-     *  Fall's two held zones. */
-    let stick: { originX: number; originY: number; x: number; y: number } | null = null;
-    const STICK_REACH = 0.14; // fraction of the board width for full deflection
+    // Unconditional: the room does not let anybody into a round without tilt
+    // (spec §5), so there is no second control surface to choose between.
+    // Safe to calibrate immediately, before any real `deviceorientation` event
+    // has arrived: `steerFilter.calibrate()` defers to the first real sample in
+    // that case rather than anchoring at a bogus zero (see its own doc comment).
+    const tracker: Steer2Tracker = trackSteer2();
+    tracker.calibrate();
 
     const report = (): Report => ({ distance: run.distance, lives: run.lives, hits: run.hits });
 
@@ -103,13 +93,10 @@ export function AsteroidCanvas({ roundId, tilt, onReport, onHit, onDestroyed, on
 
       let steerX = 0;
       let steerY = 0;
-      if (tracker?.ready()) {
+      if (tracker.ready()) {
         const s = tracker.read();
         steerX = s.x;
         steerY = s.y;
-      } else if (stick) {
-        steerX = Math.max(-1, Math.min(1, (stick.x - stick.originX) / (width * STICK_REACH)));
-        steerY = Math.max(-1, Math.min(1, -(stick.y - stick.originY) / (width * STICK_REACH)));
       }
 
       const events: RunEvent[] = run.step(dt, steerX, steerY);
@@ -150,39 +137,11 @@ export function AsteroidCanvas({ roundId, tilt, onReport, onHit, onDestroyed, on
       frame = requestAnimationFrame(loop);
     };
 
-    const localPoint = (event: PointerEvent): { x: number; y: number } => {
-      const rect = element.getBoundingClientRect();
-      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-    };
-    const onPointerDown = (event: PointerEvent): void => {
-      if (tracker) return; // tilt is flying; the board is not a control surface
-      const p = localPoint(event);
-      stick = { originX: p.x, originY: p.y, x: p.x, y: p.y };
-    };
-    const onPointerMove = (event: PointerEvent): void => {
-      if (!stick) return;
-      const p = localPoint(event);
-      stick.x = p.x;
-      stick.y = p.y;
-    };
-    const onPointerUp = (): void => {
-      // Released, the stick recentres — exactly what levelling the phone does.
-      stick = null;
-    };
-
-    element.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp);
-    window.addEventListener('pointercancel', onPointerUp);
     frame = requestAnimationFrame(loop);
 
     return () => {
       cancelAnimationFrame(frame);
-      tracker?.stop();
-      element.removeEventListener('pointerdown', onPointerDown);
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-      window.removeEventListener('pointercancel', onPointerUp);
+      tracker.stop();
     };
   }, [roundId]);
 

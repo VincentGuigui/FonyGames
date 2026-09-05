@@ -31,10 +31,12 @@ Local dev therefore needs an HTTPS dev server or a tunnel — see
    needs the request to come from a user gesture either way; the question is
    *which* gesture.
    - **A permission with a fallback gets its own button.** The player is choosing
-     between two ways to play, so the choice needs somewhere to live — Neon Fall's
-     tilt against its tap zones, Asteroid Race's tilt against its virtual stick.
+     between two ways to play, so the choice needs somewhere to live — Pass the
+     Bomb's bump against its PASS IT button, Ghost Hunt's camera route against
+     its photosphere.
    - **A permission with no alternative is asked for by Ready — or by Start, for
-     the host.** Steady Hand, Shake Rush and UFO Hunt cannot be played without
+     the host.** Steady Hand, Shake Rush, UFO Hunt, Asteroid Race and Neon Fall
+     (the closed list in [AGENTS.md](../AGENTS.md) §4) cannot be played without
      their sensor, so a button in front of it adds a tap without adding a
      decision: whoever wants to play is going to answer the same prompt either
      way. The explanation panel stays; only its button goes
