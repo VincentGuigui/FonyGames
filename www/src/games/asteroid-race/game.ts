@@ -9,9 +9,11 @@ import {
 } from '../../../../shared/protocol';
 import {
   ASTEROID_CORRIDOR_R,
+  ASTEROID_FINISH_WALL_Z,
   ASTEROID_R_SMALL,
   ASTEROID_SHIP_R,
   ASTEROID_SPACING,
+  finishWallAt,
   formationAt,
   formationIndexAt,
   rockAt,
@@ -310,6 +312,15 @@ export class AsteroidRun {
       for (const rock of formationAt(this.roundId, i)) {
         if (this.#destroyed.has(rock.id)) continue;
         if (rock.z < zFrom || rock.z > zTo) continue;
+        rocks.push(rock);
+      }
+    }
+    // The finish wall does not live at any formation index `formationAt` would
+    // ever be asked for by z alone, so it is spliced in here rather than
+    // relying on the loop above to find it.
+    if (ASTEROID_FINISH_WALL_Z >= zFrom && ASTEROID_FINISH_WALL_Z <= zTo) {
+      for (const rock of finishWallAt(this.roundId)) {
+        if (this.#destroyed.has(rock.id)) continue;
         rocks.push(rock);
       }
     }

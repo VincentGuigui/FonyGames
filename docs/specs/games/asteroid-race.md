@@ -56,7 +56,9 @@ second of standing still while your friends fly past.
 6. **Clip a rock and it explodes, and so does your run for a moment**:
    `impact_missile.gif` plays on your hull, you lose one of five lives, and
    you sit still and blinking for `ASTEROID_STUN_MS` (1 s) before flying on.
-7. **First ship over the finish line wins**, and the round ends for everyone.
+7. **The line itself is a wall of asteroids you have to shoot open** (§2.1c) —
+   a mandatory gate at a fixed point on the track, then a clear victory lap.
+   **First ship over the finish line wins**, and the round ends for everyone.
    Out of lives before you get there, your run ends where it stopped.
 
 **Win condition:** first across `ASTEROID_TRACK_LENGTH`. If the 120 s cap
@@ -110,6 +112,35 @@ clearly secondary to the rocks, the same call Neon Fall §2.1 makes for its lane
 guides. The rings do a second job the spec did not anticipate and would not
 give up now: a ring sweeping past the ship is the depth cue the issue asked
 for, and it says how fast you are going in a way nothing static can.
+
+### 2.1c The finish line is a wall, too
+
+Open question #7 (§12, as first written) flagged a real gap: nothing in world
+space ever told a player the line was close, only the HUD's own progress bar.
+The fix is not a banner — it is the same trick §2.3 already proves works:
+**the finish line is a mandatory gate**, built by the identical `gate()` the
+field already uses, always dealt at the fixed `z` = `ASTEROID_FINISH_WALL_Z`
+(`ASTEROID_TRACK_LENGTH − ASTEROID_FINISH_STRETCH`) rather than left to
+`ASTEROID_GATE_EVERY`'s own roll. A player reads it exactly the way a gate
+reads: the tube goes quiet, then there is a wall with a ring and a key, and
+the key has to be shot (or rammed, at the cost of the life any collision
+costs) before the corridor opens.
+
+Past it, `ASTEROID_FINISH_STRETCH` — 80 units, ~2 s at
+`ASTEROID_CRUISE_SPEED` — is guaranteed clear, all the way to
+`ASTEROID_TRACK_LENGTH` itself: a victory lap with nothing left to dodge,
+which is what makes flying it feel like *arriving* rather than like the field
+simply running out. `formationAt()` reserves the whole stretch — the wall's
+own two-formation approach, its own `z`, and everything after it — the same
+way it already reserves clear air around a probabilistic gate (§2.3); nothing
+regular is ever dealt in that zone, in any round.
+
+This changes nothing about how a race ends: `AsteroidRun.step()` still fires
+`finished` the instant `distance >= ASTEROID_TRACK_LENGTH`, and the referee
+still ends the race the instant a report says the same (§6, §8) — both
+completely unaware a wall exists. The wall lives entirely in `field.ts` and
+`AsteroidRun.rocksNear()`, the same boundary that already keeps a probabilistic
+gate off the wire.
 
 ### 2.2 Nobody can see your ship
 
@@ -387,6 +418,8 @@ these, §8):
 | `ASTEROID_GATE_RING` ⚖ | 10 | Six leaves a diagonal hole at the wall at every radius (§2.3) |
 | `ASTEROID_GATE_RING_R` ⚖ | 5.0 | Closes the corner with room to spare |
 | `ASTEROID_SPLIT_DRIFT` | 18 | The middle is properly open about a fifth of a second after the shot |
+| `ASTEROID_FINISH_STRETCH` | 80 | ~2 s of clear victory lap at cruise, after the finish wall (§2.1c) |
+| `ASTEROID_FINISH_WALL_Z` | 2320 | `ASTEROID_TRACK_LENGTH − ASTEROID_FINISH_STRETCH` — the wall's own fixed `z` |
 
 **The flight and the view** (`game.ts`):
 
@@ -552,8 +585,9 @@ memory only, for the life of the round; nothing is stored.
 
 Settled by building it, and recorded here so they are not re-opened by
 accident: the win condition (§2, as specced), two axes (§5, as specced), live
-shards (§2.3, as specced), 1–8 players (as specced), and what a gate is made of
-(§2.3, ten ring rocks — measured, not chosen).
+shards (§2.3, as specced), 1–8 players (as specced), what a gate is made of
+(§2.3, ten ring rocks — measured, not chosen), and the finish line's own
+visual (§2.1c — a mandatory gate at a fixed `z`, not a banner).
 
 Still open:
 
@@ -577,14 +611,6 @@ Still open:
    it costs? Built as no.
 6. **A ladder strip, or full lanes?** Built as the shared `Scoreboard`. If it
    reads as an afterthought, the corridor may have to give up some height.
-7. **The finish line itself is not drawn anywhere in the corridor.** §4
-   describes the HUD's progress bar and the ladder's own percentages, and
-   those are, as built, the only way a player learns how close the line is —
-   there is no gate, banner, or marker in world space that the ship
-   approaches and crosses. A player who never looks at the thin bar along the
-   top gets no in-corridor warning at all before `ASTEROID_TRACK_LENGTH`
-   arrives. Worth a visual (a lit gate at that one fixed `z`, the way a real
-   finish line reads) before this leaves beta.
 
 ## 13. Rendering: plain `<canvas>`, and where the maths lives
 
@@ -646,16 +672,18 @@ not:
   furthest with a dead heat unranked, a stale `roundId`, the solo `winner:
   null`, an away run freezing, and a full-room frame fitting inside 1 KB.
   Registered as `npm run test:asteroid`.
-- `www/src/games/asteroid-race/game.test.ts` — the flight, 101 checks: two
+- `www/src/games/asteroid-race/game.test.ts` — the flight, 115 checks: two
   phones deriving the identical field from one `roundId`, the projection, a
   collision that must register and a near-miss that must not, a dropped frame
   that must not tunnel through a rock, **a gate with no hull position in the
   whole cross-section that gets through**, the split opening the middle and
   only the middle, the reticle taking the nearest rock and not the biggest, the
-  off-centre shot that takes a ring rock and leaves the gate shut, §2.4's fog
-  inequality asserted against the shipped constants, both steer axes pinned
-  against what the camera actually does with them (§5), the `destroyed` event
-  firing exactly once at the ship's own position rather than the rock's, and
-  §13.1's twelve races. Registered as `npm run test:asteroid-ui`.
+  off-centre shot that takes a ring rock and leaves the gate shut, **the finish
+  wall itself sealed until its key is shot, its reserved zone dealing nothing
+  across 20 rounds, and the victory lap after it completely clear** (§2.1c),
+  §2.4's fog inequality asserted against the shipped constants, both steer axes
+  pinned against what the camera actually does with them (§5), the `destroyed`
+  event firing exactly once at the ship's own position rather than the rock's,
+  and §13.1's twelve races. Registered as `npm run test:asteroid-ui`.
 - `www/src/core/sensors/steer.test.ts` gains the two-axis filter's own checks,
   and the exact calibration-race scenario described in §5 above.
