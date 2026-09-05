@@ -7,13 +7,17 @@ import {
 } from '../../../../shared/protocol';
 import {
   ASTEROID_CORRIDOR_R,
+  ASTEROID_FINISH_STRETCH,
+  ASTEROID_FINISH_WALL_Z,
   ASTEROID_GATE_RING,
   ASTEROID_GATE_RING_R,
   ASTEROID_R_LARGE,
   ASTEROID_R_SMALL,
   ASTEROID_SHIP_R,
   ASTEROID_SPACING,
+  finishWallAt,
   formationAt,
+  formationIndexAt,
   formationZ,
   hash01,
   isGate,
@@ -154,6 +158,79 @@ function theGateIsSealed(): void {
     drifted.every((h) => h.r === ASTEROID_R_SMALL && h.size === 'small'));
   check('leaving in opposite directions',
     Math.abs(drifted[0]!.x + drifted[1]!.x) < 1e-9 && Math.abs(drifted[0]!.y + drifted[1]!.y) < 1e-9, drifted);
+}
+
+/**
+ * The finish line itself (§2.1c): not a stripe in a progress bar, but a wall
+ * across the tube — shaped exactly like a gate — that must be shot open
+ * before the last `ASTEROID_FINISH_STRETCH` units to the true line, which are
+ * always clear, can be flown.
+ */
+function theFinishLineIsAWall(): void {
+  console.log('\nthe finish line is a wall, and it opens where the shot lands (§2.1c)');
+
+  check('the stretch after it is genuinely about two seconds at cruise',
+    Math.abs(ASTEROID_FINISH_STRETCH / ASTEROID_CRUISE_SPEED - 2) < 1e-9, ASTEROID_FINISH_STRETCH);
+
+  const wall = finishWallAt(41);
+  check('it is a ring plus a key, the same shape a gate is', wall.length === ASTEROID_GATE_RING + 1, wall.length);
+  check('sitting at the fixed z every phone in the round shares',
+    wall.every((r) => r.z === ASTEROID_FINISH_WALL_Z), wall[0]?.z);
+  const key = wall.find((r) => r.size === 'large');
+  check('with its key in the middle', !!key && Math.hypot(key.x, key.y) < 1e-9, key);
+  check('sealed until that key is shot', openings(wall).length === 0);
+
+  // No regular formation is dealt anywhere in the wall's own reserved zone —
+  // its approach, its own z, or the victory lap after it — across many
+  // rounds, so a scatter or a probabilistic gate can never land where the
+  // mandatory wall and its clear stretch are supposed to be.
+  let checkedReserved = 0;
+  let checkedBefore = false;
+  for (let round = 1; round <= 20; round++) {
+    for (let i = 0; i < 90; i++) {
+      const z = formationZ(i);
+      if (z >= ASTEROID_FINISH_WALL_Z - 2 * ASTEROID_SPACING) {
+        checkedReserved++;
+        if (formationAt(round, i).length !== 0) {
+          check(`round ${round} formation ${i}: something was dealt in the reserved zone`, false, z);
+          return;
+        }
+      } else if (z > ASTEROID_FINISH_WALL_Z - 6 * ASTEROID_SPACING) {
+        checkedBefore = true;
+      }
+    }
+  }
+  check(`every one of ${checkedReserved} formations across the reserved zone stays empty`, checkedReserved > 300, checkedReserved);
+  check('and formations shortly before it are not suppressed too', checkedBefore);
+
+  // Wired into a run: the wall's rocks show up exactly when asked for, and
+  // nowhere else.
+  const run = new AsteroidRun(41);
+  const spanning = run.rocksNear(ASTEROID_FINISH_WALL_Z - 10, ASTEROID_FINISH_WALL_Z + 10);
+  check('a query spanning the wall\'s z finds it',
+    spanning.filter((r) => r.z === ASTEROID_FINISH_WALL_Z).length === ASTEROID_GATE_RING + 1, spanning.length);
+  const lap = run.rocksNear(ASTEROID_FINISH_WALL_Z + 1, ASTEROID_TRACK_LENGTH);
+  check('and the victory lap after it is completely clear', lap.length === 0, lap.length);
+
+  // Fly up to the wall's approach and answer it exactly the way a gate is
+  // answered — lined up, the reticle holds the key, and shooting it opens
+  // the middle.
+  run.distance = ASTEROID_FINISH_WALL_Z - 60;
+  const target = reticlePick(run.rocksNear(run.distance, run.distance + ASTEROID_MISSILE_RANGE), run);
+  check('lined up on the middle, the crosshair holds the finish wall\'s own key', target?.size === 'large', target?.id);
+  const shot = run.fire(0);
+  check('and firing takes it', shot !== null && shot.rock.size === 'large');
+  run.step(400, 0, 0);
+  const after = run.rocksNear(ASTEROID_FINISH_WALL_Z - 20, ASTEROID_FINISH_WALL_Z + 20);
+  check('the key is gone', !after.some((r) => r.id.endsWith(':key')));
+  check('the middle is open where it was',
+    after.every((r) => Math.hypot(r.x, r.y) > r.r + ASTEROID_SHIP_R));
+
+  // A straight, unanswered approach still meets the wall's own geometry: the
+  // formation index math the flight relies on reaches all the way to the true
+  // line without ever handing back a normal formation past the wall.
+  check('the index math still reaches the true finish line with nothing there',
+    formationAt(41, formationIndexAt(ASTEROID_TRACK_LENGTH)).length === 0);
 }
 
 function theFogIsFair(): void {
@@ -547,7 +624,7 @@ function theWholeRace(): void {
     Number.isFinite(run.distance) && run.lives >= 0 && run.hits >= 0, { d: run.distance, l: run.lives, h: run.hits });
 }
 
-for (const t of [theField, theGateIsSealed, theFogIsFair, theView, collisions, theReticle, flying, clippingARock, beingDestroyed, shooting, winnable, theWholeRace]) {
+for (const t of [theField, theGateIsSealed, theFinishLineIsAWall, theFogIsFair, theView, collisions, theReticle, flying, clippingARock, beingDestroyed, shooting, winnable, theWholeRace]) {
   t();
 }
 

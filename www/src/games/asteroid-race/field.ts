@@ -1,6 +1,6 @@
 /**
  * Asteroid Race's field: the same rocks for everybody, from nothing.
- * Spec: docs/specs/games/asteroid-race.md §2.1, §2.3
+ * Spec: docs/specs/games/asteroid-race.md §2.1, §2.1c, §2.3
  *
  * Nothing in here crosses the wire. A formation is a pure function of
  * `roundId` — already broadcast, already unique per round — and its own index
@@ -16,6 +16,8 @@
  *
  * Distances are in ship lengths, matching the referee's own units.
  */
+
+import { ASTEROID_TRACK_LENGTH } from '../../../../shared/protocol';
 
 /** How far apart consecutive formations sit — about 0.9 s at cruise. */
 export const ASTEROID_SPACING = 35;
@@ -71,6 +73,24 @@ export const ASTEROID_GATE_EVERY = 14;
  */
 export const ASTEROID_GATE_RING = 10;
 export const ASTEROID_GATE_RING_R = 5;
+
+/**
+ * The finish line is not a stripe in the HUD's own progress bar — it is a wall
+ * across the tube, built the same way a gate is (§2.3), that must be shot open
+ * before the ship can fly the last stretch to `ASTEROID_TRACK_LENGTH`. Reusing
+ * `gate()`'s own shape means the rendering and collision code that already
+ * knows how to draw and clip a ring need not know this wall is special at all.
+ *
+ * `ASTEROID_FINISH_STRETCH` is the "fly through for 2 s" the wall exists to
+ * produce: 80 units at `ASTEROID_CRUISE_SPEED` (40 units/s, §2) is 2 s of
+ * cruising with nothing left to dodge — a victory lap, not a coast.
+ */
+export const ASTEROID_FINISH_STRETCH = 80;
+export const ASTEROID_FINISH_WALL_Z = ASTEROID_TRACK_LENGTH - ASTEROID_FINISH_STRETCH;
+
+/** Sentinel formation index for the finish wall — never a real formation's
+ *  own index, so its rock ids never collide with a dealt formation's. */
+const FINISH_WALL_INDEX = -1;
 
 /** How fast each half of a split rock leaves the other (§2.3). */
 export const ASTEROID_SPLIT_DRIFT = 18;
@@ -131,6 +151,14 @@ export function formationIndexAt(z: number): number {
  */
 export function formationAt(roundId: number, i: number): Rock[] {
   const z = formationZ(i);
+
+  // The finish wall owns this whole stretch: two formations' worth of clear
+  // air on the approach (same margin a gate gets), the wall's own z, and the
+  // victory lap after it, all the way to the true finish line. A regular
+  // scatter or probabilistic gate landing in the last few seconds of the race
+  // would turn "fly through for 2 s" back into "dodge for 2 s".
+  if (z >= ASTEROID_FINISH_WALL_Z - 2 * ASTEROID_SPACING) return [];
+
   if (isGate(roundId, i)) return gate(roundId, i, z);
 
   // **A gate gets clear air.** The two formations before one are empty, and so
@@ -167,6 +195,12 @@ export function formationAt(roundId: number, i: number): Rock[] {
     });
   }
   return rocks;
+}
+
+/** The finish wall: the same shape as a gate, at the one fixed `z` every
+ *  player in the round shares, sealing the tube until its key rock is shot. */
+export function finishWallAt(roundId: number): Rock[] {
+  return gate(roundId, FINISH_WALL_INDEX, ASTEROID_FINISH_WALL_Z);
 }
 
 /** A gate: one large rock in the middle, and a ring that seals everything else. */
