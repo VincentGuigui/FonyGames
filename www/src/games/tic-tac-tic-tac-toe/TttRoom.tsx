@@ -100,7 +100,6 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
     : null;
   return <GameLobby card={game} code={code} joinUrl={room.joinUrl} room={room.room} copied={room.copied} showQr={room.showQr} onShare={room.share} onToggleQr={room.toggleQr}
     canStart={room.room.isHost && enoughToStart(ids.length, [2, 2], solo)} startLabel={t.common.startRound} onStart={start}
-    note={room.room.isHost ? text({ en: 'Choose the symbol assignment before starting.', fr: 'Choisissez les symboles avant de commencer.' }) : text({ en: 'The host starts the round.', fr: 'The host starts the round.' })}
     extras={room.room.isHost && ids.length === 2 ? <div class="tttt-assignment"><span>{assignment}</span><button class="tttt-change" type="button" onClick={() => setSwap(!swap)}>{text({ en: 'Change', fr: 'Changer' })}</button></div> : null} />;
 }
 

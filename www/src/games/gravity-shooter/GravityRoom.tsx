@@ -14,7 +14,7 @@ import { GameLobby } from '../../lobby/GameLobby';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { useSoloTesting } from '../../core/useSolo';
 import {
   GravityGame,
@@ -276,7 +276,6 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
       canStart={room.isHost && enoughToStart(room.connected, [GRAVITY_MIN_PLAYERS, GRAVITY_MAX_PLAYERS], solo)}
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'gravity', solo } })}
-      note={note(room.isHost, room.connected, solo, text)}
     />
   );
 }
@@ -288,11 +287,4 @@ function pips(lives: number): JSX.Element {
       {'○'.repeat(Math.max(0, GRAVITY_LIVES - lives))}
     </span>
   );
-}
-
-function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
-  if (!isHost) return text({ en: 'The host starts the match.', fr: "L’hôte démarre la partie." });
-  if (!solo && connected < GRAVITY_MAX_PLAYERS) return text({ en: 'Waiting for your opponent…', fr: 'En attente de votre adversaire…' });
-  if (connected > GRAVITY_MAX_PLAYERS) return text({ en: 'Gravity Shooter is exactly two players.', fr: 'Gravity Shooter se joue exactement à deux.' });
-  return text({ en: 'Touch above your ship to aim, let go, and let the planets bend your shot.', fr: 'Touchez au-dessus de votre vaisseau pour viser, lâchez, et laissez les planètes courber votre tir.' });
 }

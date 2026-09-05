@@ -18,7 +18,7 @@ import { NeonGame } from './game';
 import { NeonBoard } from './NeonBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { PermissionPrimer } from '../../core/ui/PermissionPrimer';
 
 /**
@@ -162,7 +162,6 @@ function NeonRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'neon', ...(roles ? { roles } : {}), solo } })}
       readyBlocked={support !== 'unsupported' && !orientationAsked}
-      note={note(room.isHost, room.connected, solo, text)}
       playerTag={(id) => {
         if (!roles) return null;
         if (id === roles.glider) return text({ en: 'glider', fr: 'planeur' });
@@ -251,11 +250,4 @@ function TiltPrimer({
       body={text({ en: 'If you end up the glider, tilting steers you. Nothing is recorded — only a single steering number ever leaves the phone, never the raw tilt.', fr: 'Si vous êtes le planeur, l’inclinaison vous dirige. Rien n’est enregistré — seul un nombre de direction quitte le téléphone, jamais l’inclinaison brute.' })}
       action={{ label: text({ en: 'Turn on tilt', fr: 'Activer l’inclinaison' }), onClick: onEnable }} />
   );
-}
-
-function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
-  if (!solo && connected < NEON_MIN_PLAYERS) return text({ en: 'Waiting for a second player…', fr: 'En attente d’un deuxième joueur…' });
-  if (connected > NEON_MAX_PLAYERS) return text({ en: 'Neon Fall is exactly 2 players.', fr: 'Neon Fall se joue exactement à 2.' });
-  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
-  return text({ en: 'Pick who flies and who shoots, then start.', fr: 'Choisissez qui vole et qui tire, puis démarrez.' });
 }

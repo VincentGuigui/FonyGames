@@ -49,7 +49,6 @@ export function GameLobby({
   onStart,
   readyBlocked = false,
   onBeforeReady,
-  note,
   playerTag,
   /** Extra explanation inside the how-to-play panel (Spill's table diagram). */
   aside,
@@ -84,8 +83,6 @@ export function GameLobby({
    * Games that degrade to touch keep their own primer button instead.
    */
   onBeforeReady?: (() => Promise<boolean>) | undefined;
-  /** An empty string renders nothing — not an empty paragraph. */
-  note: string;
   playerTag?: (id: PlayerId) => string | null;
   aside?: ComponentChildren;
   extras?: ComponentChildren;
@@ -258,7 +255,6 @@ export function GameLobby({
             {t.lobby.waitingReady}
           </p>
         )}
-        {note && <p class="lobby__note">{note}</p>}
         {room.isHost && <div class="lobby__switch-game"><GameSwitcher room={room} code={code} game={card.slug} /></div>}
       </footer>
     </div>

@@ -99,8 +99,7 @@ function Inner({ code, game }: { code: string; game: GameCard }): JSX.Element {
   if (!state) {
     // No seat-colour tag in the players list (issue #3).
     return <GameLobby card={game} code={code} joinUrl={connection.joinUrl} room={room} copied={connection.copied} showQr={connection.showQr} onShare={connection.share} onToggleQr={connection.toggleQr}
-      canStart={room.isHost && enoughToStart(room.connected, [2, 2], solo)} startLabel={t.common.startRound} onStart={start}
-      note={room.isHost ? text({ en: 'Two fighters. Six secret moves each.', fr: 'Deux combattants. Six attaques secrètes chacun.' }) : text({ en: 'The host starts the match.', fr: 'L’hôte démarre le match.' })} />;
+      canStart={room.isHost && enoughToStart(room.connected, [2, 2], solo)} startLabel={t.common.startRound} onStart={start} />;
   }
 
   if (state.phase === 'match-over') {

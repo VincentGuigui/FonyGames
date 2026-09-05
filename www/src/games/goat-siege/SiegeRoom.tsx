@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
 import {
-  SIEGE_CABBAGES,
   SIEGE_MAX_PLAYERS,
   SIEGE_MIN_PLAYERS,
   type ServerMessage,
@@ -15,7 +14,7 @@ import { GameLobby } from '../../lobby/GameLobby';
 import { SiegeBoard } from './SiegeBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { SiegeGame } from './game';
 
 /**
@@ -137,7 +136,6 @@ function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }):
       }
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'siege', solo } })}
-      note={note(room.isHost, room.connected, solo, text)}
       playerTag={(id) => {
         const n = state?.cabbages[id];
         return n === undefined ? null : text({ en: `${n} left`, fr: `${n} restantes` });
@@ -145,13 +143,3 @@ function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     />
   );
 }
-
-function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
-  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
-  if (!solo && connected < SIEGE_MIN_PLAYERS) return text({ en: 'Waiting for one more player…', fr: 'En attente d’un joueur supplémentaire…' });
-  if (connected > SIEGE_MAX_PLAYERS) {
-    return text({ en: `Goat Siege is ${SIEGE_MIN_PLAYERS}–${SIEGE_MAX_PLAYERS} players.`, fr: `Goat Siege se joue de ${SIEGE_MIN_PLAYERS} à ${SIEGE_MAX_PLAYERS} joueurs.` });
-  }
-  return text({ en: `${SIEGE_CABBAGES} cabbages each. Last patch standing wins.`, fr: `${SIEGE_CABBAGES} choux chacun. Le dernier potager gagne.` });
-}
-

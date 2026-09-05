@@ -18,7 +18,7 @@ import { motionSupport, requestMotion, type MotionSupport } from '../../core/sen
 import { applyRush, type RushState } from './game';
 import { createTune, setSoundOn, soundOn, type Tune } from './tune';
 import { RushScreen } from './RushScreen';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { PermissionPrimer } from '../../core/ui/PermissionPrimer';
 
 /**
@@ -232,7 +232,6 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       startLabel={text({ en: 'Start the race', fr: 'Démarrer la course' })}
       onStart={again}
       onBeforeReady={ensureMotion}
-      note={note(room.isHost, room.connected, motionOn, motionAsked, solo, text)}
       extras={
         <>
           {/*
@@ -313,17 +312,4 @@ function MotionPrimer({
         : text({ en: 'Tap Ready and your phone will ask.', fr: 'Touchez Prêt et votre téléphone vous le demandera.' })}`}
     />
   );
-}
-
-function note(isHost: boolean, connected: number, motionOn: boolean, motionAsked: boolean, solo: boolean, text: GameText): string {
-  if (!solo && connected < RUSH_MIN_PLAYERS) {
-    const missing = RUSH_MIN_PLAYERS - connected;
-    return text({ en: `Need ${missing} more player${missing === 1 ? '' : 's'} — a race of one is just shaking.`, fr: `Il manque ${missing} joueur${missing === 1 ? '' : 's'} — seul, ce n’est pas une course.` });
-  }
-  if (connected > RUSH_MAX_PLAYERS) return text({ en: `${RUSH_MAX_PLAYERS} players is the most this one takes.`, fr: `${RUSH_MAX_PLAYERS} joueurs maximum.` });
-  if (!isHost) return text({ en: 'The host starts the race.', fr: "L’hôte démarre la course." });
-  // Only once a refusal is a fact: before that, starting IS how detection gets asked
-  // for, so telling the host to turn it on first would be pointing at nothing.
-  if (motionAsked && !motionOn) return text({ en: 'No shake detection on this phone — start anyway and watch.', fr: 'Pas de détection sur ce téléphone — démarrez quand même pour regarder.' });
-  return text({ en: 'Arms loose. Ready when you are.', fr: 'Bras détendus. Démarrez quand vous voulez.' });
 }

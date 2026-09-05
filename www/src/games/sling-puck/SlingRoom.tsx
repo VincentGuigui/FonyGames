@@ -3,7 +3,6 @@ import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
 import {
   SLING_PLAYERS,
-  SLING_START_PUCKS,
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { useGameRoom } from '../../core/room/useRoom';
@@ -12,7 +11,7 @@ import { GameLobby } from '../../lobby/GameLobby';
 import { SlingBoard } from './SlingBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { HeadToHead } from './HeadToHead';
 import { SlingGame } from './game';
 
@@ -124,7 +123,6 @@ function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }):
       canStart={room.isHost && room.connected === SLING_PLAYERS}
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'sling' } })}
-      note={note(room.isHost, room.connected, text)}
       soloSupported={false}
       playerTag={(id) => {
         const n = state?.pucks[id];
@@ -147,12 +145,3 @@ function SlingRoomInner({ game: card, code }: { game: GameCard; code: string }):
     />
   );
 }
-
-function note(isHost: boolean, connected: number, text: GameText): string {
-  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
-  if (connected < SLING_PLAYERS) return text({ en: 'Waiting for your opponent…', fr: 'En attente de votre adversaire…' });
-  // Exactly two, so "too many" is a real state and needs saying plainly.
-  if (connected > SLING_PLAYERS) return text({ en: 'Sling Puck is exactly two players.', fr: 'Sling Puck se joue exactement à deux.' });
-  return text({ en: `${SLING_START_PUCKS} pucks each. First side clear wins.`, fr: `${SLING_START_PUCKS} palets chacun. Le premier à vider son côté gagne.` });
-}
-

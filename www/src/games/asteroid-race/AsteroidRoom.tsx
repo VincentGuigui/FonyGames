@@ -17,7 +17,7 @@ import { GameOverScreen } from '../../core/ui/GameOver';
 import { PermissionPrimer } from '../../core/ui/PermissionPrimer';
 import { orientationSupport, requestOrientation, type OrientationSupport } from '../../core/sensors/orientation';
 import { useT } from '../../core/i18n/strings';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { useSoloTesting } from '../../core/useSolo';
 import { ASTEROID_EXPLOSION_GIF_MS, ASTEROID_FINALE_HOLD_MS, ASTEROID_IMPACT_GIF_MS } from './game';
 import { AsteroidCanvas, type Report } from './AsteroidCanvas';
@@ -224,7 +224,6 @@ function AsteroidRoomInner({ game: card, code }: { game: GameCard; code: string 
       canStart={room.isHost && enoughToStart(room.connected, [ASTEROID_MIN_PLAYERS, ASTEROID_MAX_PLAYERS], solo)}
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'asteroid', solo } })}
-      note={note(room.isHost, room.connected, text)}
       readyBlocked={support !== 'unsupported' && !tiltAsked}
       extras={<TiltPrimer support={support} on={tiltOn} asked={tiltAsked} onEnable={enableTilt} />}
     />
@@ -276,11 +275,4 @@ function TiltPrimer({
       action={{ label: text({ en: 'Turn on tilt', fr: 'Activer l’inclinaison' }), onClick: onEnable }}
     />
   );
-}
-
-function note(isHost: boolean, connected: number, text: GameText): string {
-  if (connected > ASTEROID_MAX_PLAYERS) return text({ en: 'Asteroid Race is up to 8 players.', fr: 'Asteroid Race se joue jusqu’à 8 joueurs.' });
-  if (!isHost) return text({ en: 'The host starts the race.', fr: "L’hôte démarre la course." });
-  if (connected === 1) return text({ en: 'Alone, this is a time trial — the field is the same every time it is dealt.', fr: 'Seul, c’est un contre-la-montre — le champ est le même pour tous.' });
-  return text({ en: 'Everyone flies the same asteroid field. First one through wins.', fr: 'Tout le monde traverse le même champ d’astéroïdes. Le premier arrivé gagne.' });
 }
