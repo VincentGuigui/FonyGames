@@ -341,6 +341,42 @@ function clippingARock(): void {
   check('the rock it hit is destroyed, not left to take another life', gone, hit?.rock.id);
 }
 
+/**
+ * The `destroyed` event: fired exactly once, the frame the run's own last
+ * life is spent, carrying the SHIP's own position rather than the rock's —
+ * the room needs two different burst locations from the same frame (spec §4):
+ * `impact_missile.gif` where the flight actually met the rock, and
+ * `explosion.gif` on the ship itself.
+ */
+function beingDestroyed(): void {
+  console.log('\nthe ship\'s own destruction is its own event, at its own position');
+
+  const run = new AsteroidRun(3);
+  let destroyed: Extract<RunEvent, { kind: 'destroyed' }> | null = null;
+  let hitsSeenSoFar = 0;
+  for (let i = 0; i < 60 * 60 * 5 && run.lives > 0; i++) {
+    const events = run.step(1000 / 60, 0, 0);
+    for (const e of events) {
+      if (e.kind === 'hit') hitsSeenSoFar += 1;
+      if (e.kind === 'destroyed') destroyed = e;
+    }
+  }
+
+  check('flown long enough, the run does eventually lose its last life', run.lives === 0, run.lives);
+  check('and that fires the destroyed event, not silence', destroyed !== null);
+  check('exactly on the life-ending hit, not some other one',
+    hitsSeenSoFar === ASTEROID_LIVES, hitsSeenSoFar);
+  check('at the ship\'s own position, not the rock\'s',
+    !!destroyed && destroyed.at.x === run.x && destroyed.at.y === run.y && destroyed.at.z === run.distance,
+    destroyed);
+
+  // A run that still has lives left never fires it — the event means "this
+  // run is over", not "something was hit".
+  const alive = new AsteroidRun(3);
+  const events = alive.step(1000 / 60, 0, 0);
+  check('a run with lives left never fires it', !events.some((e) => e.kind === 'destroyed'));
+}
+
 function shooting(): void {
   console.log('\nthe missile, and what a gate costs');
 
@@ -511,7 +547,7 @@ function theWholeRace(): void {
     Number.isFinite(run.distance) && run.lives >= 0 && run.hits >= 0, { d: run.distance, l: run.lives, h: run.hits });
 }
 
-for (const t of [theField, theGateIsSealed, theFogIsFair, theView, collisions, theReticle, flying, clippingARock, shooting, winnable, theWholeRace]) {
+for (const t of [theField, theGateIsSealed, theFogIsFair, theView, collisions, theReticle, flying, clippingARock, beingDestroyed, shooting, winnable, theWholeRace]) {
   t();
 }
 

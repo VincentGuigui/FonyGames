@@ -248,17 +248,36 @@ Only `classic` if this is approved. Recorded, not built:
     (ui-guidelines §1), each filling back up as it recharges. Two buttons and
     a tilted phone is a two-thumb grip, which is what this game asks for and
     what the card should say.
-- **A collision**: `impact_missile.gif` on the hull — the same file Gravity
-  Shooter uses, copied into this game's own `art/`, the way that game copied
-  it from UFO Hunt — the rock explodes and is gone, the ship blinks for its
-  stunned second, and one pip goes out. The corridor keeps drawing; only the
-  ship is stopped.
+- **An ordinary collision**: `impact_missile.gif` on the hull — the same file
+  Gravity Shooter uses, copied into this game's own `art/`, the way that game
+  copied it from UFO Hunt — the rock explodes and is gone, the ship blinks for
+  its stunned second, and one pip goes out. The corridor keeps drawing; only
+  the ship is stopped.
+- **The collision that spends the last life is a whole sequence, not one
+  GIF.** `impact_missile.gif` still plays where the rock actually met the
+  hull, exactly as any other hit — and then, at the ship's own position,
+  `explosion.gif` (the same file Gravity Shooter uses, copied into this
+  game's own `art/`). Both durations are measured off the files rather than
+  estimated (`ffprobe -show_entries stream=nb_frames,duration`):
+  `impact_missile.gif` 540ms (6 frames at 90ms), `explosion.gif` 960ms (16 at
+  60ms) — `ASTEROID_IMPACT_GIF_MS`/`ASTEROID_EXPLOSION_GIF_MS` in `game.ts`.
+  The explosion is held one more full second after it has genuinely finished
+  playing (`ASTEROID_FINALE_HOLD_MS`) before anything is allowed to replace
+  the board.
+
+  This matters because the referee does not wait: a solo run ends the match
+  the instant its own last-life report arrives, which can be seconds before
+  the explosion has even started on this phone. `finaleRunning` holds the
+  results panel back for the whole sequence regardless of what the referee
+  has already decided — the same "hold the truth until the animation that
+  justifies it has played" pattern Gravity Shooter's own dying-ship fade uses.
+  In a multiplayer race this player's own board was already frozen and
+  showing "watching the rest" (below); the hold changes nothing there, since
+  the race itself is still running and nothing is waiting to replace anything.
 - **Out of lives**: your corridor stops, the ladder does not. You watch the
   rest of the race from where you died, which is a better seat than a modal.
 - **Results**: the shared `GameOverScreen` — finish time for anyone who
-  crossed, distance for anyone who did not. Its `note` slot carries the
-  cleanest run (fewest hits), the same slot Tiles Surfer uses for its longest
-  streak.
+  crossed, distance for anyone who did not. No secondary note.
 
 ## 5. Inputs & sensors
 
@@ -281,6 +300,36 @@ the screen — rather than against the sign of a field, because the sign of a
 field is exactly what was wrong and the tests still passed: the test
 autopilot negated its own vertical steer to match, so two inversions
 cancelled and twelve races finished green over an axis nobody could fly.
+
+**A second, separate bug hid behind the first one**, and it took a real report
+to surface: even with the sign fixed, vertical control still required
+tipping the phone almost flat, screen toward the floor, before it responded
+at all — "in front" (an ordinary small tilt while holding the phone upright)
+did nothing.
+
+The cause was in `steerFilter.calibrate()` (`core/sensors/steer.ts`), shared
+by every game that reads a tilt, not something specific to this one. Every
+call site in this codebase creates a tracker and calibrates it in the same
+synchronous tick — `trackSteer2()` followed immediately by `calibrate()` —
+which is always before the browser's first async `deviceorientation` event
+can possibly fire. `calibrate()` anchored its reference at whatever it had on
+hand at that moment, which was the filter's own default of **0**, not the
+phone's actual orientation. Zero is a legitimate reading (flat, screen up),
+so nothing about this looked wrong for Neon Fall's own roll axis, whose
+natural "holding it upright" pose already reads close to 0 anyway (`gamma`).
+Pitch's natural upright pose reads close to **90°** (`beta`), so the phantom
+zero reference pinned this game's filtered vertical steer at maximum
+deflection from the very first real sample — before the player had tilted
+anything — and the only way to cancel that phantom offset back toward
+neutral was to physically bring the phone's own `beta` toward 0, which is
+pointing it at the floor. Exactly the bug as reported.
+
+Fixed at the shared primitive: `calibrate()` called before any real sample
+now defers — it arms a one-shot calibration that anchors on whichever sample
+arrives first, instead of locking onto a reference that was never actually
+observed. `steer.test.ts` pins the exact scenario (`calibrate()` before
+`sample()`, then a sample at the ordinary upright pose) and asserts the
+result reads centred, not pegged.
 
 Following [../../device-capabilities.md](../../device-capabilities.md) §4
 exactly: calibrated at round start against however the player is holding the
@@ -528,6 +577,14 @@ Still open:
    it costs? Built as no.
 6. **A ladder strip, or full lanes?** Built as the shared `Scoreboard`. If it
    reads as an afterthought, the corridor may have to give up some height.
+7. **The finish line itself is not drawn anywhere in the corridor.** §4
+   describes the HUD's progress bar and the ladder's own percentages, and
+   those are, as built, the only way a player learns how close the line is —
+   there is no gate, banner, or marker in world space that the ship
+   approaches and crosses. A player who never looks at the thin bar along the
+   top gets no in-corridor warning at all before `ASTEROID_TRACK_LENGTH`
+   arrives. Worth a visual (a lit gate at that one fixed `z`, the way a real
+   finish line reads) before this leaves beta.
 
 ## 13. Rendering: plain `<canvas>`, and where the maths lives
 
@@ -589,13 +646,16 @@ not:
   furthest with a dead heat unranked, a stale `roundId`, the solo `winner:
   null`, an away run freezing, and a full-room frame fitting inside 1 KB.
   Registered as `npm run test:asteroid`.
-- `www/src/games/asteroid-race/game.test.ts` — the flight, 87 checks: two
+- `www/src/games/asteroid-race/game.test.ts` — the flight, 101 checks: two
   phones deriving the identical field from one `roundId`, the projection, a
   collision that must register and a near-miss that must not, a dropped frame
   that must not tunnel through a rock, **a gate with no hull position in the
   whole cross-section that gets through**, the split opening the middle and
   only the middle, the reticle taking the nearest rock and not the biggest, the
   off-centre shot that takes a ring rock and leaves the gate shut, §2.4's fog
-  inequality asserted against the shipped constants, and §13.1's twelve races.
-  Registered as `npm run test:asteroid-ui`.
-- `www/src/core/sensors/steer.test.ts` gains the two-axis filter's own checks.
+  inequality asserted against the shipped constants, both steer axes pinned
+  against what the camera actually does with them (§5), the `destroyed` event
+  firing exactly once at the ship's own position rather than the rock's, and
+  §13.1's twelve races. Registered as `npm run test:asteroid-ui`.
+- `www/src/core/sensors/steer.test.ts` gains the two-axis filter's own checks,
+  and the exact calibration-race scenario described in §5 above.

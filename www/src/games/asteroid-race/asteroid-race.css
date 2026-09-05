@@ -126,15 +126,25 @@
   transform: translateY(1px);
 }
 
-/* --- the impact gif, the same file Gravity Shooter uses (spec §4) -------- */
+/* --- the impact/explosion gifs, the same files Gravity Shooter uses (spec §4) --- */
 
 .asteroid__impact {
   position: absolute;
-  width: 110px;
-  height: 110px;
   transform: translate(-50%, -50%);
   pointer-events: none;
   animation: asteroid-impact-in 120ms ease-out both;
+}
+
+.asteroid__impact--missile {
+  width: 110px;
+  height: 110px;
+}
+
+/* Bigger than the rock impact — the ship's own destruction, not a graze —
+ *  the same ratio Gravity Shooter's own two bursts use (96px vs 140px). */
+.asteroid__impact--explosion {
+  width: 150px;
+  height: 150px;
 }
 
 @keyframes asteroid-impact-in {

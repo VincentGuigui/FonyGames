@@ -47,16 +47,41 @@ export function steerFilter(sensitivityDeg = SENSITIVITY_DEG, smoothing = SMOOTH
   let latestGamma = 0;
   let ref = 0;
   let filtered = 0;
+  let hasSample = false;
+  // Set when `calibrate()` is called before any real reading has arrived —
+  // every caller in this codebase creates a tracker and calibrates it in the
+  // same synchronous tick (see `trackSteer2`'s own doc comment), which is
+  // always before the browser's first async `deviceorientation` event can
+  // possibly fire. Without this, that calibration anchored `ref` at its
+  // default of 0 — a real, valid orientation (flat, screen up) — regardless
+  // of how the phone was actually being held. Roll's own neutral pose is
+  // already close to 0 (holding a phone upright naturally has gamma≈0), so
+  // this was invisible there; pitch's neutral pose is close to 90° (the same
+  // upright hold has beta≈90), so the bogus zero pinned Asteroid Race's
+  // vertical steer at full deflection from the first real sample onward —
+  // the only way to bring it back toward centre was to physically bring the
+  // phone's own beta toward 0, which is pointing it at the floor.
+  let pendingCalibrate = false;
 
   return {
     sample: (gamma) => {
       latestGamma = gamma;
+      hasSample = true;
+      if (pendingCalibrate) {
+        ref = gamma;
+        filtered = 0;
+        pendingCalibrate = false;
+      }
       const raw = clamp((gamma - ref) / sensitivityDeg, -1, 1);
       filtered += (raw - filtered) * smoothing;
     },
     calibrate: () => {
-      ref = latestGamma;
-      filtered = 0;
+      if (hasSample) {
+        ref = latestGamma;
+        filtered = 0;
+      } else {
+        pendingCalibrate = true;
+      }
     },
     read: () => filtered,
   };

@@ -29,10 +29,14 @@ type Props = {
   onReport: (report: Report) => void;
   /** A rock was clipped, at this fraction of the board — for the impact GIF. */
   onHit: (at: { x: number; y: number }) => void;
+  /** This run's own last life was just spent, at the ship's own on-screen
+   *  position — for the explosion GIF (spec §4). Fired once, the same frame
+   *  as the `hit` that caused it. */
+  onDestroyed: (at: { x: number; y: number }) => void;
   onFinished: (report: Report) => void;
 };
 
-export function AsteroidCanvas({ roundId, tilt, onReport, onHit, onFinished }: Props): JSX.Element {
+export function AsteroidCanvas({ roundId, tilt, onReport, onHit, onDestroyed, onFinished }: Props): JSX.Element {
   const text = useGameText();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pipsRef = useRef<HTMLParagraphElement>(null);
@@ -40,8 +44,8 @@ export function AsteroidCanvas({ roundId, tilt, onReport, onHit, onFinished }: P
   const boostRef = useRef<HTMLButtonElement>(null);
   const missileRef = useRef<HTMLButtonElement>(null);
   const runRef = useRef<AsteroidRun | null>(null);
-  const latest = useRef({ tilt, onReport, onHit, onFinished });
-  latest.current = { tilt, onReport, onHit, onFinished };
+  const latest = useRef({ tilt, onReport, onHit, onDestroyed, onFinished });
+  latest.current = { tilt, onReport, onHit, onDestroyed, onFinished };
 
   useEffect(() => {
     const element = canvasRef.current;
@@ -61,9 +65,11 @@ export function AsteroidCanvas({ roundId, tilt, onReport, onHit, onFinished }: P
     let tracker: Steer2Tracker | null = null;
     if (latest.current.tilt) {
       tracker = trackSteer2();
-      // Calibrated here rather than at the first sample: this is the moment the
-      // player is holding the phone to fly, not the moment they picked it up.
-      setTimeout(() => tracker?.calibrate(), 0);
+      // Safe to call immediately, before any real `deviceorientation` event
+      // has arrived: `steerFilter.calibrate()` now defers to the first real
+      // sample in that case rather than anchoring at a bogus zero (see its
+      // own doc comment — this is exactly the call site that used to hit it).
+      tracker.calibrate();
     }
 
     /** The fallback: drag anywhere on the board and the ship follows the
@@ -111,6 +117,9 @@ export function AsteroidCanvas({ roundId, tilt, onReport, onHit, onFinished }: P
         if (event.kind === 'hit') {
           const at = screenFraction(event.at, run, view);
           if (at) latest.current.onHit(at);
+        } else if (event.kind === 'destroyed') {
+          const at = screenFraction(event.at, run, view);
+          if (at) latest.current.onDestroyed(at);
         }
       }
 

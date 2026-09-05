@@ -90,6 +90,22 @@ export const ASTEROID_RETICLE_LEAD_Z = 120;
 /** How long the tracer stays on screen after a shot. */
 export const ASTEROID_TRACER_MS = 150;
 
+/**
+ * The two impact GIFs' own durations, in ms, measured off the files rather
+ * than estimated (`ffprobe -show_entries stream=nb_frames,duration`) —
+ * `impact_missile.gif` is 6 frames at 90ms, `explosion.gif` 16 at 60ms, the
+ * same two files Gravity Shooter already reads these exact numbers off in its
+ * own `game.ts`. The ship's own destruction plays the missile impact where a
+ * rock actually met the hull, then — once that has genuinely finished, not a
+ * guessed pause in — the explosion at the ship's own position, held one more
+ * second before the results panel can appear (spec §4).
+ */
+export const ASTEROID_IMPACT_GIF_MS = 540;
+export const ASTEROID_EXPLOSION_GIF_MS = 960;
+/** How long the explosion is held on screen after it has actually finished
+ *  playing, before the results panel is allowed to appear. */
+export const ASTEROID_FINALE_HOLD_MS = 1_000;
+
 /* -------------------------------- the fog -------------------------------- */
 
 /**
@@ -193,6 +209,10 @@ export function reticlePick(rocks: readonly Rock[], ship: { x: number; y: number
 export type RunEvent =
   | { kind: 'hit'; rock: Rock; at: Vec3 }
   | { kind: 'shot'; rock: Rock; split: boolean }
+  /** The rock just hit was the one that spent this run's last life — the ship
+   *  itself is destroyed here, at its own position (not the rock's). Fired
+   *  alongside the `hit` event for the same rock, never instead of it. */
+  | { kind: 'destroyed'; at: Vec3 }
   | { kind: 'finished' };
 
 type Shard = { rock: Rock; bornAtMs: number };
@@ -414,7 +434,12 @@ export class AsteroidRun {
       }
     }
 
-    if (this.lives <= 0) return events;
+    if (this.lives <= 0) {
+      // The ship's own position, not the rock's — the rock's `hit` burst and
+      // the ship's own `destroyed` explosion land in two different places.
+      events.push({ kind: 'destroyed', at: { x: this.x, y: this.y, z: this.distance } });
+      return events;
+    }
 
     if (this.distance >= ASTEROID_TRACK_LENGTH) {
       this.distance = ASTEROID_TRACK_LENGTH;

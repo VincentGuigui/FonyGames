@@ -5,7 +5,6 @@ import {
   ASTEROID_MAX_PLAYERS,
   ASTEROID_MIN_PLAYERS,
   ASTEROID_TRACK_LENGTH,
-  type PlayerId,
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
@@ -20,8 +19,10 @@ import { orientationSupport, requestOrientation, type OrientationSupport } from 
 import { useT } from '../../core/i18n/strings';
 import { useGameText, type GameText } from '../../core/i18n/gameText';
 import { useSoloTesting } from '../../core/useSolo';
+import { ASTEROID_EXPLOSION_GIF_MS, ASTEROID_FINALE_HOLD_MS, ASTEROID_IMPACT_GIF_MS } from './game';
 import { AsteroidCanvas, type Report } from './AsteroidCanvas';
 import impactGif from './art/impact_missile.gif?url&no-inline';
+import explosionGif from './art/explosion.gif?url&no-inline';
 import './asteroid-race.css';
 
 /**
@@ -39,11 +40,12 @@ export function AsteroidRoom(props: { game: GameCard }): JSX.Element {
   return <RoomGate game={props.game}>{(code, card) => <AsteroidRoomInner game={card} code={code} />}</RoomGate>;
 }
 
-type Burst = { id: number; x: number; y: number };
+type Burst = { id: number; kind: 'missile' | 'explosion'; x: number; y: number };
 
-/** `impact_missile.gif`'s own measured length — the same file, and the same
- *  number, Gravity Shooter reads off it (`game.ts` there). */
-const IMPACT_MS = 540;
+/** Each burst stays up for exactly as long as its own GIF runs — the real
+ *  durations, measured off the files (`game.ts`), not padded guesses. */
+const BURST_MS: Record<Burst['kind'], number> = { missile: ASTEROID_IMPACT_GIF_MS, explosion: ASTEROID_EXPLOSION_GIF_MS };
+const BURST_ART: Record<Burst['kind'], string> = { missile: impactGif, explosion: explosionGif };
 
 function AsteroidRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
   const t = useT();
@@ -57,6 +59,17 @@ function AsteroidRoomInner({ game: card, code }: { game: GameCard; code: string 
   const [support] = useState<OrientationSupport>(orientationSupport);
   const [tiltOn, setTiltOn] = useState(false);
   const [tiltAsked, setTiltAsked] = useState(false);
+
+  /**
+   * The ship's own destruction (spec §4): the referee can — and for a solo
+   * run, always does — declare `phase: 'done'` the instant this player's own
+   * last-life report arrives, seconds before the explosion has even started
+   * playing on this phone. `finaleRunning` is what holds the results panel
+   * back for the whole sequence — impact, then explosion, then one more
+   * second — the same "hold the truth until the animation that justifies it
+   * has played" pattern Gravity Shooter's own dying-ship fade uses.
+   */
+  const [finaleRunning, setFinaleRunning] = useState(false);
 
   const onGame = useCallback((msg: ServerMessage) => {
     if (msg.t === 'asteroid') stateRef.current = msg.d;
@@ -77,11 +90,28 @@ function AsteroidRoomInner({ game: card, code }: { game: GameCard; code: string 
     [client, state],
   );
 
-  const onHit = useCallback((at: { x: number; y: number }) => {
+  const addBurst = useCallback((kind: Burst['kind'], at: { x: number; y: number }) => {
     const id = ++burstId.current;
-    setBursts((prev) => [...prev, { id, x: at.x, y: at.y }]);
-    setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), IMPACT_MS);
+    setBursts((prev) => [...prev, { id, kind, x: at.x, y: at.y }]);
+    setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), BURST_MS[kind]);
   }, []);
+
+  const onHit = useCallback((at: { x: number; y: number }) => addBurst('missile', at), [addBurst]);
+
+  /**
+   * This run's own last life, spent. The impact GIF already played at the
+   * rock (`onHit`, same frame) — this is the ship's own explosion, held for
+   * its own real duration plus one more second before anything is allowed to
+   * replace the board (spec §4).
+   */
+  const onDestroyed = useCallback(
+    (at: { x: number; y: number }) => {
+      addBurst('explosion', at);
+      setFinaleRunning(true);
+      setTimeout(() => setFinaleRunning(false), ASTEROID_EXPLOSION_GIF_MS + ASTEROID_FINALE_HOLD_MS);
+    },
+    [addBurst],
+  );
 
   const enableTilt = useCallback(() => {
     setTiltAsked(true);
@@ -94,9 +124,15 @@ function AsteroidRoomInner({ game: card, code }: { game: GameCard; code: string 
 
   useEffect(() => {
     setBursts([]);
+    setFinaleRunning(false);
   }, [roundId]);
 
-  if (state && state.phase === 'done') {
+  // A match-ending destruction still has to be watched: the referee can
+  // declare `phase: 'done'` (a solo run ends the instant its only life is
+  // spent) before the explosion has even started playing on this phone.
+  const stillAnimating = finaleRunning;
+
+  if (state && state.phase === 'done' && !stillAnimating) {
     const runs = Object.entries(state.runs);
     // Finishers first, by time; then everyone else by how far they got.
     runs.sort(([, a], [, b]) => {
@@ -105,10 +141,6 @@ function AsteroidRoomInner({ game: card, code }: { game: GameCard; code: string 
       if (b.finishedAt !== null) return 1;
       return b.distance - a.distance;
     });
-    const cleanest = runs.reduce<[PlayerId, number] | null>(
-      (best, [id, run]) => (best === null || run.hits < best[1] ? [id, run.hits] : best),
-      null,
-    );
     return (
       <GameOverScreen
         room={room}
@@ -127,19 +159,13 @@ function AsteroidRoomInner({ game: card, code }: { game: GameCard; code: string 
         }))}
         me={myId}
         winner={state.winner}
-        note={cleanest
-          ? text({
-            en: `Cleanest run: ${nameOf(cleanest[0])}, ${cleanest[1]} rocks clipped`,
-            fr: `Vol le plus propre : ${nameOf(cleanest[0])}, ${cleanest[1]} rochers touchés`,
-          })
-          : undefined}
         onAgain={() => client?.send({ t: 'start', d: { mode: 'asteroid', solo } })}
         canAct={room.isHost && enoughToStart(room.connected, [ASTEROID_MIN_PLAYERS, ASTEROID_MAX_PLAYERS], solo)}
       />
     );
   }
 
-  if (state && state.phase === 'running') {
+  if (state && (state.phase === 'running' || stillAnimating)) {
     const mine = myId ? state.runs[myId] : undefined;
     const ladder = Object.entries(state.runs)
       .map(([id, run]) => ({
@@ -168,13 +194,14 @@ function AsteroidRoomInner({ game: card, code }: { game: GameCard; code: string 
           tilt={tiltOn}
           onReport={sendReport}
           onHit={onHit}
+          onDestroyed={onDestroyed}
           onFinished={sendReport}
         />
         {bursts.map((b) => (
           <img
             key={b.id}
-            src={impactGif}
-            class="asteroid__impact"
+            src={BURST_ART[b.kind]}
+            class={`asteroid__impact asteroid__impact--${b.kind}`}
             style={{ left: `${(b.x * 100).toFixed(2)}%`, top: `${(b.y * 100).toFixed(2)}%` }}
             alt=""
           />
