@@ -398,18 +398,30 @@ phone, low-pass filtered, sampled at device rate, acted on at ≤ 60 Hz.
 steer never leaves the phone at all (§2.2). Permission is requested from a tap
 in the lobby, never on arrival (§2 of the same doc).
 
-**Fallback (mandatory, [AGENTS.md](../../../AGENTS.md) §4 — degrade, never
-dead-end):** a **virtual stick** — hold anywhere on the corridor and the ship
-follows your thumb's offset from where you touched down, released back to
-centre when you let go. Two axes rule out Neon Fall's two held zones, and
-drag-to-steer is the documented default fallback for orientation
-(device-capabilities §7). The two buttons stay where they are, so the fallback
-grip is stick-left, buttons-right.
+**There is no fallback, and that is a decision rather than an omission.** This
+game shipped with a virtual stick — hold anywhere on the corridor, drag, the
+ship follows your thumb — and it has been removed. The maintainer's call, on
+2026-09-05: a stick is a *different game*. Tilt is a continuous two-axis
+attitude you hold; a thumb dragging on the same surface the ship is drawn on
+covers the corridor you are trying to read, and reads as a lesser version of
+the thing it stands in for rather than an equal way in. Asteroid Race joins
+Steady Hand, Shake Rush and UFO Hunt as a game that names who it excludes
+instead of shipping a fallback it does not believe in — the exception
+[AGENTS.md](../../../AGENTS.md) §4 now records by name.
+
+So **tilt is asked for by Ready, or by Start for the host** (§2 rule 3 of
+device-capabilities, [issue #29](https://github.com/VincentGuigui/FonyGames/issues/29)),
+and a refusal **blocks**, the way UFO Hunt's does. There is deliberately no
+spectator seat: unlike Steady Hand, where watching other people's meters is a
+real thing to do, every run here is flown locally, so a player without tilt
+would not be watching a race — they would be flying straight into the first
+rock. Blocking says that once; letting them in says it five times and then
+shows them a result screen.
 
 | Missing | Behaviour |
 | --- | --- |
-| Orientation denied / unavailable | The virtual stick, in the same round with the same field — nothing structural is lost |
-| Touch | Impossible; the buttons and the fallback both need it |
+| Orientation denied / unavailable | Ready and Start block, with the reason in the lobby panel and a Try again — there is no way into the round without tilt |
+| Touch | Impossible; the boost and missile buttons need it |
 
 ### 5b. The numbers, and what each one is for
 
@@ -533,7 +545,7 @@ tick that may not come (the `tiles-report` closing-frame lesson,
 | A player disconnects mid-race | Their run freezes at its last report and is marked `away`; the race continues. They rejoin to the same distance and the same lives — the field is a pure function of `roundId`, so it is still there for them |
 | A player refreshes mid-race | Same seat, same distance, same lives. The ship resumes where the last report left it, not where the phone had got to — the difference is at most `ASTEROID_REPORT_MS` |
 | Tab backgrounded | `requestAnimationFrame` stops, so the run genuinely stops (sling-puck.md §9 documents the same). No progress is banked: a report may only ever claim `ASTEROID_AWAY_MS` of flying (§8), so a phone that was away for a minute cannot arrive at the line on its return |
-| Orientation denied | The virtual stick (§5), same race, same field |
+| Orientation denied | No way in: Ready and Start block, with the reason and a Try again in the lobby (§5) |
 | Everyone runs out of lives before the line | The furthest wins, on the distance they died at. Nobody finishing is a legitimate result, not a void round |
 | The 120 s cap arrives | The furthest wins. A tie at the top is an unranked tie, the convention every other game's cap already uses |
 | Two players cross within a round-trip of each other | The first report to arrive takes it (§6). The other keeps its own distance and its own place |
@@ -595,9 +607,11 @@ memory only, for the life of the round; nothing is stored.
 
 ## 11. Accessibility
 
-- **The stick fallback is a real one** (§5): the same race, the same field,
-  two axes of control. A player who cannot tilt a phone loses the feel and
-  nothing else.
+- **There is no stick fallback, and the lobby says so before anyone starts**
+  (§5). This is the accessibility cost of the 2026-09-05 decision, stated
+  rather than hidden: a player who cannot tilt their phone cannot fly this
+  one at all. The stick that used to stand in for tilt was removed with the
+  reasoning recorded in §5, not lost by accident.
 - **Lives are pips and a number**, and the ladder names positions in text
   ("2nd of 4") — never a colour or a bar alone.
 - **The danger halo pulses as well as reddens**, and thickens as the rock
@@ -632,16 +646,14 @@ Still open:
    — inside the ~1.75 s of clear air plus whatever they saw coming. The
    autopilot does it comfortably; a person may need the gate telegraphed more
    loudly than "the tube empties".
-3. **Does the fallback stick compete with the buttons?** Tilt leaves both
-   thumbs free. The stick takes one, and the two buttons want the other.
-4. **Is `PITCH_SENSITIVITY_DEG` right for a phone held at a table?** Pitch is
+3. **Is `PITCH_SENSITIVITY_DEG` right for a phone held at a table?** Pitch is
    calibrated against however it is held, but the comfortable *range* around
    that pose is much smaller than roll's.
-5. **Should a boost be usable while stunned**, buying back some of the second
+4. **Should a boost be usable while stunned**, buying back some of the second
    it costs? Built as no.
-6. **A ladder strip, or full lanes?** Built as the shared `Scoreboard`. If it
+5. **A ladder strip, or full lanes?** Built as the shared `Scoreboard`. If it
    reads as an afterthought, the corridor may have to give up some height.
-7. **Is `ASTEROID_RECENTER_MS` the right speed for arm fatigue to fade a held
+6. **Is `ASTEROID_RECENTER_MS` the right speed for arm fatigue to fade a held
    tilt?** Picked from a simulated hold at real device event rates rather than
    a table read (§5), which is more than the other guesses in this list got,
    but the simulation cannot feel whether 20 s reads as sluggish or as

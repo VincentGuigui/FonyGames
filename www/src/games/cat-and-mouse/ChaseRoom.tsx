@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
 import {
-  CM_LIVES,
   CM_MAX_PLAYERS,
   CM_MIN_PLAYERS,
   type ServerMessage,
@@ -15,7 +14,7 @@ import { GameLobby } from '../../lobby/GameLobby';
 import { ChaseBoard } from './ChaseBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { CatMouseGame } from './game';
 
 /**
@@ -172,7 +171,6 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
       canStart={room.isHost && enoughToStart(room.connected, [CM_MIN_PLAYERS, CM_MAX_PLAYERS], solo)}
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'chase', drag, solo } })}
-      note={note(room.isHost, room.connected, solo, text)}
       playerTag={(id) => {
         const a = state?.actors.find((q) => q.playerId === id);
         if (!a) return null;
@@ -196,13 +194,6 @@ function ChaseRoomInner({ game: card, code }: { game: GameCard; code: string }):
       }
     />
   );
-}
-
-function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
-  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
-  if (!solo && connected < CM_MIN_PLAYERS) return text({ en: 'Waiting for one more…', fr: 'En attente d’un joueur…' });
-  if (connected > CM_MAX_PLAYERS) return text({ en: `Cat and Mouse is ${CM_MIN_PLAYERS}–${CM_MAX_PLAYERS} players.`, fr: `Cat and Mouse se joue de ${CM_MIN_PLAYERS} à ${CM_MAX_PLAYERS} joueurs.` });
-  return text({ en: `One cat, ${CM_LIVES} lives each. Survive the clock and the mice win.`, fr: `Un chat, ${CM_LIVES} vies chacun. Si elles tiennent jusqu’au bout, les souris gagnent.` });
 }
 
 /**

@@ -30,7 +30,7 @@ import { bearingDeg, saucerAt, scopeHeat, screenSpot } from './scope';
 import { UfoScreen, type GifBurst, type GifBurstKind } from './UfoScreen';
 import { startCamera, type Camera } from './camera';
 import { armLaserAudio, playExplosion, playLaser, playMissile } from './laser';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 
 /**
  * UFO Hunt's room screen. Spec: docs/specs/games/ufo-hunt.md
@@ -397,7 +397,6 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
       onStart={again}
       onBeforeReady={ensureRequired}
       readyBlocked={readyBlocked}
-      note={note(room.isHost, room.connected, orientationOn, cameraOn, solo, text)}
       aside={
         <p class="howto__warn" role="note">
           {text({ en: "Feet planted, turn slowly, and keep an arm's length from the furniture and from each other — the screen is not a window, and you cannot see the floor in it.", fr: 'Gardez les pieds au sol, tournez lentement et restez à une longueur de bras des meubles et des autres — l’écran n’est pas une fenêtre et vous ne voyez pas le sol.' })}
@@ -489,22 +488,4 @@ function UfoPrimer({
         : text({ en: 'Tap Ready and your phone will ask for both.', fr: 'Touchez Prêt et votre téléphone vous demandera les deux.' })}`}
     />
   );
-}
-
-function note(
-  isHost: boolean,
-  connected: number,
-  orientationOn: boolean,
-  cameraOn: boolean,
-  solo: boolean,
-  text: GameText,
-): string {
-  if (!solo && connected < UFOHUNT_MIN_PLAYERS) {
-    const missing = UFOHUNT_MIN_PLAYERS - connected;
-    return text({ en: `Need ${missing} more player${missing === 1 ? '' : 's'} — one saucer needs more than one shooter.`, fr: `Il manque ${missing} joueur${missing === 1 ? '' : 's'} — une soucoupe seule ne suffit pas.` });
-  }
-  if (connected > UFOHUNT_MAX_PLAYERS) return text({ en: `${UFOHUNT_MAX_PLAYERS} players is the most this one takes.`, fr: `${UFOHUNT_MAX_PLAYERS} joueurs maximum.` });
-  if (!isHost) return text({ en: 'The host starts the hunt.', fr: 'L’hôte démarre la chasse.' });
-  if (!orientationOn || !cameraOn) return text({ en: 'Camera and motion are asked for when you start.', fr: 'La caméra et le mouvement seront demandés au démarrage.' });
-  return text({ en: 'Face the way you want to call forward, then start.', fr: 'Tournez-vous dans la direction qui sera devant, puis démarrez.' });
 }

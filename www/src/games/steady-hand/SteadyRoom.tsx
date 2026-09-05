@@ -18,7 +18,7 @@ import { applySteady, type SteadyState } from './game';
 import { SteadyScreen } from './SteadyScreen';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { PermissionPrimer } from '../../core/ui/PermissionPrimer';
 
 /**
@@ -197,7 +197,6 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'steady', solo } })}
       onBeforeReady={ensureMotion}
-      note={note(room.isHost, room.connected, motionOn, motionAsked, solo, text)}
       playerTag={(id) => {
         if (!state) return null;
         if (state.winner === id) return text({ en: 'won', fr: 'gagnant' });
@@ -277,17 +276,4 @@ function MotionPrimer({
         ? text({ en: 'Start the round and your phone will ask.', fr: 'Démarrez la manche et votre téléphone vous le demandera.' })
         : text({ en: 'Tap Ready and your phone will ask.', fr: 'Touchez Prêt et votre téléphone vous le demandera.' })}`} />
   );
-}
-
-function note(isHost: boolean, connected: number, motionOn: boolean, motionAsked: boolean, solo: boolean, text: GameText): string {
-  if (!solo && connected < STEADY_MIN_PLAYERS) {
-    const missing = STEADY_MIN_PLAYERS - connected;
-    return text({ en: `Need ${missing} more player${missing === 1 ? '' : 's'} — being still alone proves nothing.`, fr: `Il manque ${missing} joueur${missing === 1 ? '' : 's'} — rester immobile seul ne prouve rien.` });
-  }
-  if (connected > STEADY_MAX_PLAYERS) return text({ en: `${STEADY_MAX_PLAYERS} players is the most this one takes.`, fr: `${STEADY_MAX_PLAYERS} joueurs maximum.` });
-  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
-  // Only once a refusal is a fact: before that, starting IS how the meter gets asked
-  // for, so telling the host to turn it on first would be pointing at nothing.
-  if (motionAsked && !motionOn) return text({ en: 'No meter on this phone — start anyway and watch.', fr: 'Pas de jauge sur ce téléphone — démarrez quand même pour regarder.' });
-  return text({ en: 'Arms out. It gets harder the longer it goes on.', fr: 'Bras tendus. La difficulté augmente avec le temps.' });
 }

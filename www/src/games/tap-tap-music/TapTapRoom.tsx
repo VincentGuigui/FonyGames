@@ -13,7 +13,7 @@ import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { useSoloTesting } from '../../core/useSolo';
 import { SoundToggle, TapTapBoard } from './TapTapBoard';
 import { TapTapGame, formatClock } from './game';
@@ -172,18 +172,6 @@ function TapTapRoomInner({ game: card, code }: { game: GameCard; code: string })
       canStart={room.isHost && enoughToStart(room.connected, limits, solo)}
       startLabel={state ? t.common.playAgain : text({ en: 'Start the board', fr: 'Démarrer le plateau' })}
       onStart={() => client?.send({ t: 'start', d: { mode: 'taptap', solo } })}
-      note={note(room.isHost, room.connected, solo, text)}
     />
   );
-}
-
-function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
-  if (!solo && connected < TAPTAP_MIN_PLAYERS) return text({ en: 'Waiting for one more player…', fr: 'En attente d’un joueur supplémentaire…' });
-  if (connected > TAPTAP_MAX_PLAYERS) {
-    return text({ en: `Tap Tap Music is ${TAPTAP_MIN_PLAYERS}–${TAPTAP_MAX_PLAYERS} players.`, fr: `Tap Tap Music se joue de ${TAPTAP_MIN_PLAYERS} à ${TAPTAP_MAX_PLAYERS} joueurs.` });
-  }
-  if (!isHost) return text({ en: 'The host starts the board.', fr: "L’hôte démarre le plateau." });
-  // The host is ready to start and the "How to play" panel already covers the
-  // mechanic (card.ts's concept + rules) — nothing left worth a second note.
-  return '';
 }

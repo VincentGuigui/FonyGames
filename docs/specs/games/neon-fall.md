@@ -2,8 +2,9 @@
 
 > Status: **live**. Built on a plain `<canvas>` — the PixiJS question in §13
 > was measured, not estimated, and the answer was no — and verified end to
-> end in the browser: lobby, seat picker, tilt primer and its tap-zone
-> fallback, the canvas round, both win paths, and the results screen.
+> end in the browser: lobby, seat picker, tilt primer, the canvas round, both
+> win paths, and the results screen. The tap-zone fallback that verification
+> covered was removed on 2026-09-05 (§5).
 
 | | |
 | --- | --- |
@@ -179,16 +180,28 @@ Mosquitoes' always-mounted cells rather than one canvas hit-testing five
 zones by hand, for the same free accessibility win (native tap targets,
 `aria-label` per lane, no hand-rolled hit-testing).
 
-**Fallback (mandatory, [AGENTS.md](../../../AGENTS.md) §4 — degrade, never
-dead-end):** if orientation permission is denied or unavailable, the glider
-gets two large held zones, left and right half of their own screen. As
-built this is a **hold**, not a discrete tap-to-step: a held zone drives the
-same continuous −1..1 intent tilt does, at the same lane speed, and releasing
-it centres the stick exactly like levelling the phone would. That is a
-better match for what it is standing in for than a discrete step would have
-been — the *feel* of tilting is lost, the lane-to-lane mechanic is not.
-Permission is requested from a tap in the lobby, never on arrival, per
-[device-capabilities.md](../../device-capabilities.md) §2.
+**There is no fallback, and that is a decision rather than an omission.** This
+game shipped with two large held zones for the glider — left and right half of
+their own screen, driving the same continuous −1..1 intent — and they have been
+removed. The maintainer's call, on 2026-09-05: the *feel* of tilting is the
+game, and a held zone kept the lane-to-lane mechanic while losing it. Neon Fall
+joins Steady Hand, Shake Rush, UFO Hunt and Asteroid Race as a game that names
+who it excludes instead of shipping a fallback it does not believe in — the
+exception [AGENTS.md](../../../AGENTS.md) §4 now records by name.
+
+**Tilt is asked for by Ready, or by Start for the host**
+([device-capabilities.md](../../device-capabilities.md) §2 rule 3,
+[issue #29](https://github.com/VincentGuigui/FonyGames/issues/29)), never on
+arrival — and a refusal **blocks**, for both seats. Both, not just the glider's,
+and that is the awkward part worth stating: the protector never tilts, so in
+principle a phone with no orientation could hold that seat perfectly well. But
+the host can swap the seats (§4), so a player who refused as protector would be
+handed the glider with nothing to fly it with. Blocking both is the honest
+version of a game where either player might end up needing it.
+
+| Missing | Behaviour |
+| --- | --- |
+| Orientation denied / unavailable | Ready and Start block for that phone, either seat, with the reason in the lobby panel and a Try again |
 
 ## 6. Networking
 
@@ -199,7 +212,7 @@ never the outcome.
 
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
-| `neon-steer` | glider → server | `{roundId, steer}` (−1..1) | Calibrated, filtered tilt (or held tap zone) intent, sent every tick regardless of change |
+| `neon-steer` | glider → server | `{roundId, steer}` (−1..1) | Calibrated, filtered tilt intent, sent every tick regardless of change |
 | `neon-shoot` | protector → server | `{roundId, lane}` (0–4) | A trigger tap; the server checks that lane's own cooldown and the shared `NEON_MAX_BOLTS` cap itself |
 | `neon` | server → both | `{roundId, startsAt, endsAt, gliderId, protectorId, lane, y, lives, bounceUntil, laneReadyAt, bolts, winner, phase}` | The whole round, every tick — same call as `GridState`/`SquashState`: small enough to send whole, so there is nothing to diff. `laneReadyAt` is five server times, one per lane, replacing the old shared `ammo`/`cooldownUntil` pair |
 
@@ -262,9 +275,12 @@ never a position. Room memory only, for the life of the round.
 
 ## 11. Accessibility
 
-- **The tilt fallback is real, not a token one** (§5): two held zones drive
-  the same eased lane-to-lane movement tilting does. A player who cannot or
-  would rather not tilt their phone loses nothing structural.
+- **There is no tilt fallback, and the lobby says so before anyone starts**
+  (§5). This is the accessibility cost of the 2026-09-05 decision, stated
+  rather than hidden: a player who cannot tilt their phone cannot take either
+  seat in this game. The protector's own controls are five real buttons with
+  per-lane labels, so the seat itself is reachable — it is the seat swap that
+  makes tilt a requirement for both.
 - Lives are **numbers as well as pips** — never colour or count alone; the
   protector's own in-flight count (§4) is likewise plain text.
 - The glider and the bolts differ in **shape as well as colour** (a

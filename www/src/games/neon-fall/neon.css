@@ -30,8 +30,7 @@
 }
 
 .neon__hud,
-.neon__triggers,
-.neon__tapzones {
+.neon__triggers {
   grid-column: 1;
   z-index: 1;
 }
@@ -80,23 +79,4 @@
   height: 0.9rem;
   border-radius: 999px;
   background: #f72585;
-}
-
-/* The glider's fallback when tilt is unavailable: two large held zones, left
-   and right half of the screen, sitting UNDER the canvas visually — they are
-   the whole lower two-thirds of the play surface, not a bottom bar, so the
-   glider always has a thumb-sized target no matter where it drifted to. */
-.neon__tapzones {
-  grid-row: 1 / -1;
-  position: relative;
-  display: flex;
-  pointer-events: none;
-}
-
-.neon__tapzone {
-  pointer-events: auto;
-  flex: 1;
-  border: none;
-  background: transparent;
-  padding: 0;
 }

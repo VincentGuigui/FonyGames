@@ -17,7 +17,7 @@ import { GameOverScreen } from '../../core/ui/GameOver';
 import { PermissionPrimer } from '../../core/ui/PermissionPrimer';
 import { orientationSupport, requestOrientation, type OrientationSupport } from '../../core/sensors/orientation';
 import { useT } from '../../core/i18n/strings';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { useSoloTesting } from '../../core/useSolo';
 import { ASTEROID_EXPLOSION_GIF_MS, ASTEROID_FINALE_HOLD_MS, ASTEROID_IMPACT_GIF_MS } from './game';
 import { AsteroidCanvas, type Report } from './AsteroidCanvas';
@@ -113,10 +113,24 @@ function AsteroidRoomInner({ game: card, code }: { game: GameCard; code: string 
     [addBurst],
   );
 
-  const enableTilt = useCallback(() => {
+  const enableTilt = useCallback(async (): Promise<boolean> => {
     setTiltAsked(true);
-    void requestOrientation().then((granted) => setTiltOn(granted));
+    const granted = await requestOrientation();
+    setTiltOn(granted);
+    return granted;
   }, []);
+
+  /**
+   * What Ready and Start hang the tilt on. There is no stick to fall back to any
+   * more (spec §5), so a refusal really does swallow the tap: a ship nobody can
+   * steer is not a way to be in the round, it is a way to fly straight into the
+   * first rock. UFO Hunt's shape, for UFO Hunt's reason.
+   */
+  const ensureTilt = useCallback(async (): Promise<boolean> => {
+    if (tiltOn) return true;
+    if (support === 'unsupported') return false;
+    return enableTilt();
+  }, [tiltOn, support, enableTilt]);
 
   const players = room.room?.players ?? [];
   const nameOf = (id: string): string => players.find((p) => p.id === id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' });
@@ -144,6 +158,9 @@ function AsteroidRoomInner({ game: card, code }: { game: GameCard; code: string 
     return (
       <GameOverScreen
         room={room}
+        readyBlocked={support === 'unsupported' || (tiltAsked && !tiltOn)}
+        onReadySetup={() => void enableTilt()}
+        onBeforeReady={ensureTilt}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
@@ -191,7 +208,6 @@ function AsteroidRoomInner({ game: card, code }: { game: GameCard; code: string 
         />
         <AsteroidCanvas
           roundId={state.roundId}
-          tilt={tiltOn}
           onReport={sendReport}
           onHit={onHit}
           onDestroyed={onDestroyed}
@@ -224,39 +240,55 @@ function AsteroidRoomInner({ game: card, code }: { game: GameCard; code: string 
       canStart={room.isHost && enoughToStart(room.connected, [ASTEROID_MIN_PLAYERS, ASTEROID_MAX_PLAYERS], solo)}
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'asteroid', solo } })}
-      note={note(room.isHost, room.connected, text)}
-      readyBlocked={support !== 'unsupported' && !tiltAsked}
-      extras={<TiltPrimer support={support} on={tiltOn} asked={tiltAsked} onEnable={enableTilt} />}
+      readyBlocked={support === 'unsupported' || (tiltAsked && !tiltOn)}
+      onBeforeReady={ensureTilt}
+      extras={<TiltPrimer support={support} on={tiltOn} asked={tiltAsked} isHost={room.isHost} onEnable={() => void enableTilt()} />}
     />
   );
 }
 
 /**
- * The tilt primer, and the honest fallback: refused tilt is not a dead end, it
- * is a virtual stick on the board itself (spec §5). Two axes are why this game
- * cannot reuse Neon Fall's pair of held zones.
+ * The tilt explanation, and the honest version of a refusal.
+ *
+ * There is no stick behind this any more (spec §5): tilt is the only way to fly,
+ * so the panel has no button before the first ask — Ready and Start do that
+ * (issue #29) — and offers Try again after a refusal, which is the one re-ask
+ * device-capabilities.md §2 allows.
  */
 function TiltPrimer({
   support,
   on,
   asked,
+  isHost,
   onEnable,
 }: {
   support: OrientationSupport;
   on: boolean;
   asked: boolean;
+  isHost: boolean;
   onEnable: () => void;
 }): JSX.Element {
   const text = useGameText();
   const heading = text({ en: 'Tilt to fly', fr: 'Incliner pour voler' });
 
-  if (support === 'unsupported' || (asked && !on)) {
-    return <PermissionPrimer heading={heading} body={`${support === 'unsupported'
-      ? text({ en: 'This phone has no tilt sensor.', fr: 'Ce téléphone n’a pas de capteur d’inclinaison.' })
-      : text({ en: 'Tilt was turned down.', fr: 'L’accès à l’inclinaison a été refusé.' })} ${text({
-      en: 'You will fly with a stick instead — hold anywhere on the board and drag.',
-      fr: 'Vous piloterez avec un stick — maintenez n’importe où sur l’écran et glissez.',
-    })}`} />;
+  if (support === 'unsupported') {
+    return <PermissionPrimer heading={heading} body={text({
+      en: 'This phone has no tilt sensor, so there is nothing to fly the ship with — Asteroid Race cannot run here.',
+      fr: 'Ce téléphone n’a pas de capteur d’inclinaison, donc rien pour piloter le vaisseau — Asteroid Race ne peut pas fonctionner ici.',
+    })} />;
+  }
+
+  if (asked && !on) {
+    return (
+      <PermissionPrimer
+        heading={heading}
+        body={text({
+          en: 'Tilt was turned down, and it is the only way to fly this one — there is no stick and no tap version, so the ship has nothing to steer with.',
+          fr: 'L’inclinaison a été refusée, et c’est la seule façon de piloter — il n’y a ni stick ni version tactile, le vaisseau n’a donc rien pour se diriger.',
+        })}
+        action={{ label: text({ en: 'Try again', fr: 'Réessayer' }), onClick: onEnable }}
+      />
+    );
   }
 
   if (on) {
@@ -269,18 +301,12 @@ function TiltPrimer({
   return (
     <PermissionPrimer
       heading={heading}
-      body={text({
+      body={`${text({
         en: 'Tilting flies the ship. Nothing is recorded — the tilt never leaves your phone at all, only how far down the track you have got.',
         fr: 'L’inclinaison pilote le vaisseau. Rien n’est enregistré — l’inclinaison ne quitte jamais votre téléphone, seule votre distance est transmise.',
-      })}
-      action={{ label: text({ en: 'Turn on tilt', fr: 'Activer l’inclinaison' }), onClick: onEnable }}
+      })} ${isHost
+        ? text({ en: 'Start the round and your phone will ask.', fr: 'Démarrez la manche et votre téléphone vous le demandera.' })
+        : text({ en: 'Tap Ready and your phone will ask.', fr: 'Touchez Prêt et votre téléphone vous le demandera.' })}`}
     />
   );
-}
-
-function note(isHost: boolean, connected: number, text: GameText): string {
-  if (connected > ASTEROID_MAX_PLAYERS) return text({ en: 'Asteroid Race is up to 8 players.', fr: 'Asteroid Race se joue jusqu’à 8 joueurs.' });
-  if (!isHost) return text({ en: 'The host starts the race.', fr: "L’hôte démarre la course." });
-  if (connected === 1) return text({ en: 'Alone, this is a time trial — the field is the same every time it is dealt.', fr: 'Seul, c’est un contre-la-montre — le champ est le même pour tous.' });
-  return text({ en: 'Everyone flies the same asteroid field. First one through wins.', fr: 'Tout le monde traverse le même champ d’astéroïdes. Le premier arrivé gagne.' });
 }

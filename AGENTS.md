@@ -110,7 +110,15 @@ Nothing outside those ships. Nothing outside `docs/` documents.
   game's spec, share the same core loop, and are pickable in the game lobby.
 - **Rounds are short.** Target 30 s – 3 min per round. Fun beats depth.
 - **Degrade, never dead-end.** If a sensor or permission is unavailable, offer
-  a touch-based fallback or say clearly why the game can't run.
+  a touch-based fallback or say clearly why the game can't run. Five games take
+  the second branch on purpose, and the list is closed unless the maintainer
+  adds to it: **Steady Hand**, **Shake Rush**, **UFO Hunt**, **Asteroid Race**
+  and **Neon Fall**. Each is one physical act — holding a phone still, shaking
+  it, pointing it at your own sky, flying it — where the touch version is a
+  different, lesser game rather than the same one played another way. They say
+  who they exclude, in the lobby, before anyone starts. A sixth needs a reason
+  that good, and the permission is then asked for by Ready/Start rather than by
+  a button of its own ([docs/device-capabilities.md](./docs/device-capabilities.md) §2).
 
 ---
 
