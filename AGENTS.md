@@ -90,6 +90,11 @@ Nothing outside those ships. Nothing outside `docs/` documents.
    [docs/conventions/code-style.md](./docs/conventions/code-style.md). Comments in
    CSS and client-side code stay to a line or two of *why*; a design walkthrough
    belongs in the game's spec or the commit message, not the source file.
+5. **Never run computer vision on a user-provided image without asking
+   first.** Cropping, OCR, edge/colour analysis or any other automated
+   inspection of an attached image needs an explicit yes before it runs — read
+   what it shows by eye, or ask the user directly, instead of reaching for a
+   script.
 
 ---
 
