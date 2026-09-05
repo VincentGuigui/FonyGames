@@ -123,7 +123,7 @@ export function AsteroidCanvas({ roundId, tilt, onReport, onHit, onDestroyed, on
         }
       }
 
-      draw(ctx, run, stars, view, { x: steerX, y: steerY });
+      draw(ctx, run, stars, view);
 
       // The HUD, written straight into the DOM — no Preact re-render.
       if (run.lives !== shownLives && pipsRef.current) {

@@ -365,6 +365,32 @@ observed. `steer.test.ts` pins the exact scenario (`calibrate()` before
 `sample()`, then a sample at the ordinary upright pose) and asserts the
 result reads centred, not pegged.
 
+**A third problem was not a bug, just the shape of a one-time calibration.**
+`calibrate()` still only ever runs once, at the rules panel — and a flight
+stick is held for a whole race, not a couple of seconds. However the hand
+happens to be resting thirty seconds in, "centre" is still whatever angle the
+phone was at during the rules panel, so the only way back to a level ship is
+to physically return to that exact original angle. `steerFilter` now takes an
+optional `recenterMs`: with it set, the reference itself creeps toward
+wherever the phone actually is, exponentially, at real elapsed time rather
+than per sample (`sample(gamma, dtMs)` — the same `dtMs` shape
+`AsteroidRun.step` already takes, so the filter stays deterministic and
+testable rather than reading a clock itself). `steer2Filter` is the only
+caller that passes one in (`ASTEROID_RECENTER_MS`, §5b) — Neon Fall's own
+`trackSteer` leaves it at the default of 0, a permanently fixed reference,
+because a lane game's whole feel is banking against one. This does not drive
+the hull back to the middle of the tube by itself — nothing pushes it there
+without a tilt — it only means a phone that has drifted stops reading a
+phantom steer it never intended, so the next small correction from wherever
+the hand actually is now works, instead of demanding a trip back to a
+several-seconds-stale angle. `steer.test.ts` proves the shape of it: driven
+by realistic ~60 Hz samples (a single giant `dtMs` does not behave like the
+same span of real device events, because `SMOOTHING` still only ever moves
+the filtered output a fixed fraction per call — the test drives both
+constants together rather than either in isolation), a two-second held tilt
+loses less than a fifth of its deflection, and the same tilt held for a whole
+race reads as centred by the finish.
+
 Following [../../device-capabilities.md](../../device-capabilities.md) §4
 exactly: calibrated at round start against however the player is holding the
 phone, low-pass filtered, sampled at device rate, acted on at ≤ 60 Hz.
@@ -441,6 +467,7 @@ these, §8):
 | `ASTEROID_FOCAL` | 2.4 | Field of view, in board widths per unit at unit distance |
 | `ASTEROID_HORIZON` | 0.42 | The vanishing point, as a fraction of board height |
 | `PITCH_SENSITIVITY_DEG` | 22 | A little coarser than roll's 20, since resting pitch drifts more. Was 30, which needed a tip so large that climbing read as not working |
+| `ASTEROID_RECENTER_MS` | 20000 | A held tilt's half-life back toward "centred". Picked so a 2 s gate answer barely erodes but a whole race's worth of drift is ~95% gone by the finish |
 
 ## 6. Networking
 
@@ -614,6 +641,11 @@ Still open:
    it costs? Built as no.
 6. **A ladder strip, or full lanes?** Built as the shared `Scoreboard`. If it
    reads as an afterthought, the corridor may have to give up some height.
+7. **Is `ASTEROID_RECENTER_MS` the right speed for arm fatigue to fade a held
+   tilt?** Picked from a simulated hold at real device event rates rather than
+   a table read (§5), which is more than the other guesses in this list got,
+   but the simulation cannot feel whether 20 s reads as sluggish or as
+   twitchy on an actual arm.
 
 ## 13. Rendering: plain `<canvas>`, and where the maths lives
 
@@ -651,14 +683,23 @@ one of the 25 frames straight out of it with `drawImage`'s source rect (the
 same technique Tap Fighter's own runtime sheets use,
 [illustrations.md](../../design/illustrations.md) §4) — no `art()` rasteriser,
 since that helper caches one whole image per size bucket and a sheet needs a
-sub-rectangle instead. Steering only ever chooses *which* frame: column from
-`steerX`, row from `steerY`, each rounded to the nearest of five steps, so the
-bank the spec always described in prose (§4) is 25 real poses rather than a
-single static hull. Column 0 is the sheet's own "viewed from the right" pose
-and column 4 its "viewed from the left" (row 0 "from above", row 4 "from
-below"); steering right or climbing walks toward the higher index on both
-axes. **Untested on a real thumb** (§12): if a bank reads backwards in the
-hand, `shipFrame()` in `render.ts` is the one place to flip it.
+sub-rectangle instead. Column 0 is the sheet's own "viewed from the right"
+pose and column 4 its "viewed from the left" (row 0 "from above", row 4 "from
+below"); a hull offset to the right or toward the tube's own "up" walks
+toward the higher index on both axes. **Untested on a real thumb** (§12): if
+a bank reads backwards in the hand, `shipFrame()` in `render.ts` is the one
+place to flip it.
+
+**The frame comes from `run.x`/`run.y`, not from `steerX`/`steerY`.** The
+first build picked the frame straight off the instantaneous tilt, which reads
+wrong the moment a player holds a hard tilt after the hull has already
+stopped at the wall: the pose stays pinned at the sheet's own edge for as
+long as the phone stays tilted, long after there is nowhere further to lean.
+Reading the hull's own bounded offset (`±ASTEROID_REACH`) instead ties the
+pose to where the ship actually is, which is also the only sensible anchor
+once the reference itself can drift (below): a frame driven by raw tilt would
+show a hard bank forever, even after `recenterMs` had already faded that tilt
+back to reading as centred and the hull had stopped drifting.
 
 **The hub card is generated, not hand-drawn, for the same reason the ship
 stopped being a static vector shape.** `generate-card.mjs` crops one fixed
@@ -722,5 +763,7 @@ not:
   pinned against what the camera actually does with them (§5), the `destroyed`
   event firing exactly once at the ship's own position rather than the rock's,
   and §13.1's twelve races. Registered as `npm run test:asteroid-ui`.
-- `www/src/core/sensors/steer.test.ts` gains the two-axis filter's own checks,
-  and the exact calibration-race scenario described in §5 above.
+- `www/src/core/sensors/steer.test.ts`, 27 checks: the two-axis filter, the
+  exact calibration-race scenario, and `recenterMs` (§5) — a fixed reference
+  when it is 0, a held tilt eroding over realistic ~60 Hz samples when it
+  isn't, a two-second hold barely touched, and both axes recentring together.
