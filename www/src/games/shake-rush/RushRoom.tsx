@@ -182,6 +182,18 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     void tune.arm();
   }
 
+  /**
+   * What Ready and Start hang the permission on. Always resolves true: a refusal is a
+   * spectator seat here, not a locked door (spec §5), so it must not swallow the tap
+   * — and asking a second time would spend the one re-ask device-capabilities.md §2
+   * allows on somebody who has already said no.
+   */
+  async function ensureMotion(): Promise<boolean> {
+    if (motionAsked || support === 'unsupported') return true;
+    await enableMotion();
+    return true;
+  }
+
   const again = (): void => client?.send({ t: 'start', d: { mode: 'rush', solo } });
   const enoughPlayers = enoughToStart(room.connected, [RUSH_MIN_PLAYERS, RUSH_MAX_PLAYERS], solo);
 
@@ -201,8 +213,7 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         sound={sound}
         onSound={setSound}
         room={room}
-        readyBlocked={support !== 'unsupported' && !motionAsked}
-        onReadySetup={enableMotion}
+        onBeforeReady={ensureMotion}
       />
     );
   }
@@ -220,8 +231,8 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       canStart={room.isHost && enoughPlayers}
       startLabel={text({ en: 'Start the race', fr: 'Démarrer la course' })}
       onStart={again}
-      readyBlocked={support !== 'unsupported' && !motionAsked}
-      note={note(room.isHost, room.connected, motionOn, solo, text)}
+      onBeforeReady={ensureMotion}
+      note={note(room.isHost, room.connected, motionOn, motionAsked, solo, text)}
       extras={
         <>
           {/*
@@ -244,7 +255,7 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
             support={support}
             on={motionOn}
             asked={motionAsked}
-            onEnable={enableMotion}
+            isHost={room.isHost}
           />
         </>
       }
@@ -253,22 +264,26 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
 }
 
 /**
- * The permission primer, and the honest version of a refusal.
+ * The permission explanation, and the honest version of a refusal.
  *
- * Never auto-requested: a prompt before the player knows what the game is gets
- * denied, and on iOS a denial is remembered, so asking early spends the
- * permission for good (docs/device-capabilities.md §2).
+ * No button of its own: this game has no fallback, so Ready or Start fires the
+ * prompt instead (the file docblock, issue #29) — including the `tune.arm()` that
+ * rides the same gesture. The panel stays and still arrives first, because a player
+ * reading what the sensor is for BEFORE the system prompt lands is the part of
+ * device-capabilities.md §2 that was ever load-bearing. Never auto-requested either:
+ * a prompt before the player knows what the game is gets denied, and on iOS a denial
+ * is remembered, so asking early spends the permission for good.
  */
 function MotionPrimer({
   support,
   on,
   asked,
-  onEnable,
+  isHost,
 }: {
   support: MotionSupport;
   on: boolean;
   asked: boolean;
-  onEnable: () => void;
+  isHost: boolean;
 }): JSX.Element {
   const text = useGameText();
   const heading = text({ en: 'Shaking', fr: 'Secouer' });
@@ -293,19 +308,22 @@ function MotionPrimer({
   return (
     <PermissionPrimer
       heading={heading}
-      body={text({ en: "Counting your shakes needs permission to read the phone's motion. Nothing is recorded — the only thing sent is a count, a few times a second, never the readings themselves.", fr: 'Compter les secousses nécessite l’accès au mouvement du téléphone. Rien n’est enregistré — seul un nombre est envoyé quelques fois par seconde, jamais les mesures.' })}
-      action={{ label: text({ en: 'Turn on shake detection', fr: 'Activer la détection' }), onClick: onEnable }}
+      body={`${text({ en: "Counting your shakes needs permission to read the phone's motion. Nothing is recorded — the only thing sent is a count, a few times a second, never the readings themselves.", fr: 'Compter les secousses nécessite l’accès au mouvement du téléphone. Rien n’est enregistré — seul un nombre est envoyé quelques fois par seconde, jamais les mesures.' })} ${isHost
+        ? text({ en: 'Start the race and your phone will ask.', fr: 'Démarrez la course et votre téléphone vous le demandera.' })
+        : text({ en: 'Tap Ready and your phone will ask.', fr: 'Touchez Prêt et votre téléphone vous le demandera.' })}`}
     />
   );
 }
 
-function note(isHost: boolean, connected: number, motionOn: boolean, solo: boolean, text: GameText): string {
+function note(isHost: boolean, connected: number, motionOn: boolean, motionAsked: boolean, solo: boolean, text: GameText): string {
   if (!solo && connected < RUSH_MIN_PLAYERS) {
     const missing = RUSH_MIN_PLAYERS - connected;
     return text({ en: `Need ${missing} more player${missing === 1 ? '' : 's'} — a race of one is just shaking.`, fr: `Il manque ${missing} joueur${missing === 1 ? '' : 's'} — seul, ce n’est pas une course.` });
   }
   if (connected > RUSH_MAX_PLAYERS) return text({ en: `${RUSH_MAX_PLAYERS} players is the most this one takes.`, fr: `${RUSH_MAX_PLAYERS} joueurs maximum.` });
   if (!isHost) return text({ en: 'The host starts the race.', fr: "L’hôte démarre la course." });
-  if (!motionOn) return text({ en: 'Turn on shake detection above, or start and watch.', fr: 'Activez la détection ci-dessus, ou démarrez pour regarder.' });
+  // Only once a refusal is a fact: before that, starting IS how detection gets asked
+  // for, so telling the host to turn it on first would be pointing at nothing.
+  if (motionAsked && !motionOn) return text({ en: 'No shake detection on this phone — start anyway and watch.', fr: 'Pas de détection sur ce téléphone — démarrez quand même pour regarder.' });
   return text({ en: 'Arms loose. Ready when you are.', fr: 'Bras détendus. Démarrez quand vous voulez.' });
 }

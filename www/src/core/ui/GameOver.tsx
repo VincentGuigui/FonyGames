@@ -125,6 +125,7 @@ export function GameOver({
   room,
   readyBlocked = false,
   onReadySetup,
+  onBeforeReady,
   sounds,
 }: {
   /**
@@ -164,6 +165,12 @@ export function GameOver({
   readyBlocked?: boolean | undefined;
   /** Lets a late spectator answer the sensor primer without leaving the result. */
   onReadySetup?: (() => void) | undefined;
+  /**
+   * The lobby's own `onBeforeReady`, carried onto this screen: a game whose sensor
+   * has no fallback asks for it from Play again / Ready rather than from a button
+   * of its own, and the round after the first has to ask the same way.
+   */
+  onBeforeReady?: (() => Promise<boolean>) | undefined;
   /** Optional per-game replacements for the shared win/lose cues. */
   sounds?: OutcomeSounds | undefined;
 }): JSX.Element {
@@ -186,6 +193,17 @@ export function GameOver({
   const everybodyReady = guestsReady(room?.room?.players ?? [], room?.room?.hostId ?? null);
   const hostView = room?.isHost ?? canAct;
   const hostCanAct = canAct && !readyBlocked && everybodyReady;
+
+  /** The host's go button, wrapped so a no-fallback sensor is asked for from the same
+   *  tap that starts the round — and so a refusal is not counted as one. */
+  const startWith = (go: () => void) => (): void => {
+    const run = (): void => {
+      track('game_start', slug);
+      go();
+    };
+    if (!onBeforeReady) return run();
+    void onBeforeReady().then((ok) => { if (ok) run(); });
+  };
 
   useEffect(() => {
     if (typeof me !== 'string' || winner === null) return;
@@ -273,10 +291,7 @@ export function GameOver({
                 class="btn btn--big gameover__go"
                 type="button"
                 disabled={!hostCanAct}
-                onClick={() => {
-                  track('game_start', slug);
-                  onNext();
-                }}
+                onClick={startWith(onNext)}
               >
                 {nextLabel ?? t.common.nextRound}
               </button>
@@ -286,10 +301,7 @@ export function GameOver({
                   class="btn btn--big gameover__go"
                   type="button"
                   disabled={!hostCanAct}
-                  onClick={() => {
-                    track('game_start', slug);
-                    onAgain?.();
-                  }}
+                  onClick={startWith(() => onAgain?.())}
                 >
                   {againLabel ?? t.common.playAgain}
                 </button>
@@ -314,7 +326,7 @@ export function GameOver({
                   {t.lobby.setUpControls}
                 </button>
               )}
-              {!room.me?.ready && <ReadyButton room={room} blocked={readyBlocked} />}
+              {!room.me?.ready && <ReadyButton room={room} blocked={readyBlocked} onBeforeReady={onBeforeReady} />}
               <a class="btn btn--big gameover__leave" href="/">
                 {t.common.leaveGame}
               </a>
