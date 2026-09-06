@@ -22,9 +22,9 @@
 
 ## 1. Pitch
 
-The camera sits behind your ship and a little above it, so the middle of the
-screen — the part you are flying into — is never blocked by your own hull.
-Ahead, a field of grey rocks resolving out of the black, one at a time,
+The camera sits directly behind your ship and level with it, so the hull holds
+the exact middle of the screen and the corridor's rings run concentric around
+it: flying centred looks centred. Ahead, a field of grey rocks resolving out of the black, one at a time,
 getting bigger. Tilt the phone to fly around them. Everyone in the room flies
 **the same field**, so the only thing between you and first place is how well
 you read it.
@@ -247,14 +247,24 @@ Only `classic` if this is approved. Recorded, not built:
   [../../design/game-chrome.md](../../design/game-chrome.md) §1.
 - **Round — the corridor**, drawn identically on every phone (each showing its
   own run):
-  - The ship low-centre, drawn from behind and below the camera, banking a
-    little with your steer — an authored 5×5 pose grid (`art/ship.png`), one
-    frame per (steerX, steerY) quantised to five steps a side, so the sell is
+  - The ship **dead centre**, drawn from directly behind, banking with where
+    it actually is in the tube — an authored 5×5 pose grid (`art/ship.png`),
+    one frame per (x, y) offset banded across the range (§13), so the sell is
     real frames rather than a claim: this was prose with nothing behind it
-    until it shipped (§13). Above and around it, the field.
-  - **The middle of the screen is clear** — the camera sits behind and above
-    the hull for exactly this reason (the issue's own framing), because the
-    middle of the screen is both where you are going and where the reticle is.
+    until it shipped. All around it, the field.
+  - **The hull IS the middle of the screen.** The camera rides on its own
+    line, level, so the tube's axis and the vanishing point and the centre of
+    the board are one place: flying centred looks centred, and the corridor's
+    rings sit concentric around the ship rather than hanging above it. This
+    reverses the original framing, which put the camera 3.4 units high to keep
+    the tube mouth clear of the hull — and which drew the ship at ~83% down a
+    real board, always a little below the axis it was flying along, with the
+    exact position sliding around with the phone's aspect ratio.
+  - **What that costs**: a rock dead ahead now grows from behind the hull for
+    most of its approach — the sprite is ~37% of the board's width, a small
+    rock at `ASTEROID_WARN_Z` about 5%. The red proximity halo and the reticle
+    bracket are therefore the warning, not an ornament on one. Open question
+    §12 Q7.
   - Large rocks dark grey `#4B5563`, small rocks grey `#9CA3AF`, both fading
     toward the `#05070D` background with distance (§2.4). **Size, not shade,
     is what says "this one splits"** — a large rock is genuinely bigger on
@@ -325,8 +335,9 @@ so `steer.ts` gains a two-axis variant rather than this game reading a raw
 event.
 
 **World y is up-positive**, which is the projection's own convention: the
-camera sits at `y + ASTEROID_CAM_UP` and measures everything down from there.
-The first build got this backwards and subtracted the vertical steer, so
+camera sits on the hull's own line and measures everything down from there, so
+a world point above the ship gets a negative `oy`. The first build got this
+backwards and subtracted the vertical steer, so
 tipping the phone to climb drove the ship into the floor of the tube and
 vertical control read as simply not working. Both directions are now pinned
 against the projection in `game.test.ts` — a climb has to move the world DOWN
@@ -475,9 +486,9 @@ these, §8):
 | `ASTEROID_CLEAR_Z` | 150 | Fully lit — and ≥ `ASTEROID_REACTION_MS` at boost (§2.4) |
 | `ASTEROID_DRAW_Z` | 600 | Beyond this, nothing is drawn |
 | `ASTEROID_REACTION_MS` | 1200 | The reaction time §2.4's inequality is written against |
-| `ASTEROID_CAM_BACK` / `_UP` | 14 / 3.4 | Behind and above, so the middle of the screen is clear |
+| `ASTEROID_CAM_BACK` | 14 | Directly behind the hull and level with it (§4). There is no `_UP`: it was 3.4 and is gone |
 | `ASTEROID_FOCAL` | 2.4 | Field of view, in board widths per unit at unit distance |
-| `ASTEROID_HORIZON` | 0.42 | The vanishing point, as a fraction of board height |
+| `ASTEROID_HORIZON` | 0.5 | The vanishing point, as a fraction of board height — and, the camera being level, the hull's own spot. 0.5 centres it on any aspect |
 | `PITCH_SENSITIVITY_DEG` | 22 | A little coarser than roll's 20, since resting pitch drifts more. Was 30, which needed a tip so large that climbing read as not working |
 | `ASTEROID_RECENTER_MS` | 20000 | A held tilt's half-life back toward "centred". Picked so a 2 s gate answer barely erodes but a whole race's worth of drift is ~95% gone by the finish |
 
@@ -658,6 +669,12 @@ Still open:
    a table read (§5), which is more than the other guesses in this list got,
    but the simulation cannot feel whether 20 s reads as sluggish or as
    twitchy on an actual arm.
+7. **Does the hull hide the rock about to kill you?** Levelling the camera
+   (§4) put the ship on the vanishing point, which is also where anything
+   dead ahead grows from. The halo and the reticle bracket are meant to carry
+   that warning; whether they actually do is a question only a phone can
+   answer. If they do not, the lever is the hull's drawn size (~37% of the
+   board's width, `render.ts`), not the camera going back up.
 
 ## 13. Rendering: plain `<canvas>`, and where the maths lives
 
@@ -699,8 +716,37 @@ sub-rectangle instead. Column 0 is the sheet's own "viewed from the right"
 pose and column 4 its "viewed from the left" (row 0 "from above", row 4 "from
 below"); a hull offset to the right or toward the tube's own "up" walks
 toward the higher index on both axes. **Untested on a real thumb** (§12): if
-a bank reads backwards in the hand, `shipFrame()` in `render.ts` is the one
+a bank reads backwards in the hand, `shipFrame()` in `pose.ts` is the one
 place to flip it.
+
+**The pose maths lives in `pose.ts`, not in `render.ts`.** `render.ts` reads
+`window.matchMedia` and builds an `Image` at module scope, so nothing in it
+can be imported by a test on plain Node (`docs/testing.md` §1.1) — the same
+wall `core/art/sprites.ts` hits, and the same answer: the arithmetic moves to
+a DOM-free sibling (`pass-the-bomb/shockwave.ts` is the pattern) and
+`prefers-reduced-motion` becomes a parameter rather than a query the maths
+runs itself. `npm run test:asteroid-pose` covers it.
+
+**How the range is shared out: 40 / 40 / 20.** Across one axis of the hull's
+own range of movement — `±ASTEROID_REACH` — the neutral pose owns the middle
+**40%**, the two small banks **40%** between them, and the two hard banks the
+outer **20%**:
+
+| Offset, as a fraction of `ASTEROID_REACH` | Pose on that axis | Share of the range |
+| --- | --- | --- |
+| 0 – 0.4 | the middle frame (row 3 / column 3, counting from 1) | 40% |
+| 0.4 – 0.8 | the small bank either side of it | 40% |
+| 0.8 – 1 | the sheet's own edge frame | 20% |
+
+This was a linear `Math.round` first, which is the obvious thing to write and
+the wrong one: it gives the neutral pose only the middle 25% and hands the
+hard banks 25% of their own, so a ship flying straight almost never looked
+like it and the edge frames turned up during ordinary steering. The 25 poses
+are not evenly spaced camera angles to be sampled evenly — the middle one is
+the resting state and has to read as one. The band edges are nominal: with
+`ASTEROID_REACH` at 6.2 the offset→fraction round trip lands 0.4 a float's
+breadth above itself, so `pose.test.ts` asserts either side of an edge and
+measures the *width* of each band by sweeping the range.
 
 **The frame comes from `run.x`/`run.y`, not from `steerX`/`steerY`.** The
 first build picked the frame straight off the instantaneous tilt, which reads
@@ -719,8 +765,9 @@ cell straight out of `art/ship.png` — the sheet's own top-right, banked hard
 into a turn rather than sitting level, the more legible read of the two motion
 axes at a glance — and embeds it as a base64 `<image>` over the same hand-drawn
 tube, rocks and crosshair the card always had. A card has no steer, so the
-cell is named outright (`FRAME` in the script) rather than derived the way
-`shipFrame()` derives one at runtime. `art/.card-manifest.json` hashes the
+cell is named outright (`FRAME` in the script) rather than banded the way
+`shipFrame()` bands one at runtime. The script keeps its own copy of the
+sheet's dimensions because it is plain Node and cannot import a `.ts`. `art/.card-manifest.json` hashes the
 script's own source plus `ship.png`, so a redrawn sheet or a moved frame both
 mark the card stale; `npm run test:asteroid-card` (part of `npm test`) fails
 on a stale one, `npm run art:asteroid-card` regenerates it
@@ -762,7 +809,7 @@ not:
   furthest with a dead heat unranked, a stale `roundId`, the solo `winner:
   null`, an away run freezing, and a full-room frame fitting inside 1 KB.
   Registered as `npm run test:asteroid`.
-- `www/src/games/asteroid-race/game.test.ts` — the flight, 115 checks: two
+- `www/src/games/asteroid-race/game.test.ts` — the flight, 119 checks: two
   phones deriving the identical field from one `roundId`, the projection, a
   collision that must register and a near-miss that must not, a dropped frame
   that must not tunnel through a rock, **a gate with no hull position in the
@@ -775,6 +822,14 @@ not:
   pinned against what the camera actually does with them (§5), the `destroyed`
   event firing exactly once at the ship's own position rather than the rock's,
   and §13.1's twelve races. Registered as `npm run test:asteroid-ui`.
+- `www/src/games/asteroid-race/pose.test.ts`, 23 checks: how the 25 ship poses
+  divide the hull's range (§13) — each band's edges asserted either side of
+  the nominal threshold, each band's *width* measured by sweeping the whole
+  range, the wall reading as the sheet's edge and past-the-wall clamping
+  rather than overflowing, the two axes staying independent,
+  `prefers-reduced-motion` pinning the middle frame, and a guard that the
+  number of thresholds still matches the size of the sheet. Registered as
+  `npm run test:asteroid-pose`.
 - `www/src/core/sensors/steer.test.ts`, 27 checks: the two-axis filter, the
   exact calibration-race scenario, and `recenterMs` (§5) — a fixed reference
   when it is 0, a held tilt eroding over realistic ~60 Hz samples when it

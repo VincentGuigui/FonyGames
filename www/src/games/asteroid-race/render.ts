@@ -4,7 +4,6 @@ import {
   ASTEROID_DRAW_Z,
   ASTEROID_HORIZON,
   ASTEROID_MISSILE_R,
-  ASTEROID_REACH,
   ASTEROID_RETICLE_LEAD_Z,
   ASTEROID_TRACER_MS,
   ASTEROID_WARN_Z,
@@ -12,6 +11,7 @@ import {
   project,
   type AsteroidRun,
 } from './game';
+import { SHIP_SHEET_COLS, SHIP_SHEET_ROWS, shipFrame } from './pose';
 
 /**
  * Asteroid Race's drawing. Spec: docs/specs/games/asteroid-race.md §4, §13
@@ -36,51 +36,18 @@ import {
  * the same pattern Tap Fighter's own runtime sprite sheets already use
  * (illustrations.md §4).
  *
- * **The frame comes from `run.x`/`run.y`, not from the instantaneous steer.**
- * The hull's own offset from the tube's axis is already bounded to
- * `±ASTEROID_REACH` and already the thing the player is looking at (dead
- * centre reads as flying straight, same as the tube itself), so it is what the
- * pose tracks: centred in the tube is the sheet's own centre frame, and the
- * wall in either direction is the sheet's own edge. Reading the raw tilt
- * instead would pin an extreme frame for as long as the phone stayed tilted
- * that hard, even after the hull had already stopped at the wall with nowhere
- * further to lean — and it would fight the fix below it: a phone recentring
- * itself while the player holds a tilt should bring the ship back with it,
- * which only happens if the pose follows where the ship actually is.
+ * Which of the 25 frames, and why it is the hull's own offset rather than the
+ * steer, lives in `pose.ts` — DOM-free, so the banding can be asserted rather
+ * than eyeballed. Everything below this line needs a canvas.
  */
 
-/** Column 0 reads as the sheet's own "viewed from the right" pose and column 4
- *  its "viewed from the left" (row 0 "from above", row 4 "from below") — a
- *  hull offset to the right or climbing toward the tube's own "up" walks
- *  toward the higher index on each axis, the same direction both axes use.
- *  Untested on a real thumb (spec §12): if a bank reads backwards, this is the
- *  one place to flip it. */
-const SHIP_SHEET_COLS = 5;
-const SHIP_SHEET_ROWS = 5;
 const shipImage = new Image();
 shipImage.src = shipSheet;
 
 /** `prefers-reduced-motion` freezes the ship on its own centre frame (spec
- *  §11) — read once, since it cannot change under a running round. */
+ *  §11) — read once here, since it cannot change under a running round, and
+ *  passed down rather than read inside `pose.ts`, which owns no DOM. */
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-function clampUnit(v: number): number {
-  return Math.min(1, Math.max(-1, v));
-}
-
-/** `x`/`y` are the hull's own offset from the tube's axis, in world units —
- *  `run.x`/`run.y` — not the steer that is currently moving it. */
-function shipFrame(x: number, y: number): { col: number; row: number } {
-  if (REDUCED_MOTION) {
-    return { col: (SHIP_SHEET_COLS - 1) / 2, row: (SHIP_SHEET_ROWS - 1) / 2 };
-  }
-  const nx = clampUnit(x / ASTEROID_REACH);
-  const ny = clampUnit(y / ASTEROID_REACH);
-  return {
-    col: Math.round(((nx + 1) / 2) * (SHIP_SHEET_COLS - 1)),
-    row: Math.round(((ny + 1) / 2) * (SHIP_SHEET_ROWS - 1)),
-  };
-}
 
 const BG = '#05070D';
 /** Large rocks dark, small rocks light — the issue's own two greys. Size is
@@ -333,7 +300,7 @@ function drawShip(ctx: CanvasRenderingContext2D, run: AsteroidRun, view: View): 
   if (shipImage.complete && shipImage.naturalWidth > 0) {
     const frameW = shipImage.naturalWidth / SHIP_SHEET_COLS;
     const frameH = shipImage.naturalHeight / SHIP_SHEET_ROWS;
-    const { col, row } = shipFrame(run.x, run.y);
+    const { col, row } = shipFrame(run.x, run.y, REDUCED_MOTION);
     const drawH = w * (frameH / frameW);
     ctx.drawImage(
       shipImage,

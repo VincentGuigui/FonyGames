@@ -190,9 +190,12 @@ is already mirrored, so the canvas and CSS use it directly without runtime trans
 
 Asteroid Race's ship is the same pattern on a 2-axis grid rather than a 1-axis
 one: `ship.png` is a transparent 5×5 sheet, one authored pose per camera angle,
-picked each frame by that game's own `steerX`/`steerY` (asteroid-race.md §13)
-straight off `drawImage`'s source rect — no CSS involved, since that game
-already draws entirely on `<canvas>`.
+picked each frame off the hull's own position in the tube — not off the tilt
+that is moving it — and banded 40 / 40 / 20 so the neutral pose owns the middle
+of the range rather than a linear fifth of it (asteroid-race.md §13). It comes
+straight off `drawImage`'s source rect, no CSS involved, since that game
+already draws entirely on `<canvas>`. The choice itself lives in a DOM-free
+`pose.ts` so the banding is testable; `render.ts` only blits.
 
 **Five cards are exceptions to "cards are pure vector":** Tap Fighter, Aliens
 love cows, Random Game, Gravity Shooter and Asteroid Race. Every other card
