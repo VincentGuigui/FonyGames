@@ -292,11 +292,12 @@ function lifetime(): void {
  * nose-to-ship distance minus one hit radius, over the speed for that end of
  * the range: halving the minimum impulse roughly doubled the slow one, widening
  * the hitbox to the ship's full width shortened both (the missile counts as
- * arrived further out), and launching from the nose rather than the hull's
- * middle (issue #37) took another hull height off the front of every flight.
+ * arrived further out), and launching from the tip rather than the hull's
+ * middle (issue #37) took a hull height off the front of every flight — a
+ * shorter one since that height was corrected to a world-y distance.
  */
-const GRAVITY_FREE_MIN_IMPULSE_FRAMES = 506;
-const GRAVITY_FREE_MAX_IMPULSE_FRAMES = 127;
+const GRAVITY_FREE_MIN_IMPULSE_FRAMES = 549;
+const GRAVITY_FREE_MAX_IMPULSE_FRAMES = 138;
 
 function impulseRange(): void {
   console.log('\nlaunch speed is capped, floored, and shaped by launch intensity (follow-up after #16)');
@@ -320,10 +321,10 @@ function impulseRange(): void {
   const weakest = simulateShot(noPlanets, 0, 0, 0);
   const strongest = simulateShot(noPlanets, 0, 0, 1);
   check('the weakest pull still reaches the opponent', weakest.hit === true);
-  check('taking about 8.4s — the slow end of the display range',
+  check('taking about 9.2s — the slow end of the display range',
     weakest.path.length - 1 === GRAVITY_FREE_MIN_IMPULSE_FRAMES, weakest.path.length - 1);
   check('a full-strength pull also reaches the opponent', strongest.hit === true);
-  check('taking about 2.1s — the fast end of the display range',
+  check('taking about 2.3s — the fast end of the display range',
     strongest.path.length - 1 === GRAVITY_FREE_MAX_IMPULSE_FRAMES, strongest.path.length - 1);
   check('and the weakest is four times the slowest — the impulse range itself',
     Math.abs(GRAVITY_MAX_LAUNCH_SPEED / GRAVITY_MIN_LAUNCH_SPEED - 4) < 1e-9,

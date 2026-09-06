@@ -65,24 +65,24 @@ const OWN_ACCENT = '#818CF8';
 
 /**
  * The posed board — and not posed by hand any more: it is the board
- * `rollBoard(seeded(37))` actually deals, copied out verbatim. Three planets
+ * `rollBoard(seeded(16))` actually deals, copied out verbatim. Three planets
  * split two/one across the centre line (spec §2.1) is fiddly enough to place
  * by eye that hand-writing one risks advertising a board the game would never
  * produce; taking a real roll makes that impossible, and `assertLegal` below
  * still checks it against every rule independently.
  */
 const BOARD = {
-  starRadius: 0.097,
+  starRadius: 0.1454,
   planets: [
-    { x: 0.63, y: 0.63, r: 0.054, art: 2 },
-    { x: 0.58, y: 0.36, r: 0.078, art: 0 },
-    { x: 0.16, y: 0.33, r: 0.131, art: 1 },
+    { x: 0.1622, y: 0.6993, r: 0.0753, art: 0 },
+    { x: 0.1958, y: 0.4102, r: 0.0523, art: 2 },
+    { x: 0.6031, y: 0.4778, r: 0.1901, art: 1 },
   ],
 };
 
 /**
- * The shot: 72° off straight up — fired all but sideways, away from the target
- * — at a quarter strength. Of a swept fan of every angle and strength over
+ * The shot: 68° off straight up — fired all but sideways, away from the target
+ * — at a little over half strength. Of a swept fan of every angle and strength over
  * this board, it is the one whose *drawn* trail bends hardest and still lands,
  * which is the thing the card has to promise. A shot that curves late is a
  * straight line in a still picture.
@@ -92,7 +92,7 @@ const BOARD = {
  * the card was briefly advertising a shot the game no longer flies. Same sweep
  * each time, re-run over whatever board is posed above.
  */
-const SHOT = { angleDeg: -72, strength: 0.25 };
+const SHOT = { angleDeg: -68, strength: 0.55 };
 
 /** How far along its own flight the missile is caught, 0..1. Late, so the whole
  *  hook is behind it and reads as something that already happened. */

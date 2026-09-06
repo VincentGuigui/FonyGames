@@ -169,10 +169,28 @@ export const GRAVITY_G = 0.24;
  *  cannot drift apart. */
 export const GRAVITY_SHIP_WIDTH = 0.22;
 
-/** The hull's own height, same nominal square-board units: the ship art is
- *  drawn twice as wide as it is high (`contactPoint` relies on the same
- *  ratio), so this is what separates the sprite's base from its nose. */
-export const GRAVITY_SHIP_HEIGHT = GRAVITY_SHIP_WIDTH / 2;
+/**
+ * The board's own width over its height, on the portrait phone this game is
+ * designed for (390 x 645 css px of canvas is 0.60). Needed because world x
+ * and world y are fractions of DIFFERENT screen distances: a length quoted in
+ * world-x units, drawn as a world-y one, comes out too long by exactly this
+ * factor.
+ */
+const GRAVITY_BOARD_ASPECT = 0.6;
+
+/**
+ * How far the ship's tip sits from its base, in world **y**. The art is
+ * 256x128 with no padding, so the sprite is drawn exactly
+ * `GRAVITY_SHIP_WIDTH / 2` tall — but that is a fraction of the board's WIDTH,
+ * and this offset is applied down its HEIGHT, so it has to be converted.
+ *
+ * Without the conversion the launch point floated a good 28px above the hull
+ * on a real phone: 0.11 of the board's height is 71px where the hull is only
+ * 43px tall. One constant, so the simulation stays the same on both phones
+ * whatever they are holding; exact at the aspect above and out by a pixel or
+ * two on anything else, which is the price of a deterministic launch point.
+ */
+export const GRAVITY_SHIP_HEIGHT = (GRAVITY_SHIP_WIDTH / 2) * GRAVITY_BOARD_ASPECT;
 
 /**
  * A missile within this distance of the opponent's ship centre is a hit (spec

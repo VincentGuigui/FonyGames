@@ -201,9 +201,10 @@ function fairnessShipPosition(seat: 0 | 1): { x: number; y: number } {
 }
 
 /** The ship's own drawn height, matching `game.ts`'s `GRAVITY_SHIP_HEIGHT`
- *  (= `GRAVITY_SHIP_WIDTH / 2`): a shot leaves the nose, not the hull's
- *  middle (issue #37), and this check has to sample from the same place. */
-const FAIRNESS_SHIP_HEIGHT = 0.11;
+ *  (half the drawn width, converted into world y by the board's aspect): a
+ *  shot leaves the tip, not the hull's middle (issue #37), and this check has
+ *  to sample from the same place. */
+const FAIRNESS_SHIP_HEIGHT = 0.066;
 
 function fairnessLaunchPosition(seat: 0 | 1): { x: number; y: number } {
   const ship = fairnessShipPosition(seat);

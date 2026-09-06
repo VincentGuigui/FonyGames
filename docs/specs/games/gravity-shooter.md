@@ -301,8 +301,12 @@ the launch speed dropped (a slower missile alone doesn't feel meaningfully
 pulled unless the pull itself is also stronger), then doubled again
 alongside the centre-blocking rule in §2.1 (now the star's job), since a shot
 that has to go *around* something needs enough pull to actually come back. A flight begins at
-`launchPosition(seat)` — the shooter's nose, `GRAVITY_SHIP_HEIGHT` (half the
-drawn ship width, the art's own 2:1 aspect) ahead of `shipPosition(seat)` —
+`launchPosition(seat)` — the shooter's **tip**, `GRAVITY_SHIP_HEIGHT` ahead of
+`shipPosition(seat)`. The art is 256x128 with no padding, so the tip is the top
+edge of the sprite and that distance is half the drawn width — but world x and
+world y are fractions of different screen distances, so it is converted by the
+board's own aspect before being applied down the board. Without that the launch
+point floated 28px clear of a hull only 43px tall —
 which is a fixed world constant rather than a measurement of the rasterised
 sprite, because both phones have to simulate the same flight and only one of
 them has the shooter's screen. The
