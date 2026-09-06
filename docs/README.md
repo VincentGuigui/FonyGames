@@ -21,6 +21,7 @@ is made in a discussion, it belongs in one of these files.
 | [realtime-options.md](realtime-options.md) | Survey of realtime backends for D3: load model, free tiers, price comparison |
 | [realtime-server.md](realtime-server.md) | The room server: Durable Objects, hibernation, lifecycle, limits, local dev |
 | [device-capabilities.md](device-capabilities.md) | Sensors, GPS, bump detection, permissions, privacy, fallbacks |
+| [audio-voice-matching.md](audio-voice-matching.md) | Feasibility study for Sound Match (#28): why a random spectrum cannot be sung, and what to draw instead |
 | [deployment.md](deployment.md) | Branch model, GitHub Environments, secrets, SFTP deploy, troubleshooting |
 | [database.md](database.md) | MySQL: what it may hold, init + idempotent migration rules, local MariaDB |
 | [testing.md](testing.md) | What we test, how, and on which devices |
