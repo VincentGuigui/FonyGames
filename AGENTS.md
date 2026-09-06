@@ -20,6 +20,7 @@ file under 200 lines** — put detail in `docs/`, not here.
 | Realtime backend survey (D3) | [docs/realtime-options.md](./docs/realtime-options.md) |
 | Realtime server (Durable Objects) | [docs/realtime-server.md](./docs/realtime-server.md) |
 | Device capabilities (sensors, GPS, bump…) | [docs/device-capabilities.md](./docs/device-capabilities.md) |
+| Voice/spectrum matching study (#28) | [docs/audio-voice-matching.md](./docs/audio-voice-matching.md) |
 | Deployment (branches, environments, secrets) | [docs/deployment.md](./docs/deployment.md) |
 | Database (MySQL, migrations) | [docs/database.md](./docs/database.md) |
 | UI / UX & visual guidelines | [docs/design/ui-guidelines.md](./docs/design/ui-guidelines.md) |

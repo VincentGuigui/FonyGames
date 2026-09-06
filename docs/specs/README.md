@@ -139,5 +139,18 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
   list: §4 now says a fallback is a recommendation, not a gate. Built, and
   driven end to end against a synthetic camera feed.
 
+- **Sound Match** ([#28](https://github.com/VincentGuigui/FonyGames/issues/28))
+  — a target spectrum, five seconds, your own voice, three lives. **No spec
+  yet**: a feasibility study came first
+  ([../audio-voice-matching.md](../audio-voice-matching.md)) and moved the
+  design before a line of it was written. A random spectrum is not singable —
+  a voice is a source–filter system whose output is fixed by about five
+  numbers, so the generator has to make a pitch and a vowel and synthesise the
+  spectrum from them. And a raw FFT is the wrong picture: a linear axis gives
+  everything below 1 kHz 4.2% of the screen width. Two open risks decide
+  whether it is worth building — whether reading a spectrum is fun at all, and
+  whether four phones in one room can hear four singers without scoring each
+  other's.
+
 Promote an idea by copying [game-spec-template.md](game-spec-template.md) to
 `games/<slug>.md`, filling it, and updating the row above in a `spec:` commit.
