@@ -126,7 +126,7 @@ async function scoring(): Promise<void> {
 }
 
 async function neverRepeats(): Promise<void> {
-  console.log('\nthe same colour never comes up twice running (§2.2)');
+  console.log('\nthe same colour never comes up twice at all (§2.2)');
 
   const h = harness();
   await startColorHunt(h.ctx, 1, [A, B]);
@@ -141,6 +141,29 @@ async function neverRepeats(): Promise<void> {
     previous = h.state.targetKey;
   }
   check('no back-to-back repeat over a dozen rounds', repeats === 0, repeats);
+}
+
+async function sixAndDone(): Promise<void> {
+  console.log('\nsix colours, six rounds, and then it is over (§2.2)');
+
+  const h = harness();
+  await startColorHunt(h.ctx, 1, [A, B]);
+  const seen: string[] = [h.state.targetKey];
+  let rounds = 1;
+  for (let n = 0; n < 10; n++) {
+    // Score every round so the barren rule is not what ends it.
+    await onHuntFind(h.ctx, A, 1, h.state.round, [...h.state.target], 0);
+    h.seed((n * 0.19 + 0.04) % 1);
+    const over = await h.step();
+    if (over) break;
+    seen.push(h.state.targetKey);
+    rounds += 1;
+  }
+  check('a hunt is six rounds long', rounds === 6, rounds);
+  check('all six colours, each exactly once', new Set(seen).size === 6, seen);
+  check('and then it ends on its own, still scoring', h.state.phase === 'done');
+  check('with a winner, not a washout', h.state.winner === A, { winner: h.state.winner, totals: h.state.totals });
+  check('the round window is the spec\'s fifteen seconds', COLOR_HUNT_ACTION_MS === 15000, COLOR_HUNT_ACTION_MS);
 }
 
 async function barren(): Promise<void> {
@@ -267,6 +290,7 @@ async function main(): Promise<void> {
   await starting();
   await scoring();
   await neverRepeats();
+  await sixAndDone();
   await barren();
   await winning();
   await refusing();

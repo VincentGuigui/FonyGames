@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
 import {
-  COLOR_ACTION_MS,
   COLOR_MATCH_MAX_PLAYERS,
   COLOR_MATCH_MIN_PLAYERS,
+  colorActionMs,
   type ColorMatchState,
   type ServerMessage,
 } from '../../../../shared/protocol';
@@ -15,7 +15,7 @@ import { useSoloTesting } from '../../core/useSolo';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { StatusBar } from '../../core/ui/StatusBar';
-import { Scoreboard } from '../../core/ui/Scoreboard';
+import { WideScoreboard } from '../../core/ui/WideScoreboard';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
 import { useGameText } from '../../core/i18n/gameText';
@@ -116,7 +116,7 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
       const el = pieRef.current;
       if (el) {
         const now = clientRef.current?.now() ?? Date.now();
-        const left = Math.max(0, Math.min(1, (s.picksDueAt - now) / COLOR_ACTION_MS));
+        const left = Math.max(0, Math.min(1, (s.picksDueAt - now) / colorActionMs(s.level)));
         // A stroke on a half-radius circle IS the pie: the dash eats the
         // sweep, so one number drives the whole shape.
         el.style.strokeDasharray = `${(PIE_C * left).toFixed(2)} ${PIE_C.toFixed(2)}`;
@@ -184,11 +184,13 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
           </svg>
         </div>
 
+        {/* THIS level's points, the moment they exist, and nothing at all
+            before that — a panel still showing the last level's score while a
+            new colour is on screen is worse than an empty one. */}
         {revealing ? (
-          <p class="cmatch__verdict" aria-live="polite">
-            {mine
-              ? text({ en: `${mine.score} points`, fr: `${mine.score} points` })
-              : text({ en: 'No pick — no points', fr: 'Aucun choix — aucun point' })}
+          <p class={`cmatch__verdict cmatch__verdict--${(mine?.score ?? 0) > 0 ? 'hit' : 'miss'}`} aria-live="polite">
+            <strong class="cmatch__points">{mine?.score ?? 0}</strong>
+            {text({ en: 'points', fr: 'points' })}
           </p>
         ) : (
           <p class="cmatch__verdict cmatch__verdict--quiet">{text({ en: 'Find it', fr: 'Trouvez-la' })}</p>
@@ -218,7 +220,12 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
           )}
         </div>
 
-        <Scoreboard rows={ladder} me={myId} unit={text({ en: 'pts', fr: 'pts' })} best="high" />
+        <WideScoreboard
+          rows={ladder}
+          me={myId}
+          unit={text({ en: 'pts', fr: 'pts' })}
+          label={text({ en: 'Scores', fr: 'Scores' })}
+        />
       </div>
     );
   }

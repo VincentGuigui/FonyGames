@@ -13,7 +13,7 @@
 | **Catchy sentence** | *Match the colour. Three seconds. No second guesses* |
 | **Illustration** | `www/src/games/color-match/art/card.svg` — a quartered colour wheel with a cursor sitting just off a bright magenta target swatch, a luminance slider down one side, and a pie timer nearly run out |
 | **Players** | 1–8 |
-| **Round length** | ~7 s per level, no fixed round length — a run ends when the ladder outruns the room (§2.2) |
+| **Round length** | 9–19 s per level, by difficulty (§2.2) — a run ends when the ladder outruns the room |
 | **Inputs** | touch |
 | **Accent colour** | `#F472B6` |
 | **Status** | built, beta — every number in §5b is still a guess |
@@ -37,8 +37,8 @@ how close they got. Then a harder one.
 
 1. The referee picks a target colour for level *n* from that level's own
    palette (§2.3) and sends it to the room.
-2. The target is displayed, big. A pie circle beside it drains over
-   `COLOR_ACTION_MS`.
+2. The target is displayed, big. A pie circle beside it drains over that
+   level's own window — 5, 10 or 15 seconds, by how hard the level is (§2.2).
 3. Each player drags a cursor on the colour wheel — and, from level 36, a
    second cursor on the luminance slider. The pick is whatever the cursors read
    when the pie empties. Not tapping is a pick of wherever the cursor already
@@ -72,13 +72,26 @@ seen.
 keeps scraping a single point forever. It is a safety cap, the same role
 `TILES_ROUND_CAP_MS` plays in Tiles Surfer, not a design element.
 
-### 2.2 A level is a fixed 7 seconds
+### 2.2 A level's length follows its difficulty
 
-`COLOR_ACTION_MS` (3 s) + `COLOR_SCORE_HOLD_MS` (2 s) + `COLOR_SOLVE_MS` (1 s)
-+ `COLOR_REVEAL_HOLD_MS` (1 s). Every phase boundary is a server timestamp sent
-with the level, not a local timer, so a phone that stutters catches up rather
-than drifting a level behind the room (the pattern Tap Duel's `fireAt` and
-Tiles Surfer's spawn schedule both use).
+The action window is tiered — `colorActionMs` — and the steps are where the
+*task* gains something rather than at round numbers:
+
+| Levels | Window | Why there |
+| --- | --- | --- |
+| 1–10 | **5 s** | One or two components out of {0, 255}. A glance |
+| 11–35 | **10 s** | The palette is a real cube from level 11; it needs looking at |
+| 36+ | **15 s** | The luminance slider appears at 36 — a second control to work |
+
+Plus a fixed 4 s tail on every level: `COLOR_SCORE_HOLD_MS` (2 s) +
+`COLOR_SOLVE_MS` (1 s) + `COLOR_REVEAL_HOLD_MS` (1 s). So a level is 9 s at the
+bottom of the ladder and 19 s at the top.
+
+Every phase boundary is a server timestamp sent with the level, not a local
+timer, so a phone that stutters catches up rather than drifting a level behind
+the room (the pattern Tap Duel's `fireAt` and Tiles Surfer's spawn schedule
+both use). The pie reads `colorActionMs` too, so the bar on screen cannot
+disagree with the deadline being enforced.
 
 ### 2.3 The difficulty ladder
 
@@ -117,6 +130,36 @@ const splits = Math.min(255, 16 * 2 ** tier);       // 16, 32, 64, 128, 255, 255
 255 splits is a step of 1 — every 8-bit value reachable — so the cap is where
 the colour space runs out, not an arbitrary ceiling. A run that gets there has
 already gone far beyond anything §12 expects a person to score on.
+
+### 2.3b A session never asks twice, and never asks for black or white
+
+**No colour comes up twice in one session.** The referee keeps every target it
+has dealt and `dealTarget` prefers an unused one. There is one honest
+exception, and it is not hypothetical: the first rung is red, green and blue —
+three colours over five levels — so **levels 4 and 5 must repeat**. The deal
+falls back to the whole palette rather than failing, and flags `repeat` so the
+difference is visible rather than silent. From level 11 the palette is 25
+colours and wider every rung, so it never binds again.
+
+**Black and white are never targets.** They are not colours to find on a wheel
+— a black wedge is a hole in the middle of a rainbow — and they break the
+scoring, being the two ends of the redmean axis: a near-black target makes
+every dark colour a near miss and the level stops discriminating.
+
+The test is **not** a distance to black, which cannot do the job: redmean puts
+a dark red (64, 0, 0) and a very dark grey (32, 32, 32) at 0.122 and 0.125
+normalised, so one threshold either keeps both or bans both. What separates
+them is what a player sees, so `isExtreme` reads two things instead —
+**value** (`max`, below `COLOR_VALUE_FLOOR` it reads as black at any
+saturation) and **paleness** (`min`, above `COLOR_WHITE_FLOOR` there is not
+enough colour left to tell from white). A mid grey, a dark navy and a proper
+dark red all survive; black, white, (32, 32, 32) and a washed-out (224, 224,
+224) do not.
+
+It is judged on the colour **after** its luminance, not on the base: dimming is
+what pushes a mid colour under the floor. `COLOR_LUM_MIN` moved from 0.25 to
+0.4 for the same reason — 255 × 0.25 is 64, which the floor bans, and a slider
+whose bottom notch is unpickable is worse than a shorter slider.
 
 **Luminance** is a separate multiplier, not a fourth component: the target is
 `base × lum` where `base` comes from the rung's component rule and `lum` is
@@ -191,10 +234,16 @@ Right edge, the **luminance slider**, hidden entirely until level 36 rather
 than shown disabled: a control that does nothing for 35 levels teaches the
 player to ignore it exactly when it starts to matter.
 
-Bottom, the **ladder strip**: everyone's running total, the shared `Scoreboard`.
+Bottom, the **scores**: everyone's running total in the shared
+`WideScoreboard`, full width, four players to a line. Not the corner panel the
+rest of the catalogue uses — this board's bottom third is empty, and the scores
+are worth the width rather than being furniture to tuck into a corner.
 
-On reveal, every player's cursor animates to the solution at once — including
-the other players', drawn faintly. Seeing that four people all missed the same
+**The score shown is always this level's**, and there is nothing there before
+it exists: a panel still reading 100 while a new colour is on screen is the
+previous level's news pretending to be this one's. On reveal, every player's
+cursor animates to the solution at once — including the other players', drawn
+faintly. Seeing that four people all missed the same
 way is most of this game's table talk, and it costs one extra field on the wire.
 
 ### 4.2 The wheel's two presentations
@@ -224,7 +273,7 @@ Every one of these is a proposal. ⚖ marks the ones §12 expects to move.
 
 | Constant | Value | Why |
 | --- | --- | --- |
-| `COLOR_ACTION_MS` | 3000 | ⚖ The issue's own three seconds. Long enough to cross the wheel, short enough that you go with your first instinct |
+| `COLOR_ACTION_TIERS` | 5000 / 10000 / 15000 | ⚖ The action window, by level (§2.2). Was a flat 3 s |
 | `COLOR_SCORE_HOLD_MS` | 2000 | The issue's own two seconds of score |
 | `COLOR_SOLVE_MS` | 1000 | The issue's own one-second cursor animation |
 | `COLOR_REVEAL_HOLD_MS` | 1000 | The issue's own one-second hold |
@@ -232,6 +281,9 @@ Every one of these is a proposal. ⚖ marks the ones §12 expects to move.
 | `COLOR_MISS` | 0.35 | ⚖ Normalised distance beyond which a pick is worth nothing. A complete guess |
 | `COLOR_D_MAX` | 765 | Redmean's own maximum (§2.4). Not tunable — it is arithmetic |
 | `COLOR_LUM_SPLITS` | 4 | ⚖ Five luminance steps once the slider appears |
+| `COLOR_LUM_MIN` | 0.4 | The dimmest step. Was 0.25, which put a single-channel colour under the black floor (§2.3b) |
+| `COLOR_VALUE_FLOOR` | 72 | ⚖ Below this `max(r,g,b)`, a colour reads as black and is never a target |
+| `COLOR_WHITE_FLOOR` | 200 | ⚖ Above this `min(r,g,b)`, it reads as white and is never a target |
 | `COLOR_SECTOR_MAX` | 64 | ⚖ Above this many reachable colours the wheel goes continuous (§4.2) |
 | `COLOR_RUN_CAP_MS` | 600000 | Ten minutes. A safety cap, not a design element (§2.1) |
 | `COLOR_MIN_PLAYERS` / `_MAX` | 1 / 8 | From `PLAYERS['color-match']` in `shared/players.ts` |

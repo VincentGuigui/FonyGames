@@ -13,7 +13,7 @@
 | **Catchy sentence** | *Hunt that exact colour down in the room around you* |
 | **Illustration** | `www/src/games/color-hunt/art/card.svg` — a phone-shaped square viewport over a corner of a room, a ring magnifier dead centre filled with flat orange, and the target swatch of the same orange pinned above it |
 | **Players** | 2–8 |
-| **Round length** | ~6 s per round, no fixed length — a hunt ends when the room stops scoring (§2.1) |
+| **Round length** | 15 s per round, at most six rounds — ~90 s of hunting (§2.2) |
 | **Inputs** | camera |
 | **Accent colour** | `#14B8A6` |
 | **Status** | built, beta — every number in §5b is still a guess |
@@ -45,11 +45,16 @@ the right call: the fun is continuous searching, and a two-second results panel
 between rounds would break the one thing this game has that Color Match does
 not, which is momentum. Scores appear live on the ladder strip instead (§4).
 
-**Win condition:** highest total when the hunt ends — nobody has scored for
-`COLOR_BARREN_ROUNDS` consecutive rounds, or `COLOR_HUNT_CAP_MS` is reached.
+**Win condition:** highest total when the hunt ends, which happens at whichever
+of three comes first: **all six colours have been used** (§2.2), nobody has
+scored for `COLOR_BARREN_ROUNDS` consecutive rounds, or `COLOR_HUNT_CAP_MS` is
+reached. Six is the usual one — a full hunt is six rounds.
 
 **Scoring:** identical to Color Match, from the same `shared/color.ts`: redmean
-distance, `round(100 × max(0, 1 − dNorm / COLOR_MISS))`.
+distance, `round(100 × max(0, 1 − dNorm / COLOR_MISS))`. The points that just
+landed flash over the feed for `COLOR_HUNT_FLASH_MS` and then clear — there is
+no results panel to put them in, and a number left on screen under a fresh
+target is the previous round's news pretending to be this one's.
 
 ### 2.1 Why the same barren-streak ending, with a different reason
 
@@ -60,10 +65,17 @@ about a dozen targets and never happens outdoors. Same rule, same constant
 name, different thing being measured, and worth saying out loud so nobody
 later "fixes" one to match the other.
 
-### 2.2 Targets are primary and secondary colours, not the ladder
+### 2.2 Six colours, six rounds, each asked once
 
 The issue says *primary, secondary*: red, green, blue, cyan, magenta, yellow,
-and this game does not climb. A real room does not contain a
+and this game does not climb.
+
+**A session never asks for the same colour twice**, which with six colours
+makes a hunt exactly six rounds long by construction. That is the ending, not
+a limit bolted on: `nextHuntTarget` returns null when the pool is empty and the
+referee finishes the hunt. Not-twice-running falls out of not-twice-at-all for
+free. At 15 s a round it is ~90 s of hunting, inside AGENTS.md §4's own
+30 s – 3 min target. A real room does not contain a
 `#7A3FC1`, so a Color Match rung past level 15 would score zero for everybody
 every round and end the hunt in three. Six saturated targets, drawn without
 immediate repetition, is the whole generator.
@@ -91,9 +103,11 @@ the standard results screen appears. No countdown between rounds, no reveal.
 
 The round screen, top to bottom:
 
-- **The target**, a full-width band of flat colour with its name written on it
-  (*"RED"*, *"CYAN"*). The name matters: at a glance across a room, a word is
-  faster than a swatch, and it is the one concession this game can make to §11.
+- **The target**, a full-width band of flat colour — **and nothing else on it**.
+  It carried its own name at first (*"RED"*, *"CYAN"*) and the word was worse
+  than nothing: it turned a looking game into a reading one, and it told a
+  player what to search for before they had looked at the swatch, which is the
+  moment the game is supposed to happen in. The colour is the brief.
 - **The pie timer**, in the band's corner, draining over `COLOR_HUNT_ACTION_MS`.
 - **The camera feed**, cropped to a square the full width of the board — the
   issue's own framing. `object-fit: cover` on the short axis, so a portrait
@@ -102,9 +116,13 @@ The round screen, top to bottom:
   filled with the current sampled average, with a two-tone stroke so it reads
   against whatever it is sitting on. This is the game's only readout and it is
   the thing the player actually watches.
-- **The ladder strip**, the shared `Scoreboard`, live — since there is no
-  results panel, this is where a score landing is seen at all. A point scored
-  flashes its row.
+- **The scores**, across the bottom: the shared `WideScoreboard`, full width,
+  four players to a line. Not the corner panel every other game uses — this
+  board has a bottom third with nothing in it, and the scores are worth the
+  width rather than being furniture to tuck away.
+- **The points that just landed**, flashed big over the feed and then gone
+  (§2). Since there is no results panel, this is the only moment a score is
+  ever announced.
 
 ## 5. Inputs & sensors
 
@@ -136,7 +154,8 @@ rule 3 lays down and the five sensor-only games already follow.
 
 | Constant | Value | Why |
 | --- | --- | --- |
-| `COLOR_HUNT_ACTION_MS` | 6000 | ⚖ Longer than Color Match's 3 s, because finding a red thing means walking to it |
+| `COLOR_HUNT_ACTION_MS` | 15000 | ⚖ Far longer than Color Match's first tier, because finding a red thing means standing up and walking to it |
+| `COLOR_HUNT_FLASH_MS` | 2500 | How long the points that just landed stay up. Long enough to read while walking, gone before the next score |
 | `COLOR_BARREN_ROUNDS` | 3 | The issue's own rule, and Color Match's (§2.1) |
 | `COLOR_HUNT_SAMPLE` | 10 | The issue's own 10×10 pixel patch |
 | `COLOR_HUNT_SAMPLE_HZ` | 10 | ⚖ How often the magnifier re-reads. Fast enough to aim, slow enough not to strobe |
@@ -247,10 +266,12 @@ reassuring enough to be worth the sentence.
 ## 11. Accessibility
 
 - **Colour blindness**: the same hard exclusion Color Match has, stated the
-  same way in the lobby. The target's *name* is written on the band (§4),
-  which helps a player who knows a red thing when they see one but cannot pick
-  it off a swatch — but it does not make the scoring fair, and the copy must
-  not pretend it does.
+  same way in the lobby — and **worse here than it was**, because the target's
+  name used to be written on the band and is not any more (§4). That was a
+  real crutch for a player who knows a red thing when they see one but cannot
+  pick it off a swatch, and removing it was a deliberate trade for the game
+  being about looking. If it turns out to matter, the lever is a mode that
+  restores the word rather than putting it back for everyone.
 - **Mobility**: this game asks players to move around a room, and a player who
   cannot has a much smaller palette within reach. There is no version of this
   mechanic that does not, so the honest handling is that Color Match is the

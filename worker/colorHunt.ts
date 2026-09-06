@@ -34,6 +34,9 @@ export type ColorHunt = {
   endsAt: number;
   targetKey: string;
   target: Rgb;
+  /** Every target this session has asked for. There are only six, so a hunt is
+   *  at most six rounds long by construction (spec §2.2). */
+  used: string[];
   phase: 'hunt' | 'done';
   dueAt: number;
   finds: Record<PlayerId, HuntFind>;
@@ -62,14 +65,19 @@ export function nextDeadline(s: ColorHunt): number {
   return s.phase === 'hunt' ? Math.min(s.dueAt + COLOR_PICK_GRACE_MS, s.endsAt) : Infinity;
 }
 
-function armRound(ctx: Ctx, s: ColorHunt, round: number): void {
-  const target = nextHuntTarget(s.targetKey, ctx.random);
+/** Arm the next round. False when the six colours are used up — a real ending
+ *  (spec §2.2), not a failure. */
+function armRound(ctx: Ctx, s: ColorHunt, round: number): boolean {
+  const target = nextHuntTarget(new Set(s.used), ctx.random);
+  if (!target) return false;
   s.round = round;
   s.targetKey = target.key;
   s.target = huntColor(target);
+  s.used.push(target.key);
   s.phase = 'hunt';
   s.dueAt = ctx.now() + COLOR_HUNT_ACTION_MS;
   s.finds = {};
+  return true;
 }
 
 /** Host pressed start. Returns false when the room is not eligible. */
@@ -97,6 +105,7 @@ export async function startColorHunt(
     dueAt: now,
     finds: {},
     lastFinds: {},
+    used: [],
     totals,
     barren: 0,
     solo: solo || connected.length <= 1,
@@ -148,7 +157,13 @@ export async function tick(ctx: Ctx): Promise<boolean> {
     return true;
   }
 
-  armRound(ctx, s, s.round + 1);
+  // Six colours, six rounds, and then it is over however well the room was
+  // doing (spec §2.2). A hunt that recycled its targets would be asking people
+  // to find the same red twice.
+  if (!armRound(ctx, s, s.round + 1)) {
+    await finish(ctx, s);
+    return true;
+  }
   await ctx.save(s);
   broadcast(ctx, s);
   await ctx.setAlarm(nextDeadline(s));

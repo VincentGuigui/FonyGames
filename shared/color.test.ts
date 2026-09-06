@@ -14,13 +14,17 @@ import {
   COLOR_LUM_MIN,
   COLOR_MAX_SPLITS,
   COLOR_MISS,
+  COLOR_VALUE_FLOOR,
+  COLOR_WHITE_FLOOR,
   HUNT_TARGETS,
   asRgb,
   colorDistance,
+  colorKey,
   colorScore,
   componentValues,
   dealTarget,
   huntColor,
+  isExtreme,
   luminanceSteps,
   nextHuntTarget,
   palette,
@@ -121,20 +125,78 @@ function ladder(): void {
 function palettes(): void {
   console.log('\nwhat a rung can actually produce');
 
-  // Level 1: one component out of {0, 255}, the others black — black, red,
-  // green, blue, and black only once however many ways there are to make it.
+  // Level 1: one component out of {0, 255}, the others black — which would be
+  // black, red, green and blue, except that nobody is asked to guess black.
   const first = palette(rungAt(1));
-  check('level 1 offers four colours', first.length === 4, first);
-  check('and they are black, red, green and blue', JSON.stringify([...first].sort()) === JSON.stringify([[0, 0, 0], [0, 0, 255], [0, 255, 0], [255, 0, 0]].sort()), first);
+  check('level 1 offers three colours', first.length === 3, first);
+  check('red, green and blue — black is not on offer', JSON.stringify([...first].sort()) === JSON.stringify([[0, 0, 255], [0, 255, 0], [255, 0, 0]].sort()), first);
 
   const dupes = (list: Rgb[]): boolean => new Set(list.map((c) => c.join(','))).size === list.length;
   check('no rung offers the same colour twice', dupes(first) && dupes(palette(rungAt(6))) && dupes(palette(rungAt(11))));
 
-  check('level 11 is a full 3-cube of 3 values', palette(rungAt(11)).length === 27, palette(rungAt(11)).length);
-  check('level 16 is 5 cubed', palette(rungAt(16)).length === 125);
-  check('level 31 is 9 cubed', palette(rungAt(31)).length === 729);
+  // A full n-cube, less whatever the extreme filter takes off the two corners.
+  check('level 11 is a 3-cube less its black and white corners', palette(rungAt(11)).length === 25, palette(rungAt(11)).length);
+  check('level 16 is 5 cubed less nine', palette(rungAt(16)).length === 116, palette(rungAt(16)).length);
+  check('level 31 is 9 cubed less thirty-five', palette(rungAt(31)).length === 694, palette(rungAt(31)).length);
+  check('and no rung ever offers black or white', [1, 6, 11, 16, 21, 31].every((lv) => palette(rungAt(lv)).every((c) => !isExtreme(c))));
   check('the palette grows down the ladder', palette(rungAt(6)).length > palette(rungAt(1)).length);
   check('every entry is a real colour', palette(rungAt(21)).every((c) => c.every((v) => Number.isInteger(v) && v >= 0 && v <= 255)));
+}
+
+function extremes(): void {
+  console.log('\nnobody is asked to guess black or white');
+
+  check('black is out', isExtreme([0, 0, 0]));
+  check('white is out', isExtreme([255, 255, 255]));
+  check('and so is a near-black', isExtreme([32, 32, 32]) && isExtreme([64, 0, 0]));
+  check('and a washed-out near-white', isExtreme([224, 224, 224]) && isExtreme([255, 255, 224]));
+
+  // Not a distance to black: redmean puts a dark red and a very dark grey at
+  // almost the same distance from it, so one threshold cannot separate them.
+  // Value and paleness can, and these are the colours that must survive.
+  check('a mid grey is a fine target', !isExtreme([128, 128, 128]));
+  check('so is a dark navy', !isExtreme([0, 0, 128]));
+  check('and a proper dark red', !isExtreme([128, 0, 0]));
+  check('the value floor is where black stops', isExtreme([COLOR_VALUE_FLOOR - 1, 0, 0]) && !isExtreme([COLOR_VALUE_FLOOR, 0, 0]));
+  check('and the white floor where white starts', !isExtreme([COLOR_WHITE_FLOOR, COLOR_WHITE_FLOOR, COLOR_WHITE_FLOOR]) && isExtreme([COLOR_WHITE_FLOOR + 1, COLOR_WHITE_FLOOR + 1, COLOR_WHITE_FLOOR + 1]));
+
+  // The dimmest luminance step must not drag a colour under the floor, or the
+  // bottom notch of the slider would be unpickable.
+  const dimmest = luminanceSteps()[0] ?? 1;
+  check('the dimmest slider step still clears the floor', !isExtreme(withLuminance([255, 0, 0], dimmest)), withLuminance([255, 0, 0], dimmest));
+
+  // And a rung too big to enumerate cannot deal one either: the deal nudges a
+  // dark or pale draw back onto its own grid rather than rejecting in a loop.
+  check('even an unenumerable rung never deals one', (() => {
+    for (const v of [0, 0.02, 0.5, 0.98, 0.999]) if (isExtreme(dealTarget(80, () => v).rgb)) return false;
+    for (let s2 = 1; s2 < 40; s2++) if (isExtreme(dealTarget(80, seeded(s2)).rgb)) return false;
+    return true;
+  })());
+}
+
+function noRepeats(): void {
+  console.log('\na session never asks twice (§2.3)');
+
+  const used = new Set<string>();
+  const got: string[] = [];
+  for (let lv = 11; lv <= 22; lv++) {
+    const t = dealTarget(lv, seeded(lv * 7 + 1), used);
+    used.add(colorKey(t.rgb));
+    got.push(colorKey(t.rgb));
+    if (t.repeat) got.push('REPEAT');
+  }
+  check('twelve levels of a wide rung, twelve different colours', new Set(got).size === got.length && !got.includes('REPEAT'), got.length);
+
+  // The first rung has three colours and lasts five levels, so levels 4 and 5
+  // cannot be fresh. The deal says so rather than failing or looping.
+  const rung1 = new Set<string>();
+  let repeats = 0;
+  for (let lv = 1; lv <= 5; lv++) {
+    const t = dealTarget(lv, seeded(lv * 11 + 3), rung1);
+    rung1.add(colorKey(t.rgb));
+    if (t.repeat) repeats += 1;
+  }
+  check('the first rung runs out after three, and admits it', rung1.size === 3 && repeats === 2, { size: rung1.size, repeats });
 }
 
 function luminance(): void {
@@ -234,11 +296,22 @@ function hunt(): void {
     return pairs === 1;
   })());
 
-  check('the next target is never the one just used', (() => {
-    for (let s = 1; s < 80; s++) if (nextHuntTarget('green', seeded(s)).key === 'green') return false;
+  check('a used target never comes up again', (() => {
+    for (let s = 1; s < 80; s++) if (nextHuntTarget(new Set(['green']), seeded(s))?.key === 'green') return false;
     return true;
   })());
-  check('with no previous, any of the six may come up', new Set([...Array(40)].map((_, i) => nextHuntTarget(null, seeded(i + 1)).key)).size > 1);
+  check('with nothing used, any of the six may come up', new Set([...Array(40)].map((_, i) => nextHuntTarget(new Set(), seeded(i + 1))?.key)).size > 1);
+  // Six colours, six rounds: the pool running dry is the hunt's own ending
+  // (color-hunt.md §2.2), not an error to guard against.
+  check('the pool runs dry after six, and says so', (() => {
+    const used = new Set<string>();
+    for (let i = 0; i < 6; i++) {
+      const t = nextHuntTarget(used, seeded(i * 13 + 5));
+      if (!t) return false;
+      used.add(t.key);
+    }
+    return nextHuntTarget(used, seeded(1)) === null;
+  })());
 }
 
 function wire(): void {
@@ -257,6 +330,8 @@ function wire(): void {
 
 distance();
 splits();
+extremes();
+noRepeats();
 ladder();
 palettes();
 luminance();
