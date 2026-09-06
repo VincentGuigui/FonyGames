@@ -1,10 +1,11 @@
 # Color Match
 
-> Status: **draft, awaiting approval** ([issue #26](https://github.com/VincentGuigui/FonyGames/issues/26)).
-> Nothing is built until the maintainer approves this (AGENTS.md §5.2). The
-> difficulty ladder below is transcribed from the issue and turned into a table
-> a machine can read; every number in §2.4 and §5b is a proposal, not a
-> measurement.
+> Status: **built, beta** ([issue #26](https://github.com/VincentGuigui/FonyGames/issues/26)).
+> Approved as written on 2026-09-06, which settled §12 Q1: the miss threshold,
+> the wheel's geometry and the multiplicative luminance model are the shipped
+> design. The ladder is transcribed from the issue and turned into a table a
+> machine can read; every number in §2.4 and §5b is still a proposal rather
+> than a measurement, and Q2–Q6 are still open.
 
 | | |
 | --- | --- |
@@ -15,7 +16,7 @@
 | **Round length** | ~7 s per level, no fixed round length — a run ends when the ladder outruns the room (§2.2) |
 | **Inputs** | touch |
 | **Accent colour** | `#F472B6` |
-| **Status** | draft |
+| **Status** | built, beta — every number in §5b is still a guess |
 
 ## 1. Pitch
 
@@ -215,7 +216,7 @@ Touch only. One drag on the wheel, one on the slider, both plain pointer events
 
 **Fallbacks:** not applicable, and that is worth stating rather than omitting.
 This game asks for nothing, so it cannot be refused anything, and it is not a
-candidate for the closed list in AGENTS.md §4.
+candidate for the no-fallback branch of AGENTS.md §4.
 
 ### 5b Constants
 
@@ -336,10 +337,10 @@ nickname, city/country. No colour ever appears in it.
 
 Everything here needs a maintainer answer, and Q1 blocks the build.
 
-1. **Is the whole shape right?** The ladder, the seven-second level, the barren
-   ending and the redmean score are a faithful reading of the issue, but the
-   issue left the threshold, the wheel's geometry and the luminance model open,
-   and this spec has proposed all three. Approving the file approves those.
+1. ~~**Is the whole shape right?**~~ **Answered on 2026-09-06**: approved as
+   written, so the flat threshold, the two-presentation wheel and the
+   multiplicative luminance are the design rather than a proposal. Q2–Q6 below
+   are untouched by that and still want a real thumb.
 2. **Does the wheel's sector→continuous switch read as one control?** Levels
    1–30 are tap-a-wedge and 31+ are drag-and-snap. That may be a graceful
    ramp or it may feel like the game swapped its input out from under you at
@@ -361,3 +362,44 @@ Everything here needs a maintainer answer, and Q1 blocks the build.
 6. **1–8 or 2–8?** Specced as 1–8 because the ladder is a perfectly good solo
    score attack and costs nothing to allow, but the issue said "1 to 8" about a
    game whose fun is arguing about a colour with other people.
+
+## 13. What was built, and what the tests pin
+
+`shared/color.ts` holds the distance, the ladder and the palettes, because the
+referee scores and the phone previews the same pick. Color Hunt reads the same
+file (its §2.2).
+
+- **`shared/color.test.ts`, 80 checks** (`npm run test:color`). The two things
+  the issue left ambiguous are pinned here rather than in prose. *Splits means
+  intervals, not values* — 1 split is `{0, 255}`, 4 is `{0, 64, 128, 192, 255}`
+  — and that sequence is `i × round(255 / splits)` clamped at the top, **not**
+  `round(i × 255 / splits)`: the two differ by a point in the middle and the
+  issue's own 4-split example settles it at 192 rather than 191. Also the
+  past-45 formula and its cap, palette de-duplication (rung 1 can make black
+  three ways and must offer it once), and that a degenerate random source still
+  deals rather than spinning — `dealTarget` first chose its components with a
+  rejection loop, which never terminates when the source always returns the
+  same number.
+- **`worker/colorMatch.test.ts`, 57 checks** (`npm run test:color-match`).
+  Everybody is scored at the same instant, so being early buys nothing; a later
+  pick replaces an earlier one; the grace window admits a late pick and the
+  millisecond past it does not; levels chain themselves with no lobby; the
+  barren streak ends the run and one player scoring resets it for the room; and
+  **no pick for the level in flight is ever in a broadcast**, which is the one
+  thing standing between this game and a player reading the wire.
+- **`www/src/games/color-match/wheel.test.ts`, 53 checks**
+  (`npm run test:color-wheel`). Every colour a rung offers has a wedge, no two
+  overlap, each ring closes the circle exactly, tapping a wedge picks the
+  colour drawn there, and the continuous disc submits the colour it is showing.
+
+That last one found a real bug before a player could: the disc was first drawn
+with a linear gradient, which does not put a hue where the angle says it is, so
+the colour under the thumb was not the colour that would have been picked. It
+is 48 wedges of the same geometry `continuousAt` reads.
+
+One rendering note worth keeping, since it cost an hour: the pie timer is
+rotated with SVG's own `transform` attribute rather than CSS. Under
+`transform-box: view-box` a CSS `transform-origin: center` resolves to (12, 12)
+in user space rather than to this viewBox's centre at (0, 0), which swings the
+arc clean off the circle — it renders, with the right dash and the right
+stroke, somewhere nobody can see.

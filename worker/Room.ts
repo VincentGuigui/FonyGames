@@ -130,6 +130,26 @@ import {
   type Ctx as AsteroidCtx,
 } from './asteroidRace';
 import {
+  nextDeadline as matchDeadline,
+  onColorPick,
+  onPlayerGone as matchPlayerGone,
+  startColorMatch,
+  tick as matchTick,
+  toState as matchToState,
+  type ColorMatch,
+  type Ctx as MatchCtx,
+} from './colorMatch';
+import {
+  nextDeadline as huntColorDeadline,
+  onHuntFind,
+  onPlayerGone as huntColorPlayerGone,
+  startColorHunt,
+  tick as huntColorTick,
+  toState as huntColorToState,
+  type ColorHunt,
+  type Ctx as HuntColorCtx,
+} from './colorHunt';
+import {
   nextDeadline as ttttDeadline,
   onSelect as onTtttSelect,
   onTap as onTtttTap,
@@ -487,6 +507,16 @@ export class Room extends DurableObject<Env> {
         if (id) await onAsteroidReport(this.#asteroidCtx(), id, msg.d.roundId, msg.d.distance, msg.d.lives, msg.d.hits, msg.d.at);
         return;
       }
+      case 'color-pick': {
+        const id = this.#idOf(ws);
+        if (id) await onColorPick(this.#matchCtx(), id, msg.d.roundId, msg.d.level, msg.d.rgb, msg.d.lum, msg.d.at);
+        return;
+      }
+      case 'hunt-find': {
+        const id = this.#idOf(ws);
+        if (id) await onHuntFind(this.#huntColorCtx(), id, msg.d.roundId, msg.d.round, msg.d.rgb, msg.d.at);
+        return;
+      }
       case 'tttt-select': {
         const id = this.#idOf(ws); if (id) await onTtttSelect(this.#ttttCtx(), id, msg.d.roundId, msg.d.metaCell); return;
       }
@@ -697,6 +727,18 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const matching = await this.#colorMatch();
+    if (matching && matching.phase !== 'done' && Date.now() >= matchDeadline(matching)) {
+      await matchTick(this.#matchCtx());
+      await this.#rearm();
+      return;
+    }
+    const hunting = await this.#colorHunt();
+    if (hunting && hunting.phase === 'hunt' && Date.now() >= huntColorDeadline(hunting)) {
+      await huntColorTick(this.#huntColorCtx());
+      await this.#rearm();
+      return;
+    }
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over' && Date.now() >= ttttDeadline(tttt)) {
       await ttttTick(this.#ttttCtx()); await this.#rearm(); return;
@@ -819,6 +861,10 @@ export class Room extends DurableObject<Env> {
     if (shooting && shooting.phase !== 'done') return;
     const racing = await this.#asteroid();
     if (racing && racing.phase !== 'done') return;
+    const matching = await this.#colorMatch();
+    if (matching && matching.phase !== 'done') return;
+    const colorHunting = await this.#colorHunt();
+    if (colorHunting && colorHunting.phase !== 'done') return;
     const tttt = await this.#tttt();
     if (tttt && tttt.phase !== 'over') return;
     const fighter = await this.#fighter();
@@ -847,6 +893,8 @@ export class Room extends DurableObject<Env> {
       mode === 'tiles' ||
       mode === 'gravity' ||
       mode === 'asteroid' ||
+      mode === 'color-match' ||
+      mode === 'color-hunt' ||
       mode === 'tttt'
       || mode === 'fighter'
     ) {
@@ -871,6 +919,8 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'tiles') started = await startTilesSurfer(this.#tilesCtx(), roundId, ids, solo);
       else if (mode === 'gravity') started = await startGravityShooter(this.#gravityCtx(), roundId, ids, solo);
       else if (mode === 'asteroid') started = await startAsteroidRace(this.#asteroidCtx(), roundId, ids, solo);
+      else if (mode === 'color-match') started = await startColorMatch(this.#matchCtx(), roundId, ids, solo);
+      else if (mode === 'color-hunt') started = await startColorHunt(this.#huntColorCtx(), roundId, ids, solo);
       else if (mode === 'tttt') started = await startTttt(this.#ttttCtx(), roundId, ids, symbols, solo);
       else if (mode === 'fighter') started = await startTapFighter(this.#fighterCtx(), roundId, ids, solo);
       // `direct` is the default because it needs no explanation: grab your icon
@@ -944,7 +994,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'tttt', 'fighter', 'roundId', 'scores']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'tttt', 'fighter', 'roundId', 'scores']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -1264,6 +1314,38 @@ export class Room extends DurableObject<Env> {
       load: () => this.#asteroid(),
       save: (s) => this.ctx.storage.put('asteroid', s),
       setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #colorMatch(): Promise<ColorMatch | null> {
+    return (await this.ctx.storage.get<ColorMatch>('color-match')) ?? null;
+  }
+
+  #matchCtx(): MatchCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#colorMatch(),
+      save: (s) => this.ctx.storage.put('color-match', s),
+      setAlarm: () => this.#rearm(),
+      random: () => Math.random(),
+    };
+  }
+
+  async #colorHunt(): Promise<ColorHunt | null> {
+    return (await this.ctx.storage.get<ColorHunt>('color-hunt')) ?? null;
+  }
+
+  #huntColorCtx(): HuntColorCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#colorHunt(),
+      save: (s) => this.ctx.storage.put('color-hunt', s),
+      setAlarm: () => this.#rearm(),
+      random: () => Math.random(),
     };
   }
 
@@ -1643,6 +1725,18 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'asteroid', s: this.#nextSeq(), d: asteroidToState(racing) });
     }
 
+    /* Both colour games: the level or target in flight, its deadline, and the
+       running totals. Nobody's pick for the round in flight is in there —
+       `toState` withholds it (spec §8). */
+    const matching = await this.#colorMatch();
+    if (matching && matching.phase !== 'done') {
+      this.#send(ws, { t: 'color-match', s: this.#nextSeq(), d: matchToState(matching) });
+    }
+    const hunting = await this.#colorHunt();
+    if (hunting && hunting.phase !== 'done') {
+      this.#send(ws, { t: 'color-hunt', s: this.#nextSeq(), d: huntColorToState(hunting) });
+    }
+
     await this.#broadcastPresence(ws);
   }
 
@@ -1725,6 +1819,11 @@ export class Room extends DurableObject<Env> {
     // Asteroid Race freezes rather than eliminates: nobody was racing them
     // directly, and their lives are still theirs to come back to (spec §7).
     await asteroidPlayerGone(this.#asteroidCtx(), id);
+    // Both colour games keep a departed player's total on the board — the run
+    // is against the ladder or the room, not against them, so removing it would
+    // rewrite a scoreboard other people are still comparing themselves to.
+    await matchPlayerGone(this.#matchCtx(), id);
+    await huntColorPlayerGone(this.#huntColorCtx(), id);
     // Neon Fall is the same shape as Grid Attack: two fixed seats, and a phone
     // leaving means one of the roles is simply gone — there is no game left.
     await neonPlayerGone(this.#neonCtx(), id);
@@ -1837,6 +1936,12 @@ export class Room extends DurableObject<Env> {
 
     const racing = await this.#asteroid();
     if (racing?.phase === 'running') return asteroidDeadline(racing);
+
+    const matching = await this.#colorMatch();
+    if (matching && matching.phase !== 'done') return matchDeadline(matching);
+
+    const hunting = await this.#colorHunt();
+    if (hunting?.phase === 'hunt') return huntColorDeadline(hunting);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);

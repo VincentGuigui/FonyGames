@@ -8,10 +8,13 @@ export type GameInput =
   | 'gps'
   | 'compass'
   /**
-   * The rear camera, as **scenery** rather than input. Ghost Hunt draws the live feed
-   * behind its detector ring; no game reads a pixel of it for gameplay, and nothing
-   * leaves the phone (docs/specs/games/ghost-hunt.md §10). Listed on the card anyway,
-   * because a player deserves to know a game will ask before they open it.
+   * The rear camera. Usually **scenery** — Ghost Hunt and UFO Hunt draw the live
+   * feed behind their own overlays and read nothing from it. Color Hunt is the
+   * exception and genuinely samples it: 100 pixels from the centre of the frame,
+   * averaged on the phone (docs/specs/games/color-hunt.md §5). Either way nothing
+   * leaves the phone — not a frame, not a crop — and either way it is listed on
+   * the card, because a player deserves to know a game will ask before they open
+   * it.
    */
   | 'camera'
   | 'mic';

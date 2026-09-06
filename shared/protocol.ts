@@ -269,6 +269,18 @@ export type ClientMessage =
    */
   | { t: 'gravity-shot'; d: { roundId: number; angle: number; strength: number; hit: boolean } }
   /**
+   * Color Match: this phone's pick for the level in flight (spec §6). A colour
+   * and a luminance, never a score — the referee computes what it is worth,
+   * because a claimed score is the one thing a payload must never carry.
+   */
+  | { t: 'color-pick'; d: { roundId: number; level: number; rgb: [number, number, number]; lum: number; at: number } }
+  /**
+   * Color Hunt: what this phone's magnifier last read (spec §6). Three
+   * integers — **no pixel is ever on the wire**, which is the whole of that
+   * game's privacy claim (spec §10).
+   */
+  | { t: 'hunt-find'; d: { roundId: number; round: number; rgb: [number, number, number]; at: number } }
+  /**
    * Asteroid Race: how far I have got and what it has cost me, on a 1 s tick
    * plus immediately on a life change or a finish (spec §6). Nothing about the
    * flight itself is here — no position, no steer, no missile, no boost —
@@ -647,6 +659,66 @@ export type TilesSurferRun = {
  * private to begin with, the same shape Aliens Love Cows' own state already
  * is for the same reason.
  */
+/**
+ * Color Match: one level of the ladder (spec §6).
+ *
+ * The **target is on the wire in the clear**, which is not an oversight: the
+ * game does not exist unless the colour is shown, so hiding it from the
+ * payload would only hide it from the honest players. Spec §8 states the
+ * position in full.
+ *
+ * Every phase boundary is an absolute server time rather than a duration, so a
+ * phone that stutters catches up instead of drifting a level behind the room —
+ * Tap Duel's `fireAt` and Tiles Surfer's spawn schedule make the same choice.
+ */
+export type ColorMatchState = {
+  roundId: number;
+  /** 1-based, and unbounded: the ladder's last rung is a formula (spec §2.3). */
+  level: number;
+  /** The colour to match, already carrying its luminance. */
+  target: [number, number, number];
+  /** Is the luminance slider live on this rung? Derived from the level, sent
+   *  anyway so the phone never has to agree with the referee about the ladder. */
+  luminance: boolean;
+  phase: 'pick' | 'reveal' | 'done';
+  /** When picks close, when the reveal starts, when the level ends. */
+  picksDueAt: number;
+  revealAt: number;
+  endsAt: number;
+  /** Running totals, every player who has played a level. */
+  totals: Record<PlayerId, number>;
+  /** Last scored level only — what everyone picked and what it was worth.
+   *  Empty during `pick`. */
+  picks: Record<PlayerId, { rgb: [number, number, number]; score: number }>;
+  /** Consecutive levels nobody scored on. At `COLOR_BARREN_ROUNDS` the run ends. */
+  barren: number;
+  winner: PlayerId | null;
+};
+
+/**
+ * Color Hunt: one round of the hunt (spec §6).
+ *
+ * Shorter than Color Match's by one phase — there is no reveal, by design
+ * (spec §2): the next target replaces this one the instant scoring completes,
+ * because the momentum is the thing this game has that Color Match does not.
+ */
+export type ColorHuntState = {
+  roundId: number;
+  round: number;
+  target: [number, number, number];
+  /** `red` … `magenta` — the phone writes the word on the band, because a word
+   *  reads across a room faster than a swatch (spec §4). */
+  name: string;
+  phase: 'hunt' | 'done';
+  dueAt: number;
+  endsAt: number;
+  totals: Record<PlayerId, number>;
+  /** Last scored round only. Empty until the first one is scored. */
+  finds: Record<PlayerId, { rgb: [number, number, number]; score: number }>;
+  barren: number;
+  winner: PlayerId | null;
+};
+
 export type TilesSurferState = {
   roundId: number;
   startsAt: number;
@@ -996,6 +1068,10 @@ export type ServerMessage =
   | { t: 'gravity'; s: number; d: GravityShooterState }
   /** Asteroid Race: everyone's last-reported run, fully public — spec §6. */
   | { t: 'asteroid'; s: number; d: AsteroidRaceState }
+  /** Color Match: the level in flight, and what the last one was worth. */
+  | { t: 'color-match'; s: number; d: ColorMatchState }
+  /** Color Hunt: the target in flight, and what the last one was worth. */
+  | { t: 'color-hunt'; s: number; d: ColorHuntState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
    * Tap Tap Music: sent to **one player only** — their own cleared
@@ -1732,6 +1808,8 @@ const CLIENT_TYPES = new Set([
   'tiles-report',
   'gravity-shot',
   'asteroid-report',
+  'color-pick',
+  'hunt-find',
   'switch-game',
 ]);
 
@@ -2559,3 +2637,50 @@ export const ASTEROID_CLAIM_SLACK = 20;
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const ASTEROID_MIN_PLAYERS = PLAYERS['asteroid-race'][0];
 export const ASTEROID_MAX_PLAYERS = PLAYERS['asteroid-race'][1];
+
+/* ------------------------------------------------------------------ */
+/* Color Match (docs/specs/games/color-match.md)                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A level is a fixed seven seconds, in four phases (spec §2.2). The referee
+ * sends every boundary as an absolute time, so these are the durations it adds
+ * up rather than anything a phone counts down on its own.
+ */
+export const COLOR_ACTION_MS = 3_000;
+export const COLOR_SCORE_HOLD_MS = 2_000;
+export const COLOR_SOLVE_MS = 1_000;
+export const COLOR_REVEAL_HOLD_MS = 1_000;
+
+/** Above this many colours in the rung's palette, the wheel stops drawing
+ *  wedges and goes continuous (spec §4.2). A guess. */
+export const COLOR_SECTOR_MAX = 64;
+
+/** The safety cap. Ten minutes of a room that will not stop scoring is not a
+ *  design element, it is a way out (spec §2.1). */
+export const COLOR_RUN_CAP_MS = 600_000;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const COLOR_MATCH_MIN_PLAYERS = PLAYERS['color-match'][0];
+export const COLOR_MATCH_MAX_PLAYERS = PLAYERS['color-match'][1];
+
+/* ------------------------------------------------------------------ */
+/* Color Hunt (docs/specs/games/color-hunt.md)                         */
+/* ------------------------------------------------------------------ */
+
+/** Longer than Color Match's three seconds, because finding a red thing means
+ *  getting up and walking to it (spec §5b). */
+export const COLOR_HUNT_ACTION_MS = 6_000;
+
+/** The issue's own 10x10 patch, and how often it is re-read. Sampling at frame
+ *  rate makes the magnifier a strobe; averaging a few reads is what makes it
+ *  settle enough to aim with (spec §5). */
+export const COLOR_HUNT_SAMPLE = 10;
+export const COLOR_HUNT_SAMPLE_HZ = 10;
+
+/** The safety cap, and the reason §9's safety copy can promise a bound: nobody
+ *  is walking around looking at a screen for longer than this. */
+export const COLOR_HUNT_CAP_MS = 600_000;
+
+export const COLOR_HUNT_MIN_PLAYERS = PLAYERS['color-hunt'][0];
+export const COLOR_HUNT_MAX_PLAYERS = PLAYERS['color-hunt'][1];

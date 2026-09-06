@@ -35,9 +35,10 @@ Local dev therefore needs an HTTPS dev server or a tunnel — see
      Bomb's bump against its PASS IT button, Ghost Hunt's camera route against
      its photosphere.
    - **A permission with no alternative is asked for by Ready — or by Start, for
-     the host.** Steady Hand, Shake Rush, UFO Hunt, Asteroid Race and Neon Fall
-     (the closed list in [AGENTS.md](../AGENTS.md) §4) cannot be played without
-     their sensor, so a button in front of it adds a tap without adding a
+     the host.** Steady Hand, Shake Rush, UFO Hunt, Asteroid Race, Neon Fall and
+     Color Hunt (the list in [AGENTS.md](../AGENTS.md) §4, where a fallback is a
+     recommendation rather than a gate) cannot be played without their sensor,
+     so a button in front of it adds a tap without adding a
      decision: whoever wants to play is going to answer the same prompt either
      way. The explanation panel stays; only its button goes
      ([issue #29](https://github.com/VincentGuigui/FonyGames/issues/29)). The
