@@ -27,8 +27,11 @@ import {
 } from './field';
 import {
   ASTEROID_BOOST_SPEED,
+  ASTEROID_CAM_BACK,
+  ASTEROID_CAM_FOLLOW,
   ASTEROID_CLEAR_Z,
   ASTEROID_DRAW_Z,
+  ASTEROID_FOCAL,
   ASTEROID_HORIZON,
   ASTEROID_MISSILE_COOLDOWN_MS,
   ASTEROID_MISSILE_RANGE,
@@ -252,7 +255,7 @@ function theFogIsFair(): void {
 }
 
 function theView(): void {
-  console.log('\nthe camera, level with the hull (§4)');
+  console.log('\nthe camera: level with the hull, and holding the tunnel (§4)');
 
   const ship = { x: 0, y: 0, distance: 100 };
   const ahead = project({ x: 0, y: 0, z: 200 }, ship);
@@ -277,22 +280,48 @@ function theView(): void {
   check('nothing level with the camera is drawn', project({ x: 0, y: 0, z: 86 }, ship) === null);
   check('nor anything behind it', project({ x: 0, y: 0, z: 0 }, ship) === null);
 
-  // The hull holds the exact middle whatever it does — with the camera level
-  // that is now BOTH axes, which is what makes "centred on screen" and
-  // "centred in the tube" the same statement (§4). `ASTEROID_HORIZON` is 0.5,
-  // so `toPixel` turns an all-zero projection into the screen's own centre on
-  // a board of any shape: no width-derived term is left in the vertical.
-  const drifted = { x: 5, y: -3, distance: 100 };
-  const self = project({ x: 5, y: -3, z: 100 }, drifted);
-  check('the hull itself never leaves the middle', !!self && Math.abs(self.ox) < 1e-9, self);
-  check('on either axis', !!self && Math.abs(self.oy) < 1e-9, self);
-  check('and the vanishing point is the middle of the board', ASTEROID_HORIZON === 0.5, ASTEROID_HORIZON);
-
-  // Flying the axis puts the rings concentric around the hull — the visual
-  // that says "centred" without a word of copy.
+  // On the axis, the hull IS the middle of the board — that is the round's own
+  // starting frame, and `ASTEROID_HORIZON` at 0.5 is what turns an all-zero
+  // projection into the screen's own centre on a board of any shape: no
+  // width-derived term is left in the vertical.
   const onAxis = { x: 0, y: 0, distance: 100 };
+  const self = project({ x: 0, y: 0, z: 100 }, onAxis);
+  check('a hull on the axis draws dead centre', !!self && Math.abs(self.ox) < 1e-9 && Math.abs(self.oy) < 1e-9, self);
+  check('and the vanishing point is the middle of the board', ASTEROID_HORIZON === 0.5, ASTEROID_HORIZON);
   const ring = project({ x: 0, y: 0, z: 300 }, onAxis);
-  check('and a ring ahead is concentric with it', !!ring && Math.abs(ring.ox) < 1e-9 && Math.abs(ring.oy) < 1e-9, ring);
+  check('so a ring ahead is concentric with it', !!ring && Math.abs(ring.ox) < 1e-9 && Math.abs(ring.oy) < 1e-9, ring);
+
+  // Off the axis, the camera holds the TUNNEL rather than the hull (§4): it
+  // leans only `ASTEROID_CAM_FOLLOW` of the way across, so the ship moves on
+  // screen and the tube barely does. This is the reverse of a chase cam, and
+  // the whole reason the hull has a screen position worth banding a pose
+  // against.
+  const drifted = { x: 5, y: -3, distance: 100 };
+  const hull = project({ x: 5, y: -3, z: 100 }, drifted);
+  const scale = ASTEROID_FOCAL / ASTEROID_CAM_BACK;
+  check('a hull to the right draws to the right of the middle', !!hull && hull.ox > 0, hull);
+  check('and one flying low draws below it', !!hull && hull.oy > 0, hull);
+  check(
+    'by all but the camera\'s own lean',
+    !!hull && Math.abs(hull.ox - 5 * (1 - ASTEROID_CAM_FOLLOW) * scale) < 1e-9,
+    hull,
+  );
+
+  // The tube shifts the OTHER way, and only by the lean — a tenth of what the
+  // hull did, which is what "the camera stays on the tunnel" has to look like.
+  const nearRing = project({ x: 0, y: 0, z: 130 }, drifted);
+  const ringScale = ASTEROID_FOCAL / (130 - (100 - ASTEROID_CAM_BACK));
+  check('the tube slides the opposite way from the hull', !!nearRing && nearRing.ox < 0, nearRing);
+  check(
+    'and only by the lean, a tenth of the hull\'s own offset',
+    !!nearRing && Math.abs(nearRing.ox + 5 * ASTEROID_CAM_FOLLOW * ringScale) < 1e-9,
+    nearRing,
+  );
+
+  // A pure lateral camera move does not rotate the view, so however far the
+  // hull has drifted the far end of the tunnel still converges on the middle.
+  const farRing = project({ x: 0, y: 0, z: 4000 }, drifted);
+  check('while the far end of the tunnel stays on the middle', !!farRing && Math.abs(farRing.ox) < 0.01, farRing);
 }
 
 function collisions(): void {

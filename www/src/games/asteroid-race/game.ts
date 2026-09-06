@@ -49,20 +49,41 @@ export type Vec3 = { x: number; y: number; z: number };
 /* ------------------------------- the view ------------------------------- */
 
 /**
- * The camera sits **directly behind the hull, on its own line**, and looks
- * straight down the tube (spec §4). Level, not above it: the hull then
- * projects onto the vanishing point itself, so "centred" means one thing
- * rather than two — the middle of the screen, and the middle of the tube, are
- * the same place, and the corridor's rings sit concentric around the ship
- * whenever it is on the axis. The camera used to ride 3.4 units high, which
- * kept the tube mouth clear of the hull but drew the ship at ~83% down a real
- * board and always a little below the axis it was actually flying along.
+ * The camera sits **level with the hull and behind it, on the tunnel's own
+ * axis** (spec §4). Level rather than above, so that a hull flying the axis
+ * projects onto the vanishing point itself and "centred" means one thing
+ * rather than two; and on the tunnel's axis rather than the hull's, so the
+ * tube stays put on screen and the ship flies around inside it instead of the
+ * corridor sliding around a pinned sprite. `ASTEROID_CAM_FOLLOW` is the whole
+ * of the second half: the camera leans only a tenth of the way toward the
+ * hull.
  *
- * The trade is that a rock dead ahead now grows from behind the hull for most
- * of its approach, so the red proximity halo and the reticle bracket (§4) are
- * the warning rather than an ornament on one. Open question §12.
+ * The camera used to ride 3.4 units high and track the hull exactly, which
+ * kept the tube mouth clear but drew the ship at ~83% down a real board and
+ * pinned it there. Two trades came out of undoing that, both open questions
+ * rather than settled calls: a rock dead ahead now grows from behind the hull
+ * when the hull is near the axis (§12 Q7), and the hull leaves the frame well
+ * before it reaches the tube wall (§12 Q8).
  */
 export const ASTEROID_CAM_BACK = 14;
+
+/**
+ * How far the camera leans toward the hull, as a fraction of the hull's own
+ * offset from the tube's axis. **0.1: the camera holds the tunnel, not the
+ * ship.** The tube therefore stays where it is on screen and the ship flies
+ * around inside it, which is the reverse of a chase cam pinned to the hull.
+ *
+ * The consequence is severe and deliberate (§12 Q8): the hull's on-screen
+ * swing is `ASTEROID_REACH × (1 − this) × ASTEROID_FOCAL / ASTEROID_CAM_BACK`
+ * = 0.96 board widths against a half-width of 0.5, so the sprite starts
+ * clipping the frame at ~33% of the reach, its centre crosses the edge at
+ * ~52%, and it is gone entirely past ~72%. Keeping it in frame at this follow
+ * means widening the view — `ASTEROID_CAM_BACK` around 38 — which draws the
+ * hull about a third of its present size. That is the trade to make when this
+ * has been seen on a phone; this constant and that one are the only two knobs
+ * involved.
+ */
+export const ASTEROID_CAM_FOLLOW = 0.1;
 
 /** Focal length, in board widths per unit at unit distance — the field of view.
  *  Wide enough that the tube walls sweep past the edges rather than sitting in
@@ -164,7 +185,11 @@ export function project(p: Vec3, ship: { x: number; y: number; distance: number 
   const dz = p.z - (ship.distance - ASTEROID_CAM_BACK);
   if (dz <= ASTEROID_NEAR_Z) return null;
   const scale = ASTEROID_FOCAL / dz;
-  return { ox: (p.x - ship.x) * scale, oy: (ship.y - p.y) * scale, scale };
+  // Where the camera actually is: mostly the tunnel's axis, leaning a tenth of
+  // the way toward the hull (`ASTEROID_CAM_FOLLOW`).
+  const camX = ship.x * ASTEROID_CAM_FOLLOW;
+  const camY = ship.y * ASTEROID_CAM_FOLLOW;
+  return { ox: (p.x - camX) * scale, oy: (camY - p.y) * scale, scale };
 }
 
 /**
