@@ -163,26 +163,42 @@ planet overlaps the star on about 59% of boards, which is the intended
 freedom rather than a defect; planets draw over the star, so the overlap reads
 as one body passing in front of another.
 
-**A guaranteed landing shot, on top of the shape rules.** Issue #16 asked
+**A window to aim at, guaranteed, on top of the shape rules.** Issue #16 asked
 directly: *"is it possible to simulate a winning trajectory from each player's
 own position, to avoid generating an impossible map?"* — yes, and with three
-planets in the way it is no longer a courtesy but the accept condition. Once a
-candidate map satisfies the three rules above, the referee samples a fan of
-shots (**25 angles × 7 strengths**, from every seat's own launch point) through
-a small worker-local copy of the client's own gravity model
-(`worker/gravityShooter.ts`'s `seatCanReachOpponent`) purely to answer "does at
-least one of these connect" — never to decide a real shot (§8 is unchanged:
-the referee still trusts whatever `hit` a real `gravity-shot` claims).
+planets in the way it is no longer a courtesy but the accept condition.
 
-**A map only ships once BOTH seats have one.** Up to 200 whole geometries are
-rolled looking for that; measured across 2000 seeded rolls, none needed more
-than a handful and none fell through. If one ever did, `GRAVITY_FALLBACK_BOARD`
-ships instead — a fixed board whose own landing shots and placement legality
-the referee's tests assert, since nothing checks it at runtime. Never an
-unwinnable board, and never a match refused over a roll.
+The referee samples a fan of shots in **finger space** — 25 directions from
+-84° to +84°, at 7 distances out along the aim ramp, so the 175 samples are
+spread evenly over the disc a thumb can reach — and flies each through a small
+worker-local copy of the client's own gravity model
+(`worker/gravityShooter.ts`'s `seatLandingShots`). Never to decide a real shot
+(§8 is unchanged: the referee still trusts whatever `hit` a real
+`gravity-shot` claims); only to answer how much of that disc lands.
+
+**A map ships only once BOTH seats have `GRAVITY_MIN_LANDING_SHOTS` (3) of
+them.** Not one — *three*. A single hit is the wrong bar, and measurably so: it
+is satisfied by a hairline the sampling grid happened to fall on, which is a
+coincidence rather than an aim. Scanning the real winning region finely (121 ×
+70 over the aim disc, real physics, 160 rolled seat-boards) says what each bar
+is worth:
+
+| Bar | Boards kept | Worst board kept | Median board |
+| --- | --- | --- | --- |
+| ≥1 landing shot | 88% | 0.12% of the aim disc — 4px × 1.4° | 2.7%, 26px × 11° |
+| **≥3 (chosen)** | **61%** | **1.22% — 12px × 4.3°** | **3.6%, 32px × 14°** |
+| ≥4 | 47% | 1.92% — 12px × 7.1° | 4.1%, 35px × 14° |
+| ≥5 | 36% | 2.11% — 12px × 7.1° | 4.6%, 39px × 14° |
+
+Three is where the worst case stops being absurd (a tenfold improvement on the
+old bar) without the gate starting to select only wide-open boards, which would
+flatten the variety three planets were added for. Four and five buy little more
+worst case for a lot more rejection. Rejection is cheap either way — up to 200
+geometries are rolled, at 3.9ms for the whole roll, once every two shots — and
+measured over 1000 seeded rolls the fallback board never shipped once.
 
 **The sampler is deliberately stricter than the real simulation**, which is
-what turns "we found one" into a guarantee rather than an estimate. A sampled
+what turns "we found some" into a guarantee rather than an estimate. A sampled
 shot only counts if it reaches the other ship
 
 - **without ever leaving the visible board**,
@@ -190,20 +206,20 @@ shot only counts if it reaches the other ship
 - **inside 8 seconds**.
 
 The real flight allows more than all three — it may leave the board and curve
-back in, it may overshoot and return, and it has 20s onscreen — so a
-trajectory this check accepts is one no lifetime budget and no outer wall can
-end early. It can still *miss* real shots that go the long way round; that only
-ever costs a re-roll.
+back in, it may overshoot and return, and it has 20s onscreen — so a trajectory
+this check accepts is one no lifetime budget and no outer wall can end early.
+It can still *miss* real shots that go the long way round; that only ever costs
+a re-roll.
 
 Both of the first two rules are there because they were needed, not on
 principle. With only the bounds rule, **5 of 600 seat-boards shipped whose
 "guaranteed" shot the real simulation never lands** — every one of them a
 missile that flew past the opponent's row and ran out its 1s `past` budget on
 the way back. That is the failure mode a coarse copy of someone else's physics
-has, and it is why the guarantee is checked end to end by
-`worker/gravityBoards.test.ts`, which rolls real boards and flies the sampled
-fan through the **client's own** `simulateShot`. Currently 240 of 240
-seat-boards land at least one, at a mean of 4.5 of the 175 sampled.
+has, and it is why the whole guarantee is checked end to end by
+`worker/gravityBoards.test.ts`, which rolls real boards and flies the fan
+through the **client's own** `simulateShot`. All 160 seat-boards clear the bar
+of 3 there, at a mean of 5.6.
 
 ### 2.2 One board, drawn twice
 
@@ -545,19 +561,22 @@ readable by a screen reader like any other status bar in this catalogue.
 - **Three planets, two/one (§2.1), is untested on a real board.** The count
   went from two to three at the maintainer's own ask, and the arithmetic says
   it fits — mean radius held at 36px across 2000 seeded rolls, every roll
-  legal, every roll with a landing shot for both seats — but "fits" is not
-  "reads". Two things to look at in the first game on it.
-
-  First, whether the crowded side is legible at a glance on a phone or just
-  reads as clutter.
-
-  Second, and the measured one: **29% of seat-boards (69 of 240) have two or
-  fewer landing shots in the sampled fan.** The fan is coarse — 7° apart, so
-  the real continuum of winning shots is wider than any count off it — but a
-  board where the sample finds one answer is a board that may play as a puzzle
-  with one answer rather than a place to aim. If that is how it feels, the
-  lever is planet size, not planet count: the same three radii rolled from a
-  lower ceiling would open every board up without touching the split.
+  legal, every roll clearing the landing-shot bar for both seats — but "fits"
+  is not "reads". Whether the crowded side is legible at a glance on a phone,
+  or just reads as clutter, is a question only a game answers.
+- **How sensitive aiming is, is now measured, and it is the real open
+  question.** On a typical board the set of finger positions that lands a hit
+  is a curved sliver about **32px by 14°** on a 400px board — roughly 3.6% of
+  the aim disc (§2.1). That is a millimetre or two of thumb. It is not obviously
+  wrong, because the player is not aiming blind: the dashed preview updates
+  live while the finger moves (§2), so the real task is following a visible
+  curve rather than guessing. But it does mean **the board roll is not the lever
+  for making aiming more forgiving** — the window's size is set by how
+  sensitive the trajectory is to launch speed and angle, which is `G`, the
+  speed range and the hit radius, not by which board got dealt. Rolling harder
+  only selects for outlier boards and flattens the variety. If the first
+  playtest says aiming is fiddly, tune the physics; if it says it is fine,
+  the bar at 3 can come back down and boards get more varied again.
 - **`G` (gravity strength) and `GRAVITY_HIT_RADIUS`** — `G` is now four
   times the original brief's value across two follow-ups (§2.3), and the hit
   radius is no longer a tuned number at all: it is half the ship sprite's

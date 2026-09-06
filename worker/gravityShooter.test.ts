@@ -1,5 +1,6 @@
 import {
   GRAVITY_LIVES,
+  GRAVITY_MIN_LANDING_SHOTS,
   GRAVITY_PLANET_COUNT,
   GRAVITY_PLANET_MIN_GAP,
   GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO,
@@ -23,6 +24,7 @@ import {
   rollBoard,
   GRAVITY_FALLBACK_BOARD,
   seatCanReachOpponent,
+  seatLandingShots,
   startGravityShooter,
   surfaceGap,
   tick,
@@ -441,10 +443,11 @@ async function geometry(): Promise<void> {
 
     // The whole point of the roll (the maintainer's own ask): a board never
     // ships without a trajectory that lands, from BOTH seats.
-    check(`seed ${seed}: seat 0 has a landing shot on this board`,
-      seatCanReachOpponent(planets, 0, board.starRadius), planets);
-    check(`seed ${seed}: and so does seat 1`,
-      seatCanReachOpponent(planets, 1, board.starRadius), planets);
+    for (const seat of [0, 1] as const) {
+      const shots = seatLandingShots(planets, seat, board.starRadius);
+      check(`seed ${seed}: seat ${seat} gets a window to aim at, not just one shot`,
+        shots >= GRAVITY_MIN_LANDING_SHOTS, shots);
+    }
   }
 
   // The board of last resort has to satisfy everything a rolled one does —
@@ -454,8 +457,17 @@ async function geometry(): Promise<void> {
     seatCanReachOpponent(fallback.planets, 0, fallback.starRadius));
   check('and from seat 1',
     seatCanReachOpponent(fallback.planets, 1, fallback.starRadius));
+  const fallbackLeft = fallback.planets.filter((p) => p.x < 0.5).length;
   check('the fallback board is split two/one like any other',
-    fallback.planets.filter((p) => p.x < 0.5).length === 2, fallback.planets.map((p) => p.x));
+    fallbackLeft === 1 || fallbackLeft === 2, fallback.planets.map((p) => p.x));
+  // It ships without any runtime check, so its own aim room is asserted here
+  // rather than assumed — and generously, since it is the board a player lands
+  // on when everything else failed.
+  for (const seat of [0, 1] as const) {
+    const shots = seatLandingShots(fallback.planets, seat, fallback.starRadius);
+    check(`the fallback board leaves seat ${seat} well past the landing-shot bar`,
+      shots >= GRAVITY_MIN_LANDING_SHOTS * 2, shots);
+  }
   for (let i = 0; i < fallback.planets.length; i++) {
     for (let j = i + 1; j < fallback.planets.length; j++) {
       const a = fallback.planets[i] as GravityPlanet;

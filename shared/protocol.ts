@@ -2599,6 +2599,39 @@ export const GRAVITY_SHIP_MARGIN = 0.08 + 20 / GRAVITY_REFERENCE_BOARD_PX;
 export const GRAVITY_MAX_STRENGTH = 1;
 
 /**
+ * The aim ramp, in the shooter's own local view units, measured from the
+ * ship's nose (`launchPosition`): everything inside `GRAVITY_MIN_AIM_DISTANCE`
+ * is the weakest shot there is — a pad the thumb can land on rather than a
+ * hairline against the hull — and strength ramps from there out to
+ * `GRAVITY_MAX_AIM_DISTANCE`, where it caps (issue #36).
+ *
+ * These live here, not with the client-only tuning, because the referee now
+ * samples a board's shots in **finger space** rather than in angle/strength:
+ * it measures how big a target the winning shots make for an actual thumb
+ * (`GRAVITY_AIM_TOLERANCE`), and that measurement is meaningless unless it
+ * uses the same ramp the thumb will. Same reasoning as `GRAVITY_SHIP_MARGIN`
+ * above — the duplicated copy is exactly what let the referee's own model
+ * drift from the client's once already.
+ */
+export const GRAVITY_MIN_AIM_DISTANCE = 0.08;
+export const GRAVITY_MAX_AIM_DISTANCE = 0.42;
+
+/**
+ * How many of the referee's sampled shots have to land before a freshly rolled
+ * board ships, for **each** seat (spec §2.1) — the accept condition.
+ *
+ * More than one, deliberately. The sampler's fan is spread evenly over the aim
+ * disc, so the share of it that lands is an estimate of the share of the disc
+ * that lands, and that is the thing a person actually needs: not "a winning
+ * shot exists" but "there is enough of a window to aim at". One hit is
+ * consistent with a hairline the grid fell on by luck.
+ *
+ * The number itself is picked from measurement, not taste — see the spec's
+ * §2.1 for what each threshold does to the worst boards.
+ */
+export const GRAVITY_MIN_LANDING_SHOTS = 3;
+
+/**
  * How long a player has to take their shot (spec §2.4). Dawdle past it and the
  * missile goes off in their own hands: the shooter loses one of their own
  * lives and the turn passes. It is a shot clock now, not just a backstop

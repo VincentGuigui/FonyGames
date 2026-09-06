@@ -1,5 +1,7 @@
 import {
   GRAVITY_MAX_STRENGTH,
+  GRAVITY_MIN_AIM_DISTANCE,
+  GRAVITY_MAX_AIM_DISTANCE,
   GRAVITY_SHIP_MARGIN,
   GRAVITY_SHOT_TIMEOUT_MS,
   gravityBodies,
@@ -41,19 +43,21 @@ export function otherSeat(seat: Seat): Seat {
 }
 
 /**
- * The aim ramp, in the shooter's own local view units, measured from the ship's
- * nose (`launchPosition`, which is where the drag is anchored — the base of the
- * sprite is under the thumb, and would put the weakest shot inside the hull).
+ * The aim ramp — the drag is anchored at the ship's nose (`launchPosition`),
+ * because the base of the sprite is under the thumb and would put the weakest
+ * shot inside the hull. A **floor band** first: anywhere inside
+ * `GRAVITY_MIN_AIM_DISTANCE` of the nose is the weakest shot there is, a pad
+ * the thumb can actually land on rather than a few pixels against the hull;
+ * strength ramps from there out to `GRAVITY_MAX_AIM_DISTANCE` (issue #36).
  *
- * A **floor band** first: anywhere inside `GRAVITY_MIN_AIM_DISTANCE` of the
- * nose is the weakest shot there is, so the minimum power is a pad the thumb
- * can actually land on rather than a few pixels against the hull. Strength then
- * ramps across the rest of the way to `GRAVITY_MAX_AIM_DISTANCE`, which is
- * wider than it was for the same reason — the same range spread over more
- * screen (issue #36).
+ * Both constants live in `shared/protocol.ts` rather than here, unlike the
+ * rest of this file's tuning: the referee samples a fresh board's shots in
+ * finger space to measure how much room for error it leaves
+ * (`GRAVITY_AIM_TOLERANCE`), so this is one piece of aim geometry both sides
+ * genuinely have to agree on. Re-exported so this module stays the one import
+ * for everything about aiming.
  */
-export const GRAVITY_MIN_AIM_DISTANCE = 0.08;
-export const GRAVITY_MAX_AIM_DISTANCE = 0.42;
+export { GRAVITY_MIN_AIM_DISTANCE, GRAVITY_MAX_AIM_DISTANCE };
 
 /** Straight-line world distance between the two ships (spec §2.2) — what a
  *  bottom-to-top flight actually covers, used below to turn a target

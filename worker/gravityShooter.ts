@@ -1,7 +1,10 @@
 import {
   GRAVITY_LIVES,
   GRAVITY_MAX_PLAYERS,
+  GRAVITY_MIN_LANDING_SHOTS,
+  GRAVITY_MAX_AIM_DISTANCE,
   GRAVITY_MAX_STRENGTH,
+  GRAVITY_MIN_AIM_DISTANCE,
   GRAVITY_MIN_PLAYERS,
   GRAVITY_PLANET_ART_COUNT,
   GRAVITY_PLANET_COUNT,
@@ -261,39 +264,86 @@ function fairnessShotConnects(bodies: readonly GravityPlanet[], shooterSeat: 0 |
 }
 
 /**
- * The fan of angles and strengths the guarantee is searched over. Denser than
- * it was, in both axes: with three planets in the way a board's one clean
- * line is often a narrow one, and a fan too coarse to find it would reject
- * boards that are perfectly playable — and, worse, let a genuinely blocked
- * one through on a lucky sample. 25 x 7 = 175 cheap integrations per seat,
- * only while rolling a board.
+ * The fan the search starts from, in **finger space**: 25 directions from -84°
+ * to +84° at 7 distances out from the ship's nose, evenly spaced across the
+ * aim ramp. 175 cheap integrations per seat.
+ *
+ * Finger space rather than angle/strength because that is where the answer has
+ * to be measured (`aimTolerance` below): a person aims by putting a thumb
+ * somewhere, and "how much room for error does this board leave" is a distance
+ * on their screen, not a spread in a parameter the game never shows them.
  */
-const FAIRNESS_ANGLES_DEG = [
+const FAIRNESS_DIRECTIONS_DEG = [
   -84, -77, -70, -63, -56, -49, -42, -35, -28, -21, -14, -7,
   0,
   7, 14, 21, 28, 35, 42, 49, 56, 63, 70, 77, 84,
 ];
-/** Widened after this follow-up's own launch-speed/gravity retune: a
- *  full-strength-only-ish fan (the old `[0.5, 0.75, 1]`) missed a lot more
- *  real shots once the speed range dropped and `GRAVITY_G` doubled — a
- *  weaker pull now spends much longer exposed to a much stronger pull, so a
- *  reachable shot is more likely to sit at the gentler end of the range. */
-const FAIRNESS_STRENGTHS = [0, 0.15, 0.3, 0.45, 0.6, 0.8, 1];
+const FAIRNESS_DISTANCE_STEPS = 6;
 
-/** Can at least one reasonable shot from `seat` reach the opponent, with the
- *  star in the way as well as all three planets? */
+/** One finger offset, in the shooter's own local view units, out from the nose
+ *  at `deg` from straight up. The same geometry `aimFromFinger` reads. */
+function fingerAt(deg: number, distance: number): { dx: number; dy: number } {
+  const a = (deg * Math.PI) / 180;
+  return { dx: Math.sin(a) * distance, dy: -Math.cos(a) * distance };
+}
+
+/** A finger offset turned into a shot, exactly as the client's own
+ *  `aimFromFinger` does it — floor band, linear ramp, cap. */
+function fairnessAim(dx: number, dy: number): { angle: number; strength: number } {
+  const distance = Math.hypot(dx, dy);
+  if (distance === 0) return { angle: 0, strength: 0 };
+  const reach = GRAVITY_MAX_AIM_DISTANCE - GRAVITY_MIN_AIM_DISTANCE;
+  const strength = Math.min(GRAVITY_MAX_STRENGTH, Math.max(0, (distance - GRAVITY_MIN_AIM_DISTANCE) / reach));
+  return { angle: Math.atan2(dx, -dy), strength };
+}
+
+function fairnessFingerLands(bodies: readonly GravityPlanet[], seat: 0 | 1, dx: number, dy: number): boolean {
+  const { angle, strength } = fairnessAim(dx, dy);
+  return fairnessShotConnects(bodies, seat, angle, strength);
+}
+
+/**
+ * How many of the sampled shots actually land — the board's own answer to "how
+ * much room for error does this seat get", and the accept condition for a
+ * fresh roll (spec §2.1).
+ *
+ * **A count, not just existence.** The old rule stopped at the first hit, which
+ * asked the wrong question: a hairline the sampling grid happened to fall on
+ * passed it exactly as well as a wide open lane. Scanning the real winning
+ * region finely on 50 rolled seat-boards showed why that matters — the median
+ * board offers a window about 22px by 11° on a 400px board, but the worst
+ * fifth offer 4-14px by 3-8°, which is not an aim, it is a coincidence.
+ *
+ * The fan's own hit count is a good, and nearly free, estimate of that window's
+ * size: the grid is uniform over the aim disc, so the share of it that lands is
+ * the share of the disc that lands. It is noisy per board — a small window can
+ * fall between grid lines — but every error is a false rejection, and a
+ * rejection only costs a re-roll.
+ */
+export function seatLandingShots(
+  planets: readonly GravityPlanet[],
+  seat: 0 | 1,
+  starRadius: number,
+): number {
+  const bodies = gravityBodies(starRadius, planets);
+  const span = GRAVITY_MAX_AIM_DISTANCE - GRAVITY_MIN_AIM_DISTANCE;
+  let landed = 0;
+  for (const deg of FAIRNESS_DIRECTIONS_DEG) {
+    for (let step = 0; step <= FAIRNESS_DISTANCE_STEPS; step++) {
+      const { dx, dy } = fingerAt(deg, GRAVITY_MIN_AIM_DISTANCE + (span * step) / FAIRNESS_DISTANCE_STEPS);
+      if (fairnessFingerLands(bodies, seat, dx, dy)) landed += 1;
+    }
+  }
+  return landed;
+}
+
+/** Does this seat have a shot a person could actually find (spec §2.1)? */
 export function seatCanReachOpponent(
   planets: readonly GravityPlanet[],
   seat: 0 | 1,
   starRadius: number,
 ): boolean {
-  const bodies = gravityBodies(starRadius, planets);
-  for (const deg of FAIRNESS_ANGLES_DEG) {
-    for (const strength of FAIRNESS_STRENGTHS) {
-      if (fairnessShotConnects(bodies, seat, (deg * Math.PI) / 180, strength)) return true;
-    }
-  }
-  return false;
+  return seatLandingShots(planets, seat, starRadius) >= GRAVITY_MIN_LANDING_SHOTS;
 }
 
 /**
@@ -415,17 +465,21 @@ export function rollBoard(random: () => number): GravityBoard {
 }
 
 /**
- * The board of last resort. Legal under every §2.1 rule and winnable from
- * both seats — `worker/gravityShooter.test.ts` asserts both, which is the
- * only reason it is safe to ship without checking it at runtime. Two small
- * planets left, one big right, well clear of each other and of the star.
+ * The board of last resort. Legal under every §2.1 rule and comfortably past
+ * the landing-shot bar — `worker/gravityShooter.test.ts` asserts both, which is
+ * the only reason it is safe to ship without checking it at runtime.
+ *
+ * Not hand-placed: it is the most generous board in the first 400 seeded rolls,
+ * offering its weaker seat 9 landing shots where the bar is 3. If the roller
+ * ever does fall through to it, the board it falls through to should be the
+ * easiest one to aim on, not merely a legal one.
  */
 export const GRAVITY_FALLBACK_BOARD: GravityBoard = {
-  starRadius: 0.1,
+  starRadius: 0.0762,
   planets: [
-    { x: 0.28, y: 0.34, r: 0.055, art: 0 },
-    { x: 0.26, y: 0.64, r: 0.085, art: 1 },
-    { x: 0.76, y: 0.5, r: 0.13, art: 2 },
+    { x: 0.8092, y: 0.6898, r: 0.0519, art: 2 },
+    { x: 0.8324, y: 0.3359, r: 0.0752, art: 1 },
+    { x: 0.1675, y: 0.4411, r: 0.1097, art: 2 },
   ],
 };
 

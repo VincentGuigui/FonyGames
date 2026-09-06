@@ -1,6 +1,6 @@
-import { gravityBodies } from '../shared/protocol';
+import { GRAVITY_MAX_AIM_DISTANCE, GRAVITY_MIN_AIM_DISTANCE, GRAVITY_MIN_LANDING_SHOTS, gravityBodies } from '../shared/protocol';
 import { GRAVITY_FALLBACK_BOARD, rollBoard } from './gravityShooter';
-import { simulateShot } from '../www/src/games/gravity-shooter/game';
+import { aimFromFinger, simulateShot } from '../www/src/games/gravity-shooter/game';
 
 /**
  * The one test that spans both sides of Gravity Shooter's physics: the
@@ -48,64 +48,75 @@ function seeded(seed: number): () => number {
   };
 }
 
-/** The referee's own fan, re-run through the client's real physics. Returns
- *  how many of those shots actually land — 0 is the failure this file exists
- *  to catch, and the rest of the distribution says how open a board is. */
-const ANGLES_DEG = [
+/**
+ * The referee's own fan, re-run through the client's REAL physics — the same
+ * 25 directions x 7 distances over the aim disc, in the same finger space.
+ * Returns how many land: 0 is the failure this file exists to catch, and
+ * anything under `GRAVITY_MIN_LANDING_SHOTS` means the board shipped with less
+ * room to aim than the referee believed it had.
+ */
+const DIRECTIONS_DEG = [
   -84, -77, -70, -63, -56, -49, -42, -35, -28, -21, -14, -7,
   0,
   7, 14, 21, 28, 35, 42, 49, 56, 63, 70, 77, 84,
 ];
-const STRENGTHS = [0, 0.15, 0.3, 0.45, 0.6, 0.8, 1];
+const DISTANCE_STEPS = 6;
 
-function realHits(planets: readonly { x: number; y: number; r: number; art: number }[], starRadius: number, seat: 0 | 1): number {
+function realLandingShots(
+  planets: readonly { x: number; y: number; r: number; art: number }[],
+  starRadius: number,
+  seat: 0 | 1,
+): number {
   const bodies = gravityBodies(starRadius, planets);
-  let hits = 0;
-  for (const deg of ANGLES_DEG) {
-    for (const strength of STRENGTHS) {
-      if (simulateShot(bodies, seat, (deg * Math.PI) / 180, strength).hit) hits += 1;
+  const span = GRAVITY_MAX_AIM_DISTANCE - GRAVITY_MIN_AIM_DISTANCE;
+  let landed = 0;
+  for (const deg of DIRECTIONS_DEG) {
+    for (let step = 0; step <= DISTANCE_STEPS; step++) {
+      const distance = GRAVITY_MIN_AIM_DISTANCE + (span * step) / DISTANCE_STEPS;
+      const a = (deg * Math.PI) / 180;
+      const aim = aimFromFinger(Math.sin(a) * distance, -Math.cos(a) * distance);
+      if (simulateShot(bodies, seat, aim.angle, aim.strength).hit) landed += 1;
     }
   }
-  return hits;
+  return landed;
 }
 
 /** Enough seeds to be a real sample rather than an anecdote, few enough to
- *  stay a couple of seconds: 120 boards is 240 seat-boards, 42 000 flights. */
-const SEEDS = 120;
+ *  stay a couple of seconds. */
+const SEEDS = 80;
 
-function everyBoardIsWinnableForReal(): void {
-  console.log('\nevery board the referee ships has a shot the real simulation lands');
+function everyBoardLeavesRoomToAim(): void {
+  console.log('\nevery board the referee ships leaves both seats room to aim, in the real physics');
 
   let worst = Infinity;
-  let barest = 0;
   const total = { hits: 0, seats: 0 };
 
   for (let seed = 1; seed <= SEEDS; seed++) {
     const board = rollBoard(seeded(seed));
     for (const seat of [0, 1] as const) {
-      const hits = realHits(board.planets, board.starRadius, seat);
-      if (hits === 0) {
-        check(`seed ${seed}, seat ${seat}: the real simulation lands at least one sampled shot`, false, board);
+      const hits = realLandingShots(board.planets, board.starRadius, seat);
+      if (hits < GRAVITY_MIN_LANDING_SHOTS) {
+        check(`seed ${seed}, seat ${seat}: the real simulation lands the promised ${GRAVITY_MIN_LANDING_SHOTS} shots`, false, { hits, board });
       }
       worst = Math.min(worst, hits);
-      if (hits <= 2) barest += 1;
       total.hits += hits;
       total.seats += 1;
     }
   }
 
-  check(`all ${total.seats} seat-boards have a real landing shot`, worst >= 1, worst);
-  console.log(`       (mean ${(total.hits / total.seats).toFixed(1)} of ${ANGLES_DEG.length * STRENGTHS.length} sampled shots land; ${barest} seat-boards have two or fewer)`);
+  check(`all ${total.seats} seat-boards clear the bar of ${GRAVITY_MIN_LANDING_SHOTS} under the real physics`,
+    worst >= GRAVITY_MIN_LANDING_SHOTS, worst);
+  console.log(`       (mean ${(total.hits / total.seats).toFixed(1)} of ${DIRECTIONS_DEG.length * (DISTANCE_STEPS + 1)} sampled shots land; worst board ${worst})`);
 
   // The fallback ships without any runtime check at all, so it gets the same
   // treatment — and it has to pass on the real physics, not the sampler's.
   for (const seat of [0, 1] as const) {
-    check(`the fallback board is really winnable from seat ${seat}`,
-      realHits(GRAVITY_FALLBACK_BOARD.planets, GRAVITY_FALLBACK_BOARD.starRadius, seat) > 0);
+    const hits = realLandingShots(GRAVITY_FALLBACK_BOARD.planets, GRAVITY_FALLBACK_BOARD.starRadius, seat);
+    check(`the fallback board really leaves seat ${seat} room to aim`, hits >= GRAVITY_MIN_LANDING_SHOTS * 2, hits);
   }
 }
 
-everyBoardIsWinnableForReal();
+everyBoardLeavesRoomToAim();
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);
 console.log(`\nall passed (${checks} checks)`);
