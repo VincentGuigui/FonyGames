@@ -39,9 +39,20 @@ export function otherSeat(seat: Seat): Seat {
   return seat === 0 ? 1 : 0;
 }
 
-/** How far the finger may sit from the ship, in the shooter's own local view
- *  units, before strength caps at `GRAVITY_MAX_STRENGTH`. */
-export const GRAVITY_MAX_AIM_DISTANCE = 0.3;
+/**
+ * The aim ramp, in the shooter's own local view units, measured from the ship's
+ * nose (`launchPosition`, which is where the drag is anchored — the base of the
+ * sprite is under the thumb, and would put the weakest shot inside the hull).
+ *
+ * A **floor band** first: anywhere inside `GRAVITY_MIN_AIM_DISTANCE` of the
+ * nose is the weakest shot there is, so the minimum power is a pad the thumb
+ * can actually land on rather than a few pixels against the hull. Strength then
+ * ramps across the rest of the way to `GRAVITY_MAX_AIM_DISTANCE`, which is
+ * wider than it was for the same reason — the same range spread over more
+ * screen (issue #36).
+ */
+export const GRAVITY_MIN_AIM_DISTANCE = 0.08;
+export const GRAVITY_MAX_AIM_DISTANCE = 0.42;
 
 /** Straight-line world distance between the two ships (spec §2.2) — what a
  *  bottom-to-top flight actually covers, used below to turn a target
@@ -265,12 +276,16 @@ export function localAimToWorldVelocity(angle: number, strength: number, seat: S
  * The finger's own position, relative to the ship, turned into an
  * angle/strength pair — the shot fires TOWARD the finger, like a targeting
  * reticle held above the ship, not away from it like a slingshot. `(0, 0)`
- * is "no finger offset yet", not a valid shot.
+ * is "no finger offset yet", not a valid shot. The offset is measured from the
+ * nose and the first `GRAVITY_MIN_AIM_DISTANCE` of it is all one strength —
+ * the floor — so aiming close in still gives an angle, at the weakest shot.
  */
 export function aimFromFinger(dx: number, dy: number): { angle: number; strength: number } {
   const distance = Math.hypot(dx, dy);
   if (distance === 0) return { angle: 0, strength: 0 };
-  const strength = Math.min(GRAVITY_MAX_STRENGTH, distance / GRAVITY_MAX_AIM_DISTANCE);
+  const reach = GRAVITY_MAX_AIM_DISTANCE - GRAVITY_MIN_AIM_DISTANCE;
+  const ramped = (distance - GRAVITY_MIN_AIM_DISTANCE) / reach;
+  const strength = Math.min(GRAVITY_MAX_STRENGTH, Math.max(0, ramped));
   return { angle: Math.atan2(dx, -dy), strength };
 }
 
@@ -651,7 +666,7 @@ export class GravityGame {
     return true;
   }
 
-  /** Move the finger, clamped to `GRAVITY_MAX_AIM_DISTANCE` from the ship —
+  /** Move the finger, clamped to `GRAVITY_MAX_AIM_DISTANCE` from the nose —
    *  that distance is a full-strength shot. */
   updateAim(dx: number, dy: number): void {
     if (!this.#aim) return;

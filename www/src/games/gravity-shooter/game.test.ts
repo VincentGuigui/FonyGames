@@ -3,6 +3,7 @@ import {
   GravityGame,
   GRAVITY_HIT_RADIUS,
   GRAVITY_MAX_AIM_DISTANCE,
+  GRAVITY_MIN_AIM_DISTANCE,
   GRAVITY_MAX_LAUNCH_SPEED,
   GRAVITY_MIN_LAUNCH_SPEED,
   GRAVITY_OFFSCREEN_LIFETIME_MS,
@@ -90,6 +91,26 @@ function aiming(): void {
   // A finger past the cap is clamped, not amplified.
   const over = aimFromFinger(0, -GRAVITY_MAX_AIM_DISTANCE * 5);
   check('a finger past the cap is clamped to full strength', over.strength === 1, over.strength);
+
+  // Issue #36: the weakest shot is a PAD, not a hairline against the hull.
+  // Everything inside the floor band is the same minimum-strength shot, and
+  // still carries an angle, so aiming close in is a real choice.
+  const onTheFloor = aimFromFinger(0, -GRAVITY_MIN_AIM_DISTANCE * 0.5);
+  const atTheFloor = aimFromFinger(0, -GRAVITY_MIN_AIM_DISTANCE);
+  check('a finger inside the floor band is the weakest shot', onTheFloor.strength === 0, onTheFloor.strength);
+  check('and so is one right at its edge', atTheFloor.strength === 0, atTheFloor.strength);
+  const nudged = aimFromFinger(GRAVITY_MIN_AIM_DISTANCE * 0.5, 0);
+  check('a floor-band finger still fires toward itself', nudged.angle > 0, nudged.angle);
+
+  // The ramp itself runs from the edge of the floor band to the cap, linearly.
+  const halfway = aimFromFinger(0, -(GRAVITY_MIN_AIM_DISTANCE + (GRAVITY_MAX_AIM_DISTANCE - GRAVITY_MIN_AIM_DISTANCE) / 2));
+  check('and halfway up the ramp is half strength', near(halfway.strength, 0.5), halfway.strength);
+
+  // The point of the change: the floor is worth real screen. Both the pad and
+  // the ramp are wider than the whole ramp used to be at 0.3 with no floor.
+  check('the floor band is a thumb-sized pad, and the ramp is wider than it was',
+    GRAVITY_MIN_AIM_DISTANCE > 0 && GRAVITY_MAX_AIM_DISTANCE - GRAVITY_MIN_AIM_DISTANCE > 0.3,
+    { GRAVITY_MIN_AIM_DISTANCE, GRAVITY_MAX_AIM_DISTANCE });
 }
 
 function velocity(): void {

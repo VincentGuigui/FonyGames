@@ -192,11 +192,21 @@ segment.
 
 ### 2.3 The shot: aimed locally, resolved locally, trusted by the referee
 
-The finger's own position relative to the ship — not a drag delta from
-where the touch began — sets angle and strength: distance from the ship
-maps to strength (capped at `GRAVITY_MAX_AIM_DISTANCE`), and the missile
-fires toward the finger, a targeting reticle rather than a slingshot pulled
-back and released opposite the drag.
+The finger's own position relative to the ship's **nose** — not a drag delta
+from where the touch began, and not the base of the sprite, which is under the
+thumb — sets angle and strength, and the missile fires toward the finger, a
+targeting reticle rather than a slingshot pulled back and released opposite the
+drag. Distance from the nose maps to strength across a ramp with a **floor
+band** at its near end (issue #36):
+
+- anywhere within `GRAVITY_MIN_AIM_DISTANCE` (**0.08**) of the nose is
+  strength 0 — the weakest shot there is, on a pad big enough for a thumb
+  rather than a hairline against the hull. It still carries an angle, so
+  aiming close in is a real choice and not a dead zone;
+- from there strength ramps linearly out to `GRAVITY_MAX_AIM_DISTANCE`
+  (**0.42**, widened from 0.30), where it caps. The ramp alone is wider than
+  the whole range used to be, so every strength in between has more screen to
+  be picked on.
 
 Launch speed is no longer a single ceiling scaled by strength — two follow-ups
 after issue #16 reshaped it:
@@ -204,7 +214,7 @@ after issue #16 reshaped it:
 - **A speed FLOOR, not zero** (`GRAVITY_MIN_LAUNCH_SPEED`). Speed scales
   linearly between this floor (strength 0, the barest drag) and
   `GRAVITY_MAX_LAUNCH_SPEED` (strength 1, a drag of the full
-  `GRAVITY_MAX_AIM_DISTANCE`), rather than from zero — so even the weakest
+  `GRAVITY_MAX_AIM_DISTANCE` from the nose), rather than from zero — so even the weakest
   possible pull still reads as a real, if slow, missile in flight. The floor
   has since been halved again, putting the range at 4:1: a gentlest-possible
   shot would take about 12 seconds to cross an empty board, and in practice is

@@ -241,14 +241,18 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
       if (!game.beginAim()) return;
       dragging = true;
       const p = localPoint(event);
-      const anchor = shipPosition(0); // the shooter's own local anchor is always seat 0's own world position
+      // The drag is measured from the NOSE, not the hull's base: that is where
+      // the shot leaves from, and it is the one part of the ship the thumb is
+      // not already covering (issue #36). Seat 0's own position is always the
+      // shooter's own local one.
+      const anchor = launchPosition(0);
       game.updateAim(p.x - anchor.x, p.y - anchor.y);
     };
 
     const onPointerMove = (event: PointerEvent): void => {
       if (!dragging) return;
       const p = localPoint(event);
-      const anchor = shipPosition(0);
+      const anchor = launchPosition(0);
       latest.current.game.updateAim(p.x - anchor.x, p.y - anchor.y);
     };
 
