@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" role="img" width="120" height="90">
+  <title>Color Hunt</title>
+  <rect width="120" height="90" fill="#0C1614"/>
+
+  <!-- The target band across the top: the colour that has been called. -->
+  <rect x="7" y="6" width="106" height="13" rx="3" fill="#14B8A6"/>
+  <rect x="11" y="10.4" width="17" height="4.2" rx="2.1" fill="#04211D" opacity="0.75"/>
+  <rect x="31" y="10.4" width="11" height="4.2" rx="2.1" fill="#04211D" opacity="0.75"/>
+
+  <!-- The square viewport: a corner of a room seen through the camera. -->
+  <rect x="16" y="24" width="88" height="60" rx="4" fill="#1A2321"/>
+  <path d="M16 62 L104 52 L104 84 L16 84 Z" fill="#243330"/>
+  <path d="M16 24 L60 24 L60 66 L16 62 Z" fill="#1E2A28"/>
+  <rect x="24" y="34" width="16" height="24" rx="1.5" fill="#C2410C"/>
+  <rect x="42" y="38" width="11" height="20" rx="1.5" fill="#0E7490"/>
+  <rect x="70" y="30" width="26" height="18" rx="2" fill="#334155"/>
+  <rect x="72.5" y="32.5" width="21" height="13" rx="1" fill="#475569"/>
+  <ellipse cx="80" cy="70" rx="18" ry="7" fill="#1F2C2A"/>
+  <rect x="16" y="24" width="88" height="60" rx="4" fill="none" stroke="#14B8A6" stroke-width="1.2" opacity="0.65"/>
+
+  <!-- Corner brackets, so it reads as a viewfinder rather than a picture. -->
+  <path d="M22 30 L22 24.6 M22 30 L27.4 30" stroke="#14B8A6" stroke-width="1.4" fill="none" opacity="0.9"/>
+  <path d="M98 78 L98 83.4 M98 78 L92.6 78" stroke="#14B8A6" stroke-width="1.4" fill="none" opacity="0.9"/>
+
+  <!-- The magnifier, dead centre, filled with what it is actually sampling. -->
+  <g transform="translate(60 54)">
+    <circle r="12.5" fill="#C2410C"/>
+    <circle r="12.5" fill="none" stroke="#04211D" stroke-width="3"/>
+    <circle r="12.5" fill="none" stroke="#F8FAFC" stroke-width="1.4"/>
+    <path d="M-3.4 0 L3.4 0 M0 -3.4 L0 3.4" stroke="#04211D" stroke-width="1" opacity="0.65"/>
+  </g>
+</svg>

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" role="img" width="120" height="90">
+  <title>Color Match</title>
+  <rect width="120" height="90" fill="#12101A"/>
+
+  <!-- The target swatch, top left: the colour you are being asked for. -->
+  <rect x="8" y="9" width="30" height="16" rx="3" fill="#F472B6"/>
+  <rect x="8" y="9" width="30" height="16" rx="3" fill="none" stroke="#F9E7F1" stroke-width="0.8" opacity="0.5"/>
+
+  <!-- The pie timer beside it, most of the way run out. -->
+  <circle cx="49" cy="17" r="6.4" fill="#241E2E"/>
+  <path d="M49 17 L49 10.6 A6.4 6.4 0 0 1 53.6 21.4 Z" fill="#F472B6"/>
+  <circle cx="49" cy="17" r="6.4" fill="none" stroke="#F472B6" stroke-width="0.7" opacity="0.55"/>
+
+  <!-- The wheel: hue around, quantised into wedges the way an early rung draws it. -->
+  <g transform="translate(48 58)">
+    <circle r="26" fill="#1B1724"/>
+    <path d="M0 0 L26 0 A26 26 0 0 1 18.4 18.4 Z" fill="#F43F5E"/>
+    <path d="M0 0 L18.4 18.4 A26 26 0 0 1 0 26 Z" fill="#F97316"/>
+    <path d="M0 0 L0 26 A26 26 0 0 1 -18.4 18.4 Z" fill="#FACC15"/>
+    <path d="M0 0 L-18.4 18.4 A26 26 0 0 1 -26 0 Z" fill="#4ADE80"/>
+    <path d="M0 0 L-26 0 A26 26 0 0 1 -18.4 -18.4 Z" fill="#22D3EE"/>
+    <path d="M0 0 L-18.4 -18.4 A26 26 0 0 1 0 -26 Z" fill="#60A5FA"/>
+    <path d="M0 0 L0 -26 A26 26 0 0 1 18.4 -18.4 Z" fill="#A78BFA"/>
+    <path d="M0 0 L18.4 -18.4 A26 26 0 0 1 26 0 Z" fill="#F472B6"/>
+    <circle r="9" fill="#12101A"/>
+    <circle r="26" fill="none" stroke="#2E2740" stroke-width="1.1"/>
+  </g>
+
+  <!-- The cursor: a two-tone ring, sitting just off the magenta wedge. -->
+  <g transform="translate(66 45)">
+    <circle r="5.4" fill="none" stroke="#12101A" stroke-width="2.6"/>
+    <circle r="5.4" fill="none" stroke="#FFFFFF" stroke-width="1.4"/>
+  </g>
+
+  <!-- The luminance slider down the right edge, its handle near the top. -->
+  <rect x="98" y="24" width="9" height="54" rx="4.5" fill="#241E2E"/>
+  <rect x="99.2" y="25.2" width="6.6" height="51.6" rx="3.3" fill="url(#lum)"/>
+  <rect x="96.4" y="33" width="12.2" height="5" rx="2.5" fill="#FFFFFF" stroke="#12101A" stroke-width="1"/>
+
+  <defs>
+    <linearGradient id="lum" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F472B6"/>
+      <stop offset="1" stop-color="#2A1622"/>
+    </linearGradient>
+  </defs>
+</svg>

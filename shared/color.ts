@@ -183,8 +183,11 @@ export function paletteSize(rung: Rung): number {
 }
 
 /** Which component indices are the randomised ones, for every way of choosing
- *  `k` of the three. */
-function choose3(k: number): number[][] {
+ *  `k` of the three. Exported so `dealTarget` can index into it rather than
+ *  drawing indices until it happens to get distinct ones — a rejection loop
+ *  there never terminates on a degenerate `rand` (one that always returns the
+ *  same number), which is exactly what a test injects. */
+export function choose3(k: number): number[][] {
   const n = Math.min(3, Math.max(0, k));
   const out: number[][] = [];
   for (let mask = 0; mask < 8; mask++) {
@@ -214,8 +217,8 @@ export function dealTarget(level: number, rand: () => number): { rgb: Rgb; base:
   const rung = rungAt(level);
   const hot = componentValues(rung.splits);
   const cold = componentValues(rung.restSplits);
-  const which = new Set<number>();
-  while (which.size < Math.min(3, rung.components)) which.add(Math.floor(rand() * 3) % 3);
+  const ways = choose3(rung.components);
+  const which = new Set(ways[Math.min(ways.length - 1, Math.floor(rand() * ways.length))] ?? []);
   const comp = (i: number): number => {
     const from = which.has(i) ? hot : cold;
     return from[Math.min(from.length - 1, Math.floor(rand() * from.length))] ?? 0;

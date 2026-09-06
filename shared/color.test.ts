@@ -174,6 +174,17 @@ function dealing(): void {
     }
     return true;
   })());
+  // A degenerate source — one that always returns the same number — used to
+  // hang the deal outright: choosing k distinct components by drawing indices
+  // until they differ never terminates when they cannot. It indexes into the
+  // combination list now, so any source at all terminates.
+  check('a constant random source still deals, rather than spinning', (() => {
+    for (const v of [0, 0.5, 0.999]) {
+      const t = dealTarget(31, () => v);
+      if (!t.rgb.every((c) => c >= 0 && c <= 255)) return false;
+    }
+    return true;
+  })());
   check('the same seed deals the same target', JSON.stringify(dealTarget(20, seeded(7))) === JSON.stringify(dealTarget(20, seeded(7))));
   check('different seeds do not all deal the same one', new Set([1, 2, 3, 4, 5, 6, 7, 8].map((s) => dealTarget(16, seeded(s)).rgb.join(','))).size > 1);
 
