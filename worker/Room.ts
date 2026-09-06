@@ -499,7 +499,7 @@ export class Room extends DurableObject<Env> {
       }
       case 'gravity-shot': {
         const id = this.#idOf(ws);
-        if (id) await onGravityShot(this.#gravityCtx(), id, msg.d.roundId, msg.d.angle, msg.d.strength, msg.d.hit);
+        if (id) await onGravityShot(this.#gravityCtx(), id, msg.d.roundId, msg.d.angle, msg.d.strength, msg.d.hit, msg.d.flightMs);
         return;
       }
       case 'asteroid-report': {

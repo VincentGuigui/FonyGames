@@ -14,6 +14,7 @@ import {
   GRAVITY_PLANET_Y_MIN,
   GRAVITY_SHIP_MARGIN,
   GRAVITY_SHOTS_PER_MAP,
+  GRAVITY_MAX_FLIGHT_MS,
   GRAVITY_SHOT_TIMEOUT_MS,
   GRAVITY_STAR_R_MAX,
   GRAVITY_STAR_R_MIN,
@@ -167,11 +168,21 @@ function fairnessShipPosition(seat: 0 | 1): { x: number; y: number } {
   return { x: 0.5, y: seat === 0 ? 1 - GRAVITY_SHIP_MARGIN : GRAVITY_SHIP_MARGIN };
 }
 
+/** The ship's own drawn height, matching `game.ts`'s `GRAVITY_SHIP_HEIGHT`
+ *  (= `GRAVITY_SHIP_WIDTH / 2`): a shot leaves the nose, not the hull's
+ *  middle (issue #37), and this check has to sample from the same place. */
+const FAIRNESS_SHIP_HEIGHT = 0.11;
+
+function fairnessLaunchPosition(seat: 0 | 1): { x: number; y: number } {
+  const ship = fairnessShipPosition(seat);
+  return { x: ship.x, y: seat === 0 ? ship.y - FAIRNESS_SHIP_HEIGHT : ship.y + FAIRNESS_SHIP_HEIGHT };
+}
+
 /** One sampled shot: does it reach within `FAIRNESS_HIT_RADIUS` of the
  *  opponent's own ship before it is absorbed, wanders off, or runs out of
  *  simulated time? */
 function fairnessShotConnects(bodies: readonly GravityPlanet[], shooterSeat: 0 | 1, angle: number, strength: number): boolean {
-  const start = fairnessShipPosition(shooterSeat);
+  const start = fairnessLaunchPosition(shooterSeat);
   const target = fairnessShipPosition(shooterSeat === 0 ? 1 : 0);
   const speed = FAIRNESS_MIN_LAUNCH_SPEED + strength * (FAIRNESS_LAUNCH_SPEED - FAIRNESS_MIN_LAUNCH_SPEED);
   const localVx = Math.sin(angle) * speed;
@@ -371,6 +382,9 @@ export async function onGravityShot(
   angle: number,
   strength: number,
   hit: boolean,
+  /** How long this shot will be on screen — the next turn's clock waits it out
+   *  (issue #34). Clamped, so a client cannot claim its way to a longer turn. */
+  flightMs: number,
 ): Promise<void> {
   const g = await ctx.load();
   if (!g || g.phase !== 'running' || g.roundId !== roundId) return;
@@ -383,8 +397,9 @@ export async function onGravityShot(
   const safeAngle = Number.isFinite(angle) ? angle : 0;
   const safeStrength = Number.isFinite(strength) ? Math.max(0, Math.min(GRAVITY_MAX_STRENGTH, strength)) : 0;
   const landed = hit === true;
+  const watching = Number.isFinite(flightMs) ? Math.max(0, Math.min(GRAVITY_MAX_FLIGHT_MS, flightMs)) : 0;
 
-  g.lastShot = { shooter, angle: safeAngle, strength: safeStrength, hit: landed };
+  g.lastShot = { shooter, angle: safeAngle, strength: safeStrength, hit: landed, timedOut: false };
   if (landed) g.lives[opponent] = Math.max(0, g.lives[opponent] - 1);
 
   if (g.lives[opponent] <= 0) {
@@ -392,8 +407,12 @@ export async function onGravityShot(
     return;
   }
 
+  // The opponent's shot clock starts when the missile lands, not when it was
+  // fired (issue #34): until then they are watching someone else's flight, and
+  // a 10s trajectory used to eat almost their whole turn — then `tick` took a
+  // life off them for a shot they never had time to aim.
   g.turn = opponent;
-  g.resolvesAt = ctx.now() + GRAVITY_SHOT_TIMEOUT_MS;
+  g.resolvesAt = ctx.now() + watching + GRAVITY_SHOT_TIMEOUT_MS;
   countShotAndMaybeReroll(ctx, g);
   await ctx.save(g);
   broadcast(ctx, g);
@@ -424,8 +443,8 @@ function countShotAndMaybeReroll(ctx: Ctx, g: Gravity): void {
  * a life, which can end the match on the spot. The turn still passes either
  * way, so a phone that has simply gone quiet cannot stall anything.
  *
- * A zero-strength `lastShot` is the marker for it, which is how a client tells
- * this apart from a real miss: nobody aimed it, so nothing is animated flying
+ * `lastShot.timedOut` is the marker for it, which is how a client tells this
+ * apart from a real miss: nobody aimed it, so nothing is animated flying
  * (`game.ts`'s own `apply`), and the blast is drawn on the shooter's own ship.
  */
 export async function tick(ctx: Ctx): Promise<boolean> {
@@ -436,7 +455,7 @@ export async function tick(ctx: Ctx): Promise<boolean> {
   const shooter = g.turn;
   const opponent = otherSeat(shooter);
 
-  g.lastShot = { shooter, angle: 0, strength: 0, hit: false };
+  g.lastShot = { shooter, angle: 0, strength: 0, hit: false, timedOut: true };
   g.lives[shooter] = Math.max(0, g.lives[shooter] - 1);
 
   if (g.lives[shooter] <= 0) {

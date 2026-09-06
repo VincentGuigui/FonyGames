@@ -3,7 +3,7 @@
 | | |
 | --- | --- |
 | **Slug** | `gravity-shooter` |
-| **Catchy sentence** | *Bend your shot around a planet and blow up their ship* |
+| **Catchy sentence** | *Leverage the planets’ gravity to destroy the enemy* |
 | **Illustration** | `www/src/games/gravity-shooter/art/card.svg` — a missile mid-flight, its dashed trail curving hard around a planet toward a ship at the top of frame. **Generated** by `generate-card.mjs` from this game's own sprites, with the trail flown by this game's own `simulateShot` — see [../../design/illustrations.md](../../design/illustrations.md) |
 | **Players** | 2 — exactly |
 | **Round length** | 1–3 min |
@@ -36,9 +36,12 @@ viewer, never two different boards.
    ship — the finger's own position relative to the ship sets your shot's
    angle and strength; the missile fires toward wherever your finger is,
    like a targeting reticle, not away from it like a slingshot.
-3. While your finger is down, the missile itself sits at the top-centre of
-   your own ship's sprite, **swinging in real time to face wherever your
-   finger is**, and a dashed preview of its path is shown: solid across the
+3. While your finger is down, the missile itself sits at your ship's **nose**
+   — `launchPosition`, one hull height ahead of the sprite's own base, and
+   the single place a shot leaves from: the marker under the finger, the
+   dashed preview and the flight the referee scores all start there (issue
+   #37) — **swinging in real time to face wherever your finger is**, and a
+   dashed preview of its path is shown: solid across the
    near third of the screen, fading through the middle third, and gone for
    the last third before the opponent (§2.2) — a real read on your own aim,
    but never a look at where the shot actually lands.
@@ -189,11 +192,23 @@ segment.
 
 ### 2.3 The shot: aimed locally, resolved locally, trusted by the referee
 
-The finger's own position relative to the ship — not a drag delta from
-where the touch began — sets angle and strength: distance from the ship
-maps to strength (capped at `GRAVITY_MAX_AIM_DISTANCE`), and the missile
-fires toward the finger, a targeting reticle rather than a slingshot pulled
-back and released opposite the drag.
+The finger's own position relative to the ship's **nose** — not a drag delta
+from where the touch began, and not the base of the sprite, which is under the
+thumb — sets angle and strength, and the missile fires toward the finger, a
+targeting reticle rather than a slingshot pulled back and released opposite the
+drag. Distance from the nose maps to strength across a ramp with a **floor
+band** at its near end (issue #36):
+
+- anywhere within `GRAVITY_MIN_AIM_DISTANCE` (**0.08**) of the nose is
+  strength 0 — the weakest shot there is, on a pad big enough for a thumb
+  rather than a hairline against the hull. It still carries an angle, so
+  aiming close in is a real choice and not a dead zone. Strength 0 is
+  therefore a real aimed shot now, which is why a timed-out turn is marked by
+  its own `timedOut` flag rather than by being strengthless (§2.4);
+- from there strength ramps linearly out to `GRAVITY_MAX_AIM_DISTANCE`
+  (**0.42**, widened from 0.30), where it caps. The ramp alone is wider than
+  the whole range used to be, so every strength in between has more screen to
+  be picked on.
 
 Launch speed is no longer a single ceiling scaled by strength — two follow-ups
 after issue #16 reshaped it:
@@ -201,7 +216,7 @@ after issue #16 reshaped it:
 - **A speed FLOOR, not zero** (`GRAVITY_MIN_LAUNCH_SPEED`). Speed scales
   linearly between this floor (strength 0, the barest drag) and
   `GRAVITY_MAX_LAUNCH_SPEED` (strength 1, a drag of the full
-  `GRAVITY_MAX_AIM_DISTANCE`), rather than from zero — so even the weakest
+  `GRAVITY_MAX_AIM_DISTANCE` from the nose), rather than from zero — so even the weakest
   possible pull still reads as a real, if slow, missile in flight. The floor
   has since been halved again, putting the range at 4:1: a gentlest-possible
   shot would take about 12 seconds to cross an empty board, and in practice is
@@ -234,7 +249,12 @@ itself is now **four times** the original brief's value: doubled once when
 the launch speed dropped (a slower missile alone doesn't feel meaningfully
 pulled unless the pull itself is also stronger), then doubled again
 alongside the centre-blocking rule in §2.1 (now the star's job), since a shot
-that has to go *around* something needs enough pull to actually come back. The
+that has to go *around* something needs enough pull to actually come back. A flight begins at
+`launchPosition(seat)` — the shooter's nose, `GRAVITY_SHIP_HEIGHT` (half the
+drawn ship width, the art's own 2:1 aspect) ahead of `shipPosition(seat)` —
+which is a fixed world constant rather than a measurement of the rasterised
+sprite, because both phones have to simulate the same flight and only one of
+them has the shooter's screen. The
 simulation stops early the moment the missile is within
 `GRAVITY_HIT_RADIUS` of the opponent's ship (a hit) — **half the ship
 sprite's own drawn width, so the whole ship image is the target** rather than
@@ -262,8 +282,17 @@ almost the same place. Nothing here shortens a shot that is still headed
 somewhere plausible; it only ends the ones that have obviously missed, or
 drifted, sooner than the old flat 10-second cap did.
 
+**The flight is watched at twice the speed it is simulated** (issue #35). The
+integration is untouched — same `GRAVITY_STEP_MS`, same `GRAVITY_G`, same
+points, same outcome — and the animation simply walks
+`GRAVITY_PLAYBACK_RATE` (2) of those points per rendered frame, so a curve
+that takes 8s to simulate takes 4s to watch. Every budget in the table above
+stays in *simulated* time, which is the point: a missile gets exactly the
+flight it always had, seen twice as fast. Hurrying it with a faster launch
+speed or weaker gravity would have bent the path instead.
+
 The shooter's own phone runs this simulation the instant the finger is
-released and sends the referee `{ roundId, angle, strength, hit }` — the
+released and sends the referee `{ roundId, angle, strength, hit, flightMs }` — the
 referee stores `hit` as reported, rather than re-deriving it (§8). The
 non-shooting phone receives the same `angle`/`strength` in the next
 broadcast and independently re-runs the identical deterministic
@@ -274,8 +303,15 @@ therefore only ever cosmetic.
 
 ### 2.4 The shot clock
 
-Every turn opens with `resolvesAt = now + GRAVITY_SHOT_TIMEOUT_MS` (**13s**)
-and a referee alarm at that deadline. Run it out and **the missile goes off in
+Every turn opens with `resolvesAt = now + flightMs + GRAVITY_SHOT_TIMEOUT_MS`
+(**13s**) and a referee alarm at that deadline. **The clock starts when the
+previous missile lands, not when it was fired** (issue #34): `flightMs` is how
+long the shooter's phone will spend animating the shot it just sent, clamped by
+the referee to `GRAVITY_MAX_FLIGHT_MS` (**10s** — the missile's own maximum
+onscreen life at the playback rate above), so a client cannot claim its way to
+a longer turn. Without that hold-back the opponent spent their turn watching
+somebody else's missile and then lost a life to a shot they never had time to
+aim. Run it out and **the missile goes off in
 your own hands**: the shooter loses one of their OWN lives, which can end the
 match on the spot, and the turn passes. It is a shot clock, not merely a
 backstop against a phone that went quiet — which is why it is short enough to
@@ -296,10 +332,10 @@ waiting to be released into a shot the referee would reject anyway. The
 referee's own check (§6) is the actual authority; the client-side cancel is
 just for not leaving a dead drag on screen.
 
-The referee records the timeout as a zero-strength `lastShot`, its marker for
-"nobody aimed this", and **clients do not animate it flying**. Since the
-launch speed has a floor (§2.3), simulating a zero-strength shot would send a
-real missile straight up the centre line and — with a ship-sized hitbox —
+The referee records the timeout as `lastShot.timedOut`, its marker for "nobody
+aimed this", and **clients do not animate it flying**. Since the launch speed
+has a floor (§2.3), simulating an unaimed shot would send a real missile
+straight up the centre line and — with a ship-sized hitbox —
 visibly connect, while the referee's own `hit: false` meant nothing happened.
 Instead the blast is drawn on the shooter's own ship, the life pips follow it
 immediately (there is no flight to hold the news back for), and if it was
@@ -374,7 +410,7 @@ to fire. No sensors, no permissions, nothing to fall back from.
 
 ```ts
 // client -> server, once per turn, on release
-{ t: 'gravity-shot', d: { roundId, angle, strength, hit } }
+{ t: 'gravity-shot', d: { roundId, angle, strength, hit, flightMs } }
 
 // server -> both, on every resolved turn (including a timeout-miss)
 { t: 'gravity', d: {
@@ -384,7 +420,7 @@ to fire. No sensors, no permissions, nothing to fall back from.
   lives: [number, number],       // indexed by seat, not by seats[]'s player id
   turn: 0 | 1,
   resolvesAt: number,
-  lastShot: { shooter: 0 | 1, angle: number, strength: number, hit: boolean } | null,
+  lastShot: { shooter: 0 | 1, angle: number, strength: number, hit: boolean, timedOut: boolean } | null,
   winner: 0 | 1 | null,
   phase: 'running' | 'done',
   solo: boolean,
@@ -393,7 +429,7 @@ to fire. No sensors, no permissions, nothing to fall back from.
 
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
-| `gravity-shot` | client → server | `{roundId, angle, strength, hit}` | This turn's shot, and its own claimed outcome — trusted as reported (§8) |
+| `gravity-shot` | client → server | `{roundId, angle, strength, hit, flightMs}` | This turn's shot, its own claimed outcome — trusted as reported (§8) — and how long it will be on screen, which holds the next shot clock back (§2.4, clamped to `GRAVITY_MAX_FLIGHT_MS`) |
 | `gravity` | server → both | see above | The planets (sent once, then echoed unchanged), lives, whose turn it is, and the last shot's numbers for the receiver's own cosmetic replay (§2.3) |
 
 `gravity-shot` is only accepted from whoever `seats[turn]` actually is, and

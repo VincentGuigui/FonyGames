@@ -267,7 +267,12 @@ export type ClientMessage =
    * would need (the planets it rolled itself, plus `angle`/`strength`) but
    * deliberately does not re-derive it, by direct instruction (spec §8).
    */
-  | { t: 'gravity-shot'; d: { roundId: number; angle: number; strength: number; hit: boolean } }
+  /** Gravity Shooter: the shot just fired. `flightMs` is how long the shooter's
+   *  own phone will spend animating it — the referee holds the next shot clock
+   *  back by that much so the opponent's turn does not start while someone
+   *  else's missile is still on screen (issue #34); it is clamped to
+   *  `GRAVITY_MAX_FLIGHT_MS`, so claiming a long flight buys no extra time. */
+  | { t: 'gravity-shot'; d: { roundId: number; angle: number; strength: number; hit: boolean; flightMs: number } }
   /**
    * Color Match: this phone's pick for the level in flight (spec §6). A colour
    * and a luminance, never a score — the referee computes what it is worth,
@@ -792,6 +797,12 @@ export type GravityShot = {
   angle: number;
   strength: number;
   hit: boolean;
+  /** Nobody aimed this one: the referee's own marker for a turn whose shot
+   *  clock ran out (spec §2.4). A receiving phone animates no flight for it and
+   *  draws the blast on the shooter's own ship instead. An explicit flag rather
+   *  than "strength is 0", which since issue #36 is a real, aimable shot — the
+   *  weakest one on the ramp. */
+  timedOut: boolean;
 };
 
 /**
@@ -2573,6 +2584,20 @@ export const GRAVITY_MAX_STRENGTH = 1;
  * cosmetic, so that constant lives there rather than here.
  */
 export const GRAVITY_SHOT_TIMEOUT_MS = 13_000;
+
+/**
+ * The longest flight a client may claim, in ms of wall-clock animation — the
+ * shot clock above only starts once the missile it is waiting on has landed
+ * (issue #34), and this is what stops a phone buying itself an unbounded turn
+ * by reporting a flight that never ends.
+ *
+ * It is the missile's own maximum life seen at the client's playback rate:
+ * `GRAVITY_ONSCREEN_LIFETIME_MS` (20s of simulated flight) at
+ * `GRAVITY_PLAYBACK_RATE` (2x). Both of those are client-only tuning and stay
+ * in `www/src/games/gravity-shooter/game.ts`; this is the one number the
+ * referee needs, and that file's own test asserts the two still agree.
+ */
+export const GRAVITY_MAX_FLIGHT_MS = 10_000;
 
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const GRAVITY_MIN_PLAYERS = PLAYERS['gravity-shooter'][0];

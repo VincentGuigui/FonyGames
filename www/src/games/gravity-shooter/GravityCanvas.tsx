@@ -11,10 +11,11 @@ import { GRAVITY_SHOT_TIMEOUT_MS, gravityBodies, type GravityPlanet } from '../.
 import {
   GRAVITY_EXPLOSION_GIF_MS,
   GRAVITY_SHIP_WIDTH,
-  GRAVITY_STEP_MS,
   GravityGame,
+  flightDurationMs,
   aimFromFinger,
   shipPosition,
+  launchPosition,
   contactPoint,
   headingBetween,
   otherSeat,
@@ -78,7 +79,7 @@ type Props = {
   game: GravityGame;
   /** The shot just finished animating — the caller decides any impact GIF (spec §4). */
   onFlightEnd: (end: FlightEnd) => void;
-  onShoot: (payload: { roundId: number; angle: number; strength: number; hit: boolean }) => void;
+  onShoot: (payload: { roundId: number; angle: number; strength: number; hit: boolean; flightMs: number }) => void;
   dying?: DyingShip | null;
 };
 
@@ -173,29 +174,26 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
         if (aim && mySeat !== null) {
           const preview = simulatePreviewPath(game, aim);
           drawDashedPath(ctx, preview.map((p) => toPixel(toLocal(p))), width, height);
-          // The missile itself, sitting at the top-centre of the ship's own
-          // sprite and swinging to face the finger as it moves — the shot's
-          // own start, shown before it is taken rather than appearing out of
-          // nowhere on release. Drawn in LOCAL space directly: the shooter
-          // always sees themselves at the bottom, so the launch point is seat
-          // 0's own position and the aim angle needs no view flip. The
-          // vertical offset comes from the ship sprite's OWN rasterised
-          // height (same lookup `drawShip` itself uses), not a fraction of
-          // the board's width assumed to match it — a real PNG whose aspect
-          // ratio drifts from 2:1 would otherwise float the missile off the
-          // hull.
-          const launchPx = toPixel(shipPosition(0));
-          const shipPxWidth = width * GRAVITY_SHIP_WIDTH;
-          const ownShip = SHIP_ART[0].at(shipPxWidth, dpr);
-          const shipPxHeight = ownShip ? ownShip.h : shipPxWidth / 2;
-          drawMissile(ctx, launchPx.x, launchPx.y - shipPxHeight, width, dpr, aimFromFinger(aim.x, aim.y).angle);
+          // The missile itself, at the ship's nose, swinging to face the
+          // finger as it moves — the shot's own start, shown before it is
+          // taken rather than appearing out of nowhere on release. Drawn in
+          // LOCAL space directly: the shooter always sees themselves at the
+          // bottom, so the launch point is seat 0's own and the aim angle
+          // needs no view flip. `launchPosition` is the SAME point the
+          // simulation above just flew from (issue #37), so the marker and
+          // the dashed line cannot disagree about where a shot begins.
+          const launchPx = toPixel(launchPosition(0));
+          drawMissile(ctx, launchPx.x, launchPx.y, width, dpr, aimFromFinger(aim.x, aim.y).angle);
         }
 
         // The missile in flight, or resolving (spec §2.3).
         const shot = game.activeShot;
         if (shot) {
           const elapsed = game.shotElapsedMs() ?? 0;
-          const flightMs = Math.max(1, (shot.result.path.length - 1) * GRAVITY_STEP_MS);
+          // Simulated time over `GRAVITY_PLAYBACK_RATE` (issue #35): the same
+          // points, walked two per frame, so the curve is untouched and only
+          // the wall-clock halves.
+          const flightMs = flightDurationMs(shot.result.path);
           const idx = Math.min(shot.result.path.length - 1, Math.floor((elapsed / flightMs) * (shot.result.path.length - 1)));
           const point = shot.result.path[idx];
           if (point) {
@@ -246,14 +244,18 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
       if (!game.beginAim()) return;
       dragging = true;
       const p = localPoint(event);
-      const anchor = shipPosition(0); // the shooter's own local anchor is always seat 0's own world position
+      // The drag is measured from the NOSE, not the hull's base: that is where
+      // the shot leaves from, and it is the one part of the ship the thumb is
+      // not already covering (issue #36). Seat 0's own position is always the
+      // shooter's own local one.
+      const anchor = launchPosition(0);
       game.updateAim(p.x - anchor.x, p.y - anchor.y);
     };
 
     const onPointerMove = (event: PointerEvent): void => {
       if (!dragging) return;
       const p = localPoint(event);
-      const anchor = shipPosition(0);
+      const anchor = launchPosition(0);
       latest.current.game.updateAim(p.x - anchor.x, p.y - anchor.y);
     };
 
@@ -294,7 +296,7 @@ function simulatePreviewPath(game: GravityGame, aim: Vec): Vec[] {
   const state = game.state;
   const seat = game.mySeat;
   if (!state || seat === null) return [];
-  if (aim.x === 0 && aim.y === 0) return [shipPosition(seat)];
+  if (aim.x === 0 && aim.y === 0) return [launchPosition(seat)];
   const { angle, strength } = aimFromFinger(aim.x, aim.y);
   return simulateShot(gravityBodies(state.starRadius, state.planets), seat, angle, strength).path;
 }

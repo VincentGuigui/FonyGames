@@ -39,9 +39,20 @@ export function otherSeat(seat: Seat): Seat {
   return seat === 0 ? 1 : 0;
 }
 
-/** How far the finger may sit from the ship, in the shooter's own local view
- *  units, before strength caps at `GRAVITY_MAX_STRENGTH`. */
-export const GRAVITY_MAX_AIM_DISTANCE = 0.3;
+/**
+ * The aim ramp, in the shooter's own local view units, measured from the ship's
+ * nose (`launchPosition`, which is where the drag is anchored — the base of the
+ * sprite is under the thumb, and would put the weakest shot inside the hull).
+ *
+ * A **floor band** first: anywhere inside `GRAVITY_MIN_AIM_DISTANCE` of the
+ * nose is the weakest shot there is, so the minimum power is a pad the thumb
+ * can actually land on rather than a few pixels against the hull. Strength then
+ * ramps across the rest of the way to `GRAVITY_MAX_AIM_DISTANCE`, which is
+ * wider than it was for the same reason — the same range spread over more
+ * screen (issue #36).
+ */
+export const GRAVITY_MIN_AIM_DISTANCE = 0.08;
+export const GRAVITY_MAX_AIM_DISTANCE = 0.42;
 
 /** Straight-line world distance between the two ships (spec §2.2) — what a
  *  bottom-to-top flight actually covers, used below to turn a target
@@ -91,6 +102,22 @@ export const GRAVITY_MIN_LAUNCH_SPEED = GRAVITY_BOARD_HEIGHT / GRAVITY_MAX_FLIGH
 export const GRAVITY_STEP_MS = 1000 / 60;
 
 /**
+ * How many simulated steps the animation walks per rendered frame (issue #35).
+ * A **playback rate**, and nothing else: the simulation still integrates at
+ * `GRAVITY_STEP_MS`, still visits exactly the same points, and still ends the
+ * same way — every lifetime budget below stays in simulated time, so a missile
+ * gets the same flight, watched twice as fast. Changing `GRAVITY_G` or the
+ * launch speed to hurry it along would bend the path instead.
+ */
+export const GRAVITY_PLAYBACK_RATE = 2;
+
+/** How long a simulated path takes to watch, in ms — the flight's own simulated
+ *  length over the playback rate. The one place that division happens. */
+export function flightDurationMs(path: readonly Vec[]): number {
+  return Math.max(1, ((path.length - 1) * GRAVITY_STEP_MS) / GRAVITY_PLAYBACK_RATE);
+}
+
+/**
  * How long an unresolved shot is kept alive, in ms — not one flat cap, but
  * whichever of these three currently applies to where the missile actually
  * is (issue #16), re-evaluated every step and reset every time the missile
@@ -136,6 +163,11 @@ export const GRAVITY_G = 0.24;
  *  that number lives, so the hitbox below and `GravityCanvas`'s own `drawShip`
  *  cannot drift apart. */
 export const GRAVITY_SHIP_WIDTH = 0.22;
+
+/** The hull's own height, same nominal square-board units: the ship art is
+ *  drawn twice as wide as it is high (`contactPoint` relies on the same
+ *  ratio), so this is what separates the sprite's base from its nose. */
+export const GRAVITY_SHIP_HEIGHT = GRAVITY_SHIP_WIDTH / 2;
 
 /**
  * A missile within this distance of the opponent's ship centre is a hit (spec
@@ -208,9 +240,27 @@ export const GRAVITY_PLANET_TWEEN_MS = 450;
 export const GRAVITY_SIM_BOUNDS_MIN = -0.5;
 export const GRAVITY_SIM_BOUNDS_MAX = 1.5;
 
-/** A ship's own fixed world position — centred, inset from its own edge. */
+/** A ship's own fixed world position — centred, inset from its own edge. This
+ *  is the sprite's BASE, which is where `drawShip` plants it and what the hit
+ *  radius is measured from; a shot leaves from `launchPosition` instead. */
 export function shipPosition(seat: Seat): Vec {
   return { x: 0.5, y: seat === 0 ? 1 - GRAVITY_SHIP_MARGIN : GRAVITY_SHIP_MARGIN };
+}
+
+/**
+ * Where a shot actually leaves from: the **nose** of the ship, one hull height
+ * toward the opponent (issue #37). One point, used by the real simulation, by
+ * the dashed preview and by the missile marker under the finger alike — they
+ * used to disagree, the marker sitting a ship-height above a trajectory that
+ * started inside the hull.
+ *
+ * A fixed world constant rather than the rasterised sprite's own height: both
+ * phones have to simulate the same flight (spec §2.3), and only one of them
+ * has the shooter's screen.
+ */
+export function launchPosition(seat: Seat): Vec {
+  const ship = shipPosition(seat);
+  return { x: ship.x, y: seat === 0 ? ship.y - GRAVITY_SHIP_HEIGHT : ship.y + GRAVITY_SHIP_HEIGHT };
 }
 
 /**
@@ -242,12 +292,16 @@ export function localAimToWorldVelocity(angle: number, strength: number, seat: S
  * The finger's own position, relative to the ship, turned into an
  * angle/strength pair — the shot fires TOWARD the finger, like a targeting
  * reticle held above the ship, not away from it like a slingshot. `(0, 0)`
- * is "no finger offset yet", not a valid shot.
+ * is "no finger offset yet", not a valid shot. The offset is measured from the
+ * nose and the first `GRAVITY_MIN_AIM_DISTANCE` of it is all one strength —
+ * the floor — so aiming close in still gives an angle, at the weakest shot.
  */
 export function aimFromFinger(dx: number, dy: number): { angle: number; strength: number } {
   const distance = Math.hypot(dx, dy);
   if (distance === 0) return { angle: 0, strength: 0 };
-  const strength = Math.min(GRAVITY_MAX_STRENGTH, distance / GRAVITY_MAX_AIM_DISTANCE);
+  const reach = GRAVITY_MAX_AIM_DISTANCE - GRAVITY_MIN_AIM_DISTANCE;
+  const ramped = (distance - GRAVITY_MIN_AIM_DISTANCE) / reach;
+  const strength = Math.min(GRAVITY_MAX_STRENGTH, Math.max(0, ramped));
   return { angle: Math.atan2(dx, -dy), strength };
 }
 
@@ -299,7 +353,7 @@ export function simulateShot(
   angle: number,
   strength: number,
 ): SimResult {
-  const start = shipPosition(shooterSeat);
+  const start = launchPosition(shooterSeat);
   const target = shipPosition(otherSeat(shooterSeat));
   const v = localAimToWorldVelocity(angle, strength, shooterSeat);
 
@@ -439,7 +493,7 @@ function tweenBoards(from: DisplayBoard, to: DisplayBoard, t: number): DisplayBo
 }
 
 function sameShot(a: GravityShot | null, b: GravityShot): boolean {
-  return !!a && a.shooter === b.shooter && a.angle === b.angle && a.strength === b.strength && a.hit === b.hit;
+  return !!a && a.shooter === b.shooter && a.angle === b.angle && a.strength === b.strength && a.hit === b.hit && a.timedOut === b.timedOut;
 }
 
 /**
@@ -553,18 +607,19 @@ export class GravityGame {
     }
 
     const shot = msg.d.lastShot;
-    // A zero-strength shot is the referee's own marker for a turn that timed
-    // out (spec §2.4) — nobody aimed it. Animating it would fly a full-speed
-    // missile (the launch speed has a floor) straight into the opponent and
-    // then report a miss, which is exactly as confusing as it sounds.
-    if (shot && shot.strength > 0 && !sameShot(this.#animatedShot, shot)) {
+    // `timedOut` is the referee's own marker for a turn nobody aimed (spec
+    // §2.4). Animating it would fly a full-speed missile (the launch speed has
+    // a floor) straight into the opponent and then report a miss, which is
+    // exactly as confusing as it sounds. Not "strength is 0": since issue #36
+    // that is the weakest real shot on the ramp, and it must still fly.
+    if (shot && !shot.timedOut && !sameShot(this.#animatedShot, shot)) {
       this.#animatedShot = shot;
       this.#activeShot = {
         seat: shot.shooter,
         result: simulateShot(gravityBodies(starWhenFired, planetsWhenFired), shot.shooter, shot.angle, shot.strength),
         startedAt: this.#now(),
       };
-    } else if (shot && shot.strength === 0) {
+    } else if (shot && shot.timedOut) {
       this.#animatedShot = shot;
     }
   }
@@ -628,7 +683,7 @@ export class GravityGame {
     return true;
   }
 
-  /** Move the finger, clamped to `GRAVITY_MAX_AIM_DISTANCE` from the ship —
+  /** Move the finger, clamped to `GRAVITY_MAX_AIM_DISTANCE` from the nose —
    *  that distance is a full-strength shot. */
   updateAim(dx: number, dy: number): void {
     if (!this.#aim) return;
@@ -646,7 +701,7 @@ export class GravityGame {
    * phone (spec §2.3, §8) — the caller sends the returned payload over the
    * wire as-is. Returns null when nothing was pulled far enough to be a shot.
    */
-  releaseAim(): { roundId: number; angle: number; strength: number; hit: boolean } | null {
+  releaseAim(): { roundId: number; angle: number; strength: number; hit: boolean; flightMs: number } | null {
     const aim = this.#aim;
     this.#aim = null;
     const s = this.#state;
@@ -656,14 +711,21 @@ export class GravityGame {
     // against firing a shot the referee has already moved past.
     if (!aim || !s || seat === null || this.#now() >= s.resolvesAt) return null;
 
+    // A finger that never moved off the ship is not a shot. Strength itself
+    // cannot be the test any more: everything inside the floor band is
+    // deliberately strength 0 (issue #36), and that IS the weakest shot, not
+    // the absence of one.
+    if (aim.x === 0 && aim.y === 0) return null;
     const { angle, strength } = aimFromFinger(aim.x, aim.y);
-    if (strength <= 0) return null;
 
     const result = simulateShot(gravityBodies(s.starRadius, s.planets), seat, angle, strength);
-    const shot: GravityShot = { shooter: seat, angle, strength, hit: result.hit };
+    const shot: GravityShot = { shooter: seat, angle, strength, hit: result.hit, timedOut: false };
     this.#animatedShot = shot;
     this.#activeShot = { seat, result, startedAt: this.#now() };
-    return { roundId: s.roundId, angle, strength, hit: result.hit };
+    // The flight's own wall-clock length goes up with the shot: the referee
+    // holds the opponent's clock back by exactly what they are about to sit
+    // through (issue #34).
+    return { roundId: s.roundId, angle, strength, hit: result.hit, flightMs: flightDurationMs(result.path) };
   }
 
   /** How far into its own flight the active shot is, in ms — for the canvas

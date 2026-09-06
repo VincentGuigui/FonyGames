@@ -20,14 +20,41 @@
  * as a hand tremor, not a tilt.
  */
 
-/** How many degrees of tilt reach full steer. A guess — needs a playtest. */
+/** How many degrees of tilt reach full steer. Neon Fall's, and the default. */
 export const SENSITIVITY_DEG = 20;
+
+/**
+ * How much of the range either side of centre reads as no steer at all
+ * (issue #32). A phone resting in a hand is never perfectly still, and without
+ * this the ship creeps whenever nobody is asking it to.
+ *
+ * **What is left is rescaled, not just offset.** Zeroing the middle and
+ * passing the rest through unchanged would make the steer jump from 0 to 0.1
+ * the instant it left the zone, which reads as a flick rather than a dead
+ * zone. The remaining 0.1..1 is stretched back over 0..1 instead, so the
+ * control is continuous everywhere and simply starts a little later.
+ *
+ * **Off by default**, and on only for Asteroid Race (`steer2Filter`). Neon
+ * Fall would plausibly like one too, but that is its own change to its own
+ * feel and nobody has asked for it — a shared filter must not retune a game
+ * that was not the subject of the report.
+ */
+export const STEER_DEAD_ZONE = 0.1;
 
 /** Exponential smoothing factor. Higher tracks faster; lower is steadier. */
 export const SMOOTHING = 0.25;
 
 function clamp(v: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, v));
+}
+
+/** Apply `STEER_DEAD_ZONE` to a −1..1 steer, rescaling what is left so the
+ *  control stays continuous — see that constant's own comment. */
+export function deadZoned(v: number, zone: number = STEER_DEAD_ZONE): number {
+  const size = Math.abs(v);
+  if (size <= zone) return 0;
+  if (zone >= 1) return 0;
+  return Math.sign(v) * ((size - zone) / (1 - zone));
 }
 
 export type SteerFilter = {
@@ -50,7 +77,7 @@ export type SteerFilter = {
  * this game has always had. `steer2Filter` below is the one caller that
  * passes something else; see its own doc comment for why.
  */
-export function steerFilter(sensitivityDeg = SENSITIVITY_DEG, smoothing = SMOOTHING, recenterMs = 0): SteerFilter {
+export function steerFilter(sensitivityDeg = SENSITIVITY_DEG, smoothing = SMOOTHING, recenterMs = 0, deadZone = 0): SteerFilter {
   let latestGamma = 0;
   let ref = 0;
   let filtered = 0;
@@ -89,7 +116,7 @@ export function steerFilter(sensitivityDeg = SENSITIVITY_DEG, smoothing = SMOOTH
       }
       latestGamma = gamma;
       hasSample = true;
-      const raw = clamp((gamma - ref) / sensitivityDeg, -1, 1);
+      const raw = deadZoned(clamp((gamma - ref) / sensitivityDeg, -1, 1), deadZone);
       filtered += (raw - filtered) * smoothing;
     },
     calibrate: () => {
@@ -144,12 +171,17 @@ export function trackSteer(sensitivityDeg = SENSITIVITY_DEG): SteerTracker {
 /**
  * How many degrees of **pitch** reach full vertical steer. A little coarser
  * than the roll figure above, because a phone is held at whatever pitch is
- * comfortable and drifts there, so the same 20° that reads as a deliberate
- * roll reads as a fidget in beta — but only a little: at 30° a full climb
- * needed a tip so large that flying up read as not working at all. A guess,
- * like every other number in that spec.
+ * comfortable and drifts there, so the same roll figure reads as a fidget in
+ * beta — but only a little: at 30° against a 20° roll, a full climb needed a
+ * tip so large that flying up read as not working at all. Both were raised
+ * together for issue #32, keeping that ratio.
  */
-export const PITCH_SENSITIVITY_DEG = 22;
+export const PITCH_SENSITIVITY_DEG = 34;
+
+/** Asteroid Race's own roll figure, separate from Neon Fall's `SENSITIVITY_DEG`
+ *  above: a flight stick held for a whole race wants more phone per unit of
+ *  ship than a lane game does, and a real hand found 20 twitchy (issue #32). */
+export const ASTEROID_ROLL_SENSITIVITY_DEG = 32;
 
 /**
  * How long a held tilt takes to start reading as the new centre — a half-life
@@ -198,13 +230,14 @@ export type Steer2Filter = {
  * the gesture a flight stick makes for "climb" — reads as positive `y`.
  */
 export function steer2Filter(
-  rollDeg = SENSITIVITY_DEG,
+  rollDeg = ASTEROID_ROLL_SENSITIVITY_DEG,
   pitchDeg = PITCH_SENSITIVITY_DEG,
   smoothing = SMOOTHING,
   recenterMs = ASTEROID_RECENTER_MS,
+  deadZone = STEER_DEAD_ZONE,
 ): Steer2Filter {
-  const roll = steerFilter(rollDeg, smoothing, recenterMs);
-  const pitch = steerFilter(pitchDeg, smoothing, recenterMs);
+  const roll = steerFilter(rollDeg, smoothing, recenterMs, deadZone);
+  const pitch = steerFilter(pitchDeg, smoothing, recenterMs, deadZone);
   return {
     sample: (gamma, beta, dtMs) => {
       roll.sample(gamma, dtMs);
@@ -226,7 +259,7 @@ export type Steer2Tracker = {
 };
 
 /** Start watching both axes. Nothing is reported until the first real event. */
-export function trackSteer2(rollDeg = SENSITIVITY_DEG, pitchDeg = PITCH_SENSITIVITY_DEG): Steer2Tracker {
+export function trackSteer2(rollDeg = ASTEROID_ROLL_SENSITIVITY_DEG, pitchDeg = PITCH_SENSITIVITY_DEG): Steer2Tracker {
   const filter = steer2Filter(rollDeg, pitchDeg);
   let samples = 0;
   let lastAt = performance.now();

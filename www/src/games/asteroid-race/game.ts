@@ -60,12 +60,23 @@ export type Vec3 = { x: number; y: number; z: number };
  *
  * The camera used to ride 3.4 units high and track the hull exactly, which
  * kept the tube mouth clear but drew the ship at ~83% down a real board and
- * pinned it there. Two trades came out of undoing that, both open questions
- * rather than settled calls: a rock dead ahead now grows from behind the hull
- * when the hull is near the axis (§12 Q7), and the hull leaves the frame well
- * before it reaches the tube wall (§12 Q8).
+ * pinned it there.
+ *
+ * **`ASTEROID_CAM_BACK` is 38 because the lean is 0.1** (issue #31). The two
+ * are one decision: the hull's own on-screen swing is
+ * `ASTEROID_REACH x (1 - lean) x ASTEROID_FOCAL / this`, and at 14 that came
+ * to 0.96 board widths against a half-width of 0.5 — the ship left the frame a
+ * third of the way to the wall. At 38 the swing is 0.35 and the sprite's far
+ * edge reaches 0.42, so the hull stays on screen all the way to the wall with
+ * room to spare. Moving one of these two without the other puts it back
+ * outside.
+ *
+ * Pulling back also draws the hull about a third of its old size, which is
+ * what settles §12 Q7: it no longer covers the spot a rock dead ahead grows
+ * from, and the whole tube (radius 0.44 board widths at the hull's depth) now
+ * fits the board instead of spilling past both edges.
  */
-export const ASTEROID_CAM_BACK = 14;
+export const ASTEROID_CAM_BACK = 38;
 
 /**
  * How far the camera leans toward the hull, as a fraction of the hull's own
