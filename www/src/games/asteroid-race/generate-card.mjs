@@ -60,7 +60,8 @@ const check = process.argv.includes('--check');
 const CARD_W = 120;
 const CARD_H = 90;
 
-/** The sheet is 5x5 — the same constants `render.ts` uses to slice it live. */
+/** The sheet is 5x5 — the same constants `pose.ts` names for the live slice.
+ *  Duplicated rather than imported: this is plain Node, and cannot read a `.ts`. */
 const SHEET_COLS = 5;
 const SHEET_ROWS = 5;
 
