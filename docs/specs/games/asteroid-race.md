@@ -22,9 +22,10 @@
 
 ## 1. Pitch
 
-The camera sits directly behind your ship and level with it, so the hull holds
-the exact middle of the screen and the corridor's rings run concentric around
-it: flying centred looks centred. Ahead, a field of grey rocks resolving out of the black, one at a time,
+The camera sits behind your ship, level with it, and holds the **tunnel's**
+axis rather than the ship's — so the corridor stays where it is on screen and
+you fly around inside it, starting dead centre with the rings concentric
+around you. Ahead, a field of grey rocks resolving out of the black, one at a time,
 getting bigger. Tilt the phone to fly around them. Everyone in the room flies
 **the same field**, so the only thing between you and first place is how well
 you read it.
@@ -252,19 +253,28 @@ Only `classic` if this is approved. Recorded, not built:
     one frame per (x, y) offset banded across the range (§13), so the sell is
     real frames rather than a claim: this was prose with nothing behind it
     until it shipped. All around it, the field.
-  - **The hull IS the middle of the screen.** The camera rides on its own
-    line, level, so the tube's axis and the vanishing point and the centre of
-    the board are one place: flying centred looks centred, and the corridor's
-    rings sit concentric around the ship rather than hanging above it. This
-    reverses the original framing, which put the camera 3.4 units high to keep
-    the tube mouth clear of the hull — and which drew the ship at ~83% down a
-    real board, always a little below the axis it was flying along, with the
-    exact position sliding around with the phone's aspect ratio.
-  - **What that costs**: a rock dead ahead now grows from behind the hull for
-    most of its approach — the sprite is ~37% of the board's width, a small
-    rock at `ASTEROID_WARN_Z` about 5%. The red proximity halo and the reticle
-    bracket are therefore the warning, not an ornament on one. Open question
-    §12 Q7.
+  - **The camera holds the tunnel, not the ship.** It is level with the hull
+    (so a hull on the axis projects onto the vanishing point, and "centred on
+    screen" and "centred in the tube" are one statement) and it sits on the
+    tunnel's axis, leaning only `ASTEROID_CAM_FOLLOW` — a tenth — of the way
+    toward the hull. The corridor therefore stays put and the ship moves
+    inside it: the tube slides a tenth of the way the opposite direction, the
+    far end of the tunnel never leaves the middle at all, and the ship's own
+    screen position is finally a real thing rather than a fixed point. That is
+    what makes §13's pose banding describe something visible.
+  - This reverses the original framing twice over: the camera was 3.4 units
+    high *and* pinned laterally to the hull, which drew the ship at ~83% down
+    a real board, always a little below the axis it was flying along, with the
+    exact position sliding around with the phone's aspect ratio, and with the
+    corridor swinging around a sprite that never moved.
+  - **Two costs, both open rather than settled.** A rock dead ahead grows from
+    behind the hull whenever the hull is near the axis — the sprite is ~37% of
+    the board's width, a small rock at `ASTEROID_WARN_Z` about 5% (§12 Q7).
+    And the hull leaves the frame long before it reaches the tube wall: its
+    on-screen swing is `ASTEROID_REACH × (1 − ASTEROID_CAM_FOLLOW) ×
+    ASTEROID_FOCAL / ASTEROID_CAM_BACK` = 0.96 board widths against a
+    half-width of 0.5, so the sprite starts clipping at ~33% of the reach, its
+    centre crosses the edge at ~52%, and it is gone past ~72% (§12 Q8).
   - Large rocks dark grey `#4B5563`, small rocks grey `#9CA3AF`, both fading
     toward the `#05070D` background with distance (§2.4). **Size, not shade,
     is what says "this one splits"** — a large rock is genuinely bigger on
@@ -487,6 +497,7 @@ these, §8):
 | `ASTEROID_DRAW_Z` | 600 | Beyond this, nothing is drawn |
 | `ASTEROID_REACTION_MS` | 1200 | The reaction time §2.4's inequality is written against |
 | `ASTEROID_CAM_BACK` | 14 | Directly behind the hull and level with it (§4). There is no `_UP`: it was 3.4 and is gone |
+| `ASTEROID_CAM_FOLLOW` | 0.1 | How far the camera leans from the tunnel's axis toward the hull. ⚖ At 0.1 the hull leaves the frame before the wall (§12 Q8); the paired knob is `ASTEROID_CAM_BACK`, which would need ~38 to hold it in |
 | `ASTEROID_FOCAL` | 2.4 | Field of view, in board widths per unit at unit distance |
 | `ASTEROID_HORIZON` | 0.5 | The vanishing point, as a fraction of board height — and, the camera being level, the hull's own spot. 0.5 centres it on any aspect |
 | `PITCH_SENSITIVITY_DEG` | 22 | A little coarser than roll's 20, since resting pitch drifts more. Was 30, which needed a tip so large that climbing read as not working |
@@ -675,6 +686,15 @@ Still open:
    that warning; whether they actually do is a question only a phone can
    answer. If they do not, the lever is the hull's drawn size (~37% of the
    board's width, `render.ts`), not the camera going back up.
+8. **The hull flies out of frame before it reaches the tube wall.** With
+   `ASTEROID_CAM_FOLLOW` at 0.1 the camera holds the tunnel, which is what
+   makes the ship's own screen position mean something — and it swings the
+   hull 0.96 board widths against a half-width of 0.5. The sprite starts
+   clipping at ~33% of the reach and is gone past ~72%. Shipped this way
+   deliberately, to be looked at on a phone before it is tuned: the two knobs
+   are this constant and `ASTEROID_CAM_BACK` (~38 keeps the hull in frame at a
+   0.1 lean, and draws it about a third of its present size, which would
+   settle Q7 at the same time).
 
 ## 13. Rendering: plain `<canvas>`, and where the maths lives
 
@@ -809,7 +829,7 @@ not:
   furthest with a dead heat unranked, a stale `roundId`, the solo `winner:
   null`, an away run freezing, and a full-room frame fitting inside 1 KB.
   Registered as `npm run test:asteroid`.
-- `www/src/games/asteroid-race/game.test.ts` — the flight, 119 checks: two
+- `www/src/games/asteroid-race/game.test.ts` — the flight, 124 checks: two
   phones deriving the identical field from one `roundId`, the projection, a
   collision that must register and a near-miss that must not, a dropped frame
   that must not tunnel through a rock, **a gate with no hull position in the
