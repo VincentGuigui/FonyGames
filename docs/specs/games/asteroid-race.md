@@ -267,14 +267,19 @@ Only `classic` if this is approved. Recorded, not built:
     a real board, always a little below the axis it was flying along, with the
     exact position sliding around with the phone's aspect ratio, and with the
     corridor swinging around a sprite that never moved.
-  - **Two costs, both open rather than settled.** A rock dead ahead grows from
-    behind the hull whenever the hull is near the axis — the sprite is ~37% of
-    the board's width, a small rock at `ASTEROID_WARN_Z` about 5% (§12 Q7).
-    And the hull leaves the frame long before it reaches the tube wall: its
-    on-screen swing is `ASTEROID_REACH × (1 − ASTEROID_CAM_FOLLOW) ×
-    ASTEROID_FOCAL / ASTEROID_CAM_BACK` = 0.96 board widths against a
-    half-width of 0.5, so the sprite starts clipping at ~33% of the reach, its
-    centre crosses the edge at ~52%, and it is gone past ~72% (§12 Q8).
+  - **The camera's distance is set by its lean, not chosen separately.** The
+    hull's on-screen swing is `ASTEROID_REACH × (1 − ASTEROID_CAM_FOLLOW) ×
+    ASTEROID_FOCAL / ASTEROID_CAM_BACK`. At the original 14 that was 0.96 board
+    widths against a half-width of 0.5 — the ship left the frame a third of the
+    way to the wall, which is what a real hand reported (issue #31). At 38 the
+    swing is 0.35 and the sprite's outer edge reaches 0.42, so the hull is on
+    screen everywhere in the tube. Move one of the two without the other and it
+    goes back outside.
+  - Pulling back draws the hull about a third of its old size, which also
+    settles what was §12 Q7: it no longer covers the spot a rock dead ahead
+    grows from, and the whole corridor (radius 0.44 board widths at the hull's
+    depth, against 1.2 before) now fits the board rather than spilling past
+    both edges.
   - Large rocks dark grey `#4B5563`, small rocks grey `#9CA3AF`, both fading
     toward the `#05070D` background with distance (§2.4). **Size, not shade,
     is what says "this one splits"** — a large rock is genuinely bigger on
@@ -496,11 +501,13 @@ these, §8):
 | `ASTEROID_CLEAR_Z` | 150 | Fully lit — and ≥ `ASTEROID_REACTION_MS` at boost (§2.4) |
 | `ASTEROID_DRAW_Z` | 600 | Beyond this, nothing is drawn |
 | `ASTEROID_REACTION_MS` | 1200 | The reaction time §2.4's inequality is written against |
-| `ASTEROID_CAM_BACK` | 14 | Directly behind the hull and level with it (§4). There is no `_UP`: it was 3.4 and is gone |
-| `ASTEROID_CAM_FOLLOW` | 0.1 | How far the camera leans from the tunnel's axis toward the hull. ⚖ At 0.1 the hull leaves the frame before the wall (§12 Q8); the paired knob is `ASTEROID_CAM_BACK`, which would need ~38 to hold it in |
+| `ASTEROID_CAM_BACK` | 38 | Directly behind the hull and level with it (§4). Set by `ASTEROID_CAM_FOLLOW`, not chosen: 14 put the ship off the board (#31). No `_UP`: it was 3.4 and is gone |
+| `ASTEROID_CAM_FOLLOW` | 0.1 | How far the camera leans from the tunnel's axis toward the hull. Paired with `ASTEROID_CAM_BACK` — see §4 |
 | `ASTEROID_FOCAL` | 2.4 | Field of view, in board widths per unit at unit distance |
 | `ASTEROID_HORIZON` | 0.5 | The vanishing point, as a fraction of board height — and, the camera being level, the hull's own spot. 0.5 centres it on any aspect |
-| `PITCH_SENSITIVITY_DEG` | 22 | A little coarser than roll's 20, since resting pitch drifts more. Was 30, which needed a tip so large that climbing read as not working |
+| `ASTEROID_ROLL_SENSITIVITY_DEG` | 32 | ⚖ Degrees of roll for a full steer. This game's own, separate from Neon Fall's `SENSITIVITY_DEG` (20), which is untouched — a real hand found the ship twitchy (#32) and a shared filter must not retune the other game on its way past |
+| `PITCH_SENSITIVITY_DEG` | 34 | ⚖ A little coarser than roll's 32, since resting pitch drifts more. Raised from 22 with roll, keeping the ratio |
+| `STEER_DEAD_ZONE` | 0.1 | The middle tenth of the range reads as no steer at all, so a phone resting in a hand does not creep (#32). What is left is **rescaled**, not offset, or the steer would jump out of the zone. Opt-in per filter and off by default; only this game takes it |
 | `ASTEROID_RECENTER_MS` | 20000 | A held tilt's half-life back toward "centred". Picked so a 2 s gate answer barely erodes but a whole race's worth of drift is ~95% gone by the finish |
 
 ## 6. Networking
@@ -680,21 +687,21 @@ Still open:
    a table read (§5), which is more than the other guesses in this list got,
    but the simulation cannot feel whether 20 s reads as sluggish or as
    twitchy on an actual arm.
-7. **Does the hull hide the rock about to kill you?** Levelling the camera
-   (§4) put the ship on the vanishing point, which is also where anything
-   dead ahead grows from. The halo and the reticle bracket are meant to carry
-   that warning; whether they actually do is a question only a phone can
-   answer. If they do not, the lever is the hull's drawn size (~37% of the
-   board's width, `render.ts`), not the camera going back up.
-8. **The hull flies out of frame before it reaches the tube wall.** With
-   `ASTEROID_CAM_FOLLOW` at 0.1 the camera holds the tunnel, which is what
-   makes the ship's own screen position mean something — and it swings the
-   hull 0.96 board widths against a half-width of 0.5. The sprite starts
-   clipping at ~33% of the reach and is gone past ~72%. Shipped this way
-   deliberately, to be looked at on a phone before it is tuned: the two knobs
-   are this constant and `ASTEROID_CAM_BACK` (~38 keeps the hull in frame at a
-   0.1 lean, and draws it about a third of its present size, which would
-   settle Q7 at the same time).
+7. ~~**Does the hull hide the rock about to kill you?**~~ **Largely answered
+   by #31**: pulling the camera to 38 draws the hull at ~14% of the board's
+   width rather than 37%, so it no longer covers the spot a rock grows from.
+   Whether the halo still needs to carry the warning at all is a smaller
+   question than it was.
+8. ~~**The hull flies out of frame before it reaches the tube wall.**~~
+   **Answered by #31**: `ASTEROID_CAM_BACK` is 38, the swing is 0.35 board
+   widths, and `game.test.ts` pins the invariant — a hull against the wall,
+   plus half its own sprite, still fits inside half a board width. What is
+   open now is the opposite question: whether the ship at 14% of the board's
+   width is too *small* to fly by.
+9. **Is the tilt right after #32?** `SENSITIVITY_DEG` went 20 → 32,
+   `PITCH_SENSITIVITY_DEG` 22 → 34, and a 10% dead zone now sits at centre.
+   That was a report of twitchiness, not a measurement; the same hand may now
+   find it sluggish.
 
 ## 13. Rendering: plain `<canvas>`, and where the maths lives
 

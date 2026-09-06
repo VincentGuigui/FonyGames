@@ -277,8 +277,11 @@ function theView(): void {
 
   const right = project({ x: 4, y: 0, z: 200 }, ship);
   check('a rock to the right draws to the right', !!right && right.ox > 0);
-  check('nothing level with the camera is drawn', project({ x: 0, y: 0, z: 86 }, ship) === null);
-  check('nor anything behind it', project({ x: 0, y: 0, z: 0 }, ship) === null);
+  // Derived rather than written: the camera sits `ASTEROID_CAM_BACK` behind
+  // the hull, and the literal 86 quietly stopped meaning "level with it" the
+  // moment that constant moved from 14 to 38.
+  check('nothing level with the camera is drawn', project({ x: 0, y: 0, z: ship.distance - ASTEROID_CAM_BACK }, ship) === null);
+  check('nor anything behind it', project({ x: 0, y: 0, z: ship.distance - ASTEROID_CAM_BACK - 10 }, ship) === null);
 
   // On the axis, the hull IS the middle of the board — that is the round's own
   // starting frame, and `ASTEROID_HORIZON` at 0.5 is what turns an all-zero
@@ -290,6 +293,19 @@ function theView(): void {
   check('and the vanishing point is the middle of the board', ASTEROID_HORIZON === 0.5, ASTEROID_HORIZON);
   const ring = project({ x: 0, y: 0, z: 300 }, onAxis);
   check('so a ring ahead is concentric with it', !!ring && Math.abs(ring.ox) < 1e-9 && Math.abs(ring.oy) < 1e-9, ring);
+
+  // The hull must stay ON the board all the way to the tube wall, which is the
+  // one thing ASTEROID_CAM_BACK and ASTEROID_CAM_FOLLOW exist together to
+  // satisfy (issue #31). Half a board width is the edge, and the sprite is
+  // drawn 2 * 0.8 * scale * 1.35 across, so half of it has to fit too.
+  const atWall = { x: ASTEROID_REACH, y: 0, distance: 100 };
+  const wallHull = project({ x: ASTEROID_REACH, y: 0, z: 100 }, atWall);
+  const halfSprite = 0.8 * (ASTEROID_FOCAL / ASTEROID_CAM_BACK) * 1.35;
+  check('a hull against the wall is still on the board', !!wallHull && Math.abs(wallHull.ox) + halfSprite < 0.5, {
+    ox: wallHull?.ox,
+    edge: (wallHull?.ox ?? 0) + halfSprite,
+  });
+  check('and the whole tube fits the board around it', ASTEROID_CORRIDOR_R * (ASTEROID_FOCAL / ASTEROID_CAM_BACK) < 0.5);
 
   // Off the axis, the camera holds the TUNNEL rather than the hull (§4): it
   // leans only `ASTEROID_CAM_FOLLOW` of the way across, so the ship moves on

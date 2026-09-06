@@ -1,4 +1,4 @@
-import { ASTEROID_RECENTER_MS, PITCH_SENSITIVITY_DEG, SENSITIVITY_DEG, steer2Filter, steerFilter } from './steer';
+import { ASTEROID_RECENTER_MS, ASTEROID_ROLL_SENSITIVITY_DEG, PITCH_SENSITIVITY_DEG, SENSITIVITY_DEG, SMOOTHING, STEER_DEAD_ZONE, deadZoned, steer2Filter, steerFilter } from './steer';
 
 /**
  * The tilt-to-steer math.
@@ -96,7 +96,10 @@ console.log('\ntwo axes, for a game that flies a tube (asteroid-race.md §5)');
   f.calibrate();
   check('a held pose is the new centre', f.read().x === 0 && f.read().y === 0, f.read());
 
-  for (let i = 0; i < 100; i++) f.sample(12 + SENSITIVITY_DEG, 40, 0);
+  // The two-axis filter is Asteroid Race's, so a full roll is ITS own
+  // sensitivity — `SENSITIVITY_DEG` is Neon Fall's and no longer reaches the
+  // stop here (issue #32).
+  for (let i = 0; i < 100; i++) f.sample(12 + ASTEROID_ROLL_SENSITIVITY_DEG, 40, 0);
   check('rolling right steers right', Math.abs(f.read().x - 1) < 0.01, f.read().x);
   check('and does not touch the other axis', Math.abs(f.read().y) < 1e-9, f.read().y);
 
@@ -242,6 +245,66 @@ console.log('\ntwo axes recentre independently and together (asteroid-race.md §
   holdFor((dt) => g.sample(SENSITIVITY_DEG, 90 - PITCH_SENSITIVITY_DEG, dt), RECENTER_MS * 5);
   check('holding both tilts steadily recentres both, not just one',
     Math.abs(g.read().x) < 0.05 && Math.abs(g.read().y) < 0.05, g.read());
+}
+
+console.log('\nthe dead zone at centre (issue #32)');
+{
+  check('dead centre is no steer', deadZoned(0) === 0);
+  check('and so is anything inside the zone', deadZoned(STEER_DEAD_ZONE * 0.99) === 0 && deadZoned(-STEER_DEAD_ZONE * 0.5) === 0);
+  check('the zone edge is the last thing that reads as nothing', deadZoned(STEER_DEAD_ZONE) === 0);
+  check('just past it is only just moving', Math.abs(deadZoned(STEER_DEAD_ZONE + 0.0001)) < 0.001, deadZoned(STEER_DEAD_ZONE + 0.0001));
+
+  // The rescale is the whole point: zeroing the middle and passing the rest
+  // through unchanged would jump the steer from 0 to the zone's own width the
+  // instant it left, which reads as a flick rather than a dead zone.
+  check('full deflection is still full', Math.abs(deadZoned(1) - 1) < 1e-9 && Math.abs(deadZoned(-1) + 1) < 1e-9);
+  check('and the middle of what is left is the middle', Math.abs(deadZoned(STEER_DEAD_ZONE + (1 - STEER_DEAD_ZONE) / 2) - 0.5) < 1e-9);
+  check('it is continuous — no jump out of the zone', (() => {
+    let last = 0;
+    for (let v = 0; v <= 1; v += 0.005) {
+      const got = deadZoned(v);
+      if (got - last > 0.02) return false;
+      last = got;
+    }
+    return true;
+  })());
+  check('and symmetric', [0.05, 0.2, 0.5, 0.9, 1].every((v) => Math.abs(deadZoned(v) + deadZoned(-v)) < 1e-9));
+}
+
+console.log('\nAsteroid Race asks for less ship per degree (issue #32)');
+{
+  check('its roll is coarser than the shared default', ASTEROID_ROLL_SENSITIVITY_DEG > SENSITIVITY_DEG);
+  check('and its pitch is coarser still', PITCH_SENSITIVITY_DEG > ASTEROID_ROLL_SENSITIVITY_DEG);
+  // Neon Fall keeps the feel it had: the report was about one game, and a
+  // shared filter must not retune the other one on its way past.
+  check('Neon Fall\'s own sensitivity is untouched', SENSITIVITY_DEG === 20);
+
+  // Neutral first, THEN calibrate — a filter calibrated before its first
+  // sample anchors on whatever arrives next, which would make every tilt below
+  // read as dead centre and the check pass for the wrong reason.
+  const hold = (f: ReturnType<typeof steerFilter>, deg: number): number => {
+    f.sample(0, 16);
+    f.calibrate();
+    for (let i = 0; i < 200; i++) f.sample(deg, 16);
+    return f.read();
+  };
+  const asteroid = (): ReturnType<typeof steerFilter> =>
+    steerFilter(ASTEROID_ROLL_SENSITIVITY_DEG, SMOOTHING, 0, STEER_DEAD_ZONE);
+
+  check('two degrees off centre is nothing at all', hold(asteroid(), 2) === 0);
+  const twenty = hold(asteroid(), 20);
+  check('and twenty is no longer full deflection', twenty > 0.2 && twenty < 0.85, twenty);
+  check('a full sensitivity of tilt still reaches full steer', hold(asteroid(), ASTEROID_ROLL_SENSITIVITY_DEG) > 0.99);
+
+  // The dead zone is opt-in: the default filter, which Neon Fall takes, has none.
+  check('the shared default has no dead zone', hold(steerFilter(SENSITIVITY_DEG, SMOOTHING, 0), 1) > 0);
+  check('and the two-axis filter does', (() => {
+    const g = steer2Filter(ASTEROID_ROLL_SENSITIVITY_DEG, PITCH_SENSITIVITY_DEG, SMOOTHING, 0);
+    g.sample(0, 90, 16);
+    g.calibrate();
+    for (let i = 0; i < 200; i++) g.sample(2, 90, 16);
+    return g.read().x === 0;
+  })());
 }
 
 if (failures > 0) throw new Error(`${failures} check(s) failed`);
