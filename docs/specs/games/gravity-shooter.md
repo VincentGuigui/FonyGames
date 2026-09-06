@@ -14,8 +14,8 @@
 ## 1. Pitch
 
 Two starships, one at the bottom of your screen, one at the top. Between
-them, two planets — same for both players, always on opposite sides of the
-board, placed at random when the match starts. Touch above your ship to aim
+them, three planets — same for both players, two on one side of the board and
+one on the other, placed at random when the match starts. Touch above your ship to aim
 toward your finger, let go, and your missile curves under the planets' own
 gravity on its way across the board — bigger planets pull harder. Land a hit
 and the other ship loses a life; run them out of five and you win. No score,
@@ -28,8 +28,9 @@ match, only which player is aiming does.** Each phone always draws itself
 at the bottom and the opponent at the top — the same board, rotated per
 viewer, never two different boards.
 
-1. Host starts the round. Two planets are placed once, at random positions
-   and sizes, identical on both screens (§2.1). Ships are fixed near their
+1. Host starts the round. Three planets are placed once, at random positions
+   and sizes, identical on both screens (§2.1) — and never a board without a
+   shot that lands on it. Ships are fixed near their
    own edge and never move — a 20px further margin than the original brief
    (issue #16), so neither ship reads as sitting right on the border.
 2. Turns strictly alternate, host first. On your turn, touch above your own
@@ -45,7 +46,8 @@ viewer, never two different boards.
    near third of the screen, fading through the middle third, and gone for
    the last third before the opponent (§2.2) — a real read on your own aim,
    but never a look at where the shot actually lands.
-4. Release, and the missile flies, curving under the star's and both planets'
+4. Release, and the missile flies, curving under the star's and all three
+   planets'
    gravity and **turning to point along its own trajectory** as it goes, for as
    long as where it currently is allows (§2.3) before an unresolved shot is
    abandoned outright.
@@ -68,18 +70,22 @@ cannot tell the two ships apart when there is only one of it.
 
 ### 2.1 The planets: rolled once, shared by construction
 
-Exactly 2 planets, `{ x, y, r, art }` each, rolled once by the referee at
-round start with `ctx.random()` — the same "the referee rolls shared
-random state once and broadcasts the resolved value" pattern Squash
-Mosquitoes' own `generatePattern()` already uses
-(`worker/squashMosquitoes.ts`), just independent draws for position/size/
-art instead of a shuffle. `y` is constrained to a middle band so both
-planets sit between the two ships; `x` keeps clear of the side edges and
-**always splits the board in half — one planet rolled left of centre, one
-right, which side is a fair coin flip** — so a shot is never faced with
-both planets bunched on the same side and nothing to curve around on the
-other. `r` is mapped from the brief's 20–100px onto the shared board's own
-normalized units. `art` picks one of ~3 planet PNGs.
+Exactly **3 planets** (`GRAVITY_PLANET_COUNT`), `{ x, y, r, art }` each,
+rolled once by the referee at round start with `ctx.random()` — the same "the
+referee rolls shared random state once and broadcasts the resolved value"
+pattern Squash Mosquitoes' own `generatePattern()` already uses
+(`worker/squashMosquitoes.ts`), just independent draws for position/size/art
+instead of a shuffle. `y` is constrained to a middle band so every planet sits
+between the two ships; `x` keeps clear of the side edges. `r` is mapped from
+the brief's 20–100px onto the shared board's own normalized units. `art` picks
+one of ~3 planet PNGs.
+
+**Two on one side of the centre line, one on the other — which side gets the
+pair is a fair coin flip.** Never all three on one half, which would leave a
+whole side of the board with nothing to curve around. The asymmetry is the
+point: a board with the same count either side has an obvious mirror-image
+shot down each flank, while a two/one split makes the two halves genuinely
+different problems, and makes which way to go round an actual decision.
 
 **The board moves every `GRAVITY_SHOTS_PER_MAP` (2) resolved shots** — one
 apiece, so it only ever changes once BOTH players have aimed at it, never
@@ -128,47 +134,76 @@ and holds the middle whatever the planets do.
 
 **Three shape rules, each guaranteed rather than merely likely (issue #16):**
 
-- **At least 30% size difference.** The two radii are never independently
-  rolled and hoped apart — the referee picks the bigger one first, from
-  high enough in the 20–100px range that shrinking it by 30% can never push
-  the smaller one below the 20px floor, then rolls the smaller one under
-  that ceiling. Two near-identical planets read as one shape drawn twice,
-  not two different things to curve a shot around.
-- **At least 50px between their own SURFACES**, not their centres — two big
-  planets can have far-apart centres and still touch. Constructed the same
-  direct way as the size rule where possible; on the rare geometry where it
-  is not, the referee re-rolls just the sizes and heights (up to ten times)
-  before accepting whatever the last attempt was rather than ever refusing
-  to start a match over it.
-- **At least 100px of vertical separation** between the two centres, so they
-  never land on the same horizontal band and read as one wide obstacle.
-  Constructed the same direct way: the lower one is rolled from a range that
-  always leaves the required gap of room for the higher one above it, so
-  this one never needs a retry at all.
+- **At least 30% size difference, between every pair.** The radii are never
+  independently rolled and hoped apart — the referee picks the biggest first,
+  from high enough in the 20–100px range that shrinking it *twice* can never
+  push the smallest below the 20px floor, then rolls each next one under its
+  predecessor's ceiling. Which planet gets which of the three sizes is then
+  shuffled, so the crowded side is not always the one holding the big one. Two
+  near-identical planets read as one shape drawn twice, not two different
+  things to curve a shot around; with three on a board that would be worse,
+  not better.
+- **At least 50px between their own SURFACES**, every pair, not their centres
+  — two big planets can have far-apart centres and still touch. This is the
+  one rule that cannot be constructed directly, so the referee re-rolls the
+  whole geometry (up to 60 times) until it holds, and a geometry that never
+  satisfies it is discarded rather than shipped.
+- **At least 100px of vertical separation between the two that SHARE a side**,
+  so they never land on the same horizontal band and read as one wide
+  obstacle. Constructed directly: the lower one is rolled from a range that
+  always leaves the required gap of room for the higher one above it, so this
+  one never needs a retry at all. Only the crowded side owes it — three rows
+  that far apart do not fit in the middle band at all, and the lone planet
+  across the centre line is already a board-width and a star away from both of
+  the others.
 **The star owes the planets nothing, and they owe it nothing.** A planet is
 free to sit over the middle of the board and overlap the star outright — only
-the two planets owe each other room. Measured across 5000 seeded rolls, a
+the planets owe each other room. Measured across 5000 seeded rolls, a
 planet overlaps the star on about 59% of boards, which is the intended
 freedom rather than a defect; planets draw over the star, so the overlap reads
 as one body passing in front of another.
 
-**A best-effort fairness pass, on top of the shape rules.** Issue #16 asked
-directly: *"is it possible to simulate a winning trajectory from each
-player's own position, to avoid generating an impossible map?"* — yes. Once
-a candidate map satisfies the three rules above, the referee samples a
-coarse fan of shots (seven angles, five strengths — widened from three
-strengths in this follow-up, once a slower speed range and a stronger `G`
-made the fast-and-strong end of the old fan miss far more real shots) from
-EACH ship's own position, run through a small worker-local copy of the
-client's own gravity model (`worker/gravityShooter.ts`'s
-`seatCanReachOpponent`) purely to answer "does at least one of these
-connect" — never to decide a real shot (spec §8 is unchanged: the referee
-still trusts whatever `hit` a real `gravity-shot` claims). If neither ship
-has a sampled shot that connects, the referee re-rolls the whole map (up to
-eight times) before accepting the last attempt regardless. Deliberately a
-courtesy, not a guarantee: a coarse 35-shot fan can still miss a real but
-narrow window, and the last attempt is always shipped rather than ever
-blocking a match from starting over it.
+**A guaranteed landing shot, on top of the shape rules.** Issue #16 asked
+directly: *"is it possible to simulate a winning trajectory from each player's
+own position, to avoid generating an impossible map?"* — yes, and with three
+planets in the way it is no longer a courtesy but the accept condition. Once a
+candidate map satisfies the three rules above, the referee samples a fan of
+shots (**25 angles × 7 strengths**, from every seat's own launch point) through
+a small worker-local copy of the client's own gravity model
+(`worker/gravityShooter.ts`'s `seatCanReachOpponent`) purely to answer "does at
+least one of these connect" — never to decide a real shot (§8 is unchanged:
+the referee still trusts whatever `hit` a real `gravity-shot` claims).
+
+**A map only ships once BOTH seats have one.** Up to 200 whole geometries are
+rolled looking for that; measured across 2000 seeded rolls, none needed more
+than a handful and none fell through. If one ever did, `GRAVITY_FALLBACK_BOARD`
+ships instead — a fixed board whose own landing shots and placement legality
+the referee's tests assert, since nothing checks it at runtime. Never an
+unwinnable board, and never a match refused over a roll.
+
+**The sampler is deliberately stricter than the real simulation**, which is
+what turns "we found one" into a guarantee rather than an estimate. A sampled
+shot only counts if it reaches the other ship
+
+- **without ever leaving the visible board**,
+- **without ever crossing the opponent's own row**, and
+- **inside 8 seconds**.
+
+The real flight allows more than all three — it may leave the board and curve
+back in, it may overshoot and return, and it has 20s onscreen — so a
+trajectory this check accepts is one no lifetime budget and no outer wall can
+end early. It can still *miss* real shots that go the long way round; that only
+ever costs a re-roll.
+
+Both of the first two rules are there because they were needed, not on
+principle. With only the bounds rule, **5 of 600 seat-boards shipped whose
+"guaranteed" shot the real simulation never lands** — every one of them a
+missile that flew past the opponent's row and ran out its 1s `past` budget on
+the way back. That is the failure mode a coarse copy of someone else's physics
+has, and it is why the guarantee is checked end to end by
+`worker/gravityBoards.test.ts`, which rolls real boards and flies the sampled
+fan through the **client's own** `simulateShot`. Currently 240 of 240
+seat-boards land at least one, at a mean of 4.5 of the 175 sampled.
 
 ### 2.2 One board, drawn twice
 
@@ -244,7 +279,7 @@ planet's own area, so a bigger planet pulls harder at any given distance,
 not just asymptotically far away from it (the planet's own radius still
 doubles as both the softening distance near its center and its own
 absorption radius — a missile that gets within a planet's radius is
-swallowed there, ending as a plain miss) — summed over both planets. `G`
+swallowed there, ending as a plain miss) — summed over all three planets. `G`
 itself is now **four times** the original brief's value: doubled once when
 the launch speed dropped (a slower missile alone doesn't feel meaningfully
 pulled unless the pull itself is also stronger), then doubled again
@@ -356,7 +391,7 @@ Only `classic` at launch.
 ## 4. Screens
 
 - **Lobby**: shared template. No host setting beyond `mode`.
-- **Round**: a `<canvas>` board — two planets, two ships, a turn indicator,
+- **Round**: a `<canvas>` board — three planets, two ships, a turn indicator,
   a row of five life-pips per ship (same idiom Pass the Bomb/Steady Hand
   already use). Touching above your own ship on your turn shows the fading
   dashed aim preview (§2.2); releasing plays the missile's flight, followed by
@@ -507,6 +542,22 @@ readable by a screen reader like any other status bar in this catalogue.
 
 ## 12. Open questions
 
+- **Three planets, two/one (§2.1), is untested on a real board.** The count
+  went from two to three at the maintainer's own ask, and the arithmetic says
+  it fits — mean radius held at 36px across 2000 seeded rolls, every roll
+  legal, every roll with a landing shot for both seats — but "fits" is not
+  "reads". Two things to look at in the first game on it.
+
+  First, whether the crowded side is legible at a glance on a phone or just
+  reads as clutter.
+
+  Second, and the measured one: **29% of seat-boards (69 of 240) have two or
+  fewer landing shots in the sampled fan.** The fan is coarse — 7° apart, so
+  the real continuum of winning shots is wider than any count off it — but a
+  board where the sample finds one answer is a board that may play as a puzzle
+  with one answer rather than a place to aim. If that is how it feels, the
+  lever is planet size, not planet count: the same three radii rolled from a
+  lower ceiling would open every board up without touching the split.
 - **`G` (gravity strength) and `GRAVITY_HIT_RADIUS`** — `G` is now four
   times the original brief's value across two follow-ups (§2.3), and the hit
   radius is no longer a tuned number at all: it is half the ship sprite's
@@ -537,11 +588,13 @@ readable by a screen reader like any other status bar in this catalogue.
   the budget is for.
 - **The star's own size range (30–60px, §2.1)** is an untested first pick. It
   is deliberately narrower than the planets' 20–100px, because the star is
-  pinned to the middle and every planet owes it the same 50px of clear space it
-  owes the other planet — a star free to grow as large as a planet can would
-  leave the planets nowhere legal to stand. Worth revisiting once it has been
-  played: too small and it stops being the obstacle it exists to be, too large
-  and the two planets get shoved into the corners every time.
+  pinned to the middle and three planets now have to find legal room around it
+  — a star free to grow as large as a planet can would leave them nowhere to
+  stand. (They owe the star no clear space of their own, §2.1; what a big star
+  costs is the room the planets need from *each other* near the middle.) Worth
+  revisiting once it has been played: too small and it stops being the obstacle
+  it exists to be, too large and the planets get shoved into the corners every
+  time.
 - **Whether the star should pull at all** was a judgement call, not a stated
   requirement: it was asked for as a fixed body in the middle that planets must
   not overlap, and it was made a full gravity body (pulls and swallows, same
@@ -579,7 +632,7 @@ readable by a screen reader like any other status bar in this catalogue.
     guarantee about the real client physics.
   - Pinning one planet to the middle while the other still owes it 100px of
     vertical separation is genuinely tight geometry, and the surface-gap
-    retry budget had to rise from 10 to 60 attempts to keep the two planets
+    retry budget had to rise from 10 to 60 attempts to keep the planets
     from overlapping (4.2% of maps overlapped at 10, 0.02% at 30, none at
     60). The mean radius barely moved (0.0886 → 0.0878), so the retries are
     not quietly selecting for small planets — but if the y band or the

@@ -4,6 +4,7 @@ import {
   GRAVITY_MAX_STRENGTH,
   GRAVITY_MIN_PLAYERS,
   GRAVITY_PLANET_ART_COUNT,
+  GRAVITY_PLANET_COUNT,
   GRAVITY_PLANET_MIN_GAP,
   GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO,
   GRAVITY_PLANET_MIN_Y_DIFF,
@@ -20,6 +21,7 @@ import {
   GRAVITY_STAR_R_MIN,
   gravityBodies,
   type GravityPlanet,
+  type GravityPlanetTrio,
   type GravityShooterState,
   type PlayerId,
   type ServerMessage,
@@ -93,12 +95,35 @@ function rollPlanetX(random: () => number, side: 'left' | 'right'): number {
  * required ratio can never push the smaller one below `GRAVITY_PLANET_R_MIN`;
  * which planet actually gets which radius is still a fair coin flip.
  */
-function rollPlanetRadii(random: () => number): [number, number] {
-  const minBig = GRAVITY_PLANET_R_MIN / (1 - GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO);
+function rollPlanetRadii(random: () => number): [number, number, number] {
+  const shrink = 1 - GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO;
+  // The biggest is rolled from high enough in the range that shrinking it
+  // twice can still never push the smallest below the floor — with three
+  // planets that is two shrinks of headroom, not one.
+  const minBig = GRAVITY_PLANET_R_MIN / (shrink * shrink);
   const big = minBig + random() * (GRAVITY_PLANET_R_MAX - minBig);
-  const smallCeiling = big * (1 - GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO);
-  const small = GRAVITY_PLANET_R_MIN + random() * (smallCeiling - GRAVITY_PLANET_R_MIN);
-  return random() < 0.5 ? [big, small] : [small, big];
+  // Each next one is rolled between the floor (with its own remaining
+  // headroom) and its predecessor's shrunk ceiling, so the chain is
+  // constructed rather than rolled and rejected.
+  const midFloor = GRAVITY_PLANET_R_MIN / shrink;
+  const mid = midFloor + random() * (big * shrink - midFloor);
+  const small = GRAVITY_PLANET_R_MIN + random() * (mid * shrink - GRAVITY_PLANET_R_MIN);
+  return [big, mid, small];
+}
+
+/** Fisher-Yates over the referee's own `random()` — which planet gets which
+ *  of the three sizes is a fair shuffle, so the crowded side is not always
+ *  the one holding the big one. */
+function shuffled<T>(items: readonly T[], random: () => number): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    const a = out[i] as T;
+    const b = out[j] as T;
+    out[i] = b;
+    out[j] = a;
+  }
+  return out;
 }
 
 /** Centre distance minus both radii — how far apart the two planets'
@@ -108,16 +133,26 @@ export function surfaceGap(a: GravityPlanet, b: GravityPlanet): number {
 }
 
 /**
- * Both planets' own rows, at least `GRAVITY_PLANET_MIN_Y_DIFF` apart (issue
- * #16) and inside the band — constructed rather than rejected: pick the lower
- * one from a range that still leaves the higher one room above it.
+ * The two rows for the planets that SHARE a side, at least
+ * `GRAVITY_PLANET_MIN_Y_DIFF` apart (issue #16) and inside the band —
+ * constructed rather than rejected: pick the lower one from a range that
+ * still leaves the higher one room above it.
+ *
+ * Only the crowded side needs this. Three rows that far apart do not fit in
+ * the band at all, and the lone planet across the centre line is already a
+ * board-width and a star away from both of these.
  */
-function rollPlanetYs(random: () => number): [number, number] {
+function rollSideYs(random: () => number): [number, number] {
   const span = GRAVITY_PLANET_Y_MAX - GRAVITY_PLANET_Y_MIN;
   const gap = Math.min(GRAVITY_PLANET_MIN_Y_DIFF, span);
   const low = GRAVITY_PLANET_Y_MIN + random() * (span - gap);
   const high = low + gap + random() * (GRAVITY_PLANET_Y_MAX - low - gap);
   return random() < 0.5 ? [low, high] : [high, low];
+}
+
+/** The lone planet's own row: anywhere in the band, with nobody to avoid. */
+function rollPlanetY(random: () => number): number {
+  return GRAVITY_PLANET_Y_MIN + random() * (GRAVITY_PLANET_Y_MAX - GRAVITY_PLANET_Y_MIN);
 }
 
 /** The star's own size for this board — its position never changes. */
@@ -158,12 +193,6 @@ const FAIRNESS_STEP_S = 1 / 60;
  *  on a diagonal); this check only needs to find ONE connecting shot, not
  *  describe the whole flight. */
 const FAIRNESS_MAX_STEPS = 480;
-/** Same wide margin `GRAVITY_SIM_BOUNDS_MIN/MAX` gives the real simulation
- *  (spec §2.3/§7), so a shot that would genuinely loop back in is not
- *  written off as unreachable just because this coarse check gave up early. */
-const FAIRNESS_BOUNDS_MIN = -0.5;
-const FAIRNESS_BOUNDS_MAX = 1.5;
-
 function fairnessShipPosition(seat: 0 | 1): { x: number; y: number } {
   return { x: 0.5, y: seat === 0 ? 1 - GRAVITY_SHIP_MARGIN : GRAVITY_SHIP_MARGIN };
 }
@@ -191,6 +220,9 @@ function fairnessShotConnects(bodies: readonly GravityPlanet[], shooterSeat: 0 |
   let y = start.y;
   let vx = shooterSeat === 0 ? localVx : -localVx;
   let vy = shooterSeat === 0 ? localVy : -localVy;
+  /** Which way "toward the opponent" is, in world y — what "flew past it"
+   *  below is measured against, same test the real `lifetimeZone` uses. */
+  const travelDirection = Math.sign(target.y - start.y);
 
   for (let i = 0; i < FAIRNESS_MAX_STEPS; i++) {
     let ax = 0;
@@ -210,29 +242,52 @@ function fairnessShotConnects(bodies: readonly GravityPlanet[], shooterSeat: 0 |
     x += vx * FAIRNESS_STEP_S;
     y += vy * FAIRNESS_STEP_S;
     if (Math.hypot(x - target.x, y - target.y) <= FAIRNESS_HIT_RADIUS) return true;
-    if (x < FAIRNESS_BOUNDS_MIN || x > FAIRNESS_BOUNDS_MAX || y < FAIRNESS_BOUNDS_MIN || y > FAIRNESS_BOUNDS_MAX) return false;
+    // Both of these are deliberately STRICTER than the real simulation, and
+    // that is the whole point: the real flight would allow this shot to leave
+    // the board and curve back in, or to overshoot the target's row and come
+    // back — but only for as long as its lifetime budgets allow (spec §2.3),
+    // and a shot this check accepted on the strength of a return trip is
+    // exactly the shot the real flight kills mid-air. Measured: with the
+    // bounds rule alone, 5 of 600 seat-boards shipped whose "guaranteed" shot
+    // the real simulation never lands, every one of them a missile that
+    // crossed the opponent's row and ran out its 1s `past` budget on the way
+    // back. A trajectory that stays on the board, never crosses the target's
+    // row, and lands inside `FAIRNESS_MAX_STEPS` cannot be ended early by any
+    // budget or wall — so the guarantee is a guarantee.
+    if (x < 0 || x > 1 || y < 0 || y > 1) return false;
+    if (Math.sign(y - target.y) === travelDirection) return false; // flew past it
   }
   return false;
 }
 
-/** A coarse fan of angles/strengths — wide enough to catch an obviously
- *  reachable shot without costing more than a few dozen cheap simulations. */
-const FAIRNESS_ANGLES_DEG = [-60, -40, -20, 0, 20, 40, 60];
+/**
+ * The fan of angles and strengths the guarantee is searched over. Denser than
+ * it was, in both axes: with three planets in the way a board's one clean
+ * line is often a narrow one, and a fan too coarse to find it would reject
+ * boards that are perfectly playable — and, worse, let a genuinely blocked
+ * one through on a lucky sample. 25 x 7 = 175 cheap integrations per seat,
+ * only while rolling a board.
+ */
+const FAIRNESS_ANGLES_DEG = [
+  -84, -77, -70, -63, -56, -49, -42, -35, -28, -21, -14, -7,
+  0,
+  7, 14, 21, 28, 35, 42, 49, 56, 63, 70, 77, 84,
+];
 /** Widened after this follow-up's own launch-speed/gravity retune: a
  *  full-strength-only-ish fan (the old `[0.5, 0.75, 1]`) missed a lot more
  *  real shots once the speed range dropped and `GRAVITY_G` doubled — a
  *  weaker pull now spends much longer exposed to a much stronger pull, so a
  *  reachable shot is more likely to sit at the gentler end of the range. */
-const FAIRNESS_STRENGTHS = [0.15, 0.35, 0.5, 0.75, 1];
+const FAIRNESS_STRENGTHS = [0, 0.15, 0.3, 0.45, 0.6, 0.8, 1];
 
 /** Can at least one reasonable shot from `seat` reach the opponent, with the
- *  star in the way as well as both planets? */
+ *  star in the way as well as all three planets? */
 export function seatCanReachOpponent(
-  planets: readonly [GravityPlanet, GravityPlanet],
+  planets: readonly GravityPlanet[],
   seat: 0 | 1,
   starRadius: number,
 ): boolean {
-  const bodies = gravityBodies(starRadius, planets as [GravityPlanet, GravityPlanet]);
+  const bodies = gravityBodies(starRadius, planets);
   for (const deg of FAIRNESS_ANGLES_DEG) {
     for (const strength of FAIRNESS_STRENGTHS) {
       if (fairnessShotConnects(bodies, seat, (deg * Math.PI) / 180, strength)) return true;
@@ -241,10 +296,14 @@ export function seatCanReachOpponent(
   return false;
 }
 
-/** How many whole map geometries (positions and sizes both) to try before
- *  accepting whatever the last one was — never blocks a match from starting
- *  over a fairness heuristic, only improves the odds. */
-const GRAVITY_WINNABILITY_ATTEMPTS = 8;
+/**
+ * How many whole map geometries (positions and sizes both) to try before
+ * falling back. Far higher than the 8 it was: a board now has to carry a
+ * landing shot for BOTH seats to ship at all (see `rollBoard`), so this is no
+ * longer "improve the odds" but the actual search, and every attempt is a few
+ * hundred cheap integrations rather than a rendered frame.
+ */
+const GRAVITY_WINNABILITY_ATTEMPTS = 200;
 /**
  * Within one geometry, how many times to re-roll the sizes and positions if
  * the surface-gap rule (spec's own 50px) isn't met yet — every attempt is
@@ -256,67 +315,119 @@ const GRAVITY_WINNABILITY_ATTEMPTS = 8;
  * planets overlapping in 4.2% of maps (measured across 5000 seeded rolls).
  * 30 brought that to 0.02% and 60 to none at all, with the mean radius
  * essentially unmoved (0.0886 → 0.0878), so the retries are not quietly
- * selecting for small planets.
+ * selecting for small planets. Three planets share one board now, so the
+ * geometry is tighter again and there are three pairs to keep apart.
  */
 const GRAVITY_SPACING_ATTEMPTS = 60;
 
-/** A whole board: the star's own size, plus the two planets around it. */
-export type GravityBoard = { starRadius: number; planets: [GravityPlanet, GravityPlanet] };
+/** A whole board: the star's own size, plus the three planets around it. */
+export type GravityBoard = { starRadius: number; planets: GravityPlanetTrio };
+
+/** Every pair of planets keeps its own 50px of clear space (spec §2.1) —
+ *  including the two that share a side, which is the tight one. */
+function allSurfacesClear(planets: readonly GravityPlanet[]): boolean {
+  for (let i = 0; i < planets.length; i++) {
+    for (let j = i + 1; j < planets.length; j++) {
+      const a = planets[i];
+      const b = planets[j];
+      if (!a || !b) continue;
+      if (surfaceGap(a, b) < GRAVITY_PLANET_MIN_GAP) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * One candidate geometry: three planets, two on one side and one on the
+ * other, every placement rule satisfied except winnability — which is the
+ * caller's business, because it is the expensive half.
+ *
+ * Returns null when this roll could not be spaced legally at all, rather than
+ * shipping an overlapping board the way the two-planet version's fallback
+ * did: with a guaranteed board behind it (`rollBoard`) there is no longer any
+ * reason to accept a bad one.
+ */
+function rollGeometry(random: () => number): GravityBoard | null {
+  for (let spacing = 0; spacing < GRAVITY_SPACING_ATTEMPTS; spacing++) {
+    const starRadius = rollStarRadius(random);
+    const radii = shuffled(rollPlanetRadii(random), random);
+    const art = Array.from({ length: GRAVITY_PLANET_COUNT }, () => Math.floor(random() * GRAVITY_PLANET_ART_COUNT));
+    // Which half holds the pair is a fair coin flip, so neither player learns
+    // to expect the crowded side on their left.
+    const crowded = random() < 0.5 ? 'left' : 'right';
+    const lonely = crowded === 'left' ? 'right' : 'left';
+    const [yLow, yHigh] = rollSideYs(random);
+
+    const planets: GravityPlanetTrio = [
+      { x: rollPlanetX(random, crowded), y: yLow, r: radii[0] ?? GRAVITY_PLANET_R_MIN, art: art[0] ?? 0 },
+      { x: rollPlanetX(random, crowded), y: yHigh, r: radii[1] ?? GRAVITY_PLANET_R_MIN, art: art[1] ?? 0 },
+      { x: rollPlanetX(random, lonely), y: rollPlanetY(random), r: radii[2] ?? GRAVITY_PLANET_R_MIN, art: art[2] ?? 0 },
+    ];
+
+    // The planets owe each other room; none owes the star any — a planet is
+    // free to sit over the middle of the board and overlap it.
+    if (allSurfacesClear(planets)) return { starRadius, planets };
+  }
+  return null;
+}
 
 /**
  * A whole board, rolled with the referee's own fair `random()` (spec §2.1).
  *
  * The **star** is the fixed point: always dead centre, only its size rolled.
  * It is what makes the straight line between the two ships a non-shot, which
- * is a job two planets used to share awkwardly — one of them was pinned to
+ * is a job the planets used to share awkwardly — one of them was pinned to
  * cover the centre, and both were pulled close to the centre line so their
  * gravity reached it. Both of those rules are gone: the star does the work,
- * and the planets are free to roam their own halves again (and have to be,
- * since they now owe the star the same surface gap they owe each other).
+ * and the planets are free to roam their own halves.
  *
- * What survives from issue #16, all still guaranteed rather than merely
- * likely: the two planets differ in size by 30% (`rollPlanetRadii`), sit one
- * per half, keep 100px of vertical separation (`rollPlanetYs`), and keep 50px
- * of clear space from each other AND from the star (`surfaceGap`). On top,
- * best effort and never a hard requirement, the whole board is checked with
- * `seatCanReachOpponent` for both players before it ships.
+ * **Three planets, two on one side and one on the other** (coin flip which),
+ * with everything issue #16 asked for still guaranteed rather than merely
+ * likely: no two radii within 30% of each other down the whole chain
+ * (`rollPlanetRadii`), the two that share a side 100px apart vertically
+ * (`rollSideYs`), and every pair 50px of clear surface apart
+ * (`allSurfacesClear`).
+ *
+ * **And a landing shot, for both seats, guaranteed.** This used to be best
+ * effort — eight tries and then ship whatever the last one was. It is now the
+ * accept condition: a geometry is only returned once `seatCanReachOpponent`
+ * finds a trajectory from EACH seat that reaches the other ship without ever
+ * leaving the visible board, which the real simulation cannot then end early
+ * for any reason. A crowded board is much easier to seal off than a
+ * two-planet one was, so this is the rule that keeps three planets fair.
+ *
+ * If 200 attempts somehow all fail, `GRAVITY_FALLBACK_BOARD` ships instead —
+ * a fixed board whose own landing shots are asserted by the referee's tests.
+ * Never an unwinnable one, and never a match refused over a roll.
  */
 export function rollBoard(random: () => number): GravityBoard {
-  let candidate: GravityBoard | null = null;
-
   for (let attempt = 0; attempt < GRAVITY_WINNABILITY_ATTEMPTS; attempt++) {
-    const artA = Math.floor(random() * GRAVITY_PLANET_ART_COUNT);
-    const artB = Math.floor(random() * GRAVITY_PLANET_ART_COUNT);
-
-    for (let spacing = 0; spacing < GRAVITY_SPACING_ATTEMPTS; spacing++) {
-      const starRadius = rollStarRadius(random);
-      const [ra, rb] = rollPlanetRadii(random);
-      const [ya, yb] = rollPlanetYs(random);
-      const aLeft = random() < 0.5;
-      const a: GravityPlanet = { x: rollPlanetX(random, aLeft ? 'left' : 'right'), y: ya, r: ra, art: artA };
-      const b: GravityPlanet = { x: rollPlanetX(random, aLeft ? 'right' : 'left'), y: yb, r: rb, art: artB };
-
-      candidate = { starRadius, planets: [a, b] };
-      // The two planets owe each other room; neither owes the star any — a
-      // planet is free to sit over the middle of the board and overlap it.
-      if (surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP) break;
-      // Otherwise this attempt's geometry is kept as the fallback and the
-      // loop tries again — never leaves `candidate` unset.
-    }
-
+    const candidate = rollGeometry(random);
+    if (!candidate) continue;
     if (
-      candidate
-      && seatCanReachOpponent(candidate.planets, 0, candidate.starRadius)
+      seatCanReachOpponent(candidate.planets, 0, candidate.starRadius)
       && seatCanReachOpponent(candidate.planets, 1, candidate.starRadius)
     ) {
       return candidate;
     }
   }
-
-  // Fail-soft: every attempt above is a courtesy, not a guarantee — ship the
-  // last geometry rather than ever refusing to start a match over it.
-  return candidate as GravityBoard;
+  return { starRadius: GRAVITY_FALLBACK_BOARD.starRadius, planets: [...GRAVITY_FALLBACK_BOARD.planets] as GravityPlanetTrio };
 }
+
+/**
+ * The board of last resort. Legal under every §2.1 rule and winnable from
+ * both seats — `worker/gravityShooter.test.ts` asserts both, which is the
+ * only reason it is safe to ship without checking it at runtime. Two small
+ * planets left, one big right, well clear of each other and of the star.
+ */
+export const GRAVITY_FALLBACK_BOARD: GravityBoard = {
+  starRadius: 0.1,
+  planets: [
+    { x: 0.28, y: 0.34, r: 0.055, art: 0 },
+    { x: 0.26, y: 0.64, r: 0.085, art: 1 },
+    { x: 0.76, y: 0.5, r: 0.13, art: 2 },
+  ],
+};
 
 /** Host pressed start. Returns false when the room is not eligible.
  *

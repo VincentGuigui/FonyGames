@@ -4,6 +4,7 @@ import {
   GRAVITY_SHOT_TIMEOUT_MS,
   gravityBodies,
   type GravityPlanet,
+  type GravityPlanetTrio,
   type GravityShot,
   type PlayerId,
   type ServerMessage,
@@ -455,19 +456,23 @@ function easeInOut(t: number): number {
 }
 
 /**
- * Both boards ordered left planet first. The referee shuffles which slot each
+ * Both boards ordered left to right. The referee shuffles which slot each
  * planet lands in, so pairing by slot would send them across each other
- * through the middle of the board; pairing by side (there is always exactly one
- * per half, spec §2.1) keeps each slide short and uncrossed.
+ * through the middle of the board; pairing by screen order keeps each slide
+ * short and uncrossed.
+ *
+ * It used to pair by SIDE, which worked while there was exactly one planet per
+ * half. With three planets split two/one (spec §2.1) the crowded side can swap
+ * between boards, so left-to-right order is what survives that — the slide is
+ * cosmetic either way, and this is the ordering that crosses fewest paths.
  */
-function bySide(board: readonly [GravityPlanet, GravityPlanet]): [GravityPlanet, GravityPlanet] {
-  const [a, b] = board;
-  return a.x <= b.x ? [a, b] : [b, a];
+function leftToRight(board: readonly GravityPlanet[]): GravityPlanet[] {
+  return [...board].sort((a, b) => a.x - b.x);
 }
 
-/** Everything the canvas needs to draw a board: the star's own size, and both
- *  planets. Position and radius are all that ever move. */
-export type DisplayBoard = { starRadius: number; planets: [GravityPlanet, GravityPlanet] };
+/** Everything the canvas needs to draw a board: the star's own size, and every
+ *  planet. Position and radius are all that ever move. */
+export type DisplayBoard = { starRadius: number; planets: GravityPlanetTrio };
 
 function boardOf(state: GravityShooterState): DisplayBoard {
   return { starRadius: state.starRadius, planets: state.planets };
@@ -478,17 +483,21 @@ function boardOf(state: GravityShooterState): DisplayBoard {
  *  sprite changes as the movement starts, which reads as a new planet arriving
  *  rather than the one you were watching changing its mind at the end. */
 function tweenBoards(from: DisplayBoard, to: DisplayBoard, t: number): DisplayBoard {
-  const a = bySide(from.planets);
-  const b = bySide(to.planets);
-  const mix = (index: 0 | 1): GravityPlanet => ({
-    x: a[index].x + (b[index].x - a[index].x) * t,
-    y: a[index].y + (b[index].y - a[index].y) * t,
-    r: a[index].r + (b[index].r - a[index].r) * t,
-    art: b[index].art,
-  });
+  const a = leftToRight(from.planets);
+  const b = leftToRight(to.planets);
+  const mix = (index: number): GravityPlanet => {
+    const one = a[index] ?? PLACEHOLDER_PLANET;
+    const two = b[index] ?? one;
+    return {
+      x: one.x + (two.x - one.x) * t,
+      y: one.y + (two.y - one.y) * t,
+      r: one.r + (two.r - one.r) * t,
+      art: two.art,
+    };
+  };
   return {
     starRadius: from.starRadius + (to.starRadius - from.starRadius) * t,
-    planets: [mix(0), mix(1)],
+    planets: [mix(0), mix(1), mix(2)],
   };
 }
 
@@ -647,12 +656,13 @@ export class GravityGame {
    * per frame rather than caching it.
    *
    * Nothing downstream cares which slot each planet lands in — the canvas just
-   * iterates the pair — so mid-slide the two come back left-first (see
-   * `bySide`), while a settled board is returned exactly as the referee sent it.
+   * iterates them — so mid-slide they come back in left-to-right order (see
+   * `leftToRight`), while a settled board is returned exactly as the referee
+   * sent it.
    */
   displayedBoard(): DisplayBoard {
     const state = this.#state;
-    if (!state) return this.#shownBoard ?? { starRadius: 0, planets: [PLACEHOLDER_PLANET, PLACEHOLDER_PLANET] };
+    if (!state) return this.#shownBoard ?? { starRadius: 0, planets: [PLACEHOLDER_PLANET, PLACEHOLDER_PLANET, PLACEHOLDER_PLANET] };
     if (!this.#shownBoard) {
       this.#shownBoard = boardOf(state);
       return this.#shownBoard;

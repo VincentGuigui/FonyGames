@@ -835,7 +835,7 @@ export type GravityShooterState = {
    * client replaying `lastShot` has to simulate against the planets it was
    * already showing rather than these (`game.ts`'s own `apply`).
    */
-  planets: [GravityPlanet, GravityPlanet];
+  planets: GravityPlanetTrio;
   /**
    * The star's own radius. It always sits dead centre (`gravityStar`), so its
    * position never has to cross the wire — only how big it is this time, which
@@ -2467,31 +2467,55 @@ export const GRAVITY_PLANET_R_MIN = 20 / GRAVITY_REFERENCE_BOARD_PX;
 export const GRAVITY_PLANET_R_MAX = 100 / GRAVITY_REFERENCE_BOARD_PX;
 
 /**
- * How different the two planets' own radii must be, as a fraction of the
- * larger one (issue #16) — two near-identical planets read as one shape
- * drawn twice, not two different things to curve a shot around.
+ * How different two planets' own radii must be, as a fraction of the larger
+ * one (issue #16) — two near-identical planets read as one shape drawn twice,
+ * not two different things to curve a shot around. With three planets the rule
+ * applies down the whole chain: sorted big to small, each is at least this much
+ * smaller than the one before it, so no two of the three are ever twins.
  */
 export const GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO = 0.3;
 
 /**
- * How far apart the two planets' own SURFACES must land — centre distance
+ * How far apart any two planets' own SURFACES must land — centre distance
  * minus both radii — never their centres alone (issue #16): two big planets
  * can have far-apart centres and still touch. Same px-then-normalized shape
- * as the radius range above.
+ * as the radius range above. With three planets it is every pair, including
+ * the two that share a side.
  */
 export const GRAVITY_PLANET_MIN_GAP_PX = 50;
 export const GRAVITY_PLANET_MIN_GAP = GRAVITY_PLANET_MIN_GAP_PX / GRAVITY_REFERENCE_BOARD_PX;
 
 /**
- * How far apart the two planets' own centres must sit vertically (issue
- * #16) — otherwise they can land on the same horizontal band and read as
- * one wide obstacle rather than two separate things to route between.
+ * How far apart two planets' own centres must sit vertically (issue #16) —
+ * otherwise they can land on the same horizontal band and read as one wide
+ * obstacle rather than two separate things to route between.
+ *
+ * Required of the two planets that **share a side**, which is where that
+ * failure actually looks like one shape: three rows this far apart do not fit
+ * in the `[GRAVITY_PLANET_Y_MIN, GRAVITY_PLANET_Y_MAX]` band at all, and the
+ * lone planet on the other half is already a whole board-width away from both
+ * of them with the star in between.
  */
 export const GRAVITY_PLANET_MIN_Y_DIFF_PX = 100;
 export const GRAVITY_PLANET_MIN_Y_DIFF = GRAVITY_PLANET_MIN_Y_DIFF_PX / GRAVITY_REFERENCE_BOARD_PX;
 
 /** How many pre-made planet PNGs `GravityPlanet.art` may index into. */
 export const GRAVITY_PLANET_ART_COUNT = 3;
+
+/**
+ * How many planets a board carries, and how they are split across the centre
+ * line: **three, two on one side and one on the other** (which side gets the
+ * pair is a fair coin flip each roll). The asymmetry is the point — a board
+ * with the same count either side has an obvious mirror-image shot down each
+ * flank, while a 2/1 split makes the two halves genuinely different problems.
+ *
+ * A count rather than a bare tuple length so the rules below can be read
+ * against it, and so the placement code says what it means.
+ */
+export const GRAVITY_PLANET_COUNT = 3;
+
+/** The board's planets, exactly `GRAVITY_PLANET_COUNT` of them. */
+export type GravityPlanetTrio = [GravityPlanet, GravityPlanet, GravityPlanet];
 
 /**
  * How many resolved shots a set of planets lasts before the referee rolls a
@@ -2524,8 +2548,8 @@ export function gravityStar(radius: number): GravityPlanet {
   return { x: 0.5, y: 0.5, r: radius, art: 0 };
 }
 
-/** Everything that pulls, in one list: the star first, then both planets. */
-export function gravityBodies(starRadius: number, planets: readonly [GravityPlanet, GravityPlanet]): GravityPlanet[] {
+/** Everything that pulls, in one list: the star first, then every planet. */
+export function gravityBodies(starRadius: number, planets: readonly GravityPlanet[]): GravityPlanet[] {
   return [gravityStar(starRadius), ...planets];
 }
 

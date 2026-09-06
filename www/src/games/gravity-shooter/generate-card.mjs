@@ -64,31 +64,35 @@ const check = process.argv.includes('--check');
 const OWN_ACCENT = '#818CF8';
 
 /**
- * The posed board, legal under spec §2.1: one planet per half, radii inside the
- * 20–100px range and 30% apart, centres over 100px apart vertically, surfaces
- * well over 50px apart, star inside its own size range.
+ * The posed board — and not posed by hand any more: it is the board
+ * `rollBoard(seeded(37))` actually deals, copied out verbatim. Three planets
+ * split two/one across the centre line (spec §2.1) is fiddly enough to place
+ * by eye that hand-writing one risks advertising a board the game would never
+ * produce; taking a real roll makes that impossible, and `assertLegal` below
+ * still checks it against every rule independently.
  */
 const BOARD = {
-  starRadius: 0.085,
+  starRadius: 0.097,
   planets: [
-    { x: 0.34, y: 0.42, r: 0.130, art: 0 },
-    { x: 0.76, y: 0.68, r: 0.0845, art: 1 },
+    { x: 0.63, y: 0.63, r: 0.054, art: 2 },
+    { x: 0.58, y: 0.36, r: 0.078, art: 0 },
+    { x: 0.16, y: 0.33, r: 0.131, art: 1 },
   ],
 };
 
 /**
- * The shot: 82° off straight up — fired all but sideways, away from the target
- * — at half strength. Of a swept fan of every angle and strength over this
- * board, it is the one whose *drawn* trail bends hardest and still lands, which
- * is the thing the card has to promise. A shot that curves late is a straight
- * line in a still picture.
+ * The shot: 72° off straight up — fired all but sideways, away from the target
+ * — at a quarter strength. Of a swept fan of every angle and strength over
+ * this board, it is the one whose *drawn* trail bends hardest and still lands,
+ * which is the thing the card has to promise. A shot that curves late is a
+ * straight line in a still picture.
  *
- * Re-swept when the launch point moved to the ship's nose (issue #37): the old
- * -60°/0.6 pose starts a hull height closer to the grey planet and is now
- * swallowed by it, so the card was advertising a shot the game no longer flies.
- * This is the same sweep, re-run over the same board.
+ * Re-swept whenever the physics under it moves — the launch point going to the
+ * ship's nose (issue #37) swallowed the previous pose in a planet outright, so
+ * the card was briefly advertising a shot the game no longer flies. Same sweep
+ * each time, re-run over whatever board is posed above.
  */
-const SHOT = { angleDeg: -82, strength: 0.5 };
+const SHOT = { angleDeg: -72, strength: 0.25 };
 
 /** How far along its own flight the missile is caught, 0..1. Late, so the whole
  *  hook is behind it and reads as something that already happened. */
@@ -113,20 +117,37 @@ const CARD_H = 90;
  * the one thing about a hand-posed board that can quietly rot.
  */
 async function assertLegal(rules) {
-  const [a, b] = BOARD.planets;
-  const gap = Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.r;
-  const sizeDiff = Math.abs(a.r - b.r) / Math.max(a.r, b.r);
+  const planets = BOARD.planets;
   const problems = [];
-  if ((a.x < 0.5) === (b.x < 0.5)) problems.push('both planets are on the same half');
-  if (gap < rules.GRAVITY_PLANET_MIN_GAP) problems.push(`surfaces are ${gap.toFixed(3)} apart, under ${rules.GRAVITY_PLANET_MIN_GAP}`);
-  if (Math.abs(a.y - b.y) < rules.GRAVITY_PLANET_MIN_Y_DIFF) problems.push(`centres are ${Math.abs(a.y - b.y).toFixed(3)} apart vertically, under ${rules.GRAVITY_PLANET_MIN_Y_DIFF}`);
-  if (sizeDiff < rules.GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO) problems.push(`radii differ by ${(sizeDiff * 100).toFixed(0)}%, under ${rules.GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO * 100}%`);
-  for (const p of BOARD.planets) {
+
+  if (planets.length !== 3) problems.push(`the board has ${planets.length} planets, not 3`);
+  const onLeft = planets.filter((p) => p.x < 0.5).length;
+  if (onLeft !== 1 && onLeft !== 2) problems.push(`${onLeft} planets on the left — the split must be two/one`);
+
+  for (let i = 0; i < planets.length; i++) {
+    for (let j = i + 1; j < planets.length; j++) {
+      const a = planets[i];
+      const b = planets[j];
+      const gap = Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.r;
+      const sizeDiff = Math.abs(a.r - b.r) / Math.max(a.r, b.r);
+      if (gap < rules.GRAVITY_PLANET_MIN_GAP) problems.push(`planets ${i}/${j}: surfaces are ${gap.toFixed(3)} apart, under ${rules.GRAVITY_PLANET_MIN_GAP}`);
+      if (sizeDiff < rules.GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO) problems.push(`planets ${i}/${j}: radii differ by ${(sizeDiff * 100).toFixed(0)}%, under ${rules.GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO * 100}%`);
+    }
+  }
+
+  // The vertical rule is owed by the two that share a side, same as the roll.
+  const crowded = onLeft === 2 ? planets.filter((p) => p.x < 0.5) : planets.filter((p) => p.x >= 0.5);
+  if (crowded.length === 2 && Math.abs(crowded[0].y - crowded[1].y) < rules.GRAVITY_PLANET_MIN_Y_DIFF) {
+    problems.push(`the two sharing a side are ${Math.abs(crowded[0].y - crowded[1].y).toFixed(3)} apart vertically, under ${rules.GRAVITY_PLANET_MIN_Y_DIFF}`);
+  }
+
+  for (const p of planets) {
     if (p.r < rules.GRAVITY_PLANET_R_MIN || p.r > rules.GRAVITY_PLANET_R_MAX) problems.push(`radius ${p.r} is outside the rolled range`);
     if (p.y < rules.GRAVITY_PLANET_Y_MIN || p.y > rules.GRAVITY_PLANET_Y_MAX) problems.push(`y ${p.y} is outside the middle band`);
     if (p.x < rules.GRAVITY_PLANET_X_MARGIN || p.x > 1 - rules.GRAVITY_PLANET_X_MARGIN) problems.push(`x ${p.x} is inside the edge margin`);
   }
   if (BOARD.starRadius < rules.GRAVITY_STAR_R_MIN || BOARD.starRadius > rules.GRAVITY_STAR_R_MAX) problems.push('the star is outside its own size range');
+
   if (problems.length > 0) {
     console.error(`gravity-card: the posed board is not one this game would deal —\n  ${problems.join('\n  ')}`);
     process.exit(1);
@@ -188,7 +209,7 @@ function place(sprite, cx, cy, w, { rotate = 0, flip = false } = {}) {
 
 /* ── Staleness ───────────────────────────────────────────────────────────── */
 
-const SPRITE_FILES = ['ship-a.png', 'ship-b.png', 'planet-a.png', 'planet-b.png', 'missile.png'];
+const SPRITE_FILES = ['ship-a.png', 'ship-b.png', 'planet-a.png', 'planet-b.png', 'planet-c.png', 'missile.png'];
 const inputs = [
   Buffer.from(String(GENERATOR)),
   // This script's own source, which covers the posed board, the shot, the
@@ -295,13 +316,17 @@ const at = (p) => ({ x: cam.x(p.x), y: cam.y(p.y) });
 
 /* ── Render ──────────────────────────────────────────────────────────────── */
 
-const [shipA, shipB, planetA, planetB, missile] = await Promise.all([
+const [shipA, shipB, planetA, planetB, planetC, missile] = await Promise.all([
   sprite('ship-a.png', 128),
   sprite('ship-b.png', 112),
   sprite('planet-a.png', 96),
   sprite('planet-b.png', 72),
+  sprite('planet-c.png', 88),
   sprite('missile.png', 40),
 ]);
+/** Indexed by `GravityPlanet.art`, exactly as `GravityCanvas` indexes its own
+ *  `PLANET_ART` — the card draws each planet with the sprite the game would. */
+const PLANET_SPRITES = [planetA, planetB, planetC];
 
 /** The star, drawn rather than sprited — exactly what `GravityCanvas`'s own
  *  `drawStar` does, and for the same reason it gives: its radius changes every
@@ -362,8 +387,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CARD_W} ${CA
     </radialGradient>
   </defs>
 ${star()}
-${place(planetA, cam.x(BOARD.planets[0].x), cam.y(BOARD.planets[0].y), BOARD.planets[0].r * 2 * cam.scale)}
-${place(planetB, cam.x(BOARD.planets[1].x), cam.y(BOARD.planets[1].y), BOARD.planets[1].r * 2 * cam.scale)}
+${BOARD.planets.map((p) => place(PLANET_SPRITES[p.art] ?? planetA, cam.x(p.x), cam.y(p.y), p.r * 2 * cam.scale)).join('\n')}
 ${trail()}
 ${place(shipB, targetAt.x, targetAt.y, shipW * cam.scale, { flip: true })}
 ${place(missile, nose.x, nose.y, 0.05 * cam.scale * 1.6, { rotate: heading })}
