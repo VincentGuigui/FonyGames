@@ -21,17 +21,10 @@
   align-items: center;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  min-height: 52px;
+  /* The colour is the whole brief now that the word is gone, so it gets the
+     room the word used to justify not needing. */
+  min-height: clamp(84px, 16vh, 150px);
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.18);
-}
-
-/* The word, not just the swatch: at a glance across a room it is faster, and
-   it is the only thing here a colour-blind player can act on (§11). */
-.chunt__word {
-  font-size: 1.5rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  color: rgb(4 33 29 / 0.85);
 }
 
 .chunt__pie {
@@ -81,6 +74,32 @@
   box-shadow:
     0 0 0 3px rgb(4 33 29 / 0.9),
     0 0 0 5px rgb(248 250 252 / 0.95);
+}
+
+/* The points that just landed, over the feed. Big, brief, and gone before the
+   next round is scored — there is no results panel to put them in (§2). */
+.chunt__points {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  translate: -50% 0;
+  margin: 0;
+  padding: 0.1em 0.5em;
+  border-radius: var(--radius-sm);
+  font-size: 2.4rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  background: rgb(4 33 29 / 0.72);
+}
+
+.chunt__points--hit {
+  color: #5EEAD4;
+}
+
+/* Dimmed and parenthesised by its own muted colour rather than by red alone:
+   a zero is information, not an error (ui-guidelines §2). */
+.chunt__points--miss {
+  color: #94A3B8;
 }
 
 .chunt__nofeed {

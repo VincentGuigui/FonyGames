@@ -16,7 +16,7 @@ import { useSoloTesting } from '../../core/useSolo';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { StatusBar } from '../../core/ui/StatusBar';
-import { Scoreboard } from '../../core/ui/Scoreboard';
+import { WideScoreboard } from '../../core/ui/WideScoreboard';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { PermissionPrimer } from '../../core/ui/PermissionPrimer';
 import { useT } from '../../core/i18n/strings';
@@ -41,18 +41,6 @@ export function ColorHuntRoom(props: { game: GameCard }): JSX.Element {
 function css(rgb: Rgb): string {
   return `rgb(${rgb[0]} ${rgb[1]} ${rgb[2]})`;
 }
-
-/** The six, in both languages — a word reads across a room faster than a
- *  swatch (spec §4), and it is the one concession §11 can make to a player who
- *  knows a red thing when they see one. */
-const NAMES: Record<string, { en: string; fr: string }> = {
-  red: { en: 'RED', fr: 'ROUGE' },
-  yellow: { en: 'YELLOW', fr: 'JAUNE' },
-  green: { en: 'GREEN', fr: 'VERT' },
-  cyan: { en: 'CYAN', fr: 'CYAN' },
-  blue: { en: 'BLUE', fr: 'BLEU' },
-  magenta: { en: 'MAGENTA', fr: 'MAGENTA' },
-};
 
 function ColorHuntRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
   const t = useT();
@@ -81,6 +69,24 @@ function ColorHuntRoomInner({ game: card, code }: { game: GameCard; code: string
   const readingRef = useRef<Rgb | null>(null);
 
   const running = state?.phase === 'hunt';
+
+  /*
+   * The score that just landed. There is no reveal phase to hold it (spec §2),
+   * so it is a flash: the referee scores a round and immediately deals the
+   * next, and `state.finds` is the round that just closed. Showing it forever
+   * would mean a stale number sitting under a fresh target, so it appears when
+   * the round number moves and clears itself.
+   */
+  const [flash, setFlash] = useState<number | null>(null);
+  useEffect(() => {
+    const s2 = state;
+    if (!s2 || s2.phase !== 'hunt' || !myId) return;
+    const mine = s2.finds[myId];
+    if (!mine) return;
+    setFlash(mine.score);
+    const id = window.setTimeout(() => setFlash(null), COLOR_HUNT_FLASH_MS);
+    return () => window.clearTimeout(id);
+  }, [state?.round, state?.phase, myId]);
 
   const enableCamera = useCallback(async (): Promise<boolean> => {
     setCameraAsked(true);
@@ -236,21 +242,22 @@ function ColorHuntRoomInner({ game: card, code }: { game: GameCard; code: string
 
   if (state && running) {
     const target = state.target as Rgb;
-    const word = NAMES[state.name] ?? { en: state.name.toUpperCase(), fr: state.name.toUpperCase() };
-    const mine = myId ? state.finds[myId] : undefined;
     const ladder = Object.entries(state.totals).map(([id, total]) => ({ id, avatar: avatarOf(id), name: nameOf(id), value: total }));
 
     return (
       <div class="chunt" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
         <StatusBar
-          status={mine ? text({ en: `Last round: ${mine.score}`, fr: `Manche précédente : ${mine.score}` }) : text({ en: 'Hunting', fr: 'À la chasse' })}
+          status={text({ en: `Round ${state.round} of 6`, fr: `Manche ${state.round} sur 6` })}
           title={card.title}
           concept={card.concept}
           rules={card.rules}
         />
 
+        {/* The colour, and only the colour. It used to carry its own name;
+            the word made the whole thing a reading test rather than a looking
+            one, and it told a player what to search for before they had looked
+            at the swatch. */}
         <div class="chunt__target" style={{ background: css(target) }}>
-          <span class="chunt__word">{text(word)}</span>
           <svg class="chunt__pie" viewBox="-12 -12 24 24" aria-hidden="true">
             <circle r="10" fill="rgba(4, 33, 29, 0.55)" />
             {/* Rotated with SVG's own transform, not CSS: under
@@ -270,9 +277,19 @@ function ColorHuntRoomInner({ game: card, code }: { game: GameCard; code: string
           {!cameraOn && (
             <p class="chunt__nofeed">{text({ en: 'No camera — nothing to hunt with.', fr: 'Pas de caméra — rien pour chasser.' })}</p>
           )}
+          {flash !== null && (
+            <p class={`chunt__points chunt__points--${flash > 0 ? 'hit' : 'miss'}`} aria-live="polite">
+              +{flash}
+            </p>
+          )}
         </div>
 
-        <Scoreboard rows={ladder} me={myId} unit={text({ en: 'pts', fr: 'pts' })} best="high" />
+        <WideScoreboard
+          rows={ladder}
+          me={myId}
+          unit={text({ en: 'pts', fr: 'pts' })}
+          label={text({ en: 'Scores', fr: 'Scores' })}
+        />
       </div>
     );
   }
@@ -298,6 +315,10 @@ function ColorHuntRoomInner({ game: card, code }: { game: GameCard; code: string
 }
 
 const PIE_C = 2 * Math.PI * 5;
+
+/** How long the points that just landed stay on screen. Long enough to read
+ *  while walking, short enough to be gone before the next round is scored. */
+const COLOR_HUNT_FLASH_MS = 2_500;
 
 /**
  * The camera explanation, the safety copy, and the honest version of a refusal.

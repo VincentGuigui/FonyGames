@@ -1,16 +1,16 @@
 import {
-  COLOR_ACTION_MS,
   COLOR_MATCH_MAX_PLAYERS,
   COLOR_MATCH_MIN_PLAYERS,
   COLOR_REVEAL_HOLD_MS,
   COLOR_RUN_CAP_MS,
   COLOR_SCORE_HOLD_MS,
   COLOR_SOLVE_MS,
+  colorActionMs,
   type ColorMatchState,
   type PlayerId,
   type ServerMessage,
 } from '../shared/protocol';
-import { COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, asRgb, colorScore, dealTarget, rungAt, withLuminance, type Rgb } from '../shared/color';
+import { COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, asRgb, colorKey, colorScore, dealTarget, rungAt, withLuminance, type Rgb } from '../shared/color';
 import { enoughToStart } from '../shared/players';
 
 /**
@@ -51,6 +51,10 @@ export type ColorMatch = {
   /** This level's picks, replaced wholesale each level. */
   picks: Record<PlayerId, ColorPick>;
   totals: Record<PlayerId, number>;
+  /** Every colour this session has asked for. A session never asks twice
+   *  (spec §2.3) — except where a rung has nothing left, which the first rung
+   *  reaches at level 4 by having only three colours in it. */
+  used: string[];
   /** Consecutive levels nobody scored a point on (spec §2.1). */
   barren: number;
   solo: boolean;
@@ -82,19 +86,27 @@ export function nextDeadline(s: ColorMatch): number {
   return Math.min(own, s.endsAt);
 }
 
-/** How long one whole level takes, end to end (spec §2.2). Seven seconds. */
-export const LEVEL_MS = COLOR_ACTION_MS + COLOR_SCORE_HOLD_MS + COLOR_SOLVE_MS + COLOR_REVEAL_HOLD_MS;
+/** Everything after picking closes: score hold, cursors sliding, one more beat.
+ *  The action window itself is tiered by level (`colorActionMs`), so a whole
+ *  level is that plus this. */
+export const LEVEL_TAIL_MS = COLOR_SCORE_HOLD_MS + COLOR_SOLVE_MS + COLOR_REVEAL_HOLD_MS;
+
+/** How long a whole level takes, end to end (spec §2.2). */
+export function levelMs(level: number): number {
+  return colorActionMs(level) + LEVEL_TAIL_MS;
+}
 
 function armLevel(ctx: Ctx, s: ColorMatch, level: number): void {
   const now = ctx.now();
-  const dealt = dealTarget(level, ctx.random);
+  const dealt = dealTarget(level, ctx.random, new Set(s.used));
   s.level = level;
   s.target = dealt.rgb;
+  s.used.push(colorKey(dealt.rgb));
   s.luminance = rungAt(level).luminance;
   s.phase = 'pick';
-  s.picksDueAt = now + COLOR_ACTION_MS;
+  s.picksDueAt = now + colorActionMs(level);
   s.revealAt = s.picksDueAt + COLOR_SCORE_HOLD_MS;
-  s.levelEndsAt = now + LEVEL_MS;
+  s.levelEndsAt = now + levelMs(level);
   s.picks = {};
 }
 
@@ -127,6 +139,7 @@ export async function startColorMatch(
     levelEndsAt: now,
     picks: {},
     totals,
+    used: [],
     barren: 0,
     solo: solo || connected.length <= 1,
     winner: null,

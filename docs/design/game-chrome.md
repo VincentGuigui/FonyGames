@@ -366,6 +366,34 @@ real distance. Those answer *where*, which is what aiming needs; the panel answe
 much*. Shake Rush's lane numbers do now say the same thing as the panel, which is a real
 duplication — if one goes, it is the number on the end of each lane.
 
+### 6.1 The wide variant
+
+`core/ui/WideScoreboard.tsx`, styles in `core/ui/wide-scoreboard.css`, imported
+by `game-chrome.css` the same way. **The same panel with a different
+footprint**, not a second design: it calls the corner panel's own `arrange()`
+so the ordering rules above hold unchanged, and its stylesheet reuses the same
+white-on-scrim, the same accent for the value, the same rule down your own row
+and the same struck-through "out".
+
+```
+┌────────────────────────────────────────────────┐
+│ 🙂 Vincent  3   🐙 Sam  5   🦊 Ada  1   🐝 Jo  2 │
+└────────────────────────────────────────────────┘
+```
+
+| | |
+| --- | --- |
+| Where | **In the flow, across the bottom** of the board — not fixed, not floating |
+| Shape | Full width, **up to four players a line**; eight are two rows |
+| Narrow rooms | `auto-fit` collapses the empty tracks, so two players get half the width each rather than two truncated names in a four-column grid |
+| Shows below two players | **Yes**, unlike the corner panel: a game whose bottom third IS the scoreboard looks broken with a hole in it, and a solo run against a ladder still wants its total in front of it |
+
+**Which one a game takes** is about whether its board needs the room. The
+corner panel is for a board that is the game — a field being tapped, a tube
+being flown — where the scores must keep out of the way. The wide one is for a
+game that ends a round with a number and has bottom-of-screen space doing
+nothing: Color Match and Color Hunt are both that shape.
+
 ## 7. The status bar
 
 One row across the top of every game screen. Component:

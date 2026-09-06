@@ -1,5 +1,5 @@
 import {
-  LEVEL_MS,
+  levelMs,
   nextDeadline,
   onColorPick,
   onPlayerGone,
@@ -9,8 +9,8 @@ import {
   type ColorMatch,
   type Ctx,
 } from './colorMatch';
-import { COLOR_ACTION_MS, COLOR_SCORE_HOLD_MS, type PlayerId, type ServerMessage } from '../shared/protocol';
-import { COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS } from '../shared/color';
+import { COLOR_ACTION_TIERS, COLOR_SCORE_HOLD_MS, colorActionMs, type PlayerId, type ServerMessage } from '../shared/protocol';
+import { COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, colorKey, isExtreme } from '../shared/color';
 
 /**
  * Color Match's referee.
@@ -100,13 +100,14 @@ async function starting(): Promise<void> {
   check('at level 1', h.state.level === 1);
   check('everyone is on the board at zero', h.state.totals[A] === 0 && h.state.totals[B] === 0);
   check('picking is open', h.state.phase === 'pick');
-  check('and the level is the spec\'s seven seconds', LEVEL_MS === 7000, LEVEL_MS);
+  check('a level-1 level is 5 s of picking plus 4 s of tail', levelMs(1) === 9000, levelMs(1));
   check('the first broadcast carries the target', h.sent.length === 1 && h.sent[0]?.t === 'color-match');
 
   // The ladder's first rung is one component out of {0, 255} with the rest at
   // black, so a level-1 target is one of four colours (shared/color.test.ts).
   const target = h.state.target;
-  check('and it is a rung-1 colour', target.filter((v) => v === 255).length <= 1 && target.every((v) => v === 0 || v === 255), target);
+  check('and it is a rung-1 colour', target.filter((v) => v === 255).length === 1 && target.every((v) => v === 0 || v === 255), target);
+  check('never black or white', !isExtreme(target), target);
   check('with no luminance yet', !h.state.luminance);
 
   // Color Match's minimum really is 1 (spec §7): the ladder is a perfectly
@@ -126,7 +127,7 @@ async function scoring(): Promise<void> {
 
   // A picks it exactly, early; B picks the far side of the wheel, late.
   await onColorPick(h.ctx, A, 1, 1, [...target], 1, 0);
-  h.advance(COLOR_ACTION_MS - 100);
+  h.advance(colorActionMs(1) - 100);
   const miss = target.map((v) => 255 - v);
   await onColorPick(h.ctx, B, 1, 1, miss, 1, 0);
 
@@ -159,7 +160,7 @@ async function replacing(): Promise<void> {
   const g = harness();
   await startColorMatch(g.ctx, 1, [A, B]);
   const t2 = g.state.target;
-  g.advance(COLOR_ACTION_MS + COLOR_PICK_GRACE_MS - 50);
+  g.advance(colorActionMs(1) + COLOR_PICK_GRACE_MS - 50);
   await onColorPick(g.ctx, A, 1, 1, [...t2], 1, 0);
   await g.step();
   check('a pick inside the grace still counts', g.state.totals[A] === 100, g.state.totals);
@@ -167,7 +168,7 @@ async function replacing(): Promise<void> {
   const l = harness();
   await startColorMatch(l.ctx, 1, [A, B]);
   const t3 = l.state.target;
-  l.advance(COLOR_ACTION_MS + COLOR_PICK_GRACE_MS + 50);
+  l.advance(colorActionMs(1) + COLOR_PICK_GRACE_MS + 50);
   await onColorPick(l.ctx, A, 1, 1, [...t3], 1, 0);
   await l.step();
   check('one past it does not', l.state.totals[A] === 0, l.state.totals);
@@ -302,15 +303,65 @@ async function leaving(): Promise<void> {
   check('and the run carries on', h.state.phase === 'pick');
 }
 
+async function noRepeats(): Promise<void> {
+  console.log('\na session never asks twice for the same colour (§2.3)');
+
+  const h = harness();
+  await startColorMatch(h.ctx, 1, [A, B]);
+  const seen: string[] = [colorKey(h.state.target)];
+  // Rung 1 is red, green and blue — three colours over five levels — so 4 and
+  // 5 have nothing fresh left and must repeat. That is the documented
+  // exception, and it is worth pinning rather than pretending otherwise.
+  for (let n = 1; n < 3; n++) {
+    h.seed((n * 0.31 + 0.07) % 1);
+    await h.step();
+    await h.step();
+    seen.push(colorKey(h.state.target));
+  }
+  check('the first three levels are three different colours', new Set(seen).size === 3, seen);
+  check('and the rung only had three to give', seen.length === 3);
+
+  // Past the first rung, where the palette is not three colours wide, no
+  // repeat should turn up at all.
+  const k = harness();
+  await startColorMatch(k.ctx, 1, [A, B]);
+  const later: string[] = [];
+  for (let n = 1; n <= 16; n++) {
+    k.seed((n * 0.137 + 0.03) % 1);
+    await k.step();
+    await k.step();
+    if (k.state.level > 10) later.push(colorKey(k.state.target));
+  }
+  check(`levels 11 upward never repeat (${later.length} sampled)`, new Set(later).size === later.length, later.length - new Set(later).size);
+  check('and none of them is black or white', later.every((key) => !isExtreme(key.split(',').map(Number) as [number, number, number])));
+}
+
+async function timing(): Promise<void> {
+  console.log('\nthe action window is tiered by level (§2.2)');
+
+  check('the first ten levels give 5 s', colorActionMs(1) === 5000 && colorActionMs(10) === 5000);
+  check('11 to 35 give 10 s', colorActionMs(11) === 10000 && colorActionMs(35) === 10000);
+  check('36 and up give 15 s', colorActionMs(36) === 15000 && colorActionMs(400) === 15000);
+  check('the tiers only ever get longer', COLOR_ACTION_TIERS.every((t, i, a) => i === 0 || t.ms > (a[i - 1]?.ms ?? 0)));
+  check('and the last one catches every level', COLOR_ACTION_TIERS[COLOR_ACTION_TIERS.length - 1]?.upTo === Infinity);
+  // The step is where the task gains something, not at a round number: 11 is
+  // where the palette becomes a real cube, 36 is where the slider appears.
+  check('a whole level is its own window plus a fixed tail', levelMs(1) === colorActionMs(1) + 4000 && levelMs(36) === colorActionMs(36) + 4000);
+
+  const h = harness();
+  await startColorMatch(h.ctx, 1, [A, B]);
+  check('a level-1 round really closes after 5 s', h.state.picksDueAt - h.state.startsAt === 5000);
+}
+
 async function phases(): Promise<void> {
   console.log('\nthe phase boundaries are absolute times (§2.2)');
 
   const h = harness(5_000_000);
   await startColorMatch(h.ctx, 1, [A, B]);
   const s = h.state;
-  check('picks close after the action window', s.picksDueAt === s.startsAt + COLOR_ACTION_MS, { due: s.picksDueAt - s.startsAt });
+  check('picks close after the action window', s.picksDueAt === s.startsAt + colorActionMs(1), { due: s.picksDueAt - s.startsAt });
   check('the reveal starts after the score hold', s.revealAt === s.picksDueAt + COLOR_SCORE_HOLD_MS);
-  check('and the level ends a whole LEVEL_MS in', s.levelEndsAt === s.startsAt + LEVEL_MS);
+  check('and the level ends a whole level in', s.levelEndsAt === s.startsAt + levelMs(1));
   check('the first alarm waits for the grace, not just the deadline', nextDeadline(s) === s.picksDueAt + COLOR_PICK_GRACE_MS, nextDeadline(s));
   check('a finished run wants no alarm at all', (() => {
     const done = { ...s, phase: 'done' as const };
@@ -327,6 +378,8 @@ async function main(): Promise<void> {
   await winning();
   await cheating();
   await leaving();
+  await noRepeats();
+  await timing();
   await phases();
 
   if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);

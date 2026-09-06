@@ -47,6 +47,22 @@
   color: var(--text-dim);
 }
 
+/* The number is the feedback; the word is a unit. */
+.cmatch__points {
+  font-size: 2.2rem;
+  font-variant-numeric: tabular-nums;
+  margin-right: 0.25em;
+}
+
+.cmatch__verdict--hit .cmatch__points {
+  color: var(--game-accent);
+}
+
+/* Muted rather than red: a zero is information, not an error. */
+.cmatch__verdict--miss {
+  color: var(--text-dim);
+}
+
 .cmatch__board {
   flex: 1 1 auto;
   min-height: 0;

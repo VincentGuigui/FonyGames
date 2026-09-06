@@ -50,6 +50,33 @@ export function colorScore(pick: Rgb, target: Rgb, miss = COLOR_MISS): number {
   return Math.round(100 * Math.max(0, 1 - d / miss));
 }
 
+/**
+ * The two ends nobody should be asked to guess.
+ *
+ * **Black and white are not colours to find**, on a wheel or in a room: a black
+ * wedge is a hole in the middle of a rainbow, and "point your camera at white"
+ * is a game about lightbulbs. They also break the scoring, being the two ends
+ * of the redmean axis — a near-black target makes every dark thing a near miss
+ * and the round stops discriminating.
+ *
+ * Deliberately **not** a distance to black: redmean puts a dark red (64, 0, 0)
+ * and a very dark grey (32, 32, 32) at almost exactly the same distance from
+ * it (0.122 and 0.125 normalised), so one threshold either keeps both or bans
+ * both. What actually separates them is what a player sees:
+ *
+ * - **Value** — `max(r, g, b)`. Below `COLOR_VALUE_FLOOR` a colour reads as
+ *   black on a phone at any saturation, dark red included.
+ * - **Paleness** — `min(r, g, b)`. Above `COLOR_WHITE_FLOOR` there is not
+ *   enough colour left to tell from white on a bright screen.
+ */
+export const COLOR_VALUE_FLOOR = 72;
+export const COLOR_WHITE_FLOOR = 200;
+
+/** Too dark or too pale to be a fair target. */
+export function isExtreme(rgb: Rgb): boolean {
+  return Math.max(rgb[0], rgb[1], rgb[2]) < COLOR_VALUE_FLOOR || Math.min(rgb[0], rgb[1], rgb[2]) > COLOR_WHITE_FLOOR;
+}
+
 /* --------------------------------- luminance ------------------------------ */
 
 /** How many intervals the luminance slider is cut into once it appears. */
@@ -57,8 +84,11 @@ export const COLOR_LUM_SPLITS = 4;
 
 /** The dimmest a quantised luminance ever goes. Zero would make every colour on
  *  the slider's bottom step black, which is one indistinguishable answer for a
- *  whole row of the wheel. */
-export const COLOR_LUM_MIN = 0.25;
+ *  whole row of the wheel. 0.4 rather than 0.25 so the dimmest step of a
+ *  single-channel colour still clears `COLOR_VALUE_FLOOR`: 255 x 0.25 is 64,
+ *  which `isExtreme` bans, and a slider whose bottom notch is unreachable is
+ *  worse than a shorter slider. */
+export const COLOR_LUM_MIN = 0.4;
 
 /** Apply a 0..1 luminance as a multiplier (color-match.md §2.3): the wheel says
  *  hue and saturation, the slider says brightness, which is the pair a thumb
@@ -162,6 +192,9 @@ export function palette(rung: Rung): Rgb[] {
   const out: Rgb[] = [];
   for (const which of choose3(rung.components)) {
     walk(which, hot, cold, (rgb) => {
+      // Black and white are never on offer (`COLOR_EXTREME`), so the wheel
+      // never draws a wedge nobody should be asked to pick.
+      if (isExtreme(rgb)) return;
       const key = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
       if (seen.has(key)) return;
       seen.add(key);
@@ -174,11 +207,12 @@ export function palette(rung: Rung): Rgb[] {
 /** How big `palette(rung)` would be, without building it — the wheel asks this
  *  every level and only needs the list below `COLOR_SECTOR_MAX`. */
 export function paletteSize(rung: Rung): number {
-  // Cheap for the small rungs the sector wheel cares about, and an upper bound
-  // that is never consulted for the large ones (a 255-split rung is 16.7M).
+  // An upper bound first, so a 255-split rung is never enumerated just to
+  // discover it is far too big. The bound ignores both de-duplication and the
+  // extreme filter, which only ever make the real count smaller.
   const hot = rung.splits + 1;
   const cold = rung.restSplits <= 0 ? 1 : rung.restSplits + 1;
-  if (hot === cold) return hot ** 3;
+  if (Math.max(hot, cold) ** 3 > 4096) return Math.max(hot, cold) ** 3;
   return palette(rung).length;
 }
 
@@ -208,13 +242,47 @@ function walk(which: number[], hot: number[], cold: number[], emit: (rgb: Rgb) =
   pick(0, []);
 }
 
+/** A colour as a map key, for the "never twice in one session" rule. */
+export function colorKey(rgb: Rgb): string {
+  return `${rgb[0]},${rgb[1]},${rgb[2]}`;
+}
+
+/** Above this many colours a rung is sampled rather than enumerated. The
+ *  ladder's last rungs run to millions, so listing them to pick one is not an
+ *  option; below it, enumerating is both cheap and exact. */
+const ENUMERABLE = 50_000;
+
 /**
  * Deal a target for a level. `rand` is a 0..1 source passed in rather than
  * `Math.random` read here, so the referee owns the randomness and a test can
  * pin a level to an exact colour.
+ *
+ * `used` is every colour this session has already asked for (`colorKey`).
+ * **A session never asks twice for the same colour** — except when a rung has
+ * nothing left to offer, which is not hypothetical: the first rung is red,
+ * green and blue and lasts five levels, so levels 4 and 5 must repeat. When
+ * that happens the deal falls back to the whole palette rather than failing,
+ * and `repeat` says so, so a caller can tell the difference.
  */
-export function dealTarget(level: number, rand: () => number): { rgb: Rgb; base: Rgb; lum: number } {
+export function dealTarget(
+  level: number,
+  rand: () => number,
+  used: ReadonlySet<string> = new Set(),
+): { rgb: Rgb; base: Rgb; lum: number; repeat: boolean } {
   const rung = rungAt(level);
+  const steps = luminanceSteps();
+  const lum = rung.luminance ? (steps[Math.min(steps.length - 1, Math.floor(rand() * steps.length))] ?? 1) : 1;
+
+  if (paletteSize(rung) <= ENUMERABLE) {
+    const all = palette(rung);
+    const fresh = all.filter((c) => !used.has(colorKey(withLuminance(c, lum))));
+    const pool = fresh.length > 0 ? fresh : all;
+    const base = pool[Math.min(pool.length - 1, Math.floor(rand() * pool.length))] ?? [255, 0, 0];
+    return { rgb: withLuminance(base, lum), base, lum, repeat: fresh.length === 0 };
+  }
+
+  // Too many to list. Draw one and nudge it off black or white if it landed
+  // there — deterministically, so no random source can make this spin.
   const hot = componentValues(rung.splits);
   const cold = componentValues(rung.restSplits);
   const ways = choose3(rung.components);
@@ -223,10 +291,41 @@ export function dealTarget(level: number, rand: () => number): { rgb: Rgb; base:
     const from = which.has(i) ? hot : cold;
     return from[Math.min(from.length - 1, Math.floor(rand() * from.length))] ?? 0;
   };
-  const base: Rgb = [comp(0), comp(1), comp(2)];
-  const steps = luminanceSteps();
-  const lum = rung.luminance ? (steps[Math.min(steps.length - 1, Math.floor(rand() * steps.length))] ?? 1) : 1;
-  return { rgb: withLuminance(base, lum), base, lum };
+  const base = liftOffExtremes([comp(0), comp(1), comp(2)], lum, hot, cold, which);
+  const rgb = withLuminance(base, lum);
+  return { rgb, base, lum, repeat: used.has(colorKey(rgb)) };
+}
+
+/**
+ * Move a colour that would land on black or white onto the nearest allowed
+ * value on its own grid. Raising the brightest component fixes a dark one;
+ * dropping the dimmest fixes a pale one. Both stay on the rung.
+ *
+ * **Judged on the colour after its luminance**, not on the base: dimming is
+ * what pushes a mid colour under the floor, so checking the base alone lets a
+ * near-black through the moment the slider is live. Raising the brightest
+ * component to the grid's own top is always enough — 255 x `COLOR_LUM_MIN`
+ * clears the floor with room to spare.
+ */
+function liftOffExtremes(rgb: Rgb, lum: number, hot: number[], cold: number[], which: ReadonlySet<number>): Rgb {
+  if (!isExtreme(withLuminance(rgb, lum))) return rgb;
+  const out: number[] = [...rgb];
+  const gridFor = (i: number): number[] => (which.has(i) ? hot : cold);
+
+  if (Math.max(...out) * lum < COLOR_VALUE_FLOOR) {
+    let at = 0;
+    for (let i = 1; i < 3; i++) if ((out[i] ?? 0) > (out[at] ?? 0)) at = i;
+    const grid = gridFor(at);
+    out[at] = grid[grid.length - 1] ?? 255;
+  }
+  // Dimming never makes a colour paler, so this one only ever reads the base.
+  if (Math.min(...out) > COLOR_WHITE_FLOOR) {
+    let at = 0;
+    for (let i = 1; i < 3; i++) if ((out[i] ?? 0) < (out[at] ?? 0)) at = i;
+    const grid = gridFor(at);
+    out[at] = grid[0] ?? 0;
+  }
+  return [out[0] ?? 0, out[1] ?? 0, out[2] ?? 0];
 }
 
 /** Snap a freely-dragged colour onto the rung's own grid — what the continuous
@@ -280,14 +379,17 @@ export function huntColor(target: HuntTarget): Rgb {
 }
 
 /**
- * Pick the next hunt target, never the same one twice running — a repeat reads
- * as the round not having advanced, which matters more here than in Color
- * Match because there is no reveal between rounds to separate them
- * (color-hunt.md §2).
+ * Pick a hunt target this session has not asked for yet.
+ *
+ * **Null when all six are gone**, which is a real ending rather than an error:
+ * there are only six primaries and secondaries, so a hunt is at most six rounds
+ * long by construction (color-hunt.md §2.2). Not-twice-running falls out of
+ * not-twice-at-all for free.
  */
-export function nextHuntTarget(previousKey: string | null, rand: () => number): HuntTarget {
-  const pool = HUNT_TARGETS.filter((t) => t.key !== previousKey);
-  return pool[Math.min(pool.length - 1, Math.floor(rand() * pool.length))] ?? HUNT_TARGETS[0]!;
+export function nextHuntTarget(used: ReadonlySet<string>, rand: () => number): HuntTarget | null {
+  const pool = HUNT_TARGETS.filter((t) => !used.has(t.key));
+  if (pool.length === 0) return null;
+  return pool[Math.min(pool.length - 1, Math.floor(rand() * pool.length))] ?? null;
 }
 
 /* --------------------------------- shared --------------------------------- */

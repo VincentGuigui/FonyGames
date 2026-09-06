@@ -2643,11 +2643,30 @@ export const ASTEROID_MAX_PLAYERS = PLAYERS['asteroid-race'][1];
 /* ------------------------------------------------------------------ */
 
 /**
- * A level is a fixed seven seconds, in four phases (spec §2.2). The referee
- * sends every boundary as an absolute time, so these are the durations it adds
- * up rather than anything a phone counts down on its own.
+ * How long a level gives you, by how hard it is (spec §2.2).
+ *
+ * Three tiers rather than one number, and the steps are where the *task* gains
+ * something rather than at round numbers: the first two rungs are one or two
+ * components out of {0, 255}, which is a glance; from level 11 the palette is
+ * a real cube and needs looking at; from level 36 the luminance slider appears
+ * and there is a second control to work. Time steps when the job does.
  */
-export const COLOR_ACTION_MS = 3_000;
+export const COLOR_ACTION_TIERS: readonly { readonly upTo: number; readonly ms: number }[] = [
+  { upTo: 10, ms: 5_000 },
+  { upTo: 35, ms: 10_000 },
+  { upTo: Infinity, ms: 15_000 },
+];
+
+/** The action window for a level. Both the referee and the pie read this, so
+ *  the bar on screen cannot disagree with the deadline being enforced. */
+export function colorActionMs(level: number): number {
+  for (const tier of COLOR_ACTION_TIERS) if (level <= tier.upTo) return tier.ms;
+  return COLOR_ACTION_TIERS[COLOR_ACTION_TIERS.length - 1]?.ms ?? 15_000;
+}
+
+/** The rest of a level, after picking closes. The referee sends every boundary
+ *  as an absolute time, so these are durations it adds up rather than anything
+ *  a phone counts down on its own. */
 export const COLOR_SCORE_HOLD_MS = 2_000;
 export const COLOR_SOLVE_MS = 1_000;
 export const COLOR_REVEAL_HOLD_MS = 1_000;
@@ -2668,9 +2687,11 @@ export const COLOR_MATCH_MAX_PLAYERS = PLAYERS['color-match'][1];
 /* Color Hunt (docs/specs/games/color-hunt.md)                         */
 /* ------------------------------------------------------------------ */
 
-/** Longer than Color Match's three seconds, because finding a red thing means
- *  getting up and walking to it (spec §5b). */
-export const COLOR_HUNT_ACTION_MS = 6_000;
+/** Fifteen seconds. Far longer than Color Match's own first tier, because
+ *  finding a red thing means standing up and walking to it — and because a hunt
+ *  is at most six rounds (spec §2.2), so the whole game is ~90 s of hunting
+ *  even at this length. */
+export const COLOR_HUNT_ACTION_MS = 15_000;
 
 /** The issue's own 10x10 patch, and how often it is re-read. Sampling at frame
  *  rate makes the magnifier a strobe; averaging a few reads is what makes it
