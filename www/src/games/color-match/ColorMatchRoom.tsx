@@ -173,15 +173,14 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
         <div class="cmatch__target" style={{ background: css(target) }}>
           <svg class="cmatch__pie" viewBox="-12 -12 24 24" aria-hidden="true">
             <circle r="10" fill="rgba(11, 9, 16, 0.55)" />
-            <circle
-              ref={pieRef}
-              class="cmatch__pie-arc"
-              r="5"
-              fill="none"
-              stroke="#F8FAFC"
-              stroke-width="10"
-              stroke-dasharray="31.4"
-            />
+            {/* Rotated with SVG's own transform, not CSS: under
+                `transform-box: view-box` a CSS `transform-origin: center`
+                resolves to (12, 12) in user space rather than to this
+                viewBox's own centre at (0, 0), which swings the arc clean off
+                the circle. `rotate(-90)` here is about the origin, full stop. */}
+            <g transform="rotate(-90)">
+              <circle ref={pieRef} r="5" fill="none" stroke="#F8FAFC" stroke-width="10" stroke-dasharray="31.4" />
+            </g>
           </svg>
         </div>
 

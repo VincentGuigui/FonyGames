@@ -43,11 +43,6 @@
   height: 40px;
 }
 
-.chunt__pie-arc {
-  transform: rotate(-90deg);
-  transform-origin: center;
-}
-
 /* Square, the full width of the board — the issue's own framing. */
 .chunt__viewport {
   position: relative;
@@ -55,7 +50,10 @@
   width: 100%;
   aspect-ratio: 1 / 1;
   max-height: 62vh;
+  /* Square and width-capped, so it cannot grow to fill a tall phone — centre
+     it in what is left rather than leaving all the slack underneath. */
   margin-inline: auto;
+  margin-block: auto;
   overflow: hidden;
   border-radius: var(--radius-md);
   background: #0f1a18;
