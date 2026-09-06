@@ -39,8 +39,8 @@ how close they got. Then a harder one.
    palette (§2.3) and sends it to the room.
 2. The target is displayed, big. A pie circle beside it drains over that
    level's own window — 5, 10 or 15 seconds, by how hard the level is (§2.2).
-3. Each player drags a cursor on the colour wheel — and, from level 36, a
-   second cursor on the luminance slider. The pick is whatever the cursors read
+3. Each player drags a cursor on the colour wheel — and, from the luminance
+   rung (level 32), a second cursor on the luminance slider. The pick is whatever the cursors read
    when the pie empties. Not tapping is a pick of wherever the cursor already
    sat.
 4. When the timer expires, the referee scores every pick against the target
@@ -79,9 +79,14 @@ The action window is tiered — `colorActionMs` — and the steps are where the
 
 | Levels | Window | Why there |
 | --- | --- | --- |
-| 1–10 | **5 s** | One or two components out of {0, 255}. A glance |
-| 11–35 | **10 s** | The palette is a real cube from level 11; it needs looking at |
-| 36+ | **15 s** | The luminance slider appears at 36 — a second control to work |
+| 1–6 | **5 s** | Rungs 1–2: one or two components out of {0, 255}. A glance |
+| 7–31 | **10 s** | Rung 3 on: the palette is a real cube and needs looking at |
+| 32+ | **15 s** | Rung 8 adds the luminance slider — a second control to work |
+
+The boundaries are **`RUNG_ENDS[1]` and the level before the first luminance
+rung**, not the numbers in that first column: they are computed from the
+ladder, so a rung changing length moves the tier with it. `colorActionMs` lives
+in `shared/color.ts` beside the ladder for the same reason.
 
 Plus a fixed 4 s tail on every level: `COLOR_SCORE_HOLD_MS` (2 s) +
 `COLOR_SOLVE_MS` (1 s) + `COLOR_REVEAL_HOLD_MS` (1 s). So a level is 9 s at the
@@ -98,20 +103,24 @@ disagree with the deadline being enforced.
 Transcribed from the issue, as a table the generator reads rather than a
 staircase of `if`s. One row per rung:
 
-```ts
-/** [firstLevel, lastLevel, componentsRandomised, splitsOnThose, splitsOnTheRest, luminance] */
-const LADDER: readonly Rung[] = [
-  [ 1,  5, 1,  1, 0, false],
-  [ 6, 10, 2,  1, 0, false],
-  [11, 15, 3,  2, 2, false],
-  [16, 20, 3,  4, 4, false],
-  [21, 25, 1,  8, 4, false],
-  [26, 30, 2,  8, 4, false],
-  [31, 35, 3,  8, 8, false],
-  [36, 40, 3,  8, 8, true ],
-  [41, 45, 3, 16, 16, true ],
-];
-```
+Each rung declares **how many levels it lasts** rather than all being a flat
+five, because two of them cannot be (§2.3c):
+
+| Rung | Levels | Components at `splits` | Splits | On the rest | Luminance |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 1–3 | 1 | 1 | 0 | — |
+| 2 | 4–6 | 2 | 1 | 0 | — |
+| 3 | 7–11 | 3 | 2 | 2 | — |
+| 4 | 12–16 | 3 | 4 | 4 | — |
+| 5 | 17–21 | 1 | 8 | 4 | — |
+| 6 | 22–26 | 2 | 8 | 4 | — |
+| 7 | 27–31 | 3 | 8 | 8 | — |
+| 8 | 32–36 | 3 | 8 | 8 | **yes** |
+| 9 | 37–41 | 3 | 16 | 16 | yes |
+
+`RUNG_ENDS` is derived from those spans rather than written down, so a rung's
+length and its boundary cannot disagree — and §2.2's timing tiers read it, so
+shortening a rung moves them with it.
 
 **"Splits" means intervals, not values.** `splits: 1` is `{0, 255}`, `splits: 2`
 is `{0, 128, 255}`, `splits: 4` is `{0, 64, 128, 192, 255}` — the issue's own
@@ -119,29 +128,56 @@ examples. A component's allowed values are `round(i * 255 / splits)` for
 `i` in `0..splits`, so a rung offers `splits + 1` values per component and
 `splits: 0` pins the component to 0.
 
-**Past level 45 the ladder is a formula, not a row**: every five levels doubles
-the split count, capped where doubling stops meaning anything.
+**Past the table the ladder is a formula, not a row**: every five levels
+doubles the split count, capped where doubling stops meaning anything.
 
 ```ts
-const tier = Math.floor((level - 41) / 5);          // 0 at levels 41-45
-const splits = Math.min(255, 16 * 2 ** tier);       // 16, 32, 64, 128, 255, 255…
+const tier = Math.floor((level - COLOR_LADDER_END - 1) / 5);
+const splits = Math.min(255, 16 * 2 ** (tier + 1)); // 32, 64, 128, 255, 255…
 ```
 
 255 splits is a step of 1 — every 8-bit value reachable — so the cap is where
 the colour space runs out, not an arbitrary ceiling. A run that gets there has
 already gone far beyond anything §12 expects a person to score on.
 
-### 2.3b A session never asks twice, and never asks for black or white
+### 2.3b A session never asks twice
 
-**No colour comes up twice in one session.** The referee keeps every target it
-has dealt and `dealTarget` prefers an unused one. There is one honest
-exception, and it is not hypothetical: the first rung is red, green and blue —
-three colours over five levels — so **levels 4 and 5 must repeat**. The deal
-falls back to the whole palette rather than failing, and flags `repeat` so the
-difference is visible rather than silent. From level 11 the palette is 25
-colours and wider every rung, so it never binds again.
+**No colour comes up twice in one session**, with no exception — which took a
+change to the ladder rather than to the rule. The referee keeps every target it
+has dealt and `dealTarget` picks an unused one; §2.3c is the two rungs that had
+to be shortened to make that always possible.
 
-**Black and white are never targets.** They are not colours to find on a wheel
+### 2.3c A rung may not outlast the colours it adds
+
+The no-repeat rule and a flat five-level rung are incompatible at the top of
+the ladder, and the arithmetic is worth writing down because the second case is
+easy to miss:
+
+- **Rung 1** is one component out of {0, 255} with black banned: red, green,
+  blue. Three colours, so five levels of it had to repeat twice.
+- **Rung 2** adds yellow, magenta and cyan. Its *palette* is six, but three of
+  those are rung 1's and already spent, so it too brings only three new ones.
+  Counting palettes rather than what a rung newly offers hides this completely
+  — it was caught by a test, after the first rung had already been fixed.
+- **Rung 3** opens all three components at 2 splits: 25 colours, 19 of them
+  new, over five levels. Every rung after it has more room still.
+
+So rungs 1 and 2 last **three levels each** and the rest keep their five, which
+makes the table 41 levels rather than 45.
+
+`color.test.ts` asserts the *rule* — a rung's span is at most the number of
+colours it adds that earlier rungs did not offer — rather than these figures,
+so a rung later widened or shortened cannot quietly bring a repeat back. The
+check counts what a rung can **deal**, not what its base palette holds: rung 8
+is rung 7 plus the slider and adds no new base at all while having five times
+as many reachable colours, so counting bases would call it broken.
+
+`dealTarget` keeps its `repeat` flag for a caller that asks a rung for more
+levels than it can serve. Nothing in the shipped ladder does.
+
+### 2.3d Black and white are never targets
+
+They are not colours to find on a wheel
 — a black wedge is a hole in the middle of a rainbow — and they break the
 scoring, being the two ends of the redmean axis: a near-black target makes
 every dark colour a near miss and the level stops discriminating.
@@ -163,7 +199,8 @@ whose bottom notch is unpickable is worse than a shorter slider.
 
 **Luminance** is a separate multiplier, not a fourth component: the target is
 `base × lum` where `base` comes from the rung's component rule and `lum` is
-1.0 until level 36 and one of `COLOR_LUM_SPLITS + 1` quantised values after it.
+1.0 until the luminance rung (level 32) and one of `COLOR_LUM_SPLITS + 1`
+quantised values after it.
 Keeping it multiplicative is what lets the wheel show *hue and saturation* and
 the slider show *brightness*, which is the pair a thumb can actually separate.
 
@@ -230,8 +267,8 @@ Middle, the **wheel**: a disc filling the board's width, thumb-reachable at the
 bottom of its own reach (AGENTS.md §4). The player's cursor is a ring, not a
 dot — a dot in the colour you picked is invisible against the colour you picked.
 
-Right edge, the **luminance slider**, hidden entirely until level 36 rather
-than shown disabled: a control that does nothing for 35 levels teaches the
+Right edge, the **luminance slider**, hidden entirely until the luminance rung rather
+than shown disabled: a control that does nothing for 31 levels teaches the
 player to ignore it exactly when it starts to matter.
 
 Bottom, the **scores**: everyone's running total in the shared
@@ -273,7 +310,7 @@ Every one of these is a proposal. ⚖ marks the ones §12 expects to move.
 
 | Constant | Value | Why |
 | --- | --- | --- |
-| `COLOR_ACTION_TIERS` | 5000 / 10000 / 15000 | ⚖ The action window, by level (§2.2). Was a flat 3 s |
+| `COLOR_ACTION_TIERS` | 5000 / 10000 / 15000 | ⚖ The action window, by rung (§2.2). Was a flat 3 s |
 | `COLOR_SCORE_HOLD_MS` | 2000 | The issue's own two seconds of score |
 | `COLOR_SOLVE_MS` | 1000 | The issue's own one-second cursor animation |
 | `COLOR_REVEAL_HOLD_MS` | 1000 | The issue's own one-second hold |
@@ -403,8 +440,8 @@ Everything here needs a maintainer answer, and Q1 blocks the build.
    threshold of, say, one and a half quantisation steps — would make "one step
    off" worth the same everywhere and keep the score's meaning stable down the
    whole ladder. Flat is simpler; scaled is probably fairer.
-4. **Is 3 s right at level 40?** The action timeout does not change down the
-   ladder, but the search space grows by orders of magnitude. Either that is
+4. **Are the three tiers right at the top of the ladder?** The window steps
+   twice, but the search space grows by orders of magnitude. Either that is
    the difficulty working as intended, or the last rungs are unplayable for
    everyone at once and the barren rule ends every run at the same level
    regardless of the room, which would make §2.1's whole argument false.
@@ -421,7 +458,7 @@ Everything here needs a maintainer answer, and Q1 blocks the build.
 referee scores and the phone previews the same pick. Color Hunt reads the same
 file (its §2.2).
 
-- **`shared/color.test.ts`, 80 checks** (`npm run test:color`). The two things
+- **`shared/color.test.ts`, 103 checks** (`npm run test:color`). The two things
   the issue left ambiguous are pinned here rather than in prose. *Splits means
   intervals, not values* — 1 split is `{0, 255}`, 4 is `{0, 64, 128, 192, 255}`
   — and that sequence is `i × round(255 / splits)` clamped at the top, **not**
@@ -431,8 +468,10 @@ file (its §2.2).
   three ways and must offer it once), and that a degenerate random source still
   deals rather than spinning — `dealTarget` first chose its components with a
   rejection loop, which never terminates when the source always returns the
-  same number.
-- **`worker/colorMatch.test.ts`, 57 checks** (`npm run test:color-match`).
+  same number. It also holds the rung-span rule of §2.3c — asserted as a rule
+  rather than as the numbers it currently produces, which is what caught rung 2
+  after rung 1 had already been fixed.
+- **`worker/colorMatch.test.ts`, 69 checks** (`npm run test:color-match`).
   Everybody is scored at the same instant, so being early buys nothing; a later
   pick replaces an earlier one; the grace window admits a late pick and the
   millisecond past it does not; levels chain themselves with no lobby; the

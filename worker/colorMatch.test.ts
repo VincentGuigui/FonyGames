@@ -9,8 +9,8 @@ import {
   type ColorMatch,
   type Ctx,
 } from './colorMatch';
-import { COLOR_ACTION_TIERS, COLOR_SCORE_HOLD_MS, colorActionMs, type PlayerId, type ServerMessage } from '../shared/protocol';
-import { COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, colorKey, isExtreme } from '../shared/color';
+import { COLOR_SCORE_HOLD_MS, type PlayerId, type ServerMessage } from '../shared/protocol';
+import { COLOR_ACTION_TIERS, COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, RUNG_ENDS, colorActionMs, rungAt, colorKey, isExtreme } from '../shared/color';
 
 /**
  * Color Match's referee.
@@ -304,49 +304,39 @@ async function leaving(): Promise<void> {
 }
 
 async function noRepeats(): Promise<void> {
-  console.log('\na session never asks twice for the same colour (§2.3)');
+  console.log('\na session never asks twice for the same colour (§2.3b)');
 
+  // The first rung is red, green and blue with black banned — and it lasts
+  // exactly three levels for that reason, so even it never has to repeat.
   const h = harness();
   await startColorMatch(h.ctx, 1, [A, B]);
   const seen: string[] = [colorKey(h.state.target)];
-  // Rung 1 is red, green and blue — three colours over five levels — so 4 and
-  // 5 have nothing fresh left and must repeat. That is the documented
-  // exception, and it is worth pinning rather than pretending otherwise.
-  for (let n = 1; n < 3; n++) {
-    h.seed((n * 0.31 + 0.07) % 1);
+  for (let n = 1; n < 30; n++) {
+    h.seed((n * 0.137 + 0.03) % 1);
     await h.step();
     await h.step();
+    if (h.state.phase === 'done') break;
     seen.push(colorKey(h.state.target));
   }
-  check('the first three levels are three different colours', new Set(seen).size === 3, seen);
-  check('and the rung only had three to give', seen.length === 3);
-
-  // Past the first rung, where the palette is not three colours wide, no
-  // repeat should turn up at all.
-  const k = harness();
-  await startColorMatch(k.ctx, 1, [A, B]);
-  const later: string[] = [];
-  for (let n = 1; n <= 16; n++) {
-    k.seed((n * 0.137 + 0.03) % 1);
-    await k.step();
-    await k.step();
-    if (k.state.level > 10) later.push(colorKey(k.state.target));
-  }
-  check(`levels 11 upward never repeat (${later.length} sampled)`, new Set(later).size === later.length, later.length - new Set(later).size);
-  check('and none of them is black or white', later.every((key) => !isExtreme(key.split(',').map(Number) as [number, number, number])));
+  check(`thirty levels, thirty different colours (${seen.length} sampled)`, new Set(seen).size === seen.length, seen.length - new Set(seen).size);
+  check('the first three are the first rung\'s own three', new Set(seen.slice(0, 3)).size === 3);
+  check('and not one of them is black or white', seen.every((key) => !isExtreme(key.split(',').map(Number) as [number, number, number])));
 }
 
 async function timing(): Promise<void> {
   console.log('\nthe action window is tiered by level (§2.2)');
 
-  check('the first ten levels give 5 s', colorActionMs(1) === 5000 && colorActionMs(10) === 5000);
-  check('11 to 35 give 10 s', colorActionMs(11) === 10000 && colorActionMs(35) === 10000);
-  check('36 and up give 15 s', colorActionMs(36) === 15000 && colorActionMs(400) === 15000);
+  // The boundaries are derived from the ladder, so this asserts the RUNGS the
+  // steps sit on rather than the numbers they currently work out to — those
+  // move the moment a rung's length does, and did when the first was shortened.
+  const [twoComponents, lastBeforeSlider] = [RUNG_ENDS[1] ?? 0, RUNG_ENDS[6] ?? 0];
+  check('5 s while the palette is one or two components', colorActionMs(1) === 5000 && colorActionMs(twoComponents) === 5000);
+  check('10 s once it is a real cube', colorActionMs(twoComponents + 1) === 10000 && colorActionMs(lastBeforeSlider) === 10000);
+  check('15 s from the rung that adds the slider', colorActionMs(lastBeforeSlider + 1) === 15000 && colorActionMs(400) === 15000);
+  check('and that rung really is the first with luminance', rungAt(lastBeforeSlider + 1).luminance && !rungAt(lastBeforeSlider).luminance);
   check('the tiers only ever get longer', COLOR_ACTION_TIERS.every((t, i, a) => i === 0 || t.ms > (a[i - 1]?.ms ?? 0)));
   check('and the last one catches every level', COLOR_ACTION_TIERS[COLOR_ACTION_TIERS.length - 1]?.upTo === Infinity);
-  // The step is where the task gains something, not at a round number: 11 is
-  // where the palette becomes a real cube, 36 is where the slider appears.
-  check('a whole level is its own window plus a fixed tail', levelMs(1) === colorActionMs(1) + 4000 && levelMs(36) === colorActionMs(36) + 4000);
+  check('a whole level is its own window plus a fixed tail', levelMs(1) === colorActionMs(1) + 4000 && levelMs(40) === colorActionMs(40) + 4000);
 
   const h = harness();
   await startColorMatch(h.ctx, 1, [A, B]);

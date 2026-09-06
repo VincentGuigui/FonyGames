@@ -126,22 +126,50 @@ export type Rung = {
   readonly luminance: boolean;
 };
 
-/** The ladder as a table rather than a staircase of `if`s: one row per five
- *  levels, transcribed from the issue. Level 46 and up is `rungAt`'s formula. */
-const LADDER: readonly Rung[] = [
-  { components: 1, splits: 1, restSplits: 0, luminance: false }, // 1–5
-  { components: 2, splits: 1, restSplits: 0, luminance: false }, // 6–10
-  { components: 3, splits: 2, restSplits: 2, luminance: false }, // 11–15
-  { components: 3, splits: 4, restSplits: 4, luminance: false }, // 16–20
-  { components: 1, splits: 8, restSplits: 4, luminance: false }, // 21–25
-  { components: 2, splits: 8, restSplits: 4, luminance: false }, // 26–30
-  { components: 3, splits: 8, restSplits: 8, luminance: false }, // 31–35
-  { components: 3, splits: 8, restSplits: 8, luminance: true }, // 36–40
-  { components: 3, splits: 16, restSplits: 16, luminance: true }, // 41–45
+/**
+ * The ladder: one row per rung, each declaring **how many levels it lasts**.
+ *
+ * The spans were a flat five until the "never ask twice in a session" rule
+ * (§2.3b) made two of them impossible. **A rung may not outlast the colours it
+ * adds** — and what counts is what it adds *cumulatively*, not what its own
+ * palette holds:
+ *
+ * - Rung 1 is one component out of {0, 255} with black banned: red, green,
+ *   blue. Three colours, so three levels.
+ * - Rung 2 adds yellow, magenta and cyan — its palette is six, but the other
+ *   three are rung 1's and already spent. Three new colours, so three levels
+ *   too. This is the one that is easy to miss by counting palettes.
+ * - Rung 3 opens all three components at 2 splits: 25 colours, 19 of them new.
+ *   Five levels, and every rung after it has more room still.
+ *
+ * `color.test.ts` asserts the rule itself rather than these numbers, so a rung
+ * that is later widened or shortened cannot quietly reintroduce a repeat.
+ */
+const LADDER: readonly { readonly levels: number; readonly rung: Rung }[] = [
+  { levels: 3, rung: { components: 1, splits: 1, restSplits: 0, luminance: false } },
+  { levels: 3, rung: { components: 2, splits: 1, restSplits: 0, luminance: false } },
+  { levels: 5, rung: { components: 3, splits: 2, restSplits: 2, luminance: false } },
+  { levels: 5, rung: { components: 3, splits: 4, restSplits: 4, luminance: false } },
+  { levels: 5, rung: { components: 1, splits: 8, restSplits: 4, luminance: false } },
+  { levels: 5, rung: { components: 2, splits: 8, restSplits: 4, luminance: false } },
+  { levels: 5, rung: { components: 3, splits: 8, restSplits: 8, luminance: false } },
+  { levels: 5, rung: { components: 3, splits: 8, restSplits: 8, luminance: true } },
+  { levels: 5, rung: { components: 3, splits: 16, restSplits: 16, luminance: true } },
 ];
+
+/** The last level of each rung: 3, 6, 11, 16, 21, 26, 31, 36, 41. Derived
+ *  rather than written, so a rung's span and its boundary cannot disagree. */
+export const RUNG_ENDS: readonly number[] = LADDER.reduce<number[]>((acc, row) => {
+  acc.push((acc[acc.length - 1] ?? 0) + row.levels);
+  return acc;
+}, []);
 
 /** Where the ladder's table stops and its formula starts. */
 export const COLOR_LADDER_ROWS = LADDER.length;
+export const COLOR_LADDER_END = RUNG_ENDS[RUNG_ENDS.length - 1] ?? 0;
+
+/** How long each rung of the ladder runs, past the table. */
+const TIER_LEVELS = 5;
 
 /** The finest the ladder ever gets: a step of 1, every 8-bit value reachable.
  *  The cap is where the colour space runs out, not an arbitrary ceiling. */
@@ -151,12 +179,37 @@ export const COLOR_MAX_SPLITS = 255;
  *  split count until `COLOR_MAX_SPLITS` (color-match.md §2.3). */
 export function rungAt(level: number): Rung {
   const n = Math.max(1, Math.floor(level));
-  const row = Math.floor((n - 1) / 5);
-  const last = LADDER[COLOR_LADDER_ROWS - 1];
-  if (row < COLOR_LADDER_ROWS) return LADDER[row] ?? (last as Rung);
-  const tier = row - (COLOR_LADDER_ROWS - 1);
-  const splits = Math.min(COLOR_MAX_SPLITS, 16 * 2 ** tier);
+  for (let i = 0; i < LADDER.length; i++) {
+    if (n <= (RUNG_ENDS[i] ?? 0)) return LADDER[i]?.rung ?? (LADDER[0]!.rung as Rung);
+  }
+  const tier = Math.floor((n - COLOR_LADDER_END - 1) / TIER_LEVELS);
+  const last = LADDER[COLOR_LADDER_ROWS - 1]?.rung.splits ?? 16;
+  const splits = Math.min(COLOR_MAX_SPLITS, last * 2 ** (tier + 1));
   return { components: 3, splits, restSplits: splits, luminance: true };
+}
+
+/* ------------------------ how long a level gives you ---------------------- */
+
+/**
+ * The action window, by level (color-match.md §2.2).
+ *
+ * Three tiers, and the steps are **derived from the ladder** rather than
+ * written as round numbers, so shortening a rung moves them automatically:
+ * 5 s while the palette is one or two components out of {0, 255} (a glance),
+ * 10 s once it is a real cube and needs looking at, 15 s from the rung that
+ * adds the luminance slider and a second control to work.
+ */
+export const COLOR_ACTION_TIERS: readonly { readonly upTo: number; readonly ms: number }[] = [
+  { upTo: RUNG_ENDS[1] ?? 8, ms: 5_000 },
+  { upTo: RUNG_ENDS[LADDER.findIndex((row) => row.rung.luminance) - 1] ?? 33, ms: 10_000 },
+  { upTo: Infinity, ms: 15_000 },
+];
+
+/** Both the referee and the pie read this, so the bar on screen cannot
+ *  disagree with the deadline being enforced. */
+export function colorActionMs(level: number): number {
+  for (const tier of COLOR_ACTION_TIERS) if (level <= tier.upTo) return tier.ms;
+  return COLOR_ACTION_TIERS[COLOR_ACTION_TIERS.length - 1]?.ms ?? 15_000;
 }
 
 /** The values one component may take at `splits` intervals: `splits + 1` of

@@ -12,7 +12,9 @@ import {
   COLOR_BARREN_ROUNDS,
   COLOR_D_MAX,
   COLOR_LUM_MIN,
+  COLOR_LADDER_END,
   COLOR_MAX_SPLITS,
+  RUNG_ENDS,
   COLOR_MISS,
   COLOR_VALUE_FLOOR,
   COLOR_WHITE_FLOOR,
@@ -93,25 +95,33 @@ function splits(): void {
 function ladder(): void {
   console.log('\nthe ladder, rung by rung (§2.3)');
 
+  // Rung boundaries come from the ladder's own declared spans, so this reads
+  // them rather than restating numbers that move when a rung is shortened.
+  const at = (i: number): number => RUNG_ENDS[i] ?? 0;
+  check('the first two rungs are three levels, not five', at(0) === 3 && at(1) - at(0) === 3, RUNG_ENDS);
+  check('and every later one is five', RUNG_ENDS.every((e, i, a) => i < 2 || e - (a[i - 1] ?? 0) === 5), RUNG_ENDS);
+  check('the ladder\'s table ends where its last rung does', COLOR_LADDER_END === at(RUNG_ENDS.length - 1));
+
   check('level 1 randomises one component at 1 split', rungAt(1).components === 1 && rungAt(1).splits === 1);
   check('and the rest are pinned to black', rungAt(1).restSplits === 0);
-  check('a rung lasts five levels', JSON.stringify(rungAt(1)) === JSON.stringify(rungAt(5)));
-  check('level 6 is the next one', rungAt(6).components === 2 && rungAt(6).splits === 1);
-  check('level 11 opens all three at 2 splits', rungAt(11).components === 3 && rungAt(11).splits === 2);
-  check('level 16 goes to 4', rungAt(16).splits === 4);
-  check('level 21 is one component at 8 over a 4-split rest', rungAt(21).components === 1 && rungAt(21).splits === 8 && rungAt(21).restSplits === 4);
-  check('level 26 is two', rungAt(26).components === 2 && rungAt(26).splits === 8);
-  check('level 31 is all three at 8', rungAt(31).components === 3 && rungAt(31).splits === 8 && rungAt(31).restSplits === 8);
+  check('a rung holds for its whole span', JSON.stringify(rungAt(1)) === JSON.stringify(rungAt(at(0))));
+  check('and changes on the next level', JSON.stringify(rungAt(at(0) + 1)) !== JSON.stringify(rungAt(at(0))));
+  check('rung 2 is two components at 1 split', rungAt(at(0) + 1).components === 2 && rungAt(at(0) + 1).splits === 1);
+  check('rung 3 opens all three at 2 splits', rungAt(at(1) + 1).components === 3 && rungAt(at(1) + 1).splits === 2);
+  check('rung 4 goes to 4', rungAt(at(2) + 1).splits === 4);
+  check('rung 5 is one component at 8 over a 4-split rest', rungAt(at(3) + 1).components === 1 && rungAt(at(3) + 1).splits === 8 && rungAt(at(3) + 1).restSplits === 4);
+  check('rung 6 is two', rungAt(at(4) + 1).components === 2 && rungAt(at(4) + 1).splits === 8);
+  check('rung 7 is all three at 8', rungAt(at(5) + 1).components === 3 && rungAt(at(5) + 1).splits === 8);
 
-  check('luminance is off for the first 35 levels', !rungAt(1).luminance && !rungAt(35).luminance);
-  check('and on from 36', rungAt(36).luminance && rungAt(40).luminance);
-  check('level 41 doubles to 16', rungAt(41).splits === 16);
+  check('luminance is off right up to rung 8', !rungAt(1).luminance && !rungAt(at(6)).luminance);
+  check('and on from it', rungAt(at(6) + 1).luminance);
+  check('rung 9 doubles to 16', rungAt(at(7) + 1).splits === 16);
 
   // Past the table it is a formula: double every five levels.
-  check('level 46 doubles again, to 32', rungAt(46).splits === 32, rungAt(46));
-  check('level 51 to 64', rungAt(51).splits === 64);
-  check('level 56 to 128', rungAt(56).splits === 128);
-  check('level 61 hits the cap', rungAt(61).splits === COLOR_MAX_SPLITS, rungAt(61));
+  check('the level after the table doubles again, to 32', rungAt(COLOR_LADDER_END + 1).splits === 32, rungAt(COLOR_LADDER_END + 1));
+  check('then 64', rungAt(COLOR_LADDER_END + 6).splits === 64);
+  check('then 128', rungAt(COLOR_LADDER_END + 11).splits === 128);
+  check('then the cap', rungAt(COLOR_LADDER_END + 16).splits === COLOR_MAX_SPLITS);
   check('and stays there forever', rungAt(500).splits === COLOR_MAX_SPLITS && rungAt(5000).splits === COLOR_MAX_SPLITS);
   check('the cap is a step of one, not an arbitrary ceiling', componentValues(COLOR_MAX_SPLITS).length === 256);
 
@@ -128,19 +138,19 @@ function palettes(): void {
   // Level 1: one component out of {0, 255}, the others black — which would be
   // black, red, green and blue, except that nobody is asked to guess black.
   const first = palette(rungAt(1));
-  check('level 1 offers three colours', first.length === 3, first);
+  check('the first rung offers three colours — and lasts three levels', first.length === 3 && (RUNG_ENDS[0] ?? 0) === first.length, first);
   check('red, green and blue — black is not on offer', JSON.stringify([...first].sort()) === JSON.stringify([[0, 0, 255], [0, 255, 0], [255, 0, 0]].sort()), first);
 
   const dupes = (list: Rgb[]): boolean => new Set(list.map((c) => c.join(','))).size === list.length;
   check('no rung offers the same colour twice', dupes(first) && dupes(palette(rungAt(6))) && dupes(palette(rungAt(11))));
 
   // A full n-cube, less whatever the extreme filter takes off the two corners.
-  check('level 11 is a 3-cube less its black and white corners', palette(rungAt(11)).length === 25, palette(rungAt(11)).length);
-  check('level 16 is 5 cubed less nine', palette(rungAt(16)).length === 116, palette(rungAt(16)).length);
-  check('level 31 is 9 cubed less thirty-five', palette(rungAt(31)).length === 694, palette(rungAt(31)).length);
-  check('and no rung ever offers black or white', [1, 6, 11, 16, 21, 31].every((lv) => palette(rungAt(lv)).every((c) => !isExtreme(c))));
-  check('the palette grows down the ladder', palette(rungAt(6)).length > palette(rungAt(1)).length);
-  check('every entry is a real colour', palette(rungAt(21)).every((c) => c.every((v) => Number.isInteger(v) && v >= 0 && v <= 255)));
+  check('rung 3 is a 3-cube less its black and white corners', palette(rungAt(9)).length === 25, palette(rungAt(9)).length);
+  check('rung 4 is 5 cubed less nine', palette(rungAt(14)).length === 116, palette(rungAt(14)).length);
+  check('rung 7 is 9 cubed less thirty-five', palette(rungAt(29)).length === 694, palette(rungAt(29)).length);
+  check('and no rung ever offers black or white', [1, 4, 9, 14, 19, 24, 29, 34].every((lv) => palette(rungAt(lv)).every((c) => !isExtreme(c))));
+  check('the palette grows down the ladder', palette(rungAt(4)).length > palette(rungAt(1)).length);
+  check('every entry is a real colour', palette(rungAt(19)).every((c) => c.every((v) => Number.isInteger(v) && v >= 0 && v <= 255)));
 }
 
 function extremes(): void {
@@ -174,12 +184,52 @@ function extremes(): void {
   })());
 }
 
+function spansFitTheirColours(): void {
+  console.log('\nno rung outlasts the colours it adds (§2.3b)');
+
+  // The rule, not the numbers: a rung may last no more levels than the colours
+  // it brings that earlier rungs did not already offer. Rung 2's palette is
+  // six but three of them are rung 1's, which is the trap the flat five-level
+  // span fell into — counting palettes instead of new colours.
+  const offered = new Set<string>();
+  let ok = true;
+  const report: string[] = [];
+  for (let i = 0; i < RUNG_ENDS.length; i++) {
+    const span = (RUNG_ENDS[i] ?? 0) - (i === 0 ? 0 : RUNG_ENDS[i - 1] ?? 0);
+    const rung = rungAt((RUNG_ENDS[i] ?? 1) - span + 1);
+    // What the rung can actually DEAL, not what its base palette holds: once
+    // the slider is live every base is five colours. Rung 8 is rung 7 with
+    // luminance and nothing else, so by base palette it adds nothing at all —
+    // counting bases would call it broken when it has thousands to give.
+    const lums = rung.luminance ? luminanceSteps() : [1];
+    const mine = palette(rung).flatMap((c) => lums.map((l) => colorKey(withLuminance(c, l))));
+    const fresh = new Set(mine.filter((k) => !offered.has(k))).size;
+    for (const k of mine) offered.add(k);
+    report.push(`rung ${i + 1}: ${span} levels, ${fresh} new`);
+    if (span > fresh) ok = false;
+  }
+  check('every rung has at least a colour per level', ok, report);
+
+  // And the end-to-end consequence, flown level by level: no repeat at all,
+  // through the whole table and out the other side into the formula.
+  for (const trial of [1, 2, 3]) {
+    const used = new Set<string>();
+    let repeats = 0;
+    for (let lv = 1; lv <= 60; lv++) {
+      const t = dealTarget(lv, seeded(lv * 7 + trial), used);
+      used.add(colorKey(t.rgb));
+      if (t.repeat) repeats += 1;
+    }
+    check(`  sixty levels, sixty colours (trial ${trial})`, used.size === 60 && repeats === 0, { distinct: used.size, repeats });
+  }
+}
+
 function noRepeats(): void {
-  console.log('\na session never asks twice (§2.3)');
+  console.log('\na session never asks twice (§2.3b)');
 
   const used = new Set<string>();
   const got: string[] = [];
-  for (let lv = 11; lv <= 22; lv++) {
+  for (let lv = 9; lv <= 20; lv++) {
     const t = dealTarget(lv, seeded(lv * 7 + 1), used);
     used.add(colorKey(t.rgb));
     got.push(colorKey(t.rgb));
@@ -187,16 +237,16 @@ function noRepeats(): void {
   }
   check('twelve levels of a wide rung, twelve different colours', new Set(got).size === got.length && !got.includes('REPEAT'), got.length);
 
-  // The first rung has three colours and lasts five levels, so levels 4 and 5
-  // cannot be fresh. The deal says so rather than failing or looping.
+  // The first rung has exactly three colours and lasts exactly three levels,
+  // so nothing repeats there either — that is why it was shortened.
   const rung1 = new Set<string>();
   let repeats = 0;
-  for (let lv = 1; lv <= 5; lv++) {
+  for (let lv = 1; lv <= (RUNG_ENDS[0] ?? 3); lv++) {
     const t = dealTarget(lv, seeded(lv * 11 + 3), rung1);
     rung1.add(colorKey(t.rgb));
     if (t.repeat) repeats += 1;
   }
-  check('the first rung runs out after three, and admits it', rung1.size === 3 && repeats === 2, { size: rung1.size, repeats });
+  check('the first rung fits its three colours in its three levels', rung1.size === 3 && repeats === 0, { size: rung1.size, repeats });
 }
 
 function luminance(): void {
@@ -221,17 +271,17 @@ function dealing(): void {
     for (let s = 1; s < 60; s++) if (!allowed.has(dealTarget(1, seeded(s)).rgb.join(','))) return false;
     return true;
   })());
-  check('and it never carries a luminance before level 36', (() => {
-    for (let s = 1; s < 40; s++) if (dealTarget(10, seeded(s)).lum !== 1) return false;
+  check('and it never carries a luminance before the slider rung', (() => {
+    for (let s = 1; s < 40; s++) if (dealTarget(RUNG_ENDS[6] ?? 33, seeded(s)).lum !== 1) return false;
     return true;
   })());
-  check('from 36 it does', (() => {
-    for (let s = 1; s < 40; s++) if (dealTarget(36, seeded(s)).lum === 1) return true;
+  check('from that rung it does', (() => {
+    for (let s = 1; s < 40; s++) if (dealTarget((RUNG_ENDS[6] ?? 33) + 1, seeded(s)).lum === 1) return true;
     return false;
   })());
   check('the dealt colour is the base under that luminance', (() => {
     for (let s = 1; s < 40; s++) {
-      const t = dealTarget(38, seeded(s));
+      const t = dealTarget((RUNG_ENDS[6] ?? 33) + 3, seeded(s));
       if (JSON.stringify(t.rgb) !== JSON.stringify(withLuminance(t.base, t.lum))) return false;
     }
     return true;
@@ -248,9 +298,9 @@ function dealing(): void {
     return true;
   })());
   check('the same seed deals the same target', JSON.stringify(dealTarget(20, seeded(7))) === JSON.stringify(dealTarget(20, seeded(7))));
-  check('different seeds do not all deal the same one', new Set([1, 2, 3, 4, 5, 6, 7, 8].map((s) => dealTarget(16, seeded(s)).rgb.join(','))).size > 1);
+  check('different seeds do not all deal the same one', new Set([1, 2, 3, 4, 5, 6, 7, 8].map((s) => dealTarget(14, seeded(s)).rgb.join(','))).size > 1);
 
-  const rung = rungAt(16);
+  const rung = rungAt(14);
   const snapped = snapToRung([70, 200, 3], rung);
   check('a free drag snaps onto the rung\'s grid', snapped.every((v) => componentValues(rung.splits).includes(v)), snapped);
   check('and snaps to the nearest value', JSON.stringify(snapped) === JSON.stringify([64, 192, 0]), snapped);
@@ -331,6 +381,7 @@ function wire(): void {
 distance();
 splits();
 extremes();
+spansFitTheirColours();
 noRepeats();
 ladder();
 palettes();

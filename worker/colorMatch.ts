@@ -5,12 +5,11 @@ import {
   COLOR_RUN_CAP_MS,
   COLOR_SCORE_HOLD_MS,
   COLOR_SOLVE_MS,
-  colorActionMs,
   type ColorMatchState,
   type PlayerId,
   type ServerMessage,
 } from '../shared/protocol';
-import { COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, asRgb, colorKey, colorScore, dealTarget, rungAt, withLuminance, type Rgb } from '../shared/color';
+import { COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, asRgb, colorActionMs, colorKey, colorScore, dealTarget, rungAt, withLuminance, type Rgb } from '../shared/color';
 import { enoughToStart } from '../shared/players';
 
 /**
