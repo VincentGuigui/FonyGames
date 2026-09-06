@@ -49,25 +49,34 @@ export type Vec3 = { x: number; y: number; z: number };
 /* ------------------------------- the view ------------------------------- */
 
 /**
- * The camera sits **behind and above** the ship and looks straight down the
- * tube (the issue's own framing, spec §4). Being exactly behind is what keeps
- * the middle of the screen meaning "where I am going": the ship holds the
- * horizontal middle and the corridor slides around it, rather than the ship
- * wandering off toward an edge where its own reticle would follow it.
+ * The camera sits **directly behind the hull, on its own line**, and looks
+ * straight down the tube (spec §4). Level, not above it: the hull then
+ * projects onto the vanishing point itself, so "centred" means one thing
+ * rather than two — the middle of the screen, and the middle of the tube, are
+ * the same place, and the corridor's rings sit concentric around the ship
+ * whenever it is on the axis. The camera used to ride 3.4 units high, which
+ * kept the tube mouth clear of the hull but drew the ship at ~83% down a real
+ * board and always a little below the axis it was actually flying along.
+ *
+ * The trade is that a rock dead ahead now grows from behind the hull for most
+ * of its approach, so the red proximity halo and the reticle bracket (§4) are
+ * the warning rather than an ornament on one. Open question §12.
  */
 export const ASTEROID_CAM_BACK = 14;
-export const ASTEROID_CAM_UP = 3.4;
 
 /** Focal length, in board widths per unit at unit distance — the field of view.
  *  Wide enough that the tube walls sweep past the edges rather than sitting in
  *  frame, which is most of what sells the speed. */
 export const ASTEROID_FOCAL = 2.4;
 
-/** Where the vanishing point sits, as a fraction of board HEIGHT. Everything
- *  else is measured in board WIDTHS from it, so the projection keeps its aspect
- *  on any phone (the same trap Gravity Shooter's aiming missile hit: a height
- *  offset derived from a width is wrong on every non-square board). */
-export const ASTEROID_HORIZON = 0.42;
+/** Where the vanishing point sits, as a fraction of board HEIGHT — and, with
+ *  the camera level, where the hull itself is drawn. Everything else is
+ *  measured in board WIDTHS from it, so the projection keeps its aspect on any
+ *  phone (the same trap Gravity Shooter's aiming missile hit: a height offset
+ *  derived from a width is wrong on every non-square board). The hull's own
+ *  vertical is now free of any such term, so 0.5 puts it on the screen's
+ *  centre and keeps it there whatever shape the board is. */
+export const ASTEROID_HORIZON = 0.5;
 
 /** Nothing nearer than this is drawn — it is behind or inside the camera. */
 export const ASTEROID_NEAR_Z = 1;
@@ -155,7 +164,7 @@ export function project(p: Vec3, ship: { x: number; y: number; distance: number 
   const dz = p.z - (ship.distance - ASTEROID_CAM_BACK);
   if (dz <= ASTEROID_NEAR_Z) return null;
   const scale = ASTEROID_FOCAL / dz;
-  return { ox: (p.x - ship.x) * scale, oy: (ship.y + ASTEROID_CAM_UP - p.y) * scale, scale };
+  return { ox: (p.x - ship.x) * scale, oy: (ship.y - p.y) * scale, scale };
 }
 
 /**
@@ -408,8 +417,8 @@ export class AsteroidRun {
     const from: Vec3 = { x: this.x, y: this.y, z: this.distance };
 
     // **World y is up-positive**, which is the projection's own convention
-    // (`project` measures a point DOWN from a camera sitting at `y + CAM_UP`),
-    // so a positive steer climbs. This read `-=` when it was written, which
+    // (`project` measures a point DOWN from the camera's own line, so a world
+    // point above the hull gets a negative `oy`), so a positive steer climbs. This read `-=` when it was written, which
     // silently drove the ship into the floor of the tube whenever the player
     // asked it to climb; the flight test only ever exercised the x axis, so
     // nothing caught it. Both directions are pinned against the projection now.

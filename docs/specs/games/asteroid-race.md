@@ -247,14 +247,24 @@ Only `classic` if this is approved. Recorded, not built:
   [../../design/game-chrome.md](../../design/game-chrome.md) §1.
 - **Round — the corridor**, drawn identically on every phone (each showing its
   own run):
-  - The ship low-centre, drawn from behind and below the camera, banking a
-    little with your steer — an authored 5×5 pose grid (`art/ship.png`), one
-    frame per (steerX, steerY) quantised to five steps a side, so the sell is
+  - The ship **dead centre**, drawn from directly behind, banking with where
+    it actually is in the tube — an authored 5×5 pose grid (`art/ship.png`),
+    one frame per (x, y) offset banded across the range (§13), so the sell is
     real frames rather than a claim: this was prose with nothing behind it
-    until it shipped (§13). Above and around it, the field.
-  - **The middle of the screen is clear** — the camera sits behind and above
-    the hull for exactly this reason (the issue's own framing), because the
-    middle of the screen is both where you are going and where the reticle is.
+    until it shipped. All around it, the field.
+  - **The hull IS the middle of the screen.** The camera rides on its own
+    line, level, so the tube's axis and the vanishing point and the centre of
+    the board are one place: flying centred looks centred, and the corridor's
+    rings sit concentric around the ship rather than hanging above it. This
+    reverses the original framing, which put the camera 3.4 units high to keep
+    the tube mouth clear of the hull — and which drew the ship at ~83% down a
+    real board, always a little below the axis it was flying along, with the
+    exact position sliding around with the phone's aspect ratio.
+  - **What that costs**: a rock dead ahead now grows from behind the hull for
+    most of its approach — the sprite is ~37% of the board's width, a small
+    rock at `ASTEROID_WARN_Z` about 5%. The red proximity halo and the reticle
+    bracket are therefore the warning, not an ornament on one. Open question
+    §12 Q7.
   - Large rocks dark grey `#4B5563`, small rocks grey `#9CA3AF`, both fading
     toward the `#05070D` background with distance (§2.4). **Size, not shade,
     is what says "this one splits"** — a large rock is genuinely bigger on
@@ -325,8 +335,9 @@ so `steer.ts` gains a two-axis variant rather than this game reading a raw
 event.
 
 **World y is up-positive**, which is the projection's own convention: the
-camera sits at `y + ASTEROID_CAM_UP` and measures everything down from there.
-The first build got this backwards and subtracted the vertical steer, so
+camera sits on the hull's own line and measures everything down from there, so
+a world point above the ship gets a negative `oy`. The first build got this
+backwards and subtracted the vertical steer, so
 tipping the phone to climb drove the ship into the floor of the tube and
 vertical control read as simply not working. Both directions are now pinned
 against the projection in `game.test.ts` — a climb has to move the world DOWN
@@ -475,9 +486,9 @@ these, §8):
 | `ASTEROID_CLEAR_Z` | 150 | Fully lit — and ≥ `ASTEROID_REACTION_MS` at boost (§2.4) |
 | `ASTEROID_DRAW_Z` | 600 | Beyond this, nothing is drawn |
 | `ASTEROID_REACTION_MS` | 1200 | The reaction time §2.4's inequality is written against |
-| `ASTEROID_CAM_BACK` / `_UP` | 14 / 3.4 | Behind and above, so the middle of the screen is clear |
+| `ASTEROID_CAM_BACK` | 14 | Directly behind the hull and level with it (§4). There is no `_UP`: it was 3.4 and is gone |
 | `ASTEROID_FOCAL` | 2.4 | Field of view, in board widths per unit at unit distance |
-| `ASTEROID_HORIZON` | 0.42 | The vanishing point, as a fraction of board height |
+| `ASTEROID_HORIZON` | 0.5 | The vanishing point, as a fraction of board height — and, the camera being level, the hull's own spot. 0.5 centres it on any aspect |
 | `PITCH_SENSITIVITY_DEG` | 22 | A little coarser than roll's 20, since resting pitch drifts more. Was 30, which needed a tip so large that climbing read as not working |
 | `ASTEROID_RECENTER_MS` | 20000 | A held tilt's half-life back toward "centred". Picked so a 2 s gate answer barely erodes but a whole race's worth of drift is ~95% gone by the finish |
 
@@ -658,6 +669,12 @@ Still open:
    a table read (§5), which is more than the other guesses in this list got,
    but the simulation cannot feel whether 20 s reads as sluggish or as
    twitchy on an actual arm.
+7. **Does the hull hide the rock about to kill you?** Levelling the camera
+   (§4) put the ship on the vanishing point, which is also where anything
+   dead ahead grows from. The halo and the reticle bracket are meant to carry
+   that warning; whether they actually do is a question only a phone can
+   answer. If they do not, the lever is the hull's drawn size (~37% of the
+   board's width, `render.ts`), not the camera going back up.
 
 ## 13. Rendering: plain `<canvas>`, and where the maths lives
 

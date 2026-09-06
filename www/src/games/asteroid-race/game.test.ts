@@ -29,6 +29,7 @@ import {
   ASTEROID_BOOST_SPEED,
   ASTEROID_CLEAR_Z,
   ASTEROID_DRAW_Z,
+  ASTEROID_HORIZON,
   ASTEROID_MISSILE_COOLDOWN_MS,
   ASTEROID_MISSILE_RANGE,
   ASTEROID_REACH,
@@ -251,27 +252,47 @@ function theFogIsFair(): void {
 }
 
 function theView(): void {
-  console.log('\nthe camera, behind and above (§4)');
+  console.log('\nthe camera, level with the hull (§4)');
 
   const ship = { x: 0, y: 0, distance: 100 };
   const ahead = project({ x: 0, y: 0, z: 200 }, ship);
   check('a rock straight ahead is dead centre horizontally', !!ahead && Math.abs(ahead.ox) < 1e-9);
-  check('and below the vanishing point, because the camera is above', !!ahead && ahead.oy > 0, ahead);
+  // The camera rides on the hull's own line, so the tube's axis IS the
+  // vanishing point rather than something 3.4 units below it (§4).
+  check('and vertically too, because the camera is level', !!ahead && Math.abs(ahead.oy) < 1e-9, ahead);
 
   const far = project({ x: 0, y: 0, z: 600 }, ship);
   check('the further it is, the smaller', !!far && !!ahead && far.scale < ahead.scale);
-  check('and the nearer the vanishing point it sits', !!far && !!ahead && far.oy < ahead.oy);
+
+  // Convergence still has to be visible, it just happens off the axis now:
+  // anything NOT on the tube's centre line closes on the vanishing point as it
+  // recedes, which is the whole depth cue the rings are drawn for.
+  const nearHigh = project({ x: 0, y: 4, z: 200 }, ship);
+  const farHigh = project({ x: 0, y: 4, z: 600 }, ship);
+  check('a point above the axis draws above the middle', !!nearHigh && nearHigh.oy < 0, nearHigh);
+  check('and closes on the vanishing point as it recedes', !!farHigh && !!nearHigh && farHigh.oy > nearHigh.oy);
 
   const right = project({ x: 4, y: 0, z: 200 }, ship);
   check('a rock to the right draws to the right', !!right && right.ox > 0);
   check('nothing level with the camera is drawn', project({ x: 0, y: 0, z: 86 }, ship) === null);
   check('nor anything behind it', project({ x: 0, y: 0, z: 0 }, ship) === null);
 
-  // The ship holds the horizontal middle whatever it does, which is what makes
-  // "the middle of the screen" mean "where I am going" (§4).
+  // The hull holds the exact middle whatever it does — with the camera level
+  // that is now BOTH axes, which is what makes "centred on screen" and
+  // "centred in the tube" the same statement (§4). `ASTEROID_HORIZON` is 0.5,
+  // so `toPixel` turns an all-zero projection into the screen's own centre on
+  // a board of any shape: no width-derived term is left in the vertical.
   const drifted = { x: 5, y: -3, distance: 100 };
   const self = project({ x: 5, y: -3, z: 100 }, drifted);
-  check('the ship itself never leaves the middle', !!self && Math.abs(self.ox) < 1e-9, self);
+  check('the hull itself never leaves the middle', !!self && Math.abs(self.ox) < 1e-9, self);
+  check('on either axis', !!self && Math.abs(self.oy) < 1e-9, self);
+  check('and the vanishing point is the middle of the board', ASTEROID_HORIZON === 0.5, ASTEROID_HORIZON);
+
+  // Flying the axis puts the rings concentric around the hull — the visual
+  // that says "centred" without a word of copy.
+  const onAxis = { x: 0, y: 0, distance: 100 };
+  const ring = project({ x: 0, y: 0, z: 300 }, onAxis);
+  check('and a ring ahead is concentric with it', !!ring && Math.abs(ring.ox) < 1e-9 && Math.abs(ring.oy) < 1e-9, ring);
 }
 
 function collisions(): void {
