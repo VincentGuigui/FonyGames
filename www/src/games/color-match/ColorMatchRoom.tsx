@@ -4,12 +4,11 @@ import type { GameCard } from '../../core/types';
 import {
   COLOR_MATCH_MAX_PLAYERS,
   COLOR_MATCH_MIN_PLAYERS,
-  colorActionMs,
   type ColorMatchState,
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { COLOR_LUM_MIN, luminanceSteps, rungAt, withLuminance, type Rgb } from '../../../../shared/color';
+import { COLOR_LUM_MIN, colorActionMs, luminanceSteps, rungAt, withLuminance, type Rgb } from '../../../../shared/color';
 import { useGameRoom } from '../../core/room/useRoom';
 import { useSoloTesting } from '../../core/useSolo';
 import { RoomGate } from '../../lobby/RoomGate';

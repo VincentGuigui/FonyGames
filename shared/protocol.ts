@@ -2642,27 +2642,9 @@ export const ASTEROID_MAX_PLAYERS = PLAYERS['asteroid-race'][1];
 /* Color Match (docs/specs/games/color-match.md)                       */
 /* ------------------------------------------------------------------ */
 
-/**
- * How long a level gives you, by how hard it is (spec §2.2).
- *
- * Three tiers rather than one number, and the steps are where the *task* gains
- * something rather than at round numbers: the first two rungs are one or two
- * components out of {0, 255}, which is a glance; from level 11 the palette is
- * a real cube and needs looking at; from level 36 the luminance slider appears
- * and there is a second control to work. Time steps when the job does.
- */
-export const COLOR_ACTION_TIERS: readonly { readonly upTo: number; readonly ms: number }[] = [
-  { upTo: 10, ms: 5_000 },
-  { upTo: 35, ms: 10_000 },
-  { upTo: Infinity, ms: 15_000 },
-];
-
-/** The action window for a level. Both the referee and the pie read this, so
- *  the bar on screen cannot disagree with the deadline being enforced. */
-export function colorActionMs(level: number): number {
-  for (const tier of COLOR_ACTION_TIERS) if (level <= tier.upTo) return tier.ms;
-  return COLOR_ACTION_TIERS[COLOR_ACTION_TIERS.length - 1]?.ms ?? 15_000;
-}
+/* The action window is tiered by level and lives in `shared/color.ts`
+   (`colorActionMs`), beside the ladder whose rungs decide where the tiers
+   step — a copy here would be a second place for those boundaries to drift. */
 
 /** The rest of a level, after picking closes. The referee sends every boundary
  *  as an absolute time, so these are durations it adds up rather than anything
