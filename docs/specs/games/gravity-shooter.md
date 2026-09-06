@@ -280,8 +280,17 @@ almost the same place. Nothing here shortens a shot that is still headed
 somewhere plausible; it only ends the ones that have obviously missed, or
 drifted, sooner than the old flat 10-second cap did.
 
+**The flight is watched at twice the speed it is simulated** (issue #35). The
+integration is untouched — same `GRAVITY_STEP_MS`, same `GRAVITY_G`, same
+points, same outcome — and the animation simply walks
+`GRAVITY_PLAYBACK_RATE` (2) of those points per rendered frame, so a curve
+that takes 8s to simulate takes 4s to watch. Every budget in the table above
+stays in *simulated* time, which is the point: a missile gets exactly the
+flight it always had, seen twice as fast. Hurrying it with a faster launch
+speed or weaker gravity would have bent the path instead.
+
 The shooter's own phone runs this simulation the instant the finger is
-released and sends the referee `{ roundId, angle, strength, hit }` — the
+released and sends the referee `{ roundId, angle, strength, hit, flightMs }` — the
 referee stores `hit` as reported, rather than re-deriving it (§8). The
 non-shooting phone receives the same `angle`/`strength` in the next
 broadcast and independently re-runs the identical deterministic
@@ -292,8 +301,15 @@ therefore only ever cosmetic.
 
 ### 2.4 The shot clock
 
-Every turn opens with `resolvesAt = now + GRAVITY_SHOT_TIMEOUT_MS` (**13s**)
-and a referee alarm at that deadline. Run it out and **the missile goes off in
+Every turn opens with `resolvesAt = now + flightMs + GRAVITY_SHOT_TIMEOUT_MS`
+(**13s**) and a referee alarm at that deadline. **The clock starts when the
+previous missile lands, not when it was fired** (issue #34): `flightMs` is how
+long the shooter's phone will spend animating the shot it just sent, clamped by
+the referee to `GRAVITY_MAX_FLIGHT_MS` (**10s** — the missile's own maximum
+onscreen life at the playback rate above), so a client cannot claim its way to
+a longer turn. Without that hold-back the opponent spent their turn watching
+somebody else's missile and then lost a life to a shot they never had time to
+aim. Run it out and **the missile goes off in
 your own hands**: the shooter loses one of their OWN lives, which can end the
 match on the spot, and the turn passes. It is a shot clock, not merely a
 backstop against a phone that went quiet — which is why it is short enough to
@@ -392,7 +408,7 @@ to fire. No sensors, no permissions, nothing to fall back from.
 
 ```ts
 // client -> server, once per turn, on release
-{ t: 'gravity-shot', d: { roundId, angle, strength, hit } }
+{ t: 'gravity-shot', d: { roundId, angle, strength, hit, flightMs } }
 
 // server -> both, on every resolved turn (including a timeout-miss)
 { t: 'gravity', d: {
@@ -411,7 +427,7 @@ to fire. No sensors, no permissions, nothing to fall back from.
 
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
-| `gravity-shot` | client → server | `{roundId, angle, strength, hit}` | This turn's shot, and its own claimed outcome — trusted as reported (§8) |
+| `gravity-shot` | client → server | `{roundId, angle, strength, hit, flightMs}` | This turn's shot, its own claimed outcome — trusted as reported (§8) — and how long it will be on screen, which holds the next shot clock back (§2.4, clamped to `GRAVITY_MAX_FLIGHT_MS`) |
 | `gravity` | server → both | see above | The planets (sent once, then echoed unchanged), lives, whose turn it is, and the last shot's numbers for the receiver's own cosmetic replay (§2.3) |
 
 `gravity-shot` is only accepted from whoever `seats[turn]` actually is, and

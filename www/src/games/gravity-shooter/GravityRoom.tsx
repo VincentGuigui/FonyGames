@@ -179,7 +179,7 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
   );
 
   const onShoot = useCallback(
-    (payload: { roundId: number; angle: number; strength: number; hit: boolean }) => {
+    (payload: { roundId: number; angle: number; strength: number; hit: boolean; flightMs: number }) => {
       client?.send({ t: 'gravity-shot', d: payload });
       redraw((n) => n + 1);
     },

@@ -8,6 +8,7 @@ import {
   GRAVITY_PLANET_X_MARGIN,
   GRAVITY_PLANET_Y_MAX,
   GRAVITY_PLANET_Y_MIN,
+  GRAVITY_MAX_FLIGHT_MS,
   GRAVITY_SHOT_TIMEOUT_MS,
   GRAVITY_STAR_R_MAX,
   GRAVITY_STAR_R_MIN,
@@ -144,17 +145,17 @@ async function shooting(): Promise<void> {
   await startGravityShooter(h.ctx, 1, [A, B]);
   h.clear();
 
-  await onGravityShot(h.ctx, B, 1, 0.4, 0.6, true);
+  await onGravityShot(h.ctx, B, 1, 0.4, 0.6, true, 0);
   check('a shot from the wrong seat is ignored', h.state()?.turn === 0, h.state()?.turn);
   check('and says nothing', h.last() === undefined);
 
-  await onGravityShot(h.ctx, A, 1, 0.4, 0.6, false);
+  await onGravityShot(h.ctx, A, 1, 0.4, 0.6, false, 0);
   check('a miss costs nothing', h.state()?.lives[1] === GRAVITY_LIVES);
   check('and the turn passes', h.state()?.turn === 1, h.state()?.turn);
   check('the shot is recorded for the other phone\'s own replay',
     h.state()?.lastShot?.shooter === 0 && h.state()?.lastShot?.angle === 0.4 && h.state()?.lastShot?.strength === 0.6);
 
-  await onGravityShot(h.ctx, B, 1, 1.2, 0.9, true);
+  await onGravityShot(h.ctx, B, 1, 1.2, 0.9, true, 0);
   check('a hit costs the opponent a life', h.state()?.lives[0] === GRAVITY_LIVES - 1, h.state()?.lives[0]);
   check('and the turn passes back', h.state()?.turn === 0, h.state()?.turn);
   check('the match is not over yet', h.state()?.phase === 'running');
@@ -168,11 +169,11 @@ async function movingPlanets(): Promise<void> {
   const first = JSON.stringify(h.state()?.planets);
   check('a fresh match starts with no shots counted', h.state()?.shots === 0, h.state()?.shots);
 
-  await onGravityShot(h.ctx, A, 1, 0.4, 0.6, false);
+  await onGravityShot(h.ctx, A, 1, 0.4, 0.6, false, 0);
   check('one shot in, the board is unchanged', JSON.stringify(h.state()?.planets) === first);
   check('but the shot is counted', h.state()?.shots === 1, h.state()?.shots);
 
-  await onGravityShot(h.ctx, B, 1, -0.4, 0.6, false);
+  await onGravityShot(h.ctx, B, 1, -0.4, 0.6, false, 0);
   const second = JSON.stringify(h.state()?.planets);
   check('once both have shot, the board is re-rolled', second !== first);
   check('and the count keeps climbing', h.state()?.shots === 2, h.state()?.shots);
@@ -183,7 +184,7 @@ async function movingPlanets(): Promise<void> {
     check('and still keeps its planets apart', surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
   }
 
-  await onGravityShot(h.ctx, A, 1, 0.2, 0.5, false);
+  await onGravityShot(h.ctx, A, 1, 0.2, 0.5, false, 0);
   check('a third shot leaves it alone again', JSON.stringify(h.state()?.planets) === second);
 
   // A timed-out turn spent that seat's shot just as surely as a real one, so it
@@ -191,7 +192,7 @@ async function movingPlanets(): Promise<void> {
   const t = harness();
   await startGravityShooter(t.ctx, 1, [A, B]);
   const before = JSON.stringify(t.state()?.planets);
-  await onGravityShot(t.ctx, A, 1, 0.3, 0.5, false);
+  await onGravityShot(t.ctx, A, 1, 0.3, 0.5, false, 0);
   t.advance(GRAVITY_SHOT_TIMEOUT_MS + 1);
   await tick(t.ctx);
   check('a timeout counts as a shot too', t.state()?.shots === 2, t.state()?.shots);
@@ -202,11 +203,11 @@ async function movingPlanets(): Promise<void> {
   const e = harness();
   await startGravityShooter(e.ctx, 1, [A, B]);
   for (let i = 0; i < GRAVITY_LIVES - 1; i++) {
-    await onGravityShot(e.ctx, A, 1, 0, 1, true);
-    await onGravityShot(e.ctx, B, 1, 0, 1, false);
+    await onGravityShot(e.ctx, A, 1, 0, 1, true, 0);
+    await onGravityShot(e.ctx, B, 1, 0, 1, false, 0);
   }
   const finalBoard = JSON.stringify(e.state()?.planets);
-  await onGravityShot(e.ctx, A, 1, 0, 1, true);
+  await onGravityShot(e.ctx, A, 1, 0, 1, true, 0);
   check('the match-winning shot ends it', e.state()?.phase === 'done' && e.state()?.winner === 0);
   check('and leaves the board it was won on in place', JSON.stringify(e.state()?.planets) === finalBoard);
 }
@@ -217,7 +218,7 @@ async function garbage(): Promise<void> {
   const h = harness();
   await startGravityShooter(h.ctx, 1, [A, B]);
 
-  await onGravityShot(h.ctx, A, 1, Number.NaN, Number.POSITIVE_INFINITY, true);
+  await onGravityShot(h.ctx, A, 1, Number.NaN, Number.POSITIVE_INFINITY, true, 0);
   const shot = h.state()?.lastShot;
   check('a non-finite angle is clamped to zero', shot?.angle === 0, shot?.angle);
   check('a non-finite strength is clamped to zero', shot?.strength === 0, shot?.strength);
@@ -225,10 +226,10 @@ async function garbage(): Promise<void> {
   // only the numbers a replay would otherwise choke on are sanitised.
   check('but the claimed hit is still trusted', h.state()?.lives[1] === GRAVITY_LIVES - 1, h.state()?.lives[1]);
 
-  await onGravityShot(h.ctx, 'nobody', 1, 0.1, 0.1, true);
+  await onGravityShot(h.ctx, 'nobody', 1, 0.1, 0.1, true, 0);
   check('a stranger changes nothing', h.state()?.turn === 1, h.state()?.turn);
 
-  await onGravityShot(h.ctx, B, 99, 0.1, 0.1, true);
+  await onGravityShot(h.ctx, B, 99, 0.1, 0.1, true, 0);
   check('a stale round changes nothing', h.state()?.lives[0] === GRAVITY_LIVES);
 }
 
@@ -255,7 +256,7 @@ async function timeout(): Promise<void> {
   // A shot that arrives at or after its own deadline is too late — the tick
   // already owns that turn's resolution once the clock reaches it.
   h.advance(GRAVITY_SHOT_TIMEOUT_MS + 1);
-  await onGravityShot(h.ctx, B, 1, 0.1, 0.1, true);
+  await onGravityShot(h.ctx, B, 1, 0.1, 0.1, true, 0);
   check('a shot after its own deadline is ignored', h.state()?.turn === 1, h.state()?.turn);
   check('and it costs the opponent nothing', h.state()?.lives[0] === GRAVITY_LIVES - 1, h.state()?.lives[0]);
 
@@ -269,11 +270,52 @@ async function timeout(): Promise<void> {
     e.advance(GRAVITY_SHOT_TIMEOUT_MS + 1);
     await tick(e.ctx);
     if (e.state()?.phase !== 'running') break;
-    await onGravityShot(e.ctx, B, 1, 0.2, 0.5, false);
+    await onGravityShot(e.ctx, B, 1, 0.2, 0.5, false, 0);
   }
   check('running the clock out on the last life ends the match', e.state()?.phase === 'done', e.state()?.phase);
   check('and hands the win to the other seat', e.state()?.winner === 1, e.state()?.winner);
   check('with the dawdler on zero', e.state()?.lives[0] === 0, e.state()?.lives[0]);
+}
+
+/**
+ * Issue #34. The opponent's shot clock used to start the instant a shot was
+ * sent, while the missile was still crossing both screens — so a long flight
+ * ate their turn and `tick()` then took a life off them for it.
+ */
+async function flightHoldsTheClock(): Promise<void> {
+  console.log('\nthe next shot clock waits for the missile to land');
+
+  const h = harness();
+  await startGravityShooter(h.ctx, 1, [A, B]);
+  const flight = 6_000;
+  const firedAt = h.now;
+  await onGravityShot(h.ctx, A, 1, 0, 0.5, false, flight);
+  check('the opponent gets a full shot clock ON TOP of the flight',
+    h.state()?.resolvesAt === firedAt + flight + GRAVITY_SHOT_TIMEOUT_MS, h.state()?.resolvesAt);
+
+  // The whole point: the moment the missile lands, the full turn is still ahead.
+  h.advance(flight);
+  await tick(h.ctx);
+  check('nothing has timed out while the missile was flying', h.state()?.turn === 1, h.state()?.turn);
+  check('and the opponent still has every life they started with',
+    h.state()?.lives[1] === GRAVITY_LIVES, h.state()?.lives[1]);
+  check('with the whole clock left to aim in',
+    (h.state()?.resolvesAt ?? 0) - h.now === GRAVITY_SHOT_TIMEOUT_MS, (h.state()?.resolvesAt ?? 0) - h.now);
+
+  // A claimed flight buys no more than the missile's own maximum life.
+  const c = harness();
+  await startGravityShooter(c.ctx, 1, [A, B]);
+  const claimedAt = c.now;
+  await onGravityShot(c.ctx, A, 1, 0, 0.5, false, GRAVITY_MAX_FLIGHT_MS * 100);
+  check('an absurd claimed flight is clamped to the cap',
+    c.state()?.resolvesAt === claimedAt + GRAVITY_MAX_FLIGHT_MS + GRAVITY_SHOT_TIMEOUT_MS, c.state()?.resolvesAt);
+
+  const n = harness();
+  await startGravityShooter(n.ctx, 1, [A, B]);
+  const junkAt = n.now;
+  await onGravityShot(n.ctx, A, 1, 0, 0.5, false, Number.NaN);
+  check('and a garbage one holds the clock back by nothing at all',
+    n.state()?.resolvesAt === junkAt + GRAVITY_SHOT_TIMEOUT_MS, n.state()?.resolvesAt);
 }
 
 async function ending(): Promise<void> {
@@ -283,19 +325,19 @@ async function ending(): Promise<void> {
   await startGravityShooter(h.ctx, 1, [A, B]);
 
   for (let i = 0; i < GRAVITY_LIVES - 1; i++) {
-    await onGravityShot(h.ctx, A, 1, 0, 1, true);
-    await onGravityShot(h.ctx, B, 1, 0, 1, false);
+    await onGravityShot(h.ctx, A, 1, 0, 1, true, 0);
+    await onGravityShot(h.ctx, B, 1, 0, 1, false, 0);
   }
   check('one life left', h.state()?.lives[1] === 1, h.state()?.lives[1]);
   check('still running', h.state()?.phase === 'running');
 
-  await onGravityShot(h.ctx, A, 1, 0, 1, true);
+  await onGravityShot(h.ctx, A, 1, 0, 1, true, 0);
   check('the fifth hit ends it', h.state()?.phase === 'done', h.state()?.phase);
   check('the shooter wins', h.state()?.winner === 0, h.state()?.winner);
   check('the loser is out of lives', h.state()?.lives[1] === 0);
 
   // Nothing moves after the end.
-  await onGravityShot(h.ctx, B, 1, 0, 1, true);
+  await onGravityShot(h.ctx, B, 1, 0, 1, true, 0);
   check('a shot after the end does nothing', h.state()?.lives[0] === GRAVITY_LIVES);
 }
 
@@ -323,11 +365,11 @@ async function solo(): Promise<void> {
 
   // The one real player fires for whichever seat is actually on turn — no
   // second identity is needed to tell the referee which ship that is.
-  await onGravityShot(h.ctx, A, 1, 0.1, 0.5, false);
+  await onGravityShot(h.ctx, A, 1, 0.1, 0.5, false, 0);
   check('seat 0 fired, and the turn passes to seat 1', h.state()?.turn === 1, h.state()?.turn);
   check('attributed to the seat that fired, not just "the player"', h.state()?.lastShot?.shooter === 0);
 
-  await onGravityShot(h.ctx, A, 1, 0.2, 0.5, true);
+  await onGravityShot(h.ctx, A, 1, 0.2, 0.5, true, 0);
   check('the same player fires again, now for seat 1', h.state()?.turn === 0, h.state()?.turn);
   check('this shot is seat 1\'s', h.state()?.lastShot?.shooter === 1);
   check('and it cost seat 0 a life', h.state()?.lives[0] === GRAVITY_LIVES - 1, h.state()?.lives[0]);
@@ -342,8 +384,8 @@ async function deadlines(): Promise<void> {
     nextDeadline(h.state() as Gravity) === h.state()?.resolvesAt, nextDeadline(h.state() as Gravity));
 
   for (let i = 0; i < GRAVITY_LIVES; i++) {
-    await onGravityShot(h.ctx, A, 1, 0, 1, true);
-    await onGravityShot(h.ctx, B, 1, 0, 1, false);
+    await onGravityShot(h.ctx, A, 1, 0, 1, true, 0);
+    await onGravityShot(h.ctx, B, 1, 0, 1, false, 0);
   }
   check('done once somebody is out', h.state()?.phase === 'done', h.state()?.phase);
   check('and nothing is left to wait for', nextDeadline(h.state() as Gravity) === Infinity);
@@ -393,7 +435,7 @@ async function geometry(): Promise<void> {
   check('and from seat 1', !seatCanReachOpponent(blocked, 1, GRAVITY_STAR_R_MIN));
 }
 
-for (const t of [starting, shooting, movingPlanets, garbage, timeout, ending, walkout, deadlines, solo, geometry]) {
+for (const t of [starting, shooting, movingPlanets, garbage, timeout, flightHoldsTheClock, ending, walkout, deadlines, solo, geometry]) {
   await t();
 }
 

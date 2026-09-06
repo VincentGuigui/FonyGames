@@ -14,6 +14,7 @@ import {
   GRAVITY_PLANET_Y_MIN,
   GRAVITY_SHIP_MARGIN,
   GRAVITY_SHOTS_PER_MAP,
+  GRAVITY_MAX_FLIGHT_MS,
   GRAVITY_SHOT_TIMEOUT_MS,
   GRAVITY_STAR_R_MAX,
   GRAVITY_STAR_R_MIN,
@@ -381,6 +382,9 @@ export async function onGravityShot(
   angle: number,
   strength: number,
   hit: boolean,
+  /** How long this shot will be on screen — the next turn's clock waits it out
+   *  (issue #34). Clamped, so a client cannot claim its way to a longer turn. */
+  flightMs: number,
 ): Promise<void> {
   const g = await ctx.load();
   if (!g || g.phase !== 'running' || g.roundId !== roundId) return;
@@ -393,6 +397,7 @@ export async function onGravityShot(
   const safeAngle = Number.isFinite(angle) ? angle : 0;
   const safeStrength = Number.isFinite(strength) ? Math.max(0, Math.min(GRAVITY_MAX_STRENGTH, strength)) : 0;
   const landed = hit === true;
+  const watching = Number.isFinite(flightMs) ? Math.max(0, Math.min(GRAVITY_MAX_FLIGHT_MS, flightMs)) : 0;
 
   g.lastShot = { shooter, angle: safeAngle, strength: safeStrength, hit: landed };
   if (landed) g.lives[opponent] = Math.max(0, g.lives[opponent] - 1);
@@ -402,8 +407,12 @@ export async function onGravityShot(
     return;
   }
 
+  // The opponent's shot clock starts when the missile lands, not when it was
+  // fired (issue #34): until then they are watching someone else's flight, and
+  // a 10s trajectory used to eat almost their whole turn — then `tick` took a
+  // life off them for a shot they never had time to aim.
   g.turn = opponent;
-  g.resolvesAt = ctx.now() + GRAVITY_SHOT_TIMEOUT_MS;
+  g.resolvesAt = ctx.now() + watching + GRAVITY_SHOT_TIMEOUT_MS;
   countShotAndMaybeReroll(ctx, g);
   await ctx.save(g);
   broadcast(ctx, g);

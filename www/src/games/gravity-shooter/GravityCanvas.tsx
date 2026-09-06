@@ -11,8 +11,8 @@ import { GRAVITY_SHOT_TIMEOUT_MS, gravityBodies, type GravityPlanet } from '../.
 import {
   GRAVITY_EXPLOSION_GIF_MS,
   GRAVITY_SHIP_WIDTH,
-  GRAVITY_STEP_MS,
   GravityGame,
+  flightDurationMs,
   aimFromFinger,
   shipPosition,
   launchPosition,
@@ -79,7 +79,7 @@ type Props = {
   game: GravityGame;
   /** The shot just finished animating — the caller decides any impact GIF (spec §4). */
   onFlightEnd: (end: FlightEnd) => void;
-  onShoot: (payload: { roundId: number; angle: number; strength: number; hit: boolean }) => void;
+  onShoot: (payload: { roundId: number; angle: number; strength: number; hit: boolean; flightMs: number }) => void;
   dying?: DyingShip | null;
 };
 
@@ -190,7 +190,10 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
         const shot = game.activeShot;
         if (shot) {
           const elapsed = game.shotElapsedMs() ?? 0;
-          const flightMs = Math.max(1, (shot.result.path.length - 1) * GRAVITY_STEP_MS);
+          // Simulated time over `GRAVITY_PLAYBACK_RATE` (issue #35): the same
+          // points, walked two per frame, so the curve is untouched and only
+          // the wall-clock halves.
+          const flightMs = flightDurationMs(shot.result.path);
           const idx = Math.min(shot.result.path.length - 1, Math.floor((elapsed / flightMs) * (shot.result.path.length - 1)));
           const point = shot.result.path[idx];
           if (point) {

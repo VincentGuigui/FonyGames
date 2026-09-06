@@ -102,6 +102,22 @@ export const GRAVITY_MIN_LAUNCH_SPEED = GRAVITY_BOARD_HEIGHT / GRAVITY_MAX_FLIGH
 export const GRAVITY_STEP_MS = 1000 / 60;
 
 /**
+ * How many simulated steps the animation walks per rendered frame (issue #35).
+ * A **playback rate**, and nothing else: the simulation still integrates at
+ * `GRAVITY_STEP_MS`, still visits exactly the same points, and still ends the
+ * same way — every lifetime budget below stays in simulated time, so a missile
+ * gets the same flight, watched twice as fast. Changing `GRAVITY_G` or the
+ * launch speed to hurry it along would bend the path instead.
+ */
+export const GRAVITY_PLAYBACK_RATE = 2;
+
+/** How long a simulated path takes to watch, in ms — the flight's own simulated
+ *  length over the playback rate. The one place that division happens. */
+export function flightDurationMs(path: readonly Vec[]): number {
+  return Math.max(1, ((path.length - 1) * GRAVITY_STEP_MS) / GRAVITY_PLAYBACK_RATE);
+}
+
+/**
  * How long an unresolved shot is kept alive, in ms — not one flat cap, but
  * whichever of these three currently applies to where the missile actually
  * is (issue #16), re-evaluated every step and reset every time the missile
@@ -684,7 +700,7 @@ export class GravityGame {
    * phone (spec §2.3, §8) — the caller sends the returned payload over the
    * wire as-is. Returns null when nothing was pulled far enough to be a shot.
    */
-  releaseAim(): { roundId: number; angle: number; strength: number; hit: boolean } | null {
+  releaseAim(): { roundId: number; angle: number; strength: number; hit: boolean; flightMs: number } | null {
     const aim = this.#aim;
     this.#aim = null;
     const s = this.#state;
@@ -701,7 +717,10 @@ export class GravityGame {
     const shot: GravityShot = { shooter: seat, angle, strength, hit: result.hit };
     this.#animatedShot = shot;
     this.#activeShot = { seat, result, startedAt: this.#now() };
-    return { roundId: s.roundId, angle, strength, hit: result.hit };
+    // The flight's own wall-clock length goes up with the shot: the referee
+    // holds the opponent's clock back by exactly what they are about to sit
+    // through (issue #34).
+    return { roundId: s.roundId, angle, strength, hit: result.hit, flightMs: flightDurationMs(result.path) };
   }
 
   /** How far into its own flight the active shot is, in ms — for the canvas

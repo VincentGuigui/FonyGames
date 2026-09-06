@@ -1,4 +1,4 @@
-import { GRAVITY_SHOT_TIMEOUT_MS, gravityBodies, type GravityPlanet, type ServerMessage } from '../../../../shared/protocol';
+import { GRAVITY_MAX_FLIGHT_MS, GRAVITY_SHOT_TIMEOUT_MS, gravityBodies, type GravityPlanet, type ServerMessage } from '../../../../shared/protocol';
 import {
   GravityGame,
   GRAVITY_HIT_RADIUS,
@@ -14,6 +14,9 @@ import {
   GRAVITY_SHOT_BLINK_MAX_HZ,
   GRAVITY_SHOT_BLINK_START_MS,
   GRAVITY_STEP_MS,
+  GRAVITY_PLAYBACK_RATE,
+  GRAVITY_MAX_STEPS,
+  flightDurationMs,
   aimFromFinger,
   contactPoint,
   headingBetween,
@@ -186,6 +189,32 @@ const noPlanets: [GravityPlanet, GravityPlanet] = [
   { x: 0.5, y: 0.5, r: 0, art: 0 },
   { x: 0.5, y: 0.5, r: 0, art: 0 },
 ];
+
+/** Issue #35 and #34, which meet here: playback is a pure rate over an
+ *  unchanged simulation, and the referee's own cap on a claimed flight has to
+ *  be exactly what the longest possible flight costs at that rate. */
+function playback(): void {
+  console.log('\nthe missile is watched at twice simulated speed, and the cap knows it');
+
+  const shot = simulateShot(noPlanets, 0, 0, 0);
+  const simulatedMs = (shot.path.length - 1) * GRAVITY_STEP_MS;
+  check('watching a flight takes its simulated time over the playback rate',
+    near(flightDurationMs(shot.path), simulatedMs / GRAVITY_PLAYBACK_RATE), flightDurationMs(shot.path));
+  check('which is faster than the simulation, not slower', GRAVITY_PLAYBACK_RATE > 1, GRAVITY_PLAYBACK_RATE);
+
+  // The path itself is untouched by the rate — that is the whole of issue #35:
+  // the same points, walked more per frame.
+  const again = simulateShot(noPlanets, 0, 0, 0);
+  check('and the curve itself is identical either way',
+    again.path.length === shot.path.length && near(again.path[10]?.y ?? 0, shot.path[10]?.y ?? 1), again.path.length);
+
+  // The referee clamps a claimed flight to GRAVITY_MAX_FLIGHT_MS, and it has
+  // no way of knowing the two client-only constants that decide the real
+  // maximum. This is the check that keeps them honest.
+  const longestPossible = ((GRAVITY_MAX_STEPS) * GRAVITY_STEP_MS) / GRAVITY_PLAYBACK_RATE;
+  check('the referee\'s cap is exactly the longest flight at this rate',
+    near(longestPossible, GRAVITY_MAX_FLIGHT_MS), { longestPossible, GRAVITY_MAX_FLIGHT_MS });
+}
 
 function lifetime(): void {
   console.log("\na shot's own lifetime depends on where it actually is (issue #16)");
@@ -554,7 +583,7 @@ function shotClockCountdown(): void {
   check('and recovers once the clock is back before the deadline', game.canAim);
 }
 
-for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, lifetime, impulseRange, shipSizedHitbox, replayUsesTheBoardTheShotWasFiredOn, movingBoardIsHeldThenEased, theStarBlocksTheMiddle, missileAimAndImpact, timedOutTurnIsNotAFlight, shotClockCountdown]) {
+for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, playback, lifetime, impulseRange, shipSizedHitbox, replayUsesTheBoardTheShotWasFiredOn, movingBoardIsHeldThenEased, theStarBlocksTheMiddle, missileAimAndImpact, timedOutTurnIsNotAFlight, shotClockCountdown]) {
   t();
 }
 

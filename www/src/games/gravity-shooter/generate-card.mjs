@@ -77,13 +77,18 @@ const BOARD = {
 };
 
 /**
- * The shot: 60° off straight up — fired almost sideways, away from the target —
- * at a little over half strength. Of a swept fan of every angle and strength
- * over this board, it is the one whose *drawn* trail bends hardest and still
- * lands, which is the thing the card has to promise. A shot that curves late is
- * a straight line in a still picture.
+ * The shot: 82° off straight up — fired all but sideways, away from the target
+ * — at half strength. Of a swept fan of every angle and strength over this
+ * board, it is the one whose *drawn* trail bends hardest and still lands, which
+ * is the thing the card has to promise. A shot that curves late is a straight
+ * line in a still picture.
+ *
+ * Re-swept when the launch point moved to the ship's nose (issue #37): the old
+ * -60°/0.6 pose starts a hull height closer to the grey planet and is now
+ * swallowed by it, so the card was advertising a shot the game no longer flies.
+ * This is the same sweep, re-run over the same board.
  */
-const SHOT = { angleDeg: -60, strength: 0.6 };
+const SHOT = { angleDeg: -82, strength: 0.5 };
 
 /** How far along its own flight the missile is caught, 0..1. Late, so the whole
  *  hook is behind it and reads as something that already happened. */
