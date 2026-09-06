@@ -1,4 +1,4 @@
-import { GRAVITY_MAX_FLIGHT_MS, GRAVITY_SHOT_TIMEOUT_MS, gravityBodies, type GravityPlanet, type ServerMessage } from '../../../../shared/protocol';
+import { GRAVITY_MAX_FLIGHT_MS, GRAVITY_SHOT_TIMEOUT_MS, gravityBodies, type GravityPlanet, type GravityPlanetTrio, type ServerMessage } from '../../../../shared/protocol';
 import {
   GravityGame,
   GRAVITY_HIT_RADIUS,
@@ -53,6 +53,18 @@ function symmetricPlanets(): [GravityPlanet, GravityPlanet] {
   return [
     { x: 0.2, y: 0.5, r: 0.05, art: 0 },
     { x: 0.8, y: 0.5, r: 0.05, art: 1 },
+  ];
+}
+
+/** A whole board as the referee ships one (spec §2.1): three planets, two on
+ *  one side and one on the other. Fixtures above stay two-planet on purpose —
+ *  `simulateShot` takes any list of bodies, and two is the cheapest way to say
+ *  what a physics test means. */
+function boardTrio(): GravityPlanetTrio {
+  return [
+    { x: 0.26, y: 0.36, r: 0.05, art: 0 },
+    { x: 0.28, y: 0.64, r: 0.08, art: 1 },
+    { x: 0.76, y: 0.5, r: 0.13, art: 2 },
   ];
 }
 
@@ -113,7 +125,7 @@ function aiming(): void {
   game.apply({
     t: 'gravity', s: 1,
     d: {
-      roundId: 7, startsAt: 0, seats: ['a', 'b'], planets: symmetricPlanets(), starRadius: 0.08, shots: 0,
+      roundId: 7, startsAt: 0, seats: ['a', 'b'], planets: boardTrio(), starRadius: 0.08, shots: 0,
       lives: [5, 5], turn: 0, resolvesAt: 90_000, lastShot: null, winner: null, phase: 'running', solo: false,
     },
   });
@@ -363,13 +375,14 @@ function shipSizedHitbox(): void {
 function replayUsesTheBoardTheShotWasFiredOn(): void {
   console.log('\na replayed shot flies on the board it was fired on (moving planets)');
 
-  const fired = symmetricPlanets();
-  const rerolled: [GravityPlanet, GravityPlanet] = [
+  const fired = boardTrio();
+  const rerolled: GravityPlanetTrio = [
     { x: 0.35, y: 0.62, r: 0.14, art: 2 },
     { x: 0.72, y: 0.31, r: 0.07, art: 0 },
+    { x: 0.78, y: 0.66, r: 0.05, art: 1 },
   ];
   const shot = { shooter: 0 as const, angle: 0.35, strength: 0.8, hit: false, timedOut: false };
-  const frame = (planets: [GravityPlanet, GravityPlanet], lastShot: typeof shot | null): ServerMessage => ({
+  const frame = (planets: GravityPlanetTrio, lastShot: typeof shot | null): ServerMessage => ({
     t: 'gravity',
     s: 1,
     d: {
@@ -398,20 +411,23 @@ function replayUsesTheBoardTheShotWasFiredOn(): void {
 function movingBoardIsHeldThenEased(): void {
   console.log('\na re-rolled board waits for the shot, then eases into place');
 
-  const fired = symmetricPlanets();
-  // Deliberately slot-swapped relative to `fired` (left planet second), to
-  // prove the tween pairs by SIDE rather than by array index — pairing by
-  // index would send both planets across each other through the middle.
-  const rerolled: [GravityPlanet, GravityPlanet] = [
+  const fired = boardTrio();
+  // Deliberately slot-shuffled relative to `fired` (rightmost planet first), to
+  // prove the tween pairs by SCREEN ORDER rather than by array index — pairing
+  // by index would send planets across each other through the middle. The
+  // crowded side swaps too, which is exactly what the old pair-by-side
+  // ordering could not survive.
+  const rerolled: GravityPlanetTrio = [
     { x: 0.74, y: 0.32, r: 0.09, art: 2 },
-    { x: 0.26, y: 0.66, r: 0.15, art: 1 },
+    { x: 0.30, y: 0.66, r: 0.15, art: 1 },
+    { x: 0.80, y: 0.62, r: 0.06, art: 0 },
   ];
   const shot = { shooter: 0 as const, angle: 0.2, strength: 0.9, hit: false, timedOut: false };
 
   let clock = 1_000;
   const game = new GravityGame();
   game.identify('b', () => clock);
-  const frame = (planets: [GravityPlanet, GravityPlanet], lastShot: typeof shot | null): ServerMessage => ({
+  const frame = (planets: GravityPlanetTrio, lastShot: typeof shot | null): ServerMessage => ({
     t: 'gravity',
     s: 1,
     d: {
@@ -447,14 +463,15 @@ function movingBoardIsHeldThenEased(): void {
   // through it must be strictly inside both of those ranges.
   clock += GRAVITY_PLANET_TWEEN_MS / 2;
   const midway = game.displayedBoard().planets;
-  const left = midway[0].x <= midway[1].x ? midway[0] : midway[1];
-  check('halfway through, the left planet is between its two positions', left.x > 0.2 && left.x < 0.26, left.x);
+  // Leftmost to leftmost: 0.26 -> 0.30, growing 0.05 -> 0.15.
+  const left = [...midway].sort((p, q) => p.x - q.x)[0] as GravityPlanet;
+  check('halfway through, the leftmost planet is between its two positions', left.x > 0.26 && left.x < 0.30, left.x);
   check('and between its two sizes', left.r > 0.05 && left.r < 0.15, left.r);
   const midStar = game.displayedBoard().starRadius;
   check('and the star is easing between its own two sizes too',
     midStar > Math.min(0.08, 0.14) && midStar < Math.max(0.08, 0.14), midStar);
-  check('with one planet still on each half of the board',
-    (midway[0].x < 0.5) !== (midway[1].x < 0.5), midway.map((p) => p.x));
+  check('with planets still on both halves of the board mid-slide',
+    midway.some((p) => p.x < 0.5) && midway.some((p) => p.x > 0.5), midway.map((p) => p.x));
 
   clock += GRAVITY_PLANET_TWEEN_MS;
   const settled = game.displayedBoard().planets;
@@ -529,7 +546,7 @@ function missileAimAndImpact(): void {
 function timedOutTurnIsNotAFlight(): void {
   console.log('\na turn that timed out is not a shot anybody fired');
 
-  const planets = symmetricPlanets();
+  const planets = boardTrio();
   const game = new GravityGame();
   game.identify('b', () => 0);
   const frame = (lastShot: { shooter: 0 | 1; angle: number; strength: number; hit: boolean; timedOut: boolean } | null): ServerMessage => ({
@@ -590,7 +607,7 @@ function shotClockCountdown(): void {
     t: 'gravity',
     s: 1,
     d: {
-      roundId: 1, startsAt: 0, seats: ['a', 'a'], planets: symmetricPlanets(), starRadius: 0, shots: 0,
+      roundId: 1, startsAt: 0, seats: ['a', 'a'], planets: boardTrio(), starRadius: 0, shots: 0,
       lives: [5, 5], turn: 0, resolvesAt, lastShot: null, winner: null, phase: 'running', solo: true,
     },
   });

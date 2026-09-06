@@ -1,5 +1,6 @@
 import {
   GRAVITY_LIVES,
+  GRAVITY_PLANET_COUNT,
   GRAVITY_PLANET_MIN_GAP,
   GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO,
   GRAVITY_PLANET_MIN_Y_DIFF,
@@ -20,6 +21,7 @@ import {
   onGravityShot,
   onPlayerGone,
   rollBoard,
+  GRAVITY_FALLBACK_BOARD,
   seatCanReachOpponent,
   startGravityShooter,
   surfaceGap,
@@ -122,14 +124,12 @@ async function starting(): Promise<void> {
     check('and within the stated radius range', planet.r >= GRAVITY_PLANET_R_MIN && planet.r <= GRAVITY_PLANET_R_MAX, planet.r);
   }
 
-  // Never both left or both right — a board with nothing to curve a shot on
-  // one whole side of it.
-  const [first, second] = g?.planets ?? [];
-  check(
-    'the two planets are never on the same side of the screen',
-    !!first && !!second && (first.x < 0.5) !== (second.x < 0.5),
-    g?.planets,
-  );
+  // Two on one side, one on the other (spec §2.1) — never all three on one
+  // half, which would leave nothing to curve a shot on the other.
+  const planets = g?.planets ?? [];
+  const left = planets.filter((p) => p.x < 0.5).length;
+  check(`a board carries ${GRAVITY_PLANET_COUNT} planets`, planets.length === GRAVITY_PLANET_COUNT, planets.length);
+  check('split two on one side and one on the other', left === 1 || left === 2, planets.map((p) => p.x));
 
   // The same seed rolls the same planets — a phone cannot be the fairest source
   // of a board it is also playing, so the referee's own random() decides it once.
@@ -397,21 +397,74 @@ async function geometry(): Promise<void> {
   // Across a run of seeds, not just one — a rule guaranteed by CONSTRUCTION
   // (rollPlanetRadii/rollPlanetYs) rather than by rejection should hold for
   // every one of them, with no exceptions to go looking for.
-  for (let seed = 1; seed <= 20; seed++) {
+  for (let seed = 1; seed <= 40; seed++) {
     const board = rollBoard(seeded(seed));
-    const [a, b] = board.planets;
-    const sizeDiff = Math.abs(a.r - b.r) / Math.max(a.r, b.r);
-    check(`seed ${seed}: the planets differ in size by at least the required ratio`,
-      sizeDiff >= GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO - 1e-9, sizeDiff);
-    check(`seed ${seed}: their surfaces are at least the required gap apart`,
-      surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
-    check(`seed ${seed}: their centres differ vertically by at least the required amount`,
-      Math.abs(a.y - b.y) >= GRAVITY_PLANET_MIN_Y_DIFF - 1e-9, Math.abs(a.y - b.y));
+    const planets = board.planets;
+
+    // Two on one half, one on the other, every roll.
+    const onLeft = planets.filter((p) => p.x < 0.5);
+    check(`seed ${seed}: split two/one across the centre line`,
+      onLeft.length === 1 || onLeft.length === 2, planets.map((p) => p.x));
+
+    // Every PAIR keeps its size difference and its clear surface — including
+    // the two that share a side, which is the tight one.
+    for (let i = 0; i < planets.length; i++) {
+      for (let j = i + 1; j < planets.length; j++) {
+        const a = planets[i] as GravityPlanet;
+        const b = planets[j] as GravityPlanet;
+        const sizeDiff = Math.abs(a.r - b.r) / Math.max(a.r, b.r);
+        check(`seed ${seed}: planets ${i}/${j} differ in size by at least the required ratio`,
+          sizeDiff >= GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO - 1e-9, sizeDiff);
+        check(`seed ${seed}: planets ${i}/${j} keep their surfaces the required gap apart`,
+          surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
+      }
+    }
+
+    // The vertical rule is owed by the two that SHARE a side — three rows that
+    // far apart do not fit in the band at all.
+    const crowded = onLeft.length === 2 ? onLeft : planets.filter((p) => p.x >= 0.5);
+    const [c1, c2] = crowded;
+    check(`seed ${seed}: the two on one side are the required distance apart vertically`,
+      !!c1 && !!c2 && Math.abs(c1.y - c2.y) >= GRAVITY_PLANET_MIN_Y_DIFF - 1e-9,
+      c1 && c2 ? Math.abs(c1.y - c2.y) : crowded.length);
+
+    for (const p of planets) {
+      check(`seed ${seed}: every planet is inside the stated radius range`,
+        p.r >= GRAVITY_PLANET_R_MIN - 1e-9 && p.r <= GRAVITY_PLANET_R_MAX + 1e-9, p.r);
+    }
+
     // The star owes the planets nothing and they owe it nothing: a planet may
     // sit over the middle of the board and overlap it outright. Only its own
     // size is a rule.
     check(`seed ${seed}: the star is within its own size range`,
       board.starRadius >= GRAVITY_STAR_R_MIN - 1e-9 && board.starRadius <= GRAVITY_STAR_R_MAX + 1e-9, board.starRadius);
+
+    // The whole point of the roll (the maintainer's own ask): a board never
+    // ships without a trajectory that lands, from BOTH seats.
+    check(`seed ${seed}: seat 0 has a landing shot on this board`,
+      seatCanReachOpponent(planets, 0, board.starRadius), planets);
+    check(`seed ${seed}: and so does seat 1`,
+      seatCanReachOpponent(planets, 1, board.starRadius), planets);
+  }
+
+  // The board of last resort has to satisfy everything a rolled one does —
+  // nothing checks it at runtime, so this is the only thing that can.
+  const fallback = GRAVITY_FALLBACK_BOARD;
+  check('the fallback board is winnable from seat 0',
+    seatCanReachOpponent(fallback.planets, 0, fallback.starRadius));
+  check('and from seat 1',
+    seatCanReachOpponent(fallback.planets, 1, fallback.starRadius));
+  check('the fallback board is split two/one like any other',
+    fallback.planets.filter((p) => p.x < 0.5).length === 2, fallback.planets.map((p) => p.x));
+  for (let i = 0; i < fallback.planets.length; i++) {
+    for (let j = i + 1; j < fallback.planets.length; j++) {
+      const a = fallback.planets[i] as GravityPlanet;
+      const b = fallback.planets[j] as GravityPlanet;
+      check(`the fallback board's planets ${i}/${j} keep their distance`,
+        surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
+      check(`the fallback board's planets ${i}/${j} differ in size`,
+        Math.abs(a.r - b.r) / Math.max(a.r, b.r) >= GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO - 1e-9, [a.r, b.r]);
+    }
   }
 
   // seatCanReachOpponent itself, deterministically: two planets tucked well
