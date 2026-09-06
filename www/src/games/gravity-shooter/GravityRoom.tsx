@@ -97,7 +97,7 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
        * the pips follow it immediately rather than waiting for an
        * `onFlightEnd` that will never come.
        */
-      if (msg.t === 'gravity' && msg.d.lastShot?.strength === 0 && msg.d.shots !== blownUpAt.current) {
+      if (msg.t === 'gravity' && msg.d.lastShot?.timedOut && msg.d.shots !== blownUpAt.current) {
         blownUpAt.current = msg.d.shots;
         const victim = msg.d.lastShot.shooter;
         const at = viewTransform(game.mySeat ?? 0, shipPosition(victim));

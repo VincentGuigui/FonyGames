@@ -399,7 +399,7 @@ export async function onGravityShot(
   const landed = hit === true;
   const watching = Number.isFinite(flightMs) ? Math.max(0, Math.min(GRAVITY_MAX_FLIGHT_MS, flightMs)) : 0;
 
-  g.lastShot = { shooter, angle: safeAngle, strength: safeStrength, hit: landed };
+  g.lastShot = { shooter, angle: safeAngle, strength: safeStrength, hit: landed, timedOut: false };
   if (landed) g.lives[opponent] = Math.max(0, g.lives[opponent] - 1);
 
   if (g.lives[opponent] <= 0) {
@@ -443,8 +443,8 @@ function countShotAndMaybeReroll(ctx: Ctx, g: Gravity): void {
  * a life, which can end the match on the spot. The turn still passes either
  * way, so a phone that has simply gone quiet cannot stall anything.
  *
- * A zero-strength `lastShot` is the marker for it, which is how a client tells
- * this apart from a real miss: nobody aimed it, so nothing is animated flying
+ * `lastShot.timedOut` is the marker for it, which is how a client tells this
+ * apart from a real miss: nobody aimed it, so nothing is animated flying
  * (`game.ts`'s own `apply`), and the blast is drawn on the shooter's own ship.
  */
 export async function tick(ctx: Ctx): Promise<boolean> {
@@ -455,7 +455,7 @@ export async function tick(ctx: Ctx): Promise<boolean> {
   const shooter = g.turn;
   const opponent = otherSeat(shooter);
 
-  g.lastShot = { shooter, angle: 0, strength: 0, hit: false };
+  g.lastShot = { shooter, angle: 0, strength: 0, hit: false, timedOut: true };
   g.lives[shooter] = Math.max(0, g.lives[shooter] - 1);
 
   if (g.lives[shooter] <= 0) {

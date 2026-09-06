@@ -105,6 +105,27 @@ function aiming(): void {
   const nudged = aimFromFinger(GRAVITY_MIN_AIM_DISTANCE * 0.5, 0);
   check('a floor-band finger still fires toward itself', nudged.angle > 0, nudged.angle);
 
+  // And it is a shot, not a non-shot: `releaseAim` used to reject strength 0,
+  // which after the floor band would have swallowed the whole minimum-power
+  // pad. Only a finger that never left the nose at all is nothing.
+  const game = new GravityGame();
+  game.identify('a', () => 1_000);
+  game.apply({
+    t: 'gravity', s: 1,
+    d: {
+      roundId: 7, startsAt: 0, seats: ['a', 'b'], planets: symmetricPlanets(), starRadius: 0.08, shots: 0,
+      lives: [5, 5], turn: 0, resolvesAt: 90_000, lastShot: null, winner: null, phase: 'running', solo: false,
+    },
+  });
+  game.beginAim();
+  game.updateAim(0, -GRAVITY_MIN_AIM_DISTANCE * 0.5);
+  const weakest = game.releaseAim();
+  check('the weakest pad shot does fire', weakest !== null && weakest.strength === 0, weakest);
+  game.clearActiveShot();
+  game.beginAim();
+  const untouched = game.releaseAim();
+  check('and a finger that never moved is still not a shot', untouched === null, untouched);
+
   // The ramp itself runs from the edge of the floor band to the cap, linearly.
   const halfway = aimFromFinger(0, -(GRAVITY_MIN_AIM_DISTANCE + (GRAVITY_MAX_AIM_DISTANCE - GRAVITY_MIN_AIM_DISTANCE) / 2));
   check('and halfway up the ramp is half strength', near(halfway.strength, 0.5), halfway.strength);
@@ -347,7 +368,7 @@ function replayUsesTheBoardTheShotWasFiredOn(): void {
     { x: 0.35, y: 0.62, r: 0.14, art: 2 },
     { x: 0.72, y: 0.31, r: 0.07, art: 0 },
   ];
-  const shot = { shooter: 0 as const, angle: 0.35, strength: 0.8, hit: false };
+  const shot = { shooter: 0 as const, angle: 0.35, strength: 0.8, hit: false, timedOut: false };
   const frame = (planets: [GravityPlanet, GravityPlanet], lastShot: typeof shot | null): ServerMessage => ({
     t: 'gravity',
     s: 1,
@@ -385,7 +406,7 @@ function movingBoardIsHeldThenEased(): void {
     { x: 0.74, y: 0.32, r: 0.09, art: 2 },
     { x: 0.26, y: 0.66, r: 0.15, art: 1 },
   ];
-  const shot = { shooter: 0 as const, angle: 0.2, strength: 0.9, hit: false };
+  const shot = { shooter: 0 as const, angle: 0.2, strength: 0.9, hit: false, timedOut: false };
 
   let clock = 1_000;
   const game = new GravityGame();
@@ -511,7 +532,7 @@ function timedOutTurnIsNotAFlight(): void {
   const planets = symmetricPlanets();
   const game = new GravityGame();
   game.identify('b', () => 0);
-  const frame = (lastShot: { shooter: 0 | 1; angle: number; strength: number; hit: boolean } | null): ServerMessage => ({
+  const frame = (lastShot: { shooter: 0 | 1; angle: number; strength: number; hit: boolean; timedOut: boolean } | null): ServerMessage => ({
     t: 'gravity',
     s: 1,
     d: {
@@ -521,17 +542,24 @@ function timedOutTurnIsNotAFlight(): void {
   });
   game.apply(frame(null));
 
-  // The referee marks a timed-out turn with a zero-strength shot (spec §2.4).
-  // Since the launch speed has a floor, simulating it would fly a real missile
-  // dead up the centre line and — with a ship-sized hitbox — connect, while
-  // the referee's own `hit: false` means nothing happens. Nothing should fly.
-  game.apply(frame({ shooter: 0, angle: 0, strength: 0, hit: false }));
+  // The referee marks a timed-out turn with `timedOut` (spec §2.4). Since the
+  // launch speed has a floor, simulating it would fly a real missile dead up
+  // the centre line and — with a ship-sized hitbox — connect, while the
+  // referee's own `hit: false` means nothing happens. Nothing should fly.
+  game.apply(frame({ shooter: 0, angle: 0, strength: 0, hit: false, timedOut: true }));
   check('nothing is animated for it', game.activeShot === null);
 
-  // And a real shot right after it still animates: the guard is about strength
-  // zero, not about being the first shot seen.
-  game.apply(frame({ shooter: 1, angle: 0.1, strength: 0.5, hit: false }));
+  // And a real shot right after it still animates: the guard is about the flag,
+  // not about being the first shot seen.
+  game.apply(frame({ shooter: 1, angle: 0.1, strength: 0.5, hit: false, timedOut: false }));
   check('a real shot after one still flies', game.activeShot !== null);
+
+  // Issue #36's floor band makes strength 0 a REAL shot — the weakest one on
+  // the ramp — so it has to fly on the receiving phone like any other. That is
+  // the whole reason the timed-out marker is a flag now.
+  game.clearActiveShot();
+  game.apply(frame({ shooter: 0, angle: 0.2, strength: 0, hit: false, timedOut: false }));
+  check('and the weakest aimable shot flies too, strength zero and all', game.activeShot !== null);
 }
 
 function shotClockCountdown(): void {

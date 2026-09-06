@@ -797,6 +797,12 @@ export type GravityShot = {
   angle: number;
   strength: number;
   hit: boolean;
+  /** Nobody aimed this one: the referee's own marker for a turn whose shot
+   *  clock ran out (spec §2.4). A receiving phone animates no flight for it and
+   *  draws the blast on the shooter's own ship instead. An explicit flag rather
+   *  than "strength is 0", which since issue #36 is a real, aimable shot — the
+   *  weakest one on the ramp. */
+  timedOut: boolean;
 };
 
 /**

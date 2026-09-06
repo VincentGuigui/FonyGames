@@ -202,7 +202,9 @@ band** at its near end (issue #36):
 - anywhere within `GRAVITY_MIN_AIM_DISTANCE` (**0.08**) of the nose is
   strength 0 — the weakest shot there is, on a pad big enough for a thumb
   rather than a hairline against the hull. It still carries an angle, so
-  aiming close in is a real choice and not a dead zone;
+  aiming close in is a real choice and not a dead zone. Strength 0 is
+  therefore a real aimed shot now, which is why a timed-out turn is marked by
+  its own `timedOut` flag rather than by being strengthless (§2.4);
 - from there strength ramps linearly out to `GRAVITY_MAX_AIM_DISTANCE`
   (**0.42**, widened from 0.30), where it caps. The ramp alone is wider than
   the whole range used to be, so every strength in between has more screen to
@@ -330,10 +332,10 @@ waiting to be released into a shot the referee would reject anyway. The
 referee's own check (§6) is the actual authority; the client-side cancel is
 just for not leaving a dead drag on screen.
 
-The referee records the timeout as a zero-strength `lastShot`, its marker for
-"nobody aimed this", and **clients do not animate it flying**. Since the
-launch speed has a floor (§2.3), simulating a zero-strength shot would send a
-real missile straight up the centre line and — with a ship-sized hitbox —
+The referee records the timeout as `lastShot.timedOut`, its marker for "nobody
+aimed this", and **clients do not animate it flying**. Since the launch speed
+has a floor (§2.3), simulating an unaimed shot would send a real missile
+straight up the centre line and — with a ship-sized hitbox —
 visibly connect, while the referee's own `hit: false` meant nothing happened.
 Instead the blast is drawn on the shooter's own ship, the life pips follow it
 immediately (there is no flight to hold the news back for), and if it was
@@ -418,7 +420,7 @@ to fire. No sensors, no permissions, nothing to fall back from.
   lives: [number, number],       // indexed by seat, not by seats[]'s player id
   turn: 0 | 1,
   resolvesAt: number,
-  lastShot: { shooter: 0 | 1, angle: number, strength: number, hit: boolean } | null,
+  lastShot: { shooter: 0 | 1, angle: number, strength: number, hit: boolean, timedOut: boolean } | null,
   winner: 0 | 1 | null,
   phase: 'running' | 'done',
   solo: boolean,

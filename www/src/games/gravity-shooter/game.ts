@@ -493,7 +493,7 @@ function tweenBoards(from: DisplayBoard, to: DisplayBoard, t: number): DisplayBo
 }
 
 function sameShot(a: GravityShot | null, b: GravityShot): boolean {
-  return !!a && a.shooter === b.shooter && a.angle === b.angle && a.strength === b.strength && a.hit === b.hit;
+  return !!a && a.shooter === b.shooter && a.angle === b.angle && a.strength === b.strength && a.hit === b.hit && a.timedOut === b.timedOut;
 }
 
 /**
@@ -607,18 +607,19 @@ export class GravityGame {
     }
 
     const shot = msg.d.lastShot;
-    // A zero-strength shot is the referee's own marker for a turn that timed
-    // out (spec §2.4) — nobody aimed it. Animating it would fly a full-speed
-    // missile (the launch speed has a floor) straight into the opponent and
-    // then report a miss, which is exactly as confusing as it sounds.
-    if (shot && shot.strength > 0 && !sameShot(this.#animatedShot, shot)) {
+    // `timedOut` is the referee's own marker for a turn nobody aimed (spec
+    // §2.4). Animating it would fly a full-speed missile (the launch speed has
+    // a floor) straight into the opponent and then report a miss, which is
+    // exactly as confusing as it sounds. Not "strength is 0": since issue #36
+    // that is the weakest real shot on the ramp, and it must still fly.
+    if (shot && !shot.timedOut && !sameShot(this.#animatedShot, shot)) {
       this.#animatedShot = shot;
       this.#activeShot = {
         seat: shot.shooter,
         result: simulateShot(gravityBodies(starWhenFired, planetsWhenFired), shot.shooter, shot.angle, shot.strength),
         startedAt: this.#now(),
       };
-    } else if (shot && shot.strength === 0) {
+    } else if (shot && shot.timedOut) {
       this.#animatedShot = shot;
     }
   }
@@ -710,11 +711,15 @@ export class GravityGame {
     // against firing a shot the referee has already moved past.
     if (!aim || !s || seat === null || this.#now() >= s.resolvesAt) return null;
 
+    // A finger that never moved off the ship is not a shot. Strength itself
+    // cannot be the test any more: everything inside the floor band is
+    // deliberately strength 0 (issue #36), and that IS the weakest shot, not
+    // the absence of one.
+    if (aim.x === 0 && aim.y === 0) return null;
     const { angle, strength } = aimFromFinger(aim.x, aim.y);
-    if (strength <= 0) return null;
 
     const result = simulateShot(gravityBodies(s.starRadius, s.planets), seat, angle, strength);
-    const shot: GravityShot = { shooter: seat, angle, strength, hit: result.hit };
+    const shot: GravityShot = { shooter: seat, angle, strength, hit: result.hit, timedOut: false };
     this.#animatedShot = shot;
     this.#activeShot = { seat, result, startedAt: this.#now() };
     // The flight's own wall-clock length goes up with the shot: the referee
