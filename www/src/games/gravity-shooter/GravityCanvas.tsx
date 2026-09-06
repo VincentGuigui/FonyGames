@@ -15,6 +15,7 @@ import {
   GravityGame,
   aimFromFinger,
   shipPosition,
+  launchPosition,
   contactPoint,
   headingBetween,
   otherSeat,
@@ -173,22 +174,16 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
         if (aim && mySeat !== null) {
           const preview = simulatePreviewPath(game, aim);
           drawDashedPath(ctx, preview.map((p) => toPixel(toLocal(p))), width, height);
-          // The missile itself, sitting at the top-centre of the ship's own
-          // sprite and swinging to face the finger as it moves — the shot's
-          // own start, shown before it is taken rather than appearing out of
-          // nowhere on release. Drawn in LOCAL space directly: the shooter
-          // always sees themselves at the bottom, so the launch point is seat
-          // 0's own position and the aim angle needs no view flip. The
-          // vertical offset comes from the ship sprite's OWN rasterised
-          // height (same lookup `drawShip` itself uses), not a fraction of
-          // the board's width assumed to match it — a real PNG whose aspect
-          // ratio drifts from 2:1 would otherwise float the missile off the
-          // hull.
-          const launchPx = toPixel(shipPosition(0));
-          const shipPxWidth = width * GRAVITY_SHIP_WIDTH;
-          const ownShip = SHIP_ART[0].at(shipPxWidth, dpr);
-          const shipPxHeight = ownShip ? ownShip.h : shipPxWidth / 2;
-          drawMissile(ctx, launchPx.x, launchPx.y - shipPxHeight, width, dpr, aimFromFinger(aim.x, aim.y).angle);
+          // The missile itself, at the ship's nose, swinging to face the
+          // finger as it moves — the shot's own start, shown before it is
+          // taken rather than appearing out of nowhere on release. Drawn in
+          // LOCAL space directly: the shooter always sees themselves at the
+          // bottom, so the launch point is seat 0's own and the aim angle
+          // needs no view flip. `launchPosition` is the SAME point the
+          // simulation above just flew from (issue #37), so the marker and
+          // the dashed line cannot disagree about where a shot begins.
+          const launchPx = toPixel(launchPosition(0));
+          drawMissile(ctx, launchPx.x, launchPx.y, width, dpr, aimFromFinger(aim.x, aim.y).angle);
         }
 
         // The missile in flight, or resolving (spec §2.3).
@@ -294,7 +289,7 @@ function simulatePreviewPath(game: GravityGame, aim: Vec): Vec[] {
   const state = game.state;
   const seat = game.mySeat;
   if (!state || seat === null) return [];
-  if (aim.x === 0 && aim.y === 0) return [shipPosition(seat)];
+  if (aim.x === 0 && aim.y === 0) return [launchPosition(seat)];
   const { angle, strength } = aimFromFinger(aim.x, aim.y);
   return simulateShot(gravityBodies(state.starRadius, state.planets), seat, angle, strength).path;
 }

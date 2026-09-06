@@ -137,6 +137,11 @@ export const GRAVITY_G = 0.24;
  *  cannot drift apart. */
 export const GRAVITY_SHIP_WIDTH = 0.22;
 
+/** The hull's own height, same nominal square-board units: the ship art is
+ *  drawn twice as wide as it is high (`contactPoint` relies on the same
+ *  ratio), so this is what separates the sprite's base from its nose. */
+export const GRAVITY_SHIP_HEIGHT = GRAVITY_SHIP_WIDTH / 2;
+
 /**
  * A missile within this distance of the opponent's ship centre is a hit (spec
  * §2.3) — half the ship's own drawn width, so **the whole ship image is the
@@ -208,9 +213,27 @@ export const GRAVITY_PLANET_TWEEN_MS = 450;
 export const GRAVITY_SIM_BOUNDS_MIN = -0.5;
 export const GRAVITY_SIM_BOUNDS_MAX = 1.5;
 
-/** A ship's own fixed world position — centred, inset from its own edge. */
+/** A ship's own fixed world position — centred, inset from its own edge. This
+ *  is the sprite's BASE, which is where `drawShip` plants it and what the hit
+ *  radius is measured from; a shot leaves from `launchPosition` instead. */
 export function shipPosition(seat: Seat): Vec {
   return { x: 0.5, y: seat === 0 ? 1 - GRAVITY_SHIP_MARGIN : GRAVITY_SHIP_MARGIN };
+}
+
+/**
+ * Where a shot actually leaves from: the **nose** of the ship, one hull height
+ * toward the opponent (issue #37). One point, used by the real simulation, by
+ * the dashed preview and by the missile marker under the finger alike — they
+ * used to disagree, the marker sitting a ship-height above a trajectory that
+ * started inside the hull.
+ *
+ * A fixed world constant rather than the rasterised sprite's own height: both
+ * phones have to simulate the same flight (spec §2.3), and only one of them
+ * has the shooter's screen.
+ */
+export function launchPosition(seat: Seat): Vec {
+  const ship = shipPosition(seat);
+  return { x: ship.x, y: seat === 0 ? ship.y - GRAVITY_SHIP_HEIGHT : ship.y + GRAVITY_SHIP_HEIGHT };
 }
 
 /**
@@ -299,7 +322,7 @@ export function simulateShot(
   angle: number,
   strength: number,
 ): SimResult {
-  const start = shipPosition(shooterSeat);
+  const start = launchPosition(shooterSeat);
   const target = shipPosition(otherSeat(shooterSeat));
   const v = localAimToWorldVelocity(angle, strength, shooterSeat);
 

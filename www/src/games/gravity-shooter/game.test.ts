@@ -9,6 +9,7 @@ import {
   GRAVITY_PLANET_TWEEN_MS,
   GRAVITY_PAST_OPPONENT_LIFETIME_MS,
   GRAVITY_SHIP_WIDTH,
+  GRAVITY_SHIP_HEIGHT,
   GRAVITY_SHOT_BLINK_MAX_HZ,
   GRAVITY_SHOT_BLINK_START_MS,
   GRAVITY_STEP_MS,
@@ -17,6 +18,7 @@ import {
   headingBetween,
   localAimToWorldVelocity,
   shipPosition,
+  launchPosition,
   shotClockPulseAlpha,
   simulateShot,
   viewTransform,
@@ -138,6 +140,22 @@ function targets(): void {
   check('seat 0 sits near world y = 1', seat0.y > 0.5, seat0.y);
   check('seat 1 sits near world y = 0', seat1.y < 0.5, seat1.y);
   check('both centred on x', seat0.x === 0.5 && seat1.x === 0.5);
+
+  // Issue #37: a shot leaves the ship's NOSE, not the middle of its hull, and
+  // there is exactly one such point — the marker under the finger, the dashed
+  // preview and the real flight all read it here.
+  const nose0 = launchPosition(0);
+  const nose1 = launchPosition(1);
+  check('each launch point is one hull height toward the opponent',
+    near(seat0.y - nose0.y, GRAVITY_SHIP_HEIGHT) && near(nose1.y - seat1.y, GRAVITY_SHIP_HEIGHT), [nose0, nose1]);
+  check('and still on the centre line', nose0.x === 0.5 && nose1.x === 0.5);
+  check('the two noses face each other across the board', nose0.y > nose1.y, [nose0.y, nose1.y]);
+  check('a nose is still inside the visible board', nose0.y < 1 && nose0.y > 0 && nose1.y > 0 && nose1.y < 1);
+
+  // The flight the player is shown starts where the missile marker sits.
+  const fired = simulateShot(noPlanets, 0, 0, 1).path[0];
+  check('and simulateShot itself starts from that point',
+    !!fired && near(fired.x, nose0.x) && near(fired.y, nose0.y), fired);
 }
 
 /** No pull at all — a planet's own acceleration formula is `G * r² / ...`,
@@ -187,14 +205,15 @@ function lifetime(): void {
 
 /**
  * No pull at all, same fixture `noPlanets` above serves — a clean read of what
- * the speed range alone (no gravity) does to flight time. Both are the ship-to
- * -ship distance minus one hit radius, over the speed for that end of the
- * range: halving the minimum impulse roughly doubled the slow one, and widening
- * the hitbox to the ship's full width shortened both, since the missile now
- * counts as arrived further out.
+ * the speed range alone (no gravity) does to flight time. Both are the
+ * nose-to-ship distance minus one hit radius, over the speed for that end of
+ * the range: halving the minimum impulse roughly doubled the slow one, widening
+ * the hitbox to the ship's full width shortened both (the missile counts as
+ * arrived further out), and launching from the nose rather than the hull's
+ * middle (issue #37) took another hull height off the front of every flight.
  */
-const GRAVITY_FREE_MIN_IMPULSE_FRAMES = 613;
-const GRAVITY_FREE_MAX_IMPULSE_FRAMES = 154;
+const GRAVITY_FREE_MIN_IMPULSE_FRAMES = 506;
+const GRAVITY_FREE_MAX_IMPULSE_FRAMES = 127;
 
 function impulseRange(): void {
   console.log('\nlaunch speed is capped, floored, and shaped by launch intensity (follow-up after #16)');
@@ -218,10 +237,10 @@ function impulseRange(): void {
   const weakest = simulateShot(noPlanets, 0, 0, 0);
   const strongest = simulateShot(noPlanets, 0, 0, 1);
   check('the weakest pull still reaches the opponent', weakest.hit === true);
-  check('taking about 10.2s — the slow end of the display range',
+  check('taking about 8.4s — the slow end of the display range',
     weakest.path.length - 1 === GRAVITY_FREE_MIN_IMPULSE_FRAMES, weakest.path.length - 1);
   check('a full-strength pull also reaches the opponent', strongest.hit === true);
-  check('taking about 2.6s — the fast end of the display range',
+  check('taking about 2.1s — the fast end of the display range',
     strongest.path.length - 1 === GRAVITY_FREE_MAX_IMPULSE_FRAMES, strongest.path.length - 1);
   check('and the weakest is four times the slowest — the impulse range itself',
     Math.abs(GRAVITY_MAX_LAUNCH_SPEED / GRAVITY_MIN_LAUNCH_SPEED - 4) < 1e-9,
@@ -260,7 +279,7 @@ function shipSizedHitbox(): void {
   // `atan(offset / the ship-to-ship distance)`. Checking just inside and just
   // outside the radius proves this measures the hitbox rather than merely
   // finding that everything connects.
-  const reach = shipPosition(0).y - shipPosition(1).y;
+  const reach = launchPosition(0).y - shipPosition(1).y;
   const offsetBy = (distance: number) => simulateShot(noPlanets, 0, Math.atan(distance / reach), 1);
   const clipping = offsetBy(GRAVITY_HIT_RADIUS * 0.9);
   const clearing = offsetBy(GRAVITY_HIT_RADIUS * 1.4);

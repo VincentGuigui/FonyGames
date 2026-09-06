@@ -167,11 +167,21 @@ function fairnessShipPosition(seat: 0 | 1): { x: number; y: number } {
   return { x: 0.5, y: seat === 0 ? 1 - GRAVITY_SHIP_MARGIN : GRAVITY_SHIP_MARGIN };
 }
 
+/** The ship's own drawn height, matching `game.ts`'s `GRAVITY_SHIP_HEIGHT`
+ *  (= `GRAVITY_SHIP_WIDTH / 2`): a shot leaves the nose, not the hull's
+ *  middle (issue #37), and this check has to sample from the same place. */
+const FAIRNESS_SHIP_HEIGHT = 0.11;
+
+function fairnessLaunchPosition(seat: 0 | 1): { x: number; y: number } {
+  const ship = fairnessShipPosition(seat);
+  return { x: ship.x, y: seat === 0 ? ship.y - FAIRNESS_SHIP_HEIGHT : ship.y + FAIRNESS_SHIP_HEIGHT };
+}
+
 /** One sampled shot: does it reach within `FAIRNESS_HIT_RADIUS` of the
  *  opponent's own ship before it is absorbed, wanders off, or runs out of
  *  simulated time? */
 function fairnessShotConnects(bodies: readonly GravityPlanet[], shooterSeat: 0 | 1, angle: number, strength: number): boolean {
-  const start = fairnessShipPosition(shooterSeat);
+  const start = fairnessLaunchPosition(shooterSeat);
   const target = fairnessShipPosition(shooterSeat === 0 ? 1 : 0);
   const speed = FAIRNESS_MIN_LAUNCH_SPEED + strength * (FAIRNESS_LAUNCH_SPEED - FAIRNESS_MIN_LAUNCH_SPEED);
   const localVx = Math.sin(angle) * speed;

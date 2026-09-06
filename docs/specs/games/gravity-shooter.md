@@ -36,9 +36,12 @@ viewer, never two different boards.
    ship — the finger's own position relative to the ship sets your shot's
    angle and strength; the missile fires toward wherever your finger is,
    like a targeting reticle, not away from it like a slingshot.
-3. While your finger is down, the missile itself sits at the top-centre of
-   your own ship's sprite, **swinging in real time to face wherever your
-   finger is**, and a dashed preview of its path is shown: solid across the
+3. While your finger is down, the missile itself sits at your ship's **nose**
+   — `launchPosition`, one hull height ahead of the sprite's own base, and
+   the single place a shot leaves from: the marker under the finger, the
+   dashed preview and the flight the referee scores all start there (issue
+   #37) — **swinging in real time to face wherever your finger is**, and a
+   dashed preview of its path is shown: solid across the
    near third of the screen, fading through the middle third, and gone for
    the last third before the opponent (§2.2) — a real read on your own aim,
    but never a look at where the shot actually lands.
@@ -234,7 +237,12 @@ itself is now **four times** the original brief's value: doubled once when
 the launch speed dropped (a slower missile alone doesn't feel meaningfully
 pulled unless the pull itself is also stronger), then doubled again
 alongside the centre-blocking rule in §2.1 (now the star's job), since a shot
-that has to go *around* something needs enough pull to actually come back. The
+that has to go *around* something needs enough pull to actually come back. A flight begins at
+`launchPosition(seat)` — the shooter's nose, `GRAVITY_SHIP_HEIGHT` (half the
+drawn ship width, the art's own 2:1 aspect) ahead of `shipPosition(seat)` —
+which is a fixed world constant rather than a measurement of the rasterised
+sprite, because both phones have to simulate the same flight and only one of
+them has the shooter's screen. The
 simulation stops early the moment the missile is within
 `GRAVITY_HIT_RADIUS` of the opponent's ship (a hit) — **half the ship
 sprite's own drawn width, so the whole ship image is the target** rather than
