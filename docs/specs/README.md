@@ -43,8 +43,8 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Tiles Surfer](games/tiles-surfer.md) | *Tap the tile the instant it hits the line* | touch | 1–8 | 🎮 beta — spawn cadence, safety cap and difficulty curve untested on real thumbs |
 | [Gravity Shooter](games/gravity-shooter.md) | *Bend your shot around a planet and blow up their ship* | touch | 2 | 🎮 beta — gravity strength and hit radius untested on real thumbs |
 | [Asteroid Race](games/asteroid-race.md) | *Dodge the rocks, blast the rest, get there first* | orientation + touch | 1–8 | 🎮 beta — the field's own numbers untested on real thumbs ([#24](https://github.com/VincentGuigui/FonyGames/issues/24)) |
-| [Color Match](games/color-match.md) | *Match the colour. Three seconds. No second guesses* | touch | 1–8 | 📝 draft — awaiting approval ([#26](https://github.com/VincentGuigui/FonyGames/issues/26)) |
-| [Color Hunt](games/color-hunt.md) | *Hunt that exact colour down in the room around you* | camera | 2–8 | 📝 draft — awaiting approval, **and §12 Q1 asks the maintainer to open AGENTS.md §4's closed no-fallback list** ([#27](https://github.com/VincentGuigui/FonyGames/issues/27)) |
+| [Color Match](games/color-match.md) | *Match the colour. Three seconds. No second guesses* | touch | 1–8 | 🚧 building ([#26](https://github.com/VincentGuigui/FonyGames/issues/26)) |
+| [Color Hunt](games/color-hunt.md) | *Hunt that exact colour down in the room around you* | camera | 2–8 | 🚧 building — camera-only, no fallback, named in AGENTS.md §4 ([#27](https://github.com/VincentGuigui/FonyGames/issues/27)) |
 
 ### Idea notes (not yet specs)
 
@@ -130,13 +130,13 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
   out. The run ends when nobody in the room scores for three levels running, so
   the stopping point is a property of the room rather than a number. Scoring is
   redmean weighted-RGB distance — no dependency — shared with Color Hunt in
-  `shared/color.ts`. Full spec written; awaiting approval before any code.
+  `shared/color.ts`. Full spec written and approved.
 - **Color Hunt** — the same scoring with the room you are sitting in as the
   palette: point the rear camera at something red, and a magnifier over the
   centre 10×10 pixels tells you what you have actually found. No pixel leaves
   the phone — one RGB triple per round does. Full spec written, but it would be
-  the **sixth** no-fallback game and AGENTS.md §4 says that list is closed
-  unless the maintainer opens it, so its §12 Q1 blocks the build outright.
+  the sixth game with no fallback — which settled the rule rather than the
+  list: §4 now says a fallback is a recommendation, not a gate. Approved.
 
 Promote an idea by copying [game-spec-template.md](game-spec-template.md) to
 `games/<slug>.md`, filling it, and updating the row above in a `spec:` commit.

@@ -1,10 +1,11 @@
 # Color Hunt
 
-> Status: **draft, awaiting approval** ([issue #27](https://github.com/VincentGuigui/FonyGames/issues/27)).
-> Nothing is built until the maintainer approves this (AGENTS.md §5.2).
-> **Q1 in §12 is a governance question, not a design one**: this game as
-> written would be the sixth entry on AGENTS.md §4's closed no-fallback list,
-> and that list says a sixth needs the maintainer to add it.
+> Status: **approved, building** ([issue #27](https://github.com/VincentGuigui/FonyGames/issues/27)).
+> Approved as written on 2026-09-06, along with the ruling that settled §12 Q1:
+> a fallback is a **recommendation, not a gate** (AGENTS.md §4 now says so), so
+> a camera-only game needs no special dispensation — only the two things every
+> game owes, which is to say who it excludes in the lobby and to ask for the
+> permission from Ready/Start. Every number in §5b is still a guess.
 
 | | |
 | --- | --- |
@@ -121,15 +122,15 @@ centre of the feed, then a mean over the returned `ImageData`. That is
 second is a strobe, and averaging over a few reads is what makes it settle
 enough to aim with.
 
-**Fallbacks:** there are none, and that is the point of §12 Q1. A camera game
-whose entire mechanic is "what is the camera pointing at" has no touch version
-— a colour picker with no camera is Color Match, which is a different game in
-the same catalogue. So a refusal means this player cannot play, and per
-AGENTS.md §4 that requires the maintainer to extend the closed list. If they
-do, the permission is asked for by **Ready** (or **Start** for the host), not
-by a button of its own, and the lobby says who it excludes before anyone
-starts — the shape [../../device-capabilities.md](../../device-capabilities.md)
-§2 rule 3 lays down and the five existing games follow.
+**Fallbacks: none, deliberately.** A camera game whose entire mechanic is
+"what is the camera pointing at" has no touch version — a colour picker with no
+camera is Color Match, which is a different game in the same catalogue. A
+refusal therefore means this player cannot play, which AGENTS.md §4 allows as
+the second branch of "degrade, never dead-end" and asks two things for: the
+lobby says who it excludes before anyone starts, and the permission is asked
+for by **Ready** (or **Start** for the host) rather than by a button of its own
+— the shape [../../device-capabilities.md](../../device-capabilities.md) §2
+rule 3 lays down and the five sensor-only games already follow.
 
 ### 5b Constants
 
@@ -169,8 +170,8 @@ level is not, which is why the grace exists at all.
 
 ## 7. Failure & edge cases
 
-- **Camera denied or absent**: this player cannot play (§5). Pending §12 Q1,
-  they hold a spectator seat and the lobby says so before the host can start.
+- **Camera denied or absent**: this player cannot play (§5). They hold a
+  spectator seat and the lobby says so before the host can start.
 - **Camera opens then dies** (another app grabs it, phone locks): the magnifier
   freezes on its last read and the phone submits that. On return, the feed is
   reopened; if it will not reopen, the seat becomes a spectator seat mid-hunt
@@ -264,14 +265,12 @@ reassuring enough to be worth the sentence.
 
 ## 12. Open questions
 
-Q1 blocks the build outright; the rest block their own numbers.
+Q1 is answered; the rest block their own numbers, not the build.
 
-1. **Does Color Hunt join AGENTS.md §4's closed list?** It is a camera game
-   with no fallback that is not a lesser version of itself — the same test the
-   five existing entries pass — but the list is closed and only the maintainer
-   opens it. A no means either the game is not built, or it is built with a
-   fallback nobody has designed yet. **Nothing else in this file matters until
-   this is answered.**
+1. ~~**Does Color Hunt join AGENTS.md §4's closed list?**~~ **Answered on
+   2026-09-06, by changing the rule rather than the list**: a fallback is a
+   recommendation, not a gate. Color Hunt is named in §4 beside the five, and
+   owes what they owe — saying who it excludes, and asking from Ready/Start.
 2. **`COLOR_MISS` almost certainly needs to be looser here than in Color
    Match.** A camera under a warm bulb reads a red book as something like
    `(180, 60, 45)`; against a `(204, 31, 31)` target that is a normalised

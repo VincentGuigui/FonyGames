@@ -1,10 +1,11 @@
 # Color Match
 
-> Status: **draft, awaiting approval** ([issue #26](https://github.com/VincentGuigui/FonyGames/issues/26)).
-> Nothing is built until the maintainer approves this (AGENTS.md §5.2). The
-> difficulty ladder below is transcribed from the issue and turned into a table
-> a machine can read; every number in §2.4 and §5b is a proposal, not a
-> measurement.
+> Status: **approved, building** ([issue #26](https://github.com/VincentGuigui/FonyGames/issues/26)).
+> Approved as written on 2026-09-06, which settled §12 Q1: the miss threshold,
+> the wheel's geometry and the multiplicative luminance model are the shipped
+> design. The ladder is transcribed from the issue and turned into a table a
+> machine can read; every number in §2.4 and §5b is still a proposal rather
+> than a measurement, and Q2–Q6 are still open.
 
 | | |
 | --- | --- |
@@ -215,7 +216,7 @@ Touch only. One drag on the wheel, one on the slider, both plain pointer events
 
 **Fallbacks:** not applicable, and that is worth stating rather than omitting.
 This game asks for nothing, so it cannot be refused anything, and it is not a
-candidate for the closed list in AGENTS.md §4.
+candidate for the no-fallback branch of AGENTS.md §4.
 
 ### 5b Constants
 
@@ -336,10 +337,10 @@ nickname, city/country. No colour ever appears in it.
 
 Everything here needs a maintainer answer, and Q1 blocks the build.
 
-1. **Is the whole shape right?** The ladder, the seven-second level, the barren
-   ending and the redmean score are a faithful reading of the issue, but the
-   issue left the threshold, the wheel's geometry and the luminance model open,
-   and this spec has proposed all three. Approving the file approves those.
+1. ~~**Is the whole shape right?**~~ **Answered on 2026-09-06**: approved as
+   written, so the flat threshold, the two-presentation wheel and the
+   multiplicative luminance are the design rather than a proposal. Q2–Q6 below
+   are untouched by that and still want a real thumb.
 2. **Does the wheel's sector→continuous switch read as one control?** Levels
    1–30 are tap-a-wedge and 31+ are drag-and-snap. That may be a graceful
    ramp or it may feel like the game swapped its input out from under you at
