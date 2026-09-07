@@ -411,7 +411,7 @@ async function hostOptions(): Promise<void> {
   console.log('\nthe host’s toggles (§3)');
 
   const h = harness();
-  await startMathOMatic(h.ctx, 1, [A, B], { ops: ['+'], digits: [1, 1], operators: [1, 1] });
+  await startMathOMatic(h.ctx, 1, [A, B], { ops: ['+'], digits: [1], operators: [1] });
   check('a fixed setting is honoured', /^\d+ \+ \d+$/.test(h.state.question.text), h.state.question.text);
 
   // Fixed at start, so a later payload cannot change the difficulty mid-round.

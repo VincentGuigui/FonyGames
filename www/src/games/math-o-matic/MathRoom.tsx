@@ -63,8 +63,8 @@ function MathRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       d: {
         mode: 'math',
         solo,
-        // Ranges are sent as plain pairs; the referee sanitises them.
-        math: { ops: [...options.ops], digits: [options.digits[0], options.digits[1]], operators: [options.operators[0], options.operators[1]] },
+        // Three plain lists; the referee sanitises all of them (§3).
+        math: { ops: [...options.ops], digits: [...options.digits], operators: [...options.operators] },
       },
     });
   }, [solo, options]);

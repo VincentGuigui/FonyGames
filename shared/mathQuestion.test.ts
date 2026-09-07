@@ -19,10 +19,8 @@ import {
   MATH_CHOICES,
   MATH_MINUS,
   MATH_DEFAULT_OPTIONS,
-  MATH_DIGITS_MAX,
-  MATH_DIGITS_MIN,
-  MATH_OPERATORS_MAX,
-  MATH_OPERATORS_MIN,
+  MATH_DIGIT_CHOICES,
+  MATH_OPERATOR_CHOICES,
   MATH_OPS,
   digitBounds,
   generateQuestion,
@@ -134,13 +132,18 @@ function everyStep(text: string): number[] {
   return out;
 }
 
-/** Every combination of the host's toggles: 15 operation subsets × 2 ranges. */
+/**
+ * Every combination of the host's toggles: 15 operation subsets × 5 width sets
+ * × 4 count sets. The width and count sets include gapped ones — `[2, 4]` with
+ * no 3, `[1, 3]` with no 2 — which a range could not express and which are the
+ * whole reason those two controls are sets.
+ */
 function allOptionSets(): MathOptions[] {
   const out: MathOptions[] = [];
   for (let mask = 1; mask < 16; mask++) {
     const ops = MATH_OPS.filter((_, i) => (mask >> i) & 1);
-    for (const digits of [[1, 1], [1, 5], [3, 3], [5, 5], [2, 4]] as const) {
-      for (const operators of [[1, 1], [3, 3], [1, 3], [2, 3]] as const) {
+    for (const digits of [[1], [1, 2, 3, 4, 5], [3], [5], [2, 4]] as const) {
+      for (const operators of [[1], [3], [1, 2, 3], [1, 3]] as const) {
         out.push({ ops, digits, operators });
       }
     }
@@ -154,12 +157,17 @@ function optionsAreSurvivable(): void {
   check('everything on is the default', MATH_DEFAULT_OPTIONS.ops.length === 4);
   check('an empty operation list falls back to all four', normaliseOptions({ ops: [] }).ops.length === 4);
   check('an unknown operation is dropped', normaliseOptions({ ops: ['+', '%'] }).ops.join('') === '+');
-  check('a backwards range is turned round', normaliseOptions({ digits: [4, 2] }).digits.join(',') === '2,4');
-  check('an over-wide range is clamped', normaliseOptions({ digits: [0, 9] }).digits.join(',') === `${MATH_DIGITS_MIN},${MATH_DIGITS_MAX}`);
-  check('too many operators is clamped', normaliseOptions({ operators: [1, 7] }).operators[1] === MATH_OPERATORS_MAX);
-  check('a fractional setting is rounded', normaliseOptions({ operators: [1.4, 2.6] }).operators.join(',') === '1,3');
+  // Widths and counts are sets, exactly like the operations above them: a
+  // gapped selection survives the wire, and anything the game does not offer
+  // is dropped rather than clamped onto a neighbour.
+  check('a gapped width set survives', normaliseOptions({ digits: [4, 2] }).digits.join(',') === '2,4');
+  check('and is returned in the lobby\'s own order', normaliseOptions({ digits: [5, 1, 3] }).digits.join(',') === '1,3,5');
+  check('a width the game does not offer is dropped', normaliseOptions({ digits: [0, 3, 9] }).digits.join(',') === '3');
+  check('an empty width set falls back to all of them', normaliseOptions({ digits: [] }).digits.join(',') === MATH_DIGIT_CHOICES.join(','));
+  check('so does one with nothing recognisable in it', normaliseOptions({ operators: [7, 'two'] }).operators.join(',') === MATH_OPERATOR_CHOICES.join(','));
+  check('a fractional setting is not a count', normaliseOptions({ operators: [1.4, 3] }).operators.join(',') === '3');
   check('nothing at all is the default', normaliseOptions(undefined).ops.length === 4);
-  check('a hostile payload is the default', normaliseOptions('all of them').operators[0] === MATH_OPERATORS_MIN);
+  check('a hostile payload is the default', normaliseOptions('all of them').operators.join(',') === MATH_OPERATOR_CHOICES.join(','));
 
   check('one digit is 1–9', digitBounds(1).join(',') === '1,9');
   check('three digits is 100–999', digitBounds(3).join(',') === '100,999');
@@ -186,7 +194,7 @@ function everyQuestionIsLegal(): void {
   let worstExample: unknown = null;
 
   for (const options of sets) {
-    const random = seeded(0x5eed ^ options.ops.length ^ (options.digits[1] << 4) ^ (options.operators[1] << 8));
+    const random = seeded(0x5eed ^ options.ops.length ^ (options.digits.length << 4) ^ (options.operators.length << 8));
     for (let i = 0; i < 200; i++) {
       const q = generateQuestion(options, random);
       rolled++;
@@ -235,11 +243,15 @@ function everyQuestionIsLegal(): void {
         outsideOptions++;
         worstExample ??= { text: q.text, allowed: [...allowed] };
       }
-      if (used.length > options.operators[1] || used.length < 1) {
+      const ceiling = Math.max(...options.operators);
+      if (used.length > ceiling || used.length < 1) {
         overCeiling++;
-        worstExample ??= { text: q.text, ceiling: options.operators[1] };
+        worstExample ??= { text: q.text, ceiling };
       }
-      if (used.length < options.operators[0]) relaxed.add(describe(options));
+      // Below the smallest count the host ticked is the one relaxation the
+      // generator is allowed, and `unsatisfiable` below names every setting it
+      // is allowed for.
+      if (used.length < Math.min(...options.operators)) relaxed.add(describe(options));
 
       if (
         q.answers.length !== MATH_CHOICES
@@ -271,6 +283,11 @@ function everyQuestionIsLegal(): void {
    * a count, so a NEW setting starting to relax fails here instead of passing
    * quietly.
    *
+   * Every entry asks for exactly three operators, which is what makes the
+   * counts being a *set* rather than a range worth having: a room that ticks
+   * 1 and 3 never relaxes, because dropping from three to one lands on a count
+   * it asked for rather than below the range's floor.
+   *
    * **Arithmetically impossible.** `a ÷ b ÷ c ÷ d` needs `a` divisible by
    * three same-width divisors *and* the same width itself; `a − b − c − d ≥ 0`
    * needs `a` to beat three same-width operands.
@@ -282,14 +299,12 @@ function everyQuestionIsLegal(): void {
    */
   const unsatisfiable = [
     // no exact chain of divisions exists at these widths
-    '/ d1-1 o3-3', '/ d1-5 o3-3', '/ d2-4 o3-3', '/ d3-3 o2-3', '/ d3-3 o3-3',
-    '/ d5-5 o2-3', '/ d5-5 o3-3',
+    '/ d1 o3', '/ d1-2-3-4-5 o3', '/ d2-4 o3', '/ d3 o3', '/ d5 o3',
     // a subtraction chain cannot stay non-negative at these widths
-    '- d1-1 o3-3', '- d3-3 o3-3', '- d5-5 o3-3',
+    '- d1 o3', '- d3 o3', '- d5 o3',
     // the product would be unreadable on a phone (MATH_ANSWER_MAX)
-    '* d1-5 o3-3', '* d2-4 o3-3', '* d3-3 o2-3', '* d3-3 o3-3', '* d5-5 o2-3',
-    '* d5-5 o3-3', '*/ d5-5 o3-3', '+* d5-5 o3-3', '+-* d5-5 o3-3',
-    '-* d5-5 o2-3', '-* d5-5 o3-3',
+    '* d1-2-3-4-5 o3', '* d2-4 o3', '* d3 o3', '* d5 o3',
+    '*/ d5 o3', '+* d5 o3', '+-* d5 o3', '-* d5 o3',
   ];
   const unexpected = [...relaxed].filter((k) => !unsatisfiable.includes(k)).sort();
   check(`only the ${unsatisfiable.length} unshowable settings relax the operator count`, unexpected.length === 0, unexpected);
@@ -309,7 +324,7 @@ function relaxingIsAlwaysLegal(): void {
    * divisions. What it must still do is produce a *legal* question: a division,
    * exact, non-negative, four distinct answers — and it must not hang.
    */
-  const tight: MathOptions = { ops: ['/'], digits: [1, 1], operators: [3, 3] };
+  const tight: MathOptions = { ops: ['/'], digits: [1], operators: [3] };
   const random = seeded(99);
   let divisions = 0;
   let illegal = 0;
@@ -324,7 +339,7 @@ function relaxingIsAlwaysLegal(): void {
 
   // And the operations it gives back are still only the ticked one, which is
   // the guarantee the first version of this file broke.
-  const subOnly: MathOptions = { ops: ['-'], digits: [3, 3], operators: [3, 3] };
+  const subOnly: MathOptions = { ops: ['-'], digits: [3], operators: [3] };
   const r = seeded(5);
   let additions = 0;
   for (let i = 0; i < 400; i++) if (generateQuestion(subOnly, r).text.includes('+')) additions++;
@@ -342,7 +357,7 @@ function precedenceTrap(): void {
 
   // The trap must actually be offered when it exists — it is the best wrong
   // answer in the game and the reason multi-operator questions earn their place.
-  const options: MathOptions = { ops: ['+', '*'], digits: [1, 1], operators: [2, 2] };
+  const options: MathOptions = { ops: ['+', '*'], digits: [1], operators: [2] };
   const random = seeded(4242);
   let withTrap = 0;
   let offered = 0;
@@ -360,7 +375,7 @@ function precedenceTrap(): void {
 function answersLookPlausible(): void {
   console.log('\nthe wrong answers look nearly right (§12 Q5)');
 
-  const options: MathOptions = { ops: ['+'], digits: [2, 2], operators: [1, 1] };
+  const options: MathOptions = { ops: ['+'], digits: [2], operators: [1] };
   const random = seeded(1);
   let near = 0;
   let total = 0;
@@ -378,7 +393,7 @@ function answersLookPlausible(): void {
 
   // Tiny answers are where the distractor rules collide — 0 and 1 have almost
   // no near neighbours — so they get their own check rather than being lucky.
-  const one: MathOptions = { ops: ['-'], digits: [1, 1], operators: [1, 1] };
+  const one: MathOptions = { ops: ['-'], digits: [1], operators: [1] };
   const r = seeded(31);
   let tiny = 0;
   for (let i = 0; i < 400; i++) {

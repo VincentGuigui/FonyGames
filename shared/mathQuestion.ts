@@ -29,25 +29,32 @@ export type MathOp = '+' | '-' | '*' | '/';
 
 export const MATH_OPS: readonly MathOp[] = ['+', '-', '*', '/'];
 
-/** What the host ticked in the lobby. Ranges are inclusive at both ends. */
+/**
+ * What the host ticked in the lobby.
+ *
+ * **All three fields are sets, not ranges.** A width and an operator count are
+ * as pickable as an operation is — "two or four digits, never three" is a
+ * perfectly reasonable room, and a pair of end-stops cannot say it. The three
+ * controls in the lobby then behave identically, which is the other half of the
+ * argument: one of them being a two-ended thing to nudge was the odd one out.
+ */
 export type MathOptions = {
   ops: readonly MathOp[];
-  /** Digits per operand, 1–5. */
-  digits: readonly [min: number, max: number];
-  /** Operators per question, 1–3. */
-  operators: readonly [min: number, max: number];
+  /** Operand widths, in digits. Any subset of `MATH_DIGIT_CHOICES`. */
+  digits: readonly number[];
+  /** Operators per question. Any subset of `MATH_OPERATOR_CHOICES`. */
+  operators: readonly number[];
 };
 
-export const MATH_DIGITS_MIN = 1;
-export const MATH_DIGITS_MAX = 5;
-export const MATH_OPERATORS_MIN = 1;
-export const MATH_OPERATORS_MAX = 3;
+/** Every width and every count the lobby offers. */
+export const MATH_DIGIT_CHOICES: readonly number[] = [1, 2, 3, 4, 5];
+export const MATH_OPERATOR_CHOICES: readonly number[] = [1, 2, 3];
 
 /** Everything on, which is what the lobby starts at (issue #5). */
 export const MATH_DEFAULT_OPTIONS: MathOptions = {
   ops: MATH_OPS,
-  digits: [MATH_DIGITS_MIN, MATH_DIGITS_MAX],
-  operators: [MATH_OPERATORS_MIN, MATH_OPERATORS_MAX],
+  digits: MATH_DIGIT_CHOICES,
+  operators: MATH_OPERATOR_CHOICES,
 };
 
 /** How many answers a question offers. One is right (spec §2). */
@@ -84,35 +91,27 @@ export type MathQuestion = {
  * Sanitise whatever the host's phone sent.
  *
  * A payload decides the *difficulty*, so it does not need to be trusted, but it
- * does need to be survivable: an empty operation list, a backwards range or a
- * six-digit setting must land on something playable rather than hanging the
- * generator. Anything unrecognised falls back to the default for that field —
- * and an empty `ops` is the one the spec calls out explicitly, because the
- * lobby will not let you untick the last operation either.
+ * does need to be survivable: an empty list, a six-digit setting or a string
+ * where a number should be must land on something playable rather than hanging
+ * the generator. Every field is an allowlist intersection, and an empty result
+ * falls back to the whole set — which is also what the lobby enforces, since it
+ * will not let you untick the last stop of any of the three.
  */
 export function normaliseOptions(raw: unknown): MathOptions {
   const o = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
-  const ops = Array.isArray(o['ops'])
-    ? MATH_OPS.filter((op) => (o['ops'] as unknown[]).includes(op))
-    : MATH_DEFAULT_OPTIONS.ops;
   return {
-    ops: ops.length > 0 ? ops : MATH_DEFAULT_OPTIONS.ops,
-    digits: range(o['digits'], MATH_DIGITS_MIN, MATH_DIGITS_MAX),
-    operators: range(o['operators'], MATH_OPERATORS_MIN, MATH_OPERATORS_MAX),
+    ops: subset(o['ops'], MATH_OPS),
+    digits: subset(o['digits'], MATH_DIGIT_CHOICES),
+    operators: subset(o['operators'], MATH_OPERATOR_CHOICES),
   };
 }
 
-function range(raw: unknown, lo: number, hi: number): readonly [number, number] {
-  const pair = Array.isArray(raw) ? raw : [];
-  const a = clampInt(pair[0], lo, hi, lo);
-  const b = clampInt(pair[1], lo, hi, hi);
-  // Backwards is a bug in the sender, not a request for an empty range.
-  return a <= b ? [a, b] : [b, a];
-}
-
-function clampInt(raw: unknown, lo: number, hi: number, fallback: number): number {
-  if (typeof raw !== 'number' || !Number.isFinite(raw)) return fallback;
-  return Math.min(hi, Math.max(lo, Math.round(raw)));
+/** Whatever of `allowed` the payload asked for, in `allowed`'s own order — or
+ *  all of it, when the payload asked for nothing this game offers. */
+function subset<T>(raw: unknown, allowed: readonly T[]): readonly T[] {
+  if (!Array.isArray(raw)) return allowed;
+  const asked = allowed.filter((v) => (raw as unknown[]).includes(v));
+  return asked.length > 0 ? asked : allowed;
 }
 
 /** Inclusive integer pick. `random` is injected so a test can pin a question. */
@@ -132,9 +131,9 @@ export function digitBounds(digits: number): readonly [number, number] {
   return [lo, 10 ** digits - 1];
 }
 
-/** An operand of a width drawn from the host's digit range. */
-function operand(random: () => number, digits: readonly [number, number]): number {
-  const [lo, hi] = digitBounds(pick(random, digits[0], digits[1]));
+/** An operand of a width drawn from the widths the host ticked. */
+function operand(random: () => number, digits: readonly number[]): number {
+  const [lo, hi] = digitBounds(pickOf(random, digits));
   return pick(random, lo, hi);
 }
 
@@ -157,7 +156,7 @@ function operand(random: () => number, digits: readonly [number, number]): numbe
 function buildRun(
   random: () => number,
   ops: readonly MathOp[],
-  digits: readonly [number, number],
+  digits: readonly number[],
   count: number,
 ): { text: string; value: number } | null {
   const muls: MathOp[] = ops.filter((op) => op === '*' || op === '/');
@@ -167,14 +166,14 @@ function buildRun(
   // The head's own width is chosen FIRST, because it is what decides how many
   // divisors this run can afford to carry — picking it afterwards means the
   // budget was computed against a head that may not turn up.
-  const [headLo, headHi] = digitBounds(pick(random, digits[0], digits[1]));
+  const [headLo, headHi] = digitBounds(pickOf(random, digits));
 
   for (let i = 0; i < count; i++) {
     const op = pickOf(random, muls);
     if (op === '/') {
       // A divisor of 1 divides everything and teaches nothing, so 2 is the floor
       // — which means a 1-digit setting draws from 2–9.
-      const [lo, hi] = digitBounds(pick(random, digits[0], digits[1]));
+      const [lo, hi] = digitBounds(pickOf(random, digits));
       // What the head can still carry. Capped at half the head's ceiling so the
       // head keeps a choice of at least two multiples rather than being forced.
       const budget = Math.floor(headHi / (divisorProduct * 2));
@@ -251,7 +250,7 @@ function buildExpression(
   options: MathOptions,
 ): { text: string; value: number } | null {
   const { ops, digits } = options;
-  const operators = pick(random, options.operators[0], options.operators[1]);
+  const operators = pickOf(random, options.operators);
   const additive = ops.filter((op) => op === '+' || op === '-');
   const multiplicative = ops.filter((op) => op === '*' || op === '/');
 
@@ -482,14 +481,18 @@ function simplest(random: () => number, options: MathOptions): { text: string; v
  */
 export function generateQuestion(options: MathOptions, random: () => number): MathQuestion {
   let built: { text: string; value: number } | null = null;
-  for (let ceiling = options.operators[1]; ceiling >= options.operators[0] && !built; ceiling--) {
-    const narrowed: MathOptions = { ...options, operators: [options.operators[0], ceiling] };
+  // Largest ticked count first, then the next one down. With a set rather than
+  // a range this walks only the counts the host actually asked for: a room set
+  // to "one or three" never quietly gets two.
+  for (const count of [...options.operators].sort((a, b) => b - a)) {
+    if (built) break;
+    const narrowed: MathOptions = { ...options, operators: [count] };
     for (let i = 0; i < MATH_ROLL_TRIES && !built; i++) built = buildExpression(random, narrowed);
   }
-  // Still nothing: the low end of the requested range is itself unreachable, so
-  // drop to one operator, which every option set can always express.
+  // Still nothing: every ticked count is unreachable at these widths, so drop
+  // to one operator, which every option set can always express.
   for (let i = 0; i < MATH_ROLL_TRIES && !built; i++) {
-    built = buildExpression(random, { ...options, operators: [1, 1] });
+    built = buildExpression(random, { ...options, operators: [1] });
   }
   if (!built) built = simplest(random, options);
 

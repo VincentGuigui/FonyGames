@@ -1,9 +1,7 @@
 import type { JSX } from 'preact';
 import {
-  MATH_DIGITS_MAX,
-  MATH_DIGITS_MIN,
-  MATH_OPERATORS_MAX,
-  MATH_OPERATORS_MIN,
+  MATH_DIGIT_CHOICES,
+  MATH_OPERATOR_CHOICES,
   MATH_OPS,
   type MathOp,
   type MathOptions as Options,
@@ -76,19 +74,17 @@ export function MathOptionsPanel({
         </div>
       </fieldset>
 
-      <Range
+      <Stops
         legend={text({ en: 'Digits per number', fr: 'Chiffres par nombre' })}
         value={value.digits}
-        min={MATH_DIGITS_MIN}
-        max={MATH_DIGITS_MAX}
+        choices={MATH_DIGIT_CHOICES}
         editable={editable}
         onChange={(digits) => onChange({ ...value, digits })}
       />
-      <Range
+      <Stops
         legend={text({ en: 'Operators per sum', fr: 'Opérateurs par calcul' })}
         value={value.operators}
-        min={MATH_OPERATORS_MIN}
-        max={MATH_OPERATORS_MAX}
+        choices={MATH_OPERATOR_CHOICES}
         editable={editable}
         onChange={(operators) => onChange({ ...value, operators })}
       />
@@ -101,63 +97,62 @@ export function MathOptionsPanel({
 }
 
 /**
- * A two-ended range, as two number pickers rather than a slider pair.
+ * A set of stops, ticked one by one — the same control as the operations row
+ * above it, and for the same reason.
  *
- * A double-thumb slider is a fiddly thing to hit with a thumb and there are at
- * most five stops, so the honest control is the stops themselves: tap the low
- * end, tap the high end. Dragging one past the other pushes rather than
- * refusing, which is what a player expects and what stops an empty range.
+ * It was a two-ended range first, and that was the odd one out: three controls
+ * on one panel, two of them nudged from the ends and one of them ticked. It
+ * also could not say "two or four digits, never three", which is a perfectly
+ * reasonable room. Tapping a stop toggles it; the last one on refuses to go,
+ * exactly as the last operation does.
  */
-function Range({
+function Stops({
   legend,
   value,
-  min,
-  max,
+  choices,
   editable,
   onChange,
 }: {
   legend: string;
-  value: readonly [number, number];
-  min: number;
-  max: number;
+  value: readonly number[];
+  choices: readonly number[];
   editable: boolean;
-  onChange: (next: readonly [number, number]) => void;
+  onChange: (next: readonly number[]) => void;
 }): JSX.Element {
   const text = useGameText();
-  const stops = [];
-  for (let n = min; n <= max; n++) stops.push(n);
+  const on = (n: number): boolean => value.includes(n);
 
   return (
     <fieldset class="math-options__group" disabled={!editable}>
       <legend class="math-options__legend">{legend}</legend>
       <div class="math-options__range" role="group" aria-label={legend}>
-        {stops.map((n) => {
-          const inside = n >= value[0] && n <= value[1];
-          return (
-            <button
-              key={n}
-              type="button"
-              class={`math-options__stop ${inside ? 'math-options__stop--on' : ''}`}
-              aria-pressed={inside}
-              disabled={!editable}
-              onClick={() => {
-                // Nearest end moves to the tap, and pushes the other along if
-                // it would cross it. Never produces a backwards range.
-                const toLow = Math.abs(n - value[0]);
-                const toHigh = Math.abs(n - value[1]);
-                if (toLow <= toHigh) onChange([n, Math.max(n, value[1])]);
-                else onChange([Math.min(n, value[0]), n]);
-              }}
-            >
-              {n}
-            </button>
-          );
-        })}
+        {choices.map((n) => (
+          <button
+            key={n}
+            type="button"
+            class={`math-options__stop ${on(n) ? 'math-options__stop--on' : ''}`}
+            aria-pressed={on(n)}
+            // The last one on is not removable, so it says so rather than
+            // shrugging.
+            disabled={!editable || (on(n) && value.length === 1)}
+            onClick={() => {
+              // Kept in the game's own order rather than tap order, so the
+              // readout below reads left to right.
+              const next = on(n) ? value.filter((v) => v !== n) : choices.filter((v) => v === n || value.includes(v));
+              if (next.length === 0) return;
+              onChange(next);
+            }}
+          >
+            {n}
+          </button>
+        ))}
       </div>
       <p class="math-options__readout">
-        {value[0] === value[1]
+        {value.length === 1
           ? text({ en: `exactly ${value[0]}`, fr: `exactement ${value[0]}` })
-          : text({ en: `${value[0]} to ${value[1]}`, fr: `${value[0]} à ${value[1]}` })}
+          : value.length === choices.length
+            ? text({ en: 'any', fr: 'au choix' })
+            : value.join(', ')}
       </p>
     </fieldset>
   );

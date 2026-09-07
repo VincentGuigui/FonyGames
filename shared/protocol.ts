@@ -121,7 +121,7 @@ export type ClientMessage =
          * same reasoning as `drag` above (math-o-matic.md §3), and sanitised by
          * `normaliseOptions` in shared/mathQuestion.ts rather than trusted.
          */
-        math?: { ops?: string[]; digits?: [number, number]; operators?: [number, number] };
+        math?: { ops?: string[]; digits?: number[]; operators?: number[] };
         /**
          * Solo test mode — start with one player, for looking at a game rather than
          * playing it. Set by a browser that has signed into the admin centre; the

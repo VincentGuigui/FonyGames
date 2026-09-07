@@ -58,13 +58,25 @@ travel in the `start` payload rather than in the mode slug.
 | `classic` | Four answers, one is right | baseline |
 | `sudden-death` | One life each. Blink and you are out | `MATH_LIVES` = 1 |
 
-**Host options**, all enabled by default, each a toggle or a range:
+**Host options**, all enabled by default, and **all three are sets** — the same
+control three times over:
 
 | Option | Values | Default |
 | --- | --- | --- |
-| Operations | any of `+ − × ÷` | all four |
-| Operand length | 1–5 digits | 1–5 |
-| Operators per question | 1–3 | 1–3 |
+| Operations | any subset of `+ − × ÷` | all four |
+| Operand length | any subset of 1, 2, 3, 4, 5 digits | all five |
+| Operators per question | any subset of 1, 2, 3 | all three |
+
+The last two were a two-ended range first, and that was wrong twice over. It
+made one panel hold two kinds of control — two nudged from the ends, one ticked
+— and it could not express "two or four digits, never three", which is a
+perfectly reasonable room. Tapping a stop toggles it, the last one on refuses
+to go, and `normaliseOptions` intersects whatever arrives with what the game
+offers rather than clamping it onto a neighbour.
+
+It also sharpens the one relaxation the generator is allowed (§12 Q6): a room
+that ticks 1 and 3 operators and cannot manage three drops to one, which is a
+count it *asked for*, where a 1–3 range only ever meant "somewhere in here".
 
 Rules the generator owes the options, so a legal setting can never produce an
 illegal question:
@@ -236,9 +248,10 @@ Still open, and now with the build's own answers to argue with:
    Whether the lobby should instead *grey out* those combinations is the open
    part.
 7. **Five digits × three operators is arithmetic homework**, not a party game.
-   It is legal because the issue asked for those ranges, and the default is
-   the whole range. A narrower default — say 1–3 digits — is probably the
-   friendlier first experience.
+   It is legal because the issue asked for those widths, and the default is all
+   of them. A narrower default — say 1, 2 and 3 digits ticked — is probably the
+   friendlier first experience, and is now one entry in a list rather than a
+   range's ceiling.
 8. **`sudden-death` is declared and not built.** One life each, `MATH_LIVES`
    = 1, and nothing else changes; it is a one-line mode whose only real
    question is whether a room of eight enjoys being three-quarters eliminated
