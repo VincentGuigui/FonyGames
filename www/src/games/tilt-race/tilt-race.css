@@ -1,0 +1,139 @@
+/*
+ * Tilt Race. Spec: docs/specs/games/tilt-race.md §4
+ * Shared chrome (StatusBar, lobby) is styled by core; this file owns the board,
+ * the speed readout, the progress rail and the reverse button.
+ */
+
+.tilt {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--color-bg);
+}
+
+/* The board takes everything below the status bar: the track IS the screen. */
+.tilt__board {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tilt__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* The world rotates under a fixed car, so a stray browser gesture on the
+     canvas would fight the tilt. */
+  touch-action: none;
+}
+
+.tilt__speed {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-3);
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-dim);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.8);
+  pointer-events: none;
+}
+
+.tilt__speed strong {
+  font-size: 1.6rem;
+  color: var(--color-text);
+}
+
+/* Past cruise the car skids, and the player has to know which side of that
+   line they are on (spec §2.2). */
+.tilt__speed--hot strong {
+  color: var(--game-accent, var(--color-accent));
+}
+
+.tilt__speed-max {
+  font-size: var(--font-small);
+}
+
+/* The whole lap as one vertical strip, with everybody's dot on it. */
+.tilt__rail {
+  position: absolute;
+  top: 12%;
+  bottom: 12%;
+  right: var(--space-3);
+  width: 4px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.28);
+  pointer-events: none;
+}
+
+.tilt__dot {
+  position: absolute;
+  right: 50%;
+  translate: 50% -50%;
+  font-size: 1.1rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.9));
+}
+
+.tilt__dot--me {
+  font-size: 1.4rem;
+}
+
+.tilt__dot--left {
+  opacity: 0.35;
+}
+
+.tilt__countdown {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-size: clamp(4rem, 30vw, 9rem);
+  font-weight: 700;
+  color: var(--color-text);
+  background: rgb(11 9 16 / 0.45);
+  text-shadow: 0 4px 20px rgb(0 0 0 / 0.7);
+  pointer-events: none;
+}
+
+/*
+ * Reverse. Positioned from the phone's own gravity, so `left`/`top` are written
+ * by the component every report rather than set here — this only owns how it
+ * looks and how big it is.
+ */
+.tilt__reverse {
+  position: absolute;
+  translate: -50% -50%;
+  width: 4rem;
+  height: 4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  color: var(--color-text);
+  /* Nearly opaque: at 0.86 the road showed through it and the one control
+     the game has was the hardest thing on screen to find. */
+  background: rgb(18 21 28 / 0.96);
+  border: 2px solid rgb(255 255 255 / 0.4);
+  border-radius: 999px;
+  cursor: pointer;
+  touch-action: none;
+  /* No transition: it is repositioned four times a second and an easing would
+     make it lag the phone rather than follow it. */
+}
+
+.tilt__reverse:active {
+  background: var(--game-accent, var(--color-accent));
+  border-color: var(--game-accent, var(--color-accent));
+  color: var(--color-on-accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The world still rotates — that is the game (spec §11) — but nothing else
+     needs to move. */
+  .tilt__countdown {
+    text-shadow: none;
+  }
+}

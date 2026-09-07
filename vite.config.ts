@@ -49,6 +49,7 @@ export default defineConfig({
         'color-match': 'www/color-match/index.html',
         'color-hunt': 'www/color-hunt/index.html',
         'math-o-matic': 'www/math-o-matic/index.html',
+        'tilt-race': 'www/tilt-race/index.html',
         // The admin centre. Built to a PLACEHOLDER directory name and renamed to the
         // ADMIN_PATH secret by the deploy — this repository is public, so the real
         // path cannot be committed (docs/deployment.md §3.4).

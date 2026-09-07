@@ -23,6 +23,7 @@ import { CARD as ASTEROID_RACE_CARD } from './asteroid-race/card';
 import { CARD as COLOR_MATCH_CARD } from './color-match/card';
 import { CARD as COLOR_HUNT_CARD } from './color-hunt/card';
 import { CARD as MATH_CARD } from './math-o-matic/card';
+import { CARD as TILT_RACE_CARD } from './tilt-race/card';
 import type { GameCard } from '../core/types';
 
 /**
@@ -64,6 +65,7 @@ export const GAMES: GameCard[] = [
   COLOR_MATCH_CARD,
   COLOR_HUNT_CARD,
   MATH_CARD,
+  TILT_RACE_CARD,
 ];
 
 /** Display order by status. One entry per value of `GameCard['status']`. */
