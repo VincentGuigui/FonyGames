@@ -1,6 +1,7 @@
 import {
   GRAVITY_LIVES,
-  GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR,
+  GRAVITY_MIN_LANDING_SHOTS,
+  GRAVITY_PLANET_COUNT,
   GRAVITY_PLANET_MIN_GAP,
   GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO,
   GRAVITY_PLANET_MIN_Y_DIFF,
@@ -9,7 +10,10 @@ import {
   GRAVITY_PLANET_X_MARGIN,
   GRAVITY_PLANET_Y_MAX,
   GRAVITY_PLANET_Y_MIN,
+  GRAVITY_MAX_FLIGHT_MS,
   GRAVITY_SHOT_TIMEOUT_MS,
+  GRAVITY_STAR_R_MAX,
+  GRAVITY_STAR_R_MIN,
   type GravityPlanet,
   type ServerMessage,
 } from '../shared/protocol';
@@ -17,8 +21,10 @@ import {
   nextDeadline,
   onGravityShot,
   onPlayerGone,
-  rollPlanets,
+  rollBoard,
+  GRAVITY_FALLBACK_BOARD,
   seatCanReachOpponent,
+  seatLandingShots,
   startGravityShooter,
   surfaceGap,
   tick,
@@ -120,14 +126,12 @@ async function starting(): Promise<void> {
     check('and within the stated radius range', planet.r >= GRAVITY_PLANET_R_MIN && planet.r <= GRAVITY_PLANET_R_MAX, planet.r);
   }
 
-  // Never both left or both right — a board with nothing to curve a shot on
-  // one whole side of it.
-  const [first, second] = g?.planets ?? [];
-  check(
-    'the two planets are never on the same side of the screen',
-    !!first && !!second && (first.x < 0.5) !== (second.x < 0.5),
-    g?.planets,
-  );
+  // Two on one side, one on the other (spec §2.1) — never all three on one
+  // half, which would leave nothing to curve a shot on the other.
+  const planets = g?.planets ?? [];
+  const left = planets.filter((p) => p.x < 0.5).length;
+  check(`a board carries ${GRAVITY_PLANET_COUNT} planets`, planets.length === GRAVITY_PLANET_COUNT, planets.length);
+  check('split two on one side and one on the other', left === 1 || left === 2, planets.map((p) => p.x));
 
   // The same seed rolls the same planets — a phone cannot be the fairest source
   // of a board it is also playing, so the referee's own random() decides it once.
@@ -143,20 +147,71 @@ async function shooting(): Promise<void> {
   await startGravityShooter(h.ctx, 1, [A, B]);
   h.clear();
 
-  await onGravityShot(h.ctx, B, 1, 0.4, 0.6, true);
+  await onGravityShot(h.ctx, B, 1, 0.4, 0.6, true, 0);
   check('a shot from the wrong seat is ignored', h.state()?.turn === 0, h.state()?.turn);
   check('and says nothing', h.last() === undefined);
 
-  await onGravityShot(h.ctx, A, 1, 0.4, 0.6, false);
+  await onGravityShot(h.ctx, A, 1, 0.4, 0.6, false, 0);
   check('a miss costs nothing', h.state()?.lives[1] === GRAVITY_LIVES);
   check('and the turn passes', h.state()?.turn === 1, h.state()?.turn);
   check('the shot is recorded for the other phone\'s own replay',
     h.state()?.lastShot?.shooter === 0 && h.state()?.lastShot?.angle === 0.4 && h.state()?.lastShot?.strength === 0.6);
 
-  await onGravityShot(h.ctx, B, 1, 1.2, 0.9, true);
+  await onGravityShot(h.ctx, B, 1, 1.2, 0.9, true, 0);
   check('a hit costs the opponent a life', h.state()?.lives[0] === GRAVITY_LIVES - 1, h.state()?.lives[0]);
   check('and the turn passes back', h.state()?.turn === 0, h.state()?.turn);
   check('the match is not over yet', h.state()?.phase === 'running');
+}
+
+async function movingPlanets(): Promise<void> {
+  console.log('\nthe board moves once both players have shot at it');
+
+  const h = harness();
+  await startGravityShooter(h.ctx, 1, [A, B]);
+  const first = JSON.stringify(h.state()?.planets);
+  check('a fresh match starts with no shots counted', h.state()?.shots === 0, h.state()?.shots);
+
+  await onGravityShot(h.ctx, A, 1, 0.4, 0.6, false, 0);
+  check('one shot in, the board is unchanged', JSON.stringify(h.state()?.planets) === first);
+  check('but the shot is counted', h.state()?.shots === 1, h.state()?.shots);
+
+  await onGravityShot(h.ctx, B, 1, -0.4, 0.6, false, 0);
+  const second = JSON.stringify(h.state()?.planets);
+  check('once both have shot, the board is re-rolled', second !== first);
+  check('and the count keeps climbing', h.state()?.shots === 2, h.state()?.shots);
+  // The re-roll is a whole fresh geometry, so it obeys every placement rule the
+  // opening board does — nothing about a mid-match board is second class.
+  const [a, b] = h.state()?.planets ?? [];
+  if (a && b) {
+    check('and still keeps its planets apart', surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
+  }
+
+  await onGravityShot(h.ctx, A, 1, 0.2, 0.5, false, 0);
+  check('a third shot leaves it alone again', JSON.stringify(h.state()?.planets) === second);
+
+  // A timed-out turn spent that seat's shot just as surely as a real one, so it
+  // has to count — otherwise a silent player quietly freezes the board.
+  const t = harness();
+  await startGravityShooter(t.ctx, 1, [A, B]);
+  const before = JSON.stringify(t.state()?.planets);
+  await onGravityShot(t.ctx, A, 1, 0.3, 0.5, false, 0);
+  t.advance(GRAVITY_SHOT_TIMEOUT_MS + 1);
+  await tick(t.ctx);
+  check('a timeout counts as a shot too', t.state()?.shots === 2, t.state()?.shots);
+  check('so it can trigger the re-roll on its own', JSON.stringify(t.state()?.planets) !== before);
+
+  // The winning shot must NOT move the board: both phones are still animating
+  // that flight and its explosion against the board it was fired on.
+  const e = harness();
+  await startGravityShooter(e.ctx, 1, [A, B]);
+  for (let i = 0; i < GRAVITY_LIVES - 1; i++) {
+    await onGravityShot(e.ctx, A, 1, 0, 1, true, 0);
+    await onGravityShot(e.ctx, B, 1, 0, 1, false, 0);
+  }
+  const finalBoard = JSON.stringify(e.state()?.planets);
+  await onGravityShot(e.ctx, A, 1, 0, 1, true, 0);
+  check('the match-winning shot ends it', e.state()?.phase === 'done' && e.state()?.winner === 0);
+  check('and leaves the board it was won on in place', JSON.stringify(e.state()?.planets) === finalBoard);
 }
 
 async function garbage(): Promise<void> {
@@ -165,7 +220,7 @@ async function garbage(): Promise<void> {
   const h = harness();
   await startGravityShooter(h.ctx, 1, [A, B]);
 
-  await onGravityShot(h.ctx, A, 1, Number.NaN, Number.POSITIVE_INFINITY, true);
+  await onGravityShot(h.ctx, A, 1, Number.NaN, Number.POSITIVE_INFINITY, true, 0);
   const shot = h.state()?.lastShot;
   check('a non-finite angle is clamped to zero', shot?.angle === 0, shot?.angle);
   check('a non-finite strength is clamped to zero', shot?.strength === 0, shot?.strength);
@@ -173,15 +228,15 @@ async function garbage(): Promise<void> {
   // only the numbers a replay would otherwise choke on are sanitised.
   check('but the claimed hit is still trusted', h.state()?.lives[1] === GRAVITY_LIVES - 1, h.state()?.lives[1]);
 
-  await onGravityShot(h.ctx, 'nobody', 1, 0.1, 0.1, true);
+  await onGravityShot(h.ctx, 'nobody', 1, 0.1, 0.1, true, 0);
   check('a stranger changes nothing', h.state()?.turn === 1, h.state()?.turn);
 
-  await onGravityShot(h.ctx, B, 99, 0.1, 0.1, true);
+  await onGravityShot(h.ctx, B, 99, 0.1, 0.1, true, 0);
   check('a stale round changes nothing', h.state()?.lives[0] === GRAVITY_LIVES);
 }
 
 async function timeout(): Promise<void> {
-  console.log('\na silent shooter does not stall the match');
+  console.log('\nthe shot clock: dawdle and the missile goes off in your hands');
 
   const h = harness();
   await startGravityShooter(h.ctx, 1, [A, B]);
@@ -194,16 +249,75 @@ async function timeout(): Promise<void> {
   h.advance(2);
   await tick(h.ctx);
   check('the turn passes once the deadline is up', h.state()?.turn === 1, h.state()?.turn);
-  check('resolved as a plain miss', h.state()?.lastShot?.hit === false);
-  check('nobody loses a life for it', h.state()?.lives[0] === GRAVITY_LIVES && h.state()?.lives[1] === GRAVITY_LIVES);
+  check('marked as nobody-aimed-this, not a real miss', h.state()?.lastShot?.hit === false && h.state()?.lastShot?.strength === 0);
+  // The dawdler pays for it themselves — the opponent is untouched.
+  check('the shooter loses one of their OWN lives', h.state()?.lives[0] === GRAVITY_LIVES - 1, h.state()?.lives[0]);
+  check('and the opponent loses nothing', h.state()?.lives[1] === GRAVITY_LIVES, h.state()?.lives[1]);
   check('and a fresh deadline is set', (h.state()?.resolvesAt ?? 0) > firstDeadline);
 
   // A shot that arrives at or after its own deadline is too late — the tick
   // already owns that turn's resolution once the clock reaches it.
   h.advance(GRAVITY_SHOT_TIMEOUT_MS + 1);
-  await onGravityShot(h.ctx, B, 1, 0.1, 0.1, true);
+  await onGravityShot(h.ctx, B, 1, 0.1, 0.1, true, 0);
   check('a shot after its own deadline is ignored', h.state()?.turn === 1, h.state()?.turn);
-  check('and lives are untouched', h.state()?.lives[0] === GRAVITY_LIVES);
+  check('and it costs the opponent nothing', h.state()?.lives[0] === GRAVITY_LIVES - 1, h.state()?.lives[0]);
+
+  // Running the clock out on your last life ends the match, exactly as being
+  // shot on it would.
+  const e = harness();
+  await startGravityShooter(e.ctx, 1, [A, B]);
+  for (let i = 0; i < GRAVITY_LIVES; i++) {
+    // Seat 0 dawdles; seat 1 answers instantly, so the clock only ever runs
+    // out on seat 0.
+    e.advance(GRAVITY_SHOT_TIMEOUT_MS + 1);
+    await tick(e.ctx);
+    if (e.state()?.phase !== 'running') break;
+    await onGravityShot(e.ctx, B, 1, 0.2, 0.5, false, 0);
+  }
+  check('running the clock out on the last life ends the match', e.state()?.phase === 'done', e.state()?.phase);
+  check('and hands the win to the other seat', e.state()?.winner === 1, e.state()?.winner);
+  check('with the dawdler on zero', e.state()?.lives[0] === 0, e.state()?.lives[0]);
+}
+
+/**
+ * Issue #34. The opponent's shot clock used to start the instant a shot was
+ * sent, while the missile was still crossing both screens — so a long flight
+ * ate their turn and `tick()` then took a life off them for it.
+ */
+async function flightHoldsTheClock(): Promise<void> {
+  console.log('\nthe next shot clock waits for the missile to land');
+
+  const h = harness();
+  await startGravityShooter(h.ctx, 1, [A, B]);
+  const flight = 6_000;
+  const firedAt = h.now;
+  await onGravityShot(h.ctx, A, 1, 0, 0.5, false, flight);
+  check('the opponent gets a full shot clock ON TOP of the flight',
+    h.state()?.resolvesAt === firedAt + flight + GRAVITY_SHOT_TIMEOUT_MS, h.state()?.resolvesAt);
+
+  // The whole point: the moment the missile lands, the full turn is still ahead.
+  h.advance(flight);
+  await tick(h.ctx);
+  check('nothing has timed out while the missile was flying', h.state()?.turn === 1, h.state()?.turn);
+  check('and the opponent still has every life they started with',
+    h.state()?.lives[1] === GRAVITY_LIVES, h.state()?.lives[1]);
+  check('with the whole clock left to aim in',
+    (h.state()?.resolvesAt ?? 0) - h.now === GRAVITY_SHOT_TIMEOUT_MS, (h.state()?.resolvesAt ?? 0) - h.now);
+
+  // A claimed flight buys no more than the missile's own maximum life.
+  const c = harness();
+  await startGravityShooter(c.ctx, 1, [A, B]);
+  const claimedAt = c.now;
+  await onGravityShot(c.ctx, A, 1, 0, 0.5, false, GRAVITY_MAX_FLIGHT_MS * 100);
+  check('an absurd claimed flight is clamped to the cap',
+    c.state()?.resolvesAt === claimedAt + GRAVITY_MAX_FLIGHT_MS + GRAVITY_SHOT_TIMEOUT_MS, c.state()?.resolvesAt);
+
+  const n = harness();
+  await startGravityShooter(n.ctx, 1, [A, B]);
+  const junkAt = n.now;
+  await onGravityShot(n.ctx, A, 1, 0, 0.5, false, Number.NaN);
+  check('and a garbage one holds the clock back by nothing at all',
+    n.state()?.resolvesAt === junkAt + GRAVITY_SHOT_TIMEOUT_MS, n.state()?.resolvesAt);
 }
 
 async function ending(): Promise<void> {
@@ -213,19 +327,19 @@ async function ending(): Promise<void> {
   await startGravityShooter(h.ctx, 1, [A, B]);
 
   for (let i = 0; i < GRAVITY_LIVES - 1; i++) {
-    await onGravityShot(h.ctx, A, 1, 0, 1, true);
-    await onGravityShot(h.ctx, B, 1, 0, 1, false);
+    await onGravityShot(h.ctx, A, 1, 0, 1, true, 0);
+    await onGravityShot(h.ctx, B, 1, 0, 1, false, 0);
   }
   check('one life left', h.state()?.lives[1] === 1, h.state()?.lives[1]);
   check('still running', h.state()?.phase === 'running');
 
-  await onGravityShot(h.ctx, A, 1, 0, 1, true);
+  await onGravityShot(h.ctx, A, 1, 0, 1, true, 0);
   check('the fifth hit ends it', h.state()?.phase === 'done', h.state()?.phase);
   check('the shooter wins', h.state()?.winner === 0, h.state()?.winner);
   check('the loser is out of lives', h.state()?.lives[1] === 0);
 
   // Nothing moves after the end.
-  await onGravityShot(h.ctx, B, 1, 0, 1, true);
+  await onGravityShot(h.ctx, B, 1, 0, 1, true, 0);
   check('a shot after the end does nothing', h.state()?.lives[0] === GRAVITY_LIVES);
 }
 
@@ -253,11 +367,11 @@ async function solo(): Promise<void> {
 
   // The one real player fires for whichever seat is actually on turn — no
   // second identity is needed to tell the referee which ship that is.
-  await onGravityShot(h.ctx, A, 1, 0.1, 0.5, false);
+  await onGravityShot(h.ctx, A, 1, 0.1, 0.5, false, 0);
   check('seat 0 fired, and the turn passes to seat 1', h.state()?.turn === 1, h.state()?.turn);
   check('attributed to the seat that fired, not just "the player"', h.state()?.lastShot?.shooter === 0);
 
-  await onGravityShot(h.ctx, A, 1, 0.2, 0.5, true);
+  await onGravityShot(h.ctx, A, 1, 0.2, 0.5, true, 0);
   check('the same player fires again, now for seat 1', h.state()?.turn === 0, h.state()?.turn);
   check('this shot is seat 1\'s', h.state()?.lastShot?.shooter === 1);
   check('and it cost seat 0 a life', h.state()?.lives[0] === GRAVITY_LIVES - 1, h.state()?.lives[0]);
@@ -272,8 +386,8 @@ async function deadlines(): Promise<void> {
     nextDeadline(h.state() as Gravity) === h.state()?.resolvesAt, nextDeadline(h.state() as Gravity));
 
   for (let i = 0; i < GRAVITY_LIVES; i++) {
-    await onGravityShot(h.ctx, A, 1, 0, 1, true);
-    await onGravityShot(h.ctx, B, 1, 0, 1, false);
+    await onGravityShot(h.ctx, A, 1, 0, 1, true, 0);
+    await onGravityShot(h.ctx, B, 1, 0, 1, false, 0);
   }
   check('done once somebody is out', h.state()?.phase === 'done', h.state()?.phase);
   check('and nothing is left to wait for', nextDeadline(h.state() as Gravity) === Infinity);
@@ -285,22 +399,83 @@ async function geometry(): Promise<void> {
   // Across a run of seeds, not just one — a rule guaranteed by CONSTRUCTION
   // (rollPlanetRadii/rollPlanetYs) rather than by rejection should hold for
   // every one of them, with no exceptions to go looking for.
-  for (let seed = 1; seed <= 20; seed++) {
-    const [a, b] = rollPlanets(seeded(seed));
-    const sizeDiff = Math.abs(a.r - b.r) / Math.max(a.r, b.r);
-    check(`seed ${seed}: the planets differ in size by at least the required ratio`,
-      sizeDiff >= GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO - 1e-9, sizeDiff);
-    check(`seed ${seed}: their surfaces are at least the required gap apart`,
-      surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
-    check(`seed ${seed}: their centres differ vertically by at least the required amount`,
-      Math.abs(a.y - b.y) >= GRAVITY_PLANET_MIN_Y_DIFF - 1e-9, Math.abs(a.y - b.y));
-    // Both ships sit on the centre line (x = 0.5), so a straight shot always
-    // travels along it — each planet reaching that far with its own gravity
-    // (follow-up after #16) is what rules out a dead zone anywhere between
-    // them, not just "somewhere on the board".
-    for (const [label, p] of [['a', a] as const, ['b', b] as const]) {
-      check(`seed ${seed}: planet ${label}'s own gravity reaches the centre line`,
-        Math.abs(0.5 - p.x) <= GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR * p.r + 1e-9, { x: p.x, r: p.r });
+  for (let seed = 1; seed <= 40; seed++) {
+    const board = rollBoard(seeded(seed));
+    const planets = board.planets;
+
+    // Two on one half, one on the other, every roll.
+    const onLeft = planets.filter((p) => p.x < 0.5);
+    check(`seed ${seed}: split two/one across the centre line`,
+      onLeft.length === 1 || onLeft.length === 2, planets.map((p) => p.x));
+
+    // Every PAIR keeps its size difference and its clear surface — including
+    // the two that share a side, which is the tight one.
+    for (let i = 0; i < planets.length; i++) {
+      for (let j = i + 1; j < planets.length; j++) {
+        const a = planets[i] as GravityPlanet;
+        const b = planets[j] as GravityPlanet;
+        const sizeDiff = Math.abs(a.r - b.r) / Math.max(a.r, b.r);
+        check(`seed ${seed}: planets ${i}/${j} differ in size by at least the required ratio`,
+          sizeDiff >= GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO - 1e-9, sizeDiff);
+        check(`seed ${seed}: planets ${i}/${j} keep their surfaces the required gap apart`,
+          surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
+      }
+    }
+
+    // The vertical rule is owed by the two that SHARE a side — three rows that
+    // far apart do not fit in the band at all.
+    const crowded = onLeft.length === 2 ? onLeft : planets.filter((p) => p.x >= 0.5);
+    const [c1, c2] = crowded;
+    check(`seed ${seed}: the two on one side are the required distance apart vertically`,
+      !!c1 && !!c2 && Math.abs(c1.y - c2.y) >= GRAVITY_PLANET_MIN_Y_DIFF - 1e-9,
+      c1 && c2 ? Math.abs(c1.y - c2.y) : crowded.length);
+
+    for (const p of planets) {
+      check(`seed ${seed}: every planet is inside the stated radius range`,
+        p.r >= GRAVITY_PLANET_R_MIN - 1e-9 && p.r <= GRAVITY_PLANET_R_MAX + 1e-9, p.r);
+    }
+
+    // The star owes the planets nothing and they owe it nothing: a planet may
+    // sit over the middle of the board and overlap it outright. Only its own
+    // size is a rule.
+    check(`seed ${seed}: the star is within its own size range`,
+      board.starRadius >= GRAVITY_STAR_R_MIN - 1e-9 && board.starRadius <= GRAVITY_STAR_R_MAX + 1e-9, board.starRadius);
+
+    // The whole point of the roll (the maintainer's own ask): a board never
+    // ships without a trajectory that lands, from BOTH seats.
+    for (const seat of [0, 1] as const) {
+      const shots = seatLandingShots(planets, seat, board.starRadius);
+      check(`seed ${seed}: seat ${seat} gets a window to aim at, not just one shot`,
+        shots >= GRAVITY_MIN_LANDING_SHOTS, shots);
+    }
+  }
+
+  // The board of last resort has to satisfy everything a rolled one does —
+  // nothing checks it at runtime, so this is the only thing that can.
+  const fallback = GRAVITY_FALLBACK_BOARD;
+  check('the fallback board is winnable from seat 0',
+    seatCanReachOpponent(fallback.planets, 0, fallback.starRadius));
+  check('and from seat 1',
+    seatCanReachOpponent(fallback.planets, 1, fallback.starRadius));
+  const fallbackLeft = fallback.planets.filter((p) => p.x < 0.5).length;
+  check('the fallback board is split two/one like any other',
+    fallbackLeft === 1 || fallbackLeft === 2, fallback.planets.map((p) => p.x));
+  // It ships without any runtime check, so its own aim room is asserted here
+  // rather than assumed — and generously, since it is the board a player lands
+  // on when everything else failed.
+  for (const seat of [0, 1] as const) {
+    const shots = seatLandingShots(fallback.planets, seat, fallback.starRadius);
+    check(`the fallback board leaves seat ${seat} well past the landing-shot bar`,
+      shots >= GRAVITY_MIN_LANDING_SHOTS * 2, shots);
+  }
+  for (let i = 0; i < fallback.planets.length; i++) {
+    for (let j = i + 1; j < fallback.planets.length; j++) {
+      const a = fallback.planets[i] as GravityPlanet;
+      const b = fallback.planets[j] as GravityPlanet;
+      check(`the fallback board's planets ${i}/${j} keep their distance`,
+        surfaceGap(a, b) >= GRAVITY_PLANET_MIN_GAP - 1e-9, surfaceGap(a, b));
+      check(`the fallback board's planets ${i}/${j} differ in size`,
+        Math.abs(a.r - b.r) / Math.max(a.r, b.r) >= GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO - 1e-9, [a.r, b.r]);
     }
   }
 
@@ -311,8 +486,8 @@ async function geometry(): Promise<void> {
     { x: 0.2, y: 0.4, r: 0.05, art: 0 },
     { x: 0.8, y: 0.6, r: 0.08, art: 1 },
   ];
-  check('a map with room to aim through is winnable from seat 0', seatCanReachOpponent(clear, 0));
-  check('and from seat 1', seatCanReachOpponent(clear, 1));
+  check('a map with room to aim through is winnable from seat 0', seatCanReachOpponent(clear, 0, GRAVITY_STAR_R_MIN));
+  check('and from seat 1', seatCanReachOpponent(clear, 1, GRAVITY_STAR_R_MIN));
 
   // One planet large enough to swallow the shooter's own starting point
   // absorbs every possible shot, from either seat, at the very first step —
@@ -321,11 +496,11 @@ async function geometry(): Promise<void> {
     { x: 0.5, y: 0.5, r: 2, art: 0 },
     { x: -10, y: -10, r: 0.01, art: 1 },
   ];
-  check('a map with no room at all is correctly read as unwinnable from seat 0', !seatCanReachOpponent(blocked, 0));
-  check('and from seat 1', !seatCanReachOpponent(blocked, 1));
+  check('a map with no room at all is correctly read as unwinnable from seat 0', !seatCanReachOpponent(blocked, 0, GRAVITY_STAR_R_MIN));
+  check('and from seat 1', !seatCanReachOpponent(blocked, 1, GRAVITY_STAR_R_MIN));
 }
 
-for (const t of [starting, shooting, garbage, timeout, ending, walkout, deadlines, solo, geometry]) {
+for (const t of [starting, shooting, movingPlanets, garbage, timeout, flightHoldsTheClock, ending, walkout, deadlines, solo, geometry]) {
   await t();
 }
 

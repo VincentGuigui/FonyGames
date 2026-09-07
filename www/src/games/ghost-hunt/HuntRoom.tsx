@@ -31,7 +31,7 @@ import {
 import { HuntResults, HuntScreen } from './HuntScreen';
 import { paintEdges, startCamera, RADAR_FPS, RADAR_PX, type Camera } from './vision';
 import { CameraIcon, RoomImageIcon } from './icons';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { drawSphere, dragTo, trackDrag } from './photosphere';
 import { ghostAt } from './radar';
 
@@ -521,7 +521,6 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         again();
       }}
       readyBlocked={route === 'camera' && !orientationOn}
-      note={note(room.isHost, room.connected, route, orientationOn, solo, text)}
       /*
        * The physical warning rides with the rules rather than in a panel of its own.
        *
@@ -776,25 +775,4 @@ function RoutePicker({
       </div>
     </section>
   );
-}
-
-function note(
-  isHost: boolean,
-  connected: number,
-  route: Route,
-  orientationOn: boolean,
-  solo: boolean,
-  text: GameText,
-): string {
-  if (!solo && connected < HUNT_MIN_PLAYERS) {
-    const missing = HUNT_MIN_PLAYERS - connected;
-    return text({ en: `Need ${missing} more player${missing === 1 ? '' : 's'} — hunting alone proves nothing.`, fr: `Il manque ${missing} joueur${missing === 1 ? '' : 's'} — chasser seul ne prouve rien.` });
-  }
-  if (connected > HUNT_MAX_PLAYERS) return text({ en: `${HUNT_MAX_PLAYERS} players is the most this one takes.`, fr: `${HUNT_MAX_PLAYERS} joueurs maximum.` });
-  if (!isHost) return text({ en: 'The host starts the hunt.', fr: "L’hôte démarre la chasse." });
-  if (route === 'camera' && !orientationOn) return text({ en: 'Camera and motion are asked for when you start.', fr: 'La caméra et le mouvement seront demandés au démarrage.' });
-  // Worth saying once, plainly: forward is set here and there is no re-centre on the
-  // round screen to fix it with.
-  if (route === 'camera') return text({ en: 'Face the way you want to call forward, then start.', fr: 'Tournez-vous dans la direction qui sera devant, puis démarrez.' });
-  return text({ en: 'Look around the virtual room. Ready when you are.', fr: 'Explorez la pièce virtuelle. Démarrez quand vous voulez.' });
 }

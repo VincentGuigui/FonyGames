@@ -16,7 +16,7 @@ import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard, type ScoreRow } from '../../core/ui/Scoreboard';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { applyTilesSurfer, bestStreak, scoreOf, TilesRun, reportDue, type TilesSurferView } from './game';
 import { TilesCanvas } from './TilesCanvas';
 
@@ -229,17 +229,10 @@ function TilesRoomInner({ game: card, code }: { game: GameCard; code: string }):
       canStart={room.isHost && enoughToStart(room.connected, [TILES_MIN_PLAYERS, TILES_MAX_PLAYERS], solo)}
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'tiles', solo } })}
-      note={note(room.isHost, room.connected, text)}
     />
   );
 }
 
 function emptyView(): TilesSurferView {
   return { roundId: 0, startsAt: 0, endsAt: 0, scores: {}, winner: null, phase: 'running', seq: 0 };
-}
-
-function note(isHost: boolean, connected: number, text: GameText): string {
-  if (connected > TILES_MAX_PLAYERS) return text({ en: `${TILES_MAX_PLAYERS} players is the most this one takes.`, fr: `${TILES_MAX_PLAYERS} joueurs maximum.` });
-  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
-  return text({ en: 'Own board, own pace — land your taps and it only gets faster.', fr: 'Votre plateau, votre rythme — visez juste et ça accélère.' });
 }

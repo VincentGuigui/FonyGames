@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
 import {
-  SPILL_LOSE_LEVEL,
   SPILL_MAX_PLAYERS,
   SPILL_MIN_PLAYERS,
   type ServerMessage,
@@ -17,7 +16,7 @@ import { SpillBoard } from './SpillBoard';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
 import { useLocale } from '../../core/i18n/LocaleContext';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { SpillGame } from './game';
 import { SPILL_THEME } from './themes';
 
@@ -155,7 +154,6 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
       }
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'spill', solo } })}
-      note={note(room.isHost, room.connected, solo, text)}
       playerTag={(id) => {
         const i = state?.seats.indexOf(id) ?? -1;
         return i < 0 ? null : text({ en: `seat ${i + 1}`, fr: `place ${i + 1}` });
@@ -184,13 +182,3 @@ function SpillRoomInner({ game: card, code }: { game: GameCard; code: string }):
     />
   );
 }
-
-function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
-  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
-  if (!solo && connected < SPILL_MIN_PLAYERS) return text({ en: 'Waiting for one more player…', fr: 'En attente d’un joueur supplémentaire…' });
-  if (connected > SPILL_MAX_PLAYERS) {
-    return text({ en: `Spill is ${SPILL_MIN_PLAYERS}–${SPILL_MAX_PLAYERS} players — beyond that the ring gets too crowded to aim.`, fr: `Spill se joue de ${SPILL_MIN_PLAYERS} à ${SPILL_MAX_PLAYERS} joueurs — au-delà, le cercle est trop serré pour viser.` });
-  }
-  return text({ en: `Empty your phone to win. Reach ${SPILL_LOSE_LEVEL} and you are out.`, fr: `Videz votre téléphone pour gagner. À ${SPILL_LOSE_LEVEL}, vous êtes éliminé.` });
-}
-

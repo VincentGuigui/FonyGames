@@ -15,3 +15,32 @@
 .tttt-reopening-dot { position: absolute; inset: 0; display: grid; place-items: center; color: #8da5b5; font-size: 3rem; animation: tttt-dot-clear 1000ms steps(4, end) both; }
 @keyframes tttt-dot-clear { 0%, 18%, 36% { opacity: 1; } 9%, 27%, 50% { opacity: .15; } 100% { opacity: 0; } }
 @keyframes tttt-grid-return { 0%, 45% { opacity: 0; } 100% { opacity: 1; } }
+
+/* --- the winning finale (spec §4): the stamp, then the line -------------- */
+
+/* Beat one: the child grid the match was won on, filling the board area
+   rather than sitting in one cell of the meta grid. */
+.tttt-board--stamp { display: grid; grid-template-columns: 1fr; place-items: center; }
+.tttt-stamp { position: relative; width: 100%; height: 100%; animation: tttt-stamp-in 320ms cubic-bezier(.22,.8,.25,1) both; }
+.tttt-stamp .tttt-cell { font-size: clamp(1.6rem, 8vw, 2.6rem); }
+/* The winner's own symbol over it — the same yellow a claimed meta cell wears,
+   because it is about to become one. */
+.tttt-stamp__mark { position: absolute; inset: 0; display: grid; place-items: center; color: #fbbf24; font-size: clamp(6rem, 34vw, 13rem); font-weight: 800; line-height: 1; text-shadow: 0 0 2rem rgb(0 0 0 / .85); animation: tttt-stamp-mark 420ms cubic-bezier(.22,.8,.25,1) both; }
+@keyframes tttt-stamp-in { from { opacity: 0; transform: scale(.92); } to { opacity: 1; transform: none; } }
+@keyframes tttt-stamp-mark { 0% { opacity: 0; transform: scale(1.9); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
+
+/* Beat two: the three aligned symbols, one pulse a second. The count comes
+   from TTT_PULSE_MS / 1000 in game.ts — keep the two in step. */
+.tttt-meta--winning { animation: tttt-win-pulse 1000ms ease-in-out 3; }
+@keyframes tttt-win-pulse {
+  0%, 100% { transform: none; box-shadow: none; }
+  50% { transform: scale(1.08); box-shadow: 0 0 1.5rem color-mix(in srgb, #fbbf24 65%, transparent); }
+}
+
+/* Reduced motion keeps the sequence and drops the movement: the stamp appears
+   without scaling, and the line marks itself with a steady ring instead of a
+   pulse. Nothing about what is shown, or for how long, changes. */
+@media (prefers-reduced-motion: reduce) {
+  .tttt-stamp, .tttt-stamp__mark { animation: none; }
+  .tttt-meta--winning { animation: none; box-shadow: 0 0 0 3px #fbbf24 inset; }
+}

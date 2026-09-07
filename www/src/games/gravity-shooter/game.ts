@@ -1,7 +1,12 @@
 import {
   GRAVITY_MAX_STRENGTH,
+  GRAVITY_MIN_AIM_DISTANCE,
+  GRAVITY_MAX_AIM_DISTANCE,
   GRAVITY_SHIP_MARGIN,
+  GRAVITY_SHOT_TIMEOUT_MS,
+  gravityBodies,
   type GravityPlanet,
+  type GravityPlanetTrio,
   type GravityShot,
   type PlayerId,
   type ServerMessage,
@@ -37,9 +42,22 @@ export function otherSeat(seat: Seat): Seat {
   return seat === 0 ? 1 : 0;
 }
 
-/** How far the finger may sit from the ship, in the shooter's own local view
- *  units, before strength caps at `GRAVITY_MAX_STRENGTH`. */
-export const GRAVITY_MAX_AIM_DISTANCE = 0.3;
+/**
+ * The aim ramp — the drag is anchored at the ship's nose (`launchPosition`),
+ * because the base of the sprite is under the thumb and would put the weakest
+ * shot inside the hull. A **floor band** first: anywhere inside
+ * `GRAVITY_MIN_AIM_DISTANCE` of the nose is the weakest shot there is, a pad
+ * the thumb can actually land on rather than a few pixels against the hull;
+ * strength ramps from there out to `GRAVITY_MAX_AIM_DISTANCE` (issue #36).
+ *
+ * Both constants live in `shared/protocol.ts` rather than here, unlike the
+ * rest of this file's tuning: the referee samples a fresh board's shots in
+ * finger space to measure how much room for error it leaves
+ * (`GRAVITY_AIM_TOLERANCE`), so this is one piece of aim geometry both sides
+ * genuinely have to agree on. Re-exported so this module stays the one import
+ * for everything about aiming.
+ */
+export { GRAVITY_MIN_AIM_DISTANCE, GRAVITY_MAX_AIM_DISTANCE };
 
 /** Straight-line world distance between the two ships (spec §2.2) — what a
  *  bottom-to-top flight actually covers, used below to turn a target
@@ -48,14 +66,19 @@ const GRAVITY_BOARD_HEIGHT = 1 - 2 * GRAVITY_SHIP_MARGIN;
 
 /**
  * How long a straight, ungravitated shot should take to cross the whole
- * board, weakest pull to strongest — a *display* choice (a second follow-up
- * after #16), not a gravitational one: rather than leaning on `GRAVITY_G` to
- * slow a shot down, the launch speed itself is shaped so a barely-dragged
- * shot still reads as a (slow) missile in flight, and a full-strength one
- * still reads as fast, without either end feeling instant or interminable.
+ * board, weakest pull to strongest — a *display* choice, not a gravitational
+ * one: rather than leaning on `GRAVITY_G` to slow a shot down, the launch
+ * speed itself is shaped so a barely-dragged shot still reads as a (slow)
+ * missile in flight, and a full-strength one still reads as fast.
+ *
+ * The slow end doubled from 6s when the minimum impulse was halved, so the
+ * gentlest possible shot now crawls. In practice it rarely crosses anything
+ * at all: with a planet over the centre and gravity at four times the
+ * brief's value, a shot that weak is usually captured long before its own
+ * 12 seconds are up — which is the point of a floor this low.
  */
 const GRAVITY_MIN_FLIGHT_S = 3;
-const GRAVITY_MAX_FLIGHT_S = 6;
+const GRAVITY_MAX_FLIGHT_S = 12;
 
 /**
  * Launch speed at full strength, in world widths per second — roughly a
@@ -75,11 +98,29 @@ export const GRAVITY_MAX_LAUNCH_SPEED = GRAVITY_BOARD_HEIGHT / GRAVITY_MIN_FLIGH
  * `localAimToWorldVelocity`), so even a shot barely pulled off the ship
  * still reads as a slow missile in flight, capped at `GRAVITY_MAX_FLIGHT_S`,
  * rather than crawling for as long as the lifetime budgets below allow.
+ * Halved once already: a gentler floor leaves a weak shot at gravity's
+ * mercy, which is where the interesting shots are.
  */
 export const GRAVITY_MIN_LAUNCH_SPEED = GRAVITY_BOARD_HEIGHT / GRAVITY_MAX_FLIGHT_S;
 
 /** Fixed-timestep gravity integration (spec §2.3): 1/60s steps. */
 export const GRAVITY_STEP_MS = 1000 / 60;
+
+/**
+ * How many simulated steps the animation walks per rendered frame (issue #35).
+ * A **playback rate**, and nothing else: the simulation still integrates at
+ * `GRAVITY_STEP_MS`, still visits exactly the same points, and still ends the
+ * same way — every lifetime budget below stays in simulated time, so a missile
+ * gets the same flight, watched twice as fast. Changing `GRAVITY_G` or the
+ * launch speed to hurry it along would bend the path instead.
+ */
+export const GRAVITY_PLAYBACK_RATE = 2;
+
+/** How long a simulated path takes to watch, in ms — the flight's own simulated
+ *  length over the playback rate. The one place that division happens. */
+export function flightDurationMs(path: readonly Vec[]): number {
+  return Math.max(1, ((path.length - 1) * GRAVITY_STEP_MS) / GRAVITY_PLAYBACK_RATE);
+}
 
 /**
  * How long an unresolved shot is kept alive, in ms — not one flat cap, but
@@ -114,14 +155,101 @@ export const GRAVITY_MAX_STEPS = Math.ceil(GRAVITY_ONSCREEN_LIFETIME_MS / GRAVIT
  * planet pulls harder at any given distance, not just asymptotically far
  * from it. The radius doubles as both the softening distance near its
  * centre and its own missile-absorption radius (spec §2.3, §12). Doubled
- * from the original brief (a third follow-up after #16) now that the launch
- * speed above is so much lower — a slower missile alone still doesn't feel
- * meaningfully pulled unless the pull itself is also stronger.
+ * from the original brief once the launch speed above dropped — a slower
+ * missile alone still doesn't feel meaningfully pulled unless the pull
+ * itself is also stronger — and doubled again after that, so four times the
+ * brief's own value. A star also sits permanently in the middle of the board
+ * (spec §2.1) and pulls exactly like a planet does, so every shot has to be
+ * curved around something rather than merely nudged.
  */
-export const GRAVITY_G = 0.12;
+export const GRAVITY_G = 0.24;
 
-/** A missile within this distance of the opponent's ship is a hit (spec §2.3). */
-export const GRAVITY_HIT_RADIUS = 0.06;
+/** How wide the ship sprite is actually drawn, in world widths — the one place
+ *  that number lives, so the hitbox below and `GravityCanvas`'s own `drawShip`
+ *  cannot drift apart. */
+export const GRAVITY_SHIP_WIDTH = 0.22;
+
+/**
+ * The board's own width over its height, on the portrait phone this game is
+ * designed for (390 x 645 css px of canvas is 0.60). Needed because world x
+ * and world y are fractions of DIFFERENT screen distances: a length quoted in
+ * world-x units, drawn as a world-y one, comes out too long by exactly this
+ * factor.
+ */
+const GRAVITY_BOARD_ASPECT = 0.6;
+
+/**
+ * How far the ship's tip sits from its base, in world **y**. The art is
+ * 256x128 with no padding, so the sprite is drawn exactly
+ * `GRAVITY_SHIP_WIDTH / 2` tall — but that is a fraction of the board's WIDTH,
+ * and this offset is applied down its HEIGHT, so it has to be converted.
+ *
+ * Without the conversion the launch point floated a good 28px above the hull
+ * on a real phone: 0.11 of the board's height is 71px where the hull is only
+ * 43px tall. One constant, so the simulation stays the same on both phones
+ * whatever they are holding; exact at the aspect above and out by a pixel or
+ * two on anything else, which is the price of a deterministic launch point.
+ */
+export const GRAVITY_SHIP_HEIGHT = (GRAVITY_SHIP_WIDTH / 2) * GRAVITY_BOARD_ASPECT;
+
+/**
+ * A missile within this distance of the opponent's ship centre is a hit (spec
+ * §2.3) — half the ship's own drawn width, so **the whole ship image is the
+ * target** rather than a small dot at its middle. Derived from
+ * `GRAVITY_SHIP_WIDTH` rather than restated, so redrawing the ship bigger or
+ * smaller moves the hitbox with it.
+ */
+export const GRAVITY_HIT_RADIUS = GRAVITY_SHIP_WIDTH / 2;
+
+/**
+ * The two impact GIFs' own durations, in ms, measured off the files rather
+ * than estimated: `impact_missile.gif` is 6 frames at 90ms, `explosion.gif`
+ * 16 at 60ms. The match-ending sequence plays the missile impact, then a
+ * ship-centred explosion, and the results screen has to wait out both of them
+ * (spec §4) — so these are a timing contract, not decoration. Re-measure if
+ * either file is ever replaced.
+ */
+export const GRAVITY_IMPACT_GIF_MS = 540;
+export const GRAVITY_EXPLOSION_GIF_MS = 960;
+
+/**
+ * The shot clock's own visible warning (spec §2.4): the shooter's ship starts
+ * blinking once this much of `GRAVITY_SHOT_TIMEOUT_MS` has elapsed, at a slow
+ * pulse that speeds up as the deadline gets closer — `shotClockPulseAlpha`
+ * below turns "how long into this turn" into the ship's own opacity. Purely
+ * cosmetic, so — same reasoning as every other constant in this section —
+ * it stays out of `shared/protocol.ts` even though the timeout itself lives
+ * there.
+ */
+export const GRAVITY_SHOT_BLINK_START_MS = 9_000;
+/** Pulses per second at the moment blinking starts. */
+export const GRAVITY_SHOT_BLINK_MIN_HZ = 2;
+/** Pulses per second right at the deadline itself. */
+export const GRAVITY_SHOT_BLINK_MAX_HZ = 5;
+
+/**
+ * The shooter's own ship opacity for this instant of its turn: solid until
+ * `GRAVITY_SHOT_BLINK_START_MS`, then a sine pulse whose rate ramps linearly
+ * from `GRAVITY_SHOT_BLINK_MIN_HZ` up to `GRAVITY_SHOT_BLINK_MAX_HZ` by the
+ * time `elapsedMs` reaches `GRAVITY_SHOT_TIMEOUT_MS`. Never fully invisible —
+ * a blinking ship is still a ship. Driven entirely by `elapsedMs` (time since
+ * the turn opened, from the referee's own `resolvesAt`) rather than wall-clock
+ * time, so two phones watching the same shooter blink in step without needing
+ * to agree on anything but that one number.
+ */
+export function shotClockPulseAlpha(elapsedMs: number): number {
+  if (elapsedMs < GRAVITY_SHOT_BLINK_START_MS) return 1;
+  const span = GRAVITY_SHOT_TIMEOUT_MS - GRAVITY_SHOT_BLINK_START_MS;
+  const t = Math.min(1, (elapsedMs - GRAVITY_SHOT_BLINK_START_MS) / span);
+  const hz = GRAVITY_SHOT_BLINK_MIN_HZ + t * (GRAVITY_SHOT_BLINK_MAX_HZ - GRAVITY_SHOT_BLINK_MIN_HZ);
+  const wave = 0.5 + 0.5 * Math.sin(2 * Math.PI * hz * (elapsedMs / 1000));
+  return 0.35 + 0.65 * wave;
+}
+
+/** How long a re-rolled board takes to slide and resize into place, once the
+ *  shot that changed it has finished flying (`displayedPlanets`). Short
+ *  enough to be over before the next player has finished taking aim. */
+export const GRAVITY_PLANET_TWEEN_MS = 450;
 
 /**
  * The simulation's own absolute termination bounds — deliberately wider than
@@ -135,9 +263,27 @@ export const GRAVITY_HIT_RADIUS = 0.06;
 export const GRAVITY_SIM_BOUNDS_MIN = -0.5;
 export const GRAVITY_SIM_BOUNDS_MAX = 1.5;
 
-/** A ship's own fixed world position — centred, inset from its own edge. */
+/** A ship's own fixed world position — centred, inset from its own edge. This
+ *  is the sprite's BASE, which is where `drawShip` plants it and what the hit
+ *  radius is measured from; a shot leaves from `launchPosition` instead. */
 export function shipPosition(seat: Seat): Vec {
   return { x: 0.5, y: seat === 0 ? 1 - GRAVITY_SHIP_MARGIN : GRAVITY_SHIP_MARGIN };
+}
+
+/**
+ * Where a shot actually leaves from: the **nose** of the ship, one hull height
+ * toward the opponent (issue #37). One point, used by the real simulation, by
+ * the dashed preview and by the missile marker under the finger alike — they
+ * used to disagree, the marker sitting a ship-height above a trajectory that
+ * started inside the hull.
+ *
+ * A fixed world constant rather than the rasterised sprite's own height: both
+ * phones have to simulate the same flight (spec §2.3), and only one of them
+ * has the shooter's screen.
+ */
+export function launchPosition(seat: Seat): Vec {
+  const ship = shipPosition(seat);
+  return { x: ship.x, y: seat === 0 ? ship.y - GRAVITY_SHIP_HEIGHT : ship.y + GRAVITY_SHIP_HEIGHT };
 }
 
 /**
@@ -169,12 +315,16 @@ export function localAimToWorldVelocity(angle: number, strength: number, seat: S
  * The finger's own position, relative to the ship, turned into an
  * angle/strength pair — the shot fires TOWARD the finger, like a targeting
  * reticle held above the ship, not away from it like a slingshot. `(0, 0)`
- * is "no finger offset yet", not a valid shot.
+ * is "no finger offset yet", not a valid shot. The offset is measured from the
+ * nose and the first `GRAVITY_MIN_AIM_DISTANCE` of it is all one strength —
+ * the floor — so aiming close in still gives an angle, at the weakest shot.
  */
 export function aimFromFinger(dx: number, dy: number): { angle: number; strength: number } {
   const distance = Math.hypot(dx, dy);
   if (distance === 0) return { angle: 0, strength: 0 };
-  const strength = Math.min(GRAVITY_MAX_STRENGTH, distance / GRAVITY_MAX_AIM_DISTANCE);
+  const reach = GRAVITY_MAX_AIM_DISTANCE - GRAVITY_MIN_AIM_DISTANCE;
+  const ramped = (distance - GRAVITY_MIN_AIM_DISTANCE) / reach;
+  const strength = Math.min(GRAVITY_MAX_STRENGTH, Math.max(0, ramped));
   return { angle: Math.atan2(dx, -dy), strength };
 }
 
@@ -182,6 +332,12 @@ export type SimResult = {
   /** World-frame points, start to finish — the caller draws these in its own view. */
   path: Vec[];
   hit: boolean;
+  /** Where a planet swallowed the missile, world-frame — undefined for every
+   *  other ending (a hit, a drift-off, a timeout). The planet's own
+   *  absorption radius IS its drawn radius (unlike a ship's hit radius,
+   *  which is larger than its sprite), so the point the simulation stops at
+   *  is already the impact location — no `contactPoint` walk-back needed. */
+  absorbedAt?: Vec;
 };
 
 type LifetimeZone = 'onscreen' | 'offscreen' | 'past';
@@ -215,12 +371,12 @@ function lifetimeZone(p: Vec, start: Vec, target: Vec): LifetimeZone {
  * always draw the same picture.
  */
 export function simulateShot(
-  planets: readonly [GravityPlanet, GravityPlanet],
+  bodies: readonly GravityPlanet[],
   shooterSeat: Seat,
   angle: number,
   strength: number,
 ): SimResult {
-  const start = shipPosition(shooterSeat);
+  const start = launchPosition(shooterSeat);
   const target = shipPosition(otherSeat(shooterSeat));
   const v = localAimToWorldVelocity(angle, strength, shooterSeat);
 
@@ -242,12 +398,12 @@ export function simulateShot(
   for (let i = 0; i < GRAVITY_MAX_STEPS; i++) {
     let ax = 0;
     let ay = 0;
-    for (const p of planets) {
+    for (const p of bodies) {
       const dx = p.x - x;
       const dy = p.y - y;
       const distSq = dx * dx + dy * dy;
       const dist = Math.sqrt(distSq);
-      if (dist <= p.r) return { path, hit: false }; // swallowed by the planet
+      if (dist <= p.r) return { path, hit: false, absorbedAt: { x, y } }; // swallowed by the planet
       const a = (GRAVITY_G * p.r * p.r) / Math.max(distSq, p.r * p.r);
       ax += (a * dx) / dist;
       ay += (a * dy) / dist;
@@ -274,6 +430,35 @@ export function simulateShot(
   return { path, hit: false };
 }
 
+/** Heading from one point to the next, in `drawMissile`'s own convention:
+ *  0 is straight up the screen, growing clockwise. */
+export function headingBetween(from: Vec, to: Vec): number {
+  return Math.atan2(to.x - from.x, from.y - to.y);
+}
+
+/**
+ * Where the missile's own flight actually meets the ship it hit, in pixels.
+ * The simulation stops as soon as the missile is within `GRAVITY_HIT_RADIUS`
+ * of the ship's CENTRE, and that circle is far taller than the ship art (the
+ * sprite is twice as wide as it is high, and the board is taller than it is
+ * wide), so the last simulated point floats above the ship rather than
+ * touching it. Walking from there toward the centre and stopping at the
+ * sprite's own ellipse puts the burst on the hull.
+ */
+export function contactPoint(from: Vec, shipCentre: Vec, shipW: number, shipH: number): Vec {
+  const dx = shipCentre.x - from.x;
+  const dy = shipCentre.y - from.y;
+  const a = shipW / 2;
+  const b = shipH / 2;
+  // Solve for the smallest t in [0,1] with the point on the ship's ellipse.
+  const qa = (dx * dx) / (a * a) + (dy * dy) / (b * b);
+  if (qa <= 0) return shipCentre;
+  const start = ((from.x - shipCentre.x) ** 2) / (a * a) + ((from.y - shipCentre.y) ** 2) / (b * b);
+  if (start <= 1) return from; // already touching the hull
+  const t = 1 - 1 / Math.sqrt(start);
+  return { x: from.x + dx * t, y: from.y + dy * t };
+}
+
 /** A shot in flight (or just resolved), for the canvas to animate. */
 export type ActiveShot = {
   seat: Seat;
@@ -282,8 +467,64 @@ export type ActiveShot = {
   startedAt: number;
 };
 
+/** Drawn only in the impossible case of a board being asked for before one
+ *  has ever arrived — a real state always carries two planets. */
+const PLACEHOLDER_PLANET: GravityPlanet = { x: 0.5, y: 0.5, r: 0, art: 0 };
+
+/** Slow at both ends, quick through the middle — a board that eases into place
+ *  rather than starting and stopping dead. */
+function easeInOut(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+/**
+ * Both boards ordered left to right. The referee shuffles which slot each
+ * planet lands in, so pairing by slot would send them across each other
+ * through the middle of the board; pairing by screen order keeps each slide
+ * short and uncrossed.
+ *
+ * It used to pair by SIDE, which worked while there was exactly one planet per
+ * half. With three planets split two/one (spec §2.1) the crowded side can swap
+ * between boards, so left-to-right order is what survives that — the slide is
+ * cosmetic either way, and this is the ordering that crosses fewest paths.
+ */
+function leftToRight(board: readonly GravityPlanet[]): GravityPlanet[] {
+  return [...board].sort((a, b) => a.x - b.x);
+}
+
+/** Everything the canvas needs to draw a board: the star's own size, and every
+ *  planet. Position and radius are all that ever move. */
+export type DisplayBoard = { starRadius: number; planets: GravityPlanetTrio };
+
+function boardOf(state: GravityShooterState): DisplayBoard {
+  return { starRadius: state.starRadius, planets: state.planets };
+}
+
+/** Positions and radii eased from one board to the other, the star's own size
+ *  included. `art` is taken from the destination for the whole slide: the
+ *  sprite changes as the movement starts, which reads as a new planet arriving
+ *  rather than the one you were watching changing its mind at the end. */
+function tweenBoards(from: DisplayBoard, to: DisplayBoard, t: number): DisplayBoard {
+  const a = leftToRight(from.planets);
+  const b = leftToRight(to.planets);
+  const mix = (index: number): GravityPlanet => {
+    const one = a[index] ?? PLACEHOLDER_PLANET;
+    const two = b[index] ?? one;
+    return {
+      x: one.x + (two.x - one.x) * t,
+      y: one.y + (two.y - one.y) * t,
+      r: one.r + (two.r - one.r) * t,
+      art: two.art,
+    };
+  };
+  return {
+    starRadius: from.starRadius + (to.starRadius - from.starRadius) * t,
+    planets: [mix(0), mix(1), mix(2)],
+  };
+}
+
 function sameShot(a: GravityShot | null, b: GravityShot): boolean {
-  return !!a && a.shooter === b.shooter && a.angle === b.angle && a.strength === b.strength && a.hit === b.hit;
+  return !!a && a.shooter === b.shooter && a.angle === b.angle && a.strength === b.strength && a.hit === b.hit && a.timedOut === b.timedOut;
 }
 
 /**
@@ -297,6 +538,11 @@ export class GravityGame {
   #state: GravityShooterState | null = null;
   #aim: Vec | null = null;
   #activeShot: ActiveShot | null = null;
+  /** The board currently drawn, the board waiting to be, and the ease between
+   *  them — see `displayedPlanets`. Purely cosmetic; physics never reads these. */
+  #shownBoard: DisplayBoard | null = null;
+  #pendingBoard: DisplayBoard | null = null;
+  #boardTween: { from: DisplayBoard; to: DisplayBoard; startedAt: number } | null = null;
   /** The last shot this phone has already started an animation for — so an
    *  echo of a shot fired optimistically (spec §2.3) never restarts it. */
   #animatedShot: GravityShot | null = null;
@@ -336,9 +582,19 @@ export class GravityGame {
     return !!this.#state && this.#state.phase === 'running' && this.mySeat === this.#state.turn;
   }
 
-  /** Aiming is only ever mine to do, and only between my own shots. */
+  /** Aiming is only ever mine to do, only between my own shots, and only
+   *  before my own shot clock runs out (spec §2.4) — past `resolvesAt` the
+   *  referee will reject it anyway, so a drag already in progress is cut off
+   *  rather than left to release into a shot that never lands. */
   get canAim(): boolean {
-    return this.isMyTurn && !this.#activeShot;
+    return this.isMyTurn && !this.#activeShot && !!this.#state && this.#now() < this.#state.resolvesAt;
+  }
+
+  /** The clock this phone is using to judge its own shot clock — `identify`'s
+   *  own `now`, exposed so the canvas can time the blink (`shotClockPulseAlpha`)
+   *  off the same clock everything else here already uses. */
+  now(): number {
+    return this.#now();
   }
 
   get aim(): Vec | null {
@@ -352,23 +608,103 @@ export class GravityGame {
   apply(msg: ServerMessage): void {
     if (msg.t !== 'gravity') return;
     const fresh = !this.#state || this.#state.roundId !== msg.d.roundId;
+    /**
+     * The map the shot being reported was actually FIRED on. The referee
+     * re-rolls the planets every `GRAVITY_SHOTS_PER_MAP` shots (spec §2.1),
+     * and that re-roll rides the very frame that reports the shot which
+     * triggered it — so replaying `lastShot` against the incoming planets
+     * would draw the flight through a board that did not exist when it was
+     * fired. The shooter's own phone never hits this (it simulated at release
+     * and dedupes on `#animatedShot`); the receiver always would.
+     */
+    const planetsWhenFired = this.#state?.planets ?? msg.d.planets;
+    const starWhenFired = this.#state?.starRadius ?? msg.d.starRadius;
     this.#state = msg.d;
     if (fresh) {
       this.#activeShot = null;
       this.#animatedShot = null;
       this.#aim = null;
+      this.#shownBoard = boardOf(msg.d);
+      this.#pendingBoard = null;
+      this.#boardTween = null;
       return;
     }
 
+    // A re-rolled board is queued, never adopted on arrival: it rides the same
+    // frame as the shot that triggered it, and that shot is still in the air.
+    // `displayedBoard` below is what eventually takes it.
+    if (this.#shownBoard && msg.d.planets !== this.#boardTarget()?.planets) {
+      this.#pendingBoard = boardOf(msg.d);
+    }
+
     const shot = msg.d.lastShot;
-    if (shot && !sameShot(this.#animatedShot, shot)) {
+    // `timedOut` is the referee's own marker for a turn nobody aimed (spec
+    // §2.4). Animating it would fly a full-speed missile (the launch speed has
+    // a floor) straight into the opponent and then report a miss, which is
+    // exactly as confusing as it sounds. Not "strength is 0": since issue #36
+    // that is the weakest real shot on the ramp, and it must still fly.
+    if (shot && !shot.timedOut && !sameShot(this.#animatedShot, shot)) {
       this.#animatedShot = shot;
       this.#activeShot = {
         seat: shot.shooter,
-        result: simulateShot(msg.d.planets, shot.shooter, shot.angle, shot.strength),
+        result: simulateShot(gravityBodies(starWhenFired, planetsWhenFired), shot.shooter, shot.angle, shot.strength),
         startedAt: this.#now(),
       };
+    } else if (shot && shot.timedOut) {
+      this.#animatedShot = shot;
     }
+  }
+
+  /** Whichever board the display is currently heading for. */
+  #boardTarget(): DisplayBoard | null {
+    return this.#boardTween?.to ?? this.#pendingBoard ?? this.#shownBoard;
+  }
+
+  /**
+   * The board to DRAW this frame, which is deliberately not always the board
+   * the referee currently has (spec §2.1):
+   *
+   * 1. While a shot is in flight, the planets it was fired on stay put. The
+   *    missile is flying a trajectory that board shaped, so swapping underneath
+   *    it would show the shot curving around planets that are no longer there.
+   * 2. Once the flight is done, the new board is eased in over
+   *    `GRAVITY_PLANET_TWEEN_MS` — position and radius both — rather than
+   *    teleporting.
+   *
+   * Only ever cosmetic: every simulation (a real shot, the aim preview, the
+   * referee's own fairness check) uses `state.planets`, the authoritative
+   * board, so what a shot does is never decided by where the art has slid to.
+   * Advances the tween as a side effect, which is why the canvas calls it once
+   * per frame rather than caching it.
+   *
+   * Nothing downstream cares which slot each planet lands in — the canvas just
+   * iterates them — so mid-slide they come back in left-to-right order (see
+   * `leftToRight`), while a settled board is returned exactly as the referee
+   * sent it.
+   */
+  displayedBoard(): DisplayBoard {
+    const state = this.#state;
+    if (!state) return this.#shownBoard ?? { starRadius: 0, planets: [PLACEHOLDER_PLANET, PLACEHOLDER_PLANET, PLACEHOLDER_PLANET] };
+    if (!this.#shownBoard) {
+      this.#shownBoard = boardOf(state);
+      return this.#shownBoard;
+    }
+
+    if (this.#pendingBoard && !this.#boardTween && !this.#activeShot) {
+      this.#boardTween = { from: this.#shownBoard, to: this.#pendingBoard, startedAt: this.#now() };
+      this.#pendingBoard = null;
+    }
+
+    const tween = this.#boardTween;
+    if (!tween) return this.#shownBoard;
+
+    const progress = (this.#now() - tween.startedAt) / GRAVITY_PLANET_TWEEN_MS;
+    if (progress >= 1) {
+      this.#shownBoard = tween.to;
+      this.#boardTween = null;
+      return this.#shownBoard;
+    }
+    return tweenBoards(tween.from, tween.to, easeInOut(Math.max(0, progress)));
   }
 
   /* ------------------------- input ------------------------- */
@@ -379,7 +715,7 @@ export class GravityGame {
     return true;
   }
 
-  /** Move the finger, clamped to `GRAVITY_MAX_AIM_DISTANCE` from the ship —
+  /** Move the finger, clamped to `GRAVITY_MAX_AIM_DISTANCE` from the nose —
    *  that distance is a full-strength shot. */
   updateAim(dx: number, dy: number): void {
     if (!this.#aim) return;
@@ -397,21 +733,31 @@ export class GravityGame {
    * phone (spec §2.3, §8) — the caller sends the returned payload over the
    * wire as-is. Returns null when nothing was pulled far enough to be a shot.
    */
-  releaseAim(): { roundId: number; angle: number; strength: number; hit: boolean } | null {
+  releaseAim(): { roundId: number; angle: number; strength: number; hit: boolean; flightMs: number } | null {
     const aim = this.#aim;
     this.#aim = null;
     const s = this.#state;
     const seat = this.mySeat;
-    if (!aim || !s || seat === null) return null;
+    // The deadline can pass between the last frame's `canAim` check (which
+    // cancels a live drag once it does) and this call — belt and braces
+    // against firing a shot the referee has already moved past.
+    if (!aim || !s || seat === null || this.#now() >= s.resolvesAt) return null;
 
+    // A finger that never moved off the ship is not a shot. Strength itself
+    // cannot be the test any more: everything inside the floor band is
+    // deliberately strength 0 (issue #36), and that IS the weakest shot, not
+    // the absence of one.
+    if (aim.x === 0 && aim.y === 0) return null;
     const { angle, strength } = aimFromFinger(aim.x, aim.y);
-    if (strength <= 0) return null;
 
-    const result = simulateShot(s.planets, seat, angle, strength);
-    const shot: GravityShot = { shooter: seat, angle, strength, hit: result.hit };
+    const result = simulateShot(gravityBodies(s.starRadius, s.planets), seat, angle, strength);
+    const shot: GravityShot = { shooter: seat, angle, strength, hit: result.hit, timedOut: false };
     this.#animatedShot = shot;
     this.#activeShot = { seat, result, startedAt: this.#now() };
-    return { roundId: s.roundId, angle, strength, hit: result.hit };
+    // The flight's own wall-clock length goes up with the shot: the referee
+    // holds the opponent's clock back by exactly what they are about to sit
+    // through (issue #34).
+    return { roundId: s.roundId, angle, strength, hit: result.hit, flightMs: flightDurationMs(result.path) };
   }
 
   /** How far into its own flight the active shot is, in ms — for the canvas

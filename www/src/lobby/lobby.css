@@ -350,12 +350,6 @@ a.btn {
   font-size: var(--font-small);
 }
 
-.lobby__note {
-  margin: var(--space-3) 0 0;
-  color: var(--color-text-dim);
-  font-size: var(--font-small);
-}
-
 .lobby__error {
   margin: 0 0 var(--space-4);
   color: var(--color-accent);

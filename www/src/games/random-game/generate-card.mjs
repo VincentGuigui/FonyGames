@@ -60,13 +60,23 @@ const check = process.argv.includes('--check');
 const OWN_ACCENT = '#F3E9D2';
 
 /**
- * The 3×3 mosaic, row-major, at 40×30 per cell — the same nine games and layout the
- * hand-authored card this replaces used. Change this list and every tile moves with it.
+ * The 3×3 mosaic, row-major, at 40×30 per cell. Change this list and every tile
+ * moves with it.
+ *
+ * **Every tile has to be a pure-vector card.** A tile is that game's own
+ * `card.svg` markup lifted verbatim, so a card that embeds base64 sprites
+ * arrives here at its full weight — which is why Tap Fighter and Aliens Love
+ * Cows were never in this list, and why Gravity Shooter left it when its card
+ * became generated from its own sprites (that one tile alone took this file to
+ * 64 KB against a 40 KB cap, and the guard at the bottom caught it). Asteroid
+ * Race took Gravity Shooter's place, and then left the same way when its own
+ * ship became a generated crop of `ship.png` (asteroid-race.md §13); UFO Hunt
+ * took its place.
  */
 const MOSAIC = [
   'tic-tac-tic-tac-toe', 'shake-rush', 'steady-hand',
   'pass-the-bomb', 'tiles-surfer', 'neon-fall',
-  'tap-duel', 'cat-and-mouse', 'gravity-shooter',
+  'tap-duel', 'cat-and-mouse', 'ufo-hunt',
 ];
 
 const CELL_W = 40;

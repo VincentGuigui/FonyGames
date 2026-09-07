@@ -41,7 +41,16 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [UFO Hunt](games/ufo-hunt.md) | *One saucer, everyone's lasers. Highest score wins* | orientation + camera | 2–10 | 🎮 beta — scope, cooldown and round-length numbers untested on real thumbs |
 | [Aliens love cows](games/aliens-love-cows.md) | *Pick a barn. Dodge the beam* | touch | 2–8 | 🎮 beta — the hover/transit/abduction timing and a full 8-cow pileup on one barn untested on real thumbs |
 | [Tiles Surfer](games/tiles-surfer.md) | *Tap the tile the instant it hits the line* | touch | 1–8 | 🎮 beta — spawn cadence, safety cap and difficulty curve untested on real thumbs |
-| [Gravity Shooter](games/gravity-shooter.md) | *Bend your shot around a planet and blow up their ship* | touch | 2 | 🎮 beta — gravity strength and hit radius untested on real thumbs |
+| [Gravity Shooter](games/gravity-shooter.md) | *Leverage the planets’ gravity to destroy the enemy* | touch | 2 | 🎮 beta — gravity strength and hit radius untested on real thumbs |
+| [Asteroid Race](games/asteroid-race.md) | *Dodge the rocks, blast the rest, get there first* | orientation + touch | 1–8 | 🎮 beta — the field's own numbers untested on real thumbs ([#24](https://github.com/VincentGuigui/FonyGames/issues/24)) |
+| [Color Match](games/color-match.md) | *Match the colour. Three seconds. No second guesses* | touch | 1–8 | 🎮 beta — the ladder's own numbers untested on real thumbs ([#26](https://github.com/VincentGuigui/FonyGames/issues/26)) |
+| [Color Hunt](games/color-hunt.md) | *Hunt that exact colour down in the room around you* | camera | 2–8 | 🎮 beta — camera-only, no fallback (AGENTS.md §4); the miss threshold untested in a real room ([#27](https://github.com/VincentGuigui/FonyGames/issues/27)) |
+| [Math-o-matic](games/math-o-matic.md) | *Four answers, one is right, three lives* | touch | 2–8 | 📝 draft — awaiting approval ([#5](https://github.com/VincentGuigui/FonyGames/issues/5)) |
+| [Tilt Race](games/tilt-race.md) | *The car holds still. Tilt the world around it* | orientation + touch | 2–8 | 📝 draft — awaiting approval ([#14](https://github.com/VincentGuigui/FonyGames/issues/14)) |
+| [Scream Meter](games/scream-meter.md) | *Ten seconds. Loudest wins. Mind the neighbours* | mic | 2–8 | 📝 draft — awaiting approval ([#15](https://github.com/VincentGuigui/FonyGames/issues/15)) |
+| [Together in the Dark](games/together-in-the-dark.md) | *One match at a time, guide him out of the woods* | touch | 1–8 co-op | 📝 draft — awaiting approval ([#20](https://github.com/VincentGuigui/FonyGames/issues/20)) |
+| [Ball Bounce](games/ball-bounce.md) | *Bank it off two walls and through the hoop* | touch | 2 | 📝 draft — awaiting approval ([#21](https://github.com/VincentGuigui/FonyGames/issues/21)) |
+| [Crowd Race](games/crowd-race.md) | *Tilt through the crowd. First up the street wins* | orientation | 1–8 | 📝 draft — awaiting approval ([#25](https://github.com/VincentGuigui/FonyGames/issues/25)) |
 
 ### Idea notes (not yet specs)
 
@@ -119,6 +128,74 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
   element was never receiving its stream on the round screen, because the
   effect attaching it depended only on the permission being granted, which
   happens in the lobby before that element even exists.
+
+- **Color Match** — a target colour, three seconds, a quantised colour wheel and
+  a luminance slider. The difficulty ladder from the issue is a table the
+  generator reads rather than a staircase of `if`s, and past level 45 it is a
+  formula that doubles the palette every five levels until the colour space runs
+  out. The run ends when nobody in the room scores for three levels running, so
+  the stopping point is a property of the room rather than a number. Scoring is
+  redmean weighted-RGB distance — no dependency — shared with Color Hunt in
+  `shared/color.ts`. Specced, approved and built; driven end to end in a browser.
+- **Color Hunt** — the same scoring with the room you are sitting in as the
+  palette: point the rear camera at something red, and a magnifier over the
+  centre 10×10 pixels tells you what you have actually found. No pixel leaves
+  the phone — one RGB triple per round does. Full spec written, but it would be
+  the sixth game with no fallback — which settled the rule rather than the
+  list: §4 now says a fallback is a recommendation, not a gate. Built, and
+  driven end to end against a synthetic camera feed.
+
+- **Sound Match** ([#28](https://github.com/VincentGuigui/FonyGames/issues/28))
+  — a target spectrum, five seconds, your own voice, three lives. **No spec
+  yet**: a feasibility study came first
+  ([../audio-voice-matching.md](../audio-voice-matching.md)) and moved the
+  design before a line of it was written. A random spectrum is not singable —
+  a voice is a source–filter system whose output is fixed by about five
+  numbers, so the generator has to make a pitch and a vowel and synthesise the
+  spectrum from them. And a raw FFT is the wrong picture: a linear axis gives
+  everything below 1 kHz 4.2% of the screen width. Two open risks decide
+  whether it is worth building — whether reading a spectrum is fun at all, and
+  whether four phones in one room can hear four singers without scoring each
+  other's.
+
+- **Math-o-matic** ([#5](https://github.com/VincentGuigui/FonyGames/issues/5))
+  — four answers, one right, three lives, last one standing. The only pure
+  *knowledge* race in the catalogue. Spec written; it departs from the issue on
+  one point deliberately — the **referee** rolls the question, not the host's
+  phone, because a host who holds the correct index before anyone has seen the
+  question can both know and choose it.
+- **Tilt Race** ([#14](https://github.com/VincentGuigui/FonyGames/issues/14))
+  — the car never turns; tilting rotates the whole track around it. Spec
+  written. Reports progress as one arc length rather than a position, since
+  nobody collides with anybody, and reads the issue's "every 0.25 ms" as
+  250 ms.
+- **Scream Meter** ([#15](https://github.com/VincentGuigui/FonyGames/issues/15))
+  — ten seconds, loudest wins. Spec written. Two decisions carry it: the score
+  is the loudest *sustained* three seconds rather than the peak (a knuckle on
+  the mic cannot fake three seconds), and the vowel or pitch a player is told
+  to scream is **never checked** — it is a costume, because checking it would
+  punish every accent in the room.
+- **Together in the Dark** ([#20](https://github.com/VincentGuigui/FonyGames/issues/20))
+  — one action per turn: step blind, or spend the turn on light. Spec written,
+  and it settles the three things the issue left open — explored terrain is
+  remembered dimly but monsters never are, a woken monster walks toward where
+  it was lit (so it can be baited), and traps cost a turn rather than a life.
+  The map's finishability is a **real** guarantee here rather than a sampled
+  one, because a breadth-first search on a grid is exact. The one thing that
+  would be painful to retrofit is decided up front: only lit cells go on the
+  wire, never the whole map. Overlaps #18, which this spec proposes folding in
+  as a `vote` mode.
+- **Ball Bounce** ([#21](https://github.com/VincentGuigui/FonyGames/issues/21))
+  — the issue specs a physics core and leaves the game TBD; the spec proposes a
+  turn-based duel on one shared court, best of five, scoring **× the walls the
+  ball banked off first**, so the rebound is the game rather than the aim.
+  Deformation is squash-and-stretch on a drawn circle, not soft-body physics —
+  canvas sprites cannot change shape.
+- **Crowd Race** ([#25](https://github.com/VincentGuigui/FonyGames/issues/25))
+  — walk up a crowded street, tilt to weave, and bounce off everyone who gets
+  in the way, cascading. Spec written. The obstacles are **not** on the wire:
+  every phone simulates the whole street from the referee's seed, so only the
+  players' own positions travel, at 4 Hz.
 
 Promote an idea by copying [game-spec-template.md](game-spec-template.md) to
 `games/<slug>.md`, filling it, and updating the row above in a `spec:` commit.

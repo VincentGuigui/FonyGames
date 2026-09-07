@@ -47,7 +47,11 @@ export const CARD: GameCard = {
   showPlayerCount: false,
   duration: '< 5 s',
   showDuration: false,
+  // Same reasoning as the two above: every card is tapped, so "touch" here says
+  // nothing about the game it rolls — and next to a die that can land you in a
+  // motion game, it says something untrue.
   inputs: ['touch'],
+  showInputs: false,
   tags: ['luck'],
   modes: [],
   status: 'live',

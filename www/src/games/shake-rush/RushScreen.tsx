@@ -48,8 +48,7 @@ export function RushScreen({
   sound,
   onSound,
   room,
-  readyBlocked,
-  onReadySetup,
+  onBeforeReady,
 }: {
   state: RushView;
   players: Player[];
@@ -75,8 +74,7 @@ export function RushScreen({
   sound: boolean;
   onSound: (on: boolean) => void;
   room: Room;
-  readyBlocked: boolean;
-  onReadySetup: () => void;
+  onBeforeReady: () => Promise<boolean>;
 }): JSX.Element {
   const home = HOME_WORDS[useLocale().locale];
   const text = useGameText();
@@ -102,8 +100,7 @@ export function RushScreen({
     return (
       <GameOverScreen
         room={room}
-        readyBlocked={readyBlocked}
-        onReadySetup={onReadySetup}
+        onBeforeReady={onBeforeReady}
         slug={slug}
         accent={accent}
         title={title}

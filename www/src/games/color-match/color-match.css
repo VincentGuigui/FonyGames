@@ -1,0 +1,138 @@
+/*
+ * Color Match. Spec: docs/specs/games/color-match.md §4
+ * Shared chrome (StatusBar, Scoreboard, lobby) is styled by core; this file
+ * only owns the target band, the pie, the wheel and the brightness slider.
+ */
+
+.cmatch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 100dvh;
+  padding: 0 var(--space-3) var(--space-3);
+  box-sizing: border-box;
+  background: var(--bg);
+}
+
+/* The largest element on the board, deliberately: it is what the whole level
+   is about, and it has to be judgeable at a glance. */
+.cmatch__target {
+  position: relative;
+  flex: 0 0 auto;
+  height: clamp(96px, 22vh, 190px);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.18);
+}
+
+.cmatch__pie {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  translate: 0 -50%;
+  width: 44px;
+  height: 44px;
+}
+
+.cmatch__verdict {
+  margin: 0;
+  text-align: center;
+  font-size: 1.3rem;
+  font-weight: 700;
+  min-height: 2.6em;
+  color: var(--text);
+}
+
+.cmatch__verdict--quiet {
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.cmatch__score {
+  margin: 0;
+}
+
+/* What the points are made of, one line under them: accuracy out of 100 and
+   the reaction time with the multiplier it earned (issue #38). */
+.cmatch__breakdown {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.cmatch__breakdown strong {
+  color: var(--text);
+}
+
+/* The number is the feedback; the word is a unit. */
+.cmatch__points {
+  font-size: 2.2rem;
+  font-variant-numeric: tabular-nums;
+  margin-right: 0.25em;
+}
+
+.cmatch__verdict--hit .cmatch__points {
+  color: var(--game-accent);
+}
+
+/* Muted rather than red: a zero is information, not an error. */
+.cmatch__verdict--miss {
+  color: var(--text-dim);
+}
+
+.cmatch__board {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.cmatch__wheel {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-height: 100%;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.cmatch__wheel--locked {
+  cursor: default;
+  opacity: 0.92;
+}
+
+/* Hidden entirely until the ladder turns it on (§4.1): a control that does
+   nothing for 35 levels teaches the player to ignore it. */
+.cmatch__lum {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  height: 70%;
+}
+
+.cmatch__lum-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  writing-mode: vertical-rl;
+}
+
+.cmatch__lum input {
+  flex: 1 1 auto;
+  width: var(--tap-target);
+  writing-mode: vertical-rl;
+  direction: rtl;
+  accent-color: var(--game-accent);
+}
+
+/* Said before anyone commits to a run, not after (§11). */
+.cmatch__warning {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+

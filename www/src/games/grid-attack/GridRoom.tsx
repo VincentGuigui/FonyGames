@@ -9,7 +9,7 @@ import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { applyGrid, livesOf, sides, type GridBoard as Board } from './game';
 import { GridBoard } from './GridBoard';
 
@@ -151,7 +151,6 @@ function GridRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       canStart={room.isHost && enoughToStart(room.connected, [GRID_MIN_PLAYERS, GRID_MAX_PLAYERS])}
       startLabel={state ? t.common.playAgain : text({ en: 'Start the game', fr: 'Démarrer la partie' })}
       onStart={() => client?.send({ t: 'start', d: { mode: 'grid' } })}
-      note={note(room.isHost, room.connected, text)}
       /*
        * Two grids facing each other, so there is nothing to look at alone — the same
        * reason Sling Puck opts out. Solo testing would show one player attacking nobody.
@@ -208,11 +207,4 @@ function GetReady({
       )}
     </div>
   );
-}
-
-function note(isHost: boolean, connected: number, text: GameText): string {
-  if (connected < GRID_MIN_PLAYERS) return text({ en: 'Two phones, side by side. Waiting for the second.', fr: 'Deux téléphones côte à côte. En attente du second.' });
-  if (connected > GRID_MAX_PLAYERS) return text({ en: 'Two players only — this one is a duel.', fr: 'Deux joueurs seulement — c’est un duel.' });
-  if (!isHost) return text({ en: 'The host starts the game.', fr: "L’hôte démarre la partie." });
-  return text({ en: 'Sit opposite each other. You will both need both thumbs.', fr: 'Asseyez-vous face à face. Vous aurez tous les deux besoin de vos pouces.' });
 }

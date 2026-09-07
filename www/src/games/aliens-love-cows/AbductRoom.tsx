@@ -12,7 +12,7 @@ import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { GameOverScreen } from '../../core/ui/GameOver';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { applyAbduct, ranking, scoreOf, type AbductState } from './game';
 import { AbductScreen } from './AbductScreen';
 
@@ -112,16 +112,6 @@ function AbductRoomInner({ game: card, code }: { game: GameCard; code: string })
       canStart={room.isHost && enough}
       startLabel={state ? text({ en: 'Play again', fr: 'Rejouer' }) : text({ en: 'Start the match', fr: 'Démarrer la partie' })}
       onStart={again}
-      note={note(room.isHost, room.connected, solo, text)}
     />
   );
-}
-
-function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
-  if (!solo && connected < ABDUCT_MIN_PLAYERS) return text({ en: 'Waiting for one more player…', fr: 'En attente d’un joueur supplémentaire…' });
-  if (connected > ABDUCT_MAX_PLAYERS) {
-    return text({ en: `Aliens love cows is ${ABDUCT_MIN_PLAYERS}–${ABDUCT_MAX_PLAYERS} players.`, fr: `Aliens love cows se joue de ${ABDUCT_MIN_PLAYERS} à ${ABDUCT_MAX_PLAYERS} joueurs.` });
-  }
-  if (!isHost) return text({ en: 'The host rounds everyone up.', fr: 'L’hôte rassemble tout le monde.' });
-  return text({ en: 'Pick a barn each round. Get caught and you’re out — last cow standing wins.', fr: 'Choisissez une grange à chaque manche. Enlevée, votre vache est éliminée — la dernière debout gagne.' });
 }

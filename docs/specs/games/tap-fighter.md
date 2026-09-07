@@ -121,6 +121,9 @@ Every mode shares the core loop. A mode that does not is a different game.
   one another and animate idle, punch, kick, jump, crouch, hit and knockout
   states. The current pair of actions is labelled. Health bars sit at the
   bottom of the scene, immediately above each player's name and round pips.
+  The round number appears **once**, in the middle of the score row — the
+  shared status bar deliberately carries no `status` text here, since having
+  "Round 2" directly above "ROUND 2" read as a bug rather than emphasis.
   **The pips never spoil the round they are showing.** The referee resolves a
   round and increments `roundWins` the instant both plans lock in — before
   either phone has watched a single beat — so the pip count a client renders
@@ -132,6 +135,18 @@ Every mode shares the core loop. A mode that does not is a different game.
   earlier on a knockout (issue #3) — a retro panel overlays the scene with
   “<nickname> wins” / “<nickname> gagne” or “Draw” / “Match nul”. The host gets
   **Next round**; the guest sees that the host is continuing.
+- **The match-deciding round runs `FIGHTER_ENCORE_BEATS` (2) beats longer**,
+  holding the finish on screen instead of cutting straight to the result. No
+  action is thrown and no health changes during them: the loser simply shows a
+  finishing pose per encore beat (`FIGHTER_ENCORE_POSES` — both the K.O. frame
+  for now, until the finishing poses exist in the sheet). The extension lives
+  in `endsAt` on the referee rather than in a client-side timer, which is what
+  keeps three things agreeing on when the round ends: the referee's own phase
+  flip, the animation, and the last-round music — whose fit duration is read
+  straight off `endsAt`, so the track covers the encore automatically. Anything
+  driven by a beat (the impact sounds, the Combo callout, the lunge) is muted
+  for the encore's duration, since the beat index stays parked on the final
+  beat throughout it.
 - **Match result:** after a player's third round win, the shared match result
   screen names the winner and offers Play again / Leave game. Play again clears
   both players' round-win pips.
@@ -146,11 +161,26 @@ own halfway point), never at the start of the beat. The same 1-second wind-up, a
 the same 0.25 s-a-pose speed, also fills the pre-fight countdown (3-2-1-FIGHT,
 still 1 s a step — 4 s in total).
 
-Landing three hits in a row with none received earns a "Combo!" callout above
+Landing three hits in a row with none received earns a "Combo!" callout for
 that fighter (issue #9), derived purely from the already-resolved `beats`
 timeline — no extra wire state. It reveals at the same instant as the hit pose
 and health-bar change (contact, never the start of the beat) and only for the
 beat that keeps the streak alive; taking a hit resets it to zero.
+
+**Combo!, K.O.! and PERFECT all sit BELOW their fighter**, clear of the feet
+(the sprites stand on 74% of the stage height, and these labels used to be
+pinned at 70% — straight through the shins). They carry the same stacked black
+outline the 3-2-1 countdown uses, so they stay readable over a bright photo
+stage, and their pop-in animation keeps the horizontal centring transform the
+countdown's own version drops — which used to jolt each label half its width
+sideways for the 300ms it played.
+
+The reveal callouts (VS, the countdown, FIGHT!) are centred with
+`justify-self`, not left to fill their grid track: as stretched items they drew
+from the track's left edge, which reads centred only for a single digit as wide
+as the track and put "FIGHT!" / "COMBAT !" visibly off-centre. They must still
+never widen that middle track, or the health bars either side of it snap
+narrower the instant a callout appears (issue #3).
 
 Health starts at 100 and drops 20 per landed hit — never proportional to how
 many hits either side actually lands, so a fighter's own health always reads

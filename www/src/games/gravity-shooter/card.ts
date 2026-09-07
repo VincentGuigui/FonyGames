@@ -15,7 +15,7 @@ import art from './art/card.svg?url&no-inline';
 export const CARD: GameCard = {
   slug: 'gravity-shooter',
   title: 'Gravity Shooter',
-  pitch: 'Bend your shot around a planet and blow up their ship',
+  pitch: 'Leverage the planets’ gravity to destroy the enemy',
   concept: 'Two ships, two planets between them — point above your ship, let go, and let gravity curve your missile onto their hull.',
   rules: [
     'Touch above your own ship to aim toward your finger, release to fire — the planets bend the shot.',
@@ -24,7 +24,7 @@ export const CARD: GameCard = {
   ],
   art: { src: art, alt: 'A missile curving hard around a planet toward a distant starship' },
   fr: {
-    pitch: 'Courbez votre tir autour d’une planète pour détruire leur vaisseau',
+    pitch: 'Exploitez la gravité des planètes pour détruire l’ennemi',
     concept: 'Deux vaisseaux, deux planètes entre eux — visez au-dessus de votre vaisseau, lâchez, et laissez la gravité courber votre missile.',
     rules: [
       'Touchez au-dessus de votre vaisseau pour viser vers votre doigt, lâchez pour tirer — les planètes courbent le tir.',

@@ -20,6 +20,7 @@ file under 200 lines** — put detail in `docs/`, not here.
 | Realtime backend survey (D3) | [docs/realtime-options.md](./docs/realtime-options.md) |
 | Realtime server (Durable Objects) | [docs/realtime-server.md](./docs/realtime-server.md) |
 | Device capabilities (sensors, GPS, bump…) | [docs/device-capabilities.md](./docs/device-capabilities.md) |
+| Voice/spectrum matching study (#28) | [docs/audio-voice-matching.md](./docs/audio-voice-matching.md) |
 | Deployment (branches, environments, secrets) | [docs/deployment.md](./docs/deployment.md) |
 | Database (MySQL, migrations) | [docs/database.md](./docs/database.md) |
 | UI / UX & visual guidelines | [docs/design/ui-guidelines.md](./docs/design/ui-guidelines.md) |
@@ -90,6 +91,11 @@ Nothing outside those ships. Nothing outside `docs/` documents.
    [docs/conventions/code-style.md](./docs/conventions/code-style.md). Comments in
    CSS and client-side code stay to a line or two of *why*; a design walkthrough
    belongs in the game's spec or the commit message, not the source file.
+5. **Never run computer vision on a user-provided image without asking
+   first.** Cropping, OCR, edge/colour analysis or any other automated
+   inspection of an attached image needs an explicit yes before it runs — read
+   what it shows by eye, or ask the user directly, instead of reaching for a
+   script.
 
 ---
 
@@ -105,7 +111,17 @@ Nothing outside those ships. Nothing outside `docs/` documents.
   game's spec, share the same core loop, and are pickable in the game lobby.
 - **Rounds are short.** Target 30 s – 3 min per round. Fun beats depth.
 - **Degrade, never dead-end.** If a sensor or permission is unavailable, offer
-  a touch-based fallback or say clearly why the game can't run.
+  a touch-based fallback or say clearly why the game can't run. **A fallback is
+  the recommendation, not a gate**: prefer one, and take the second branch when
+  the touch version would be a different, lesser game rather than the same one
+  played another way — one physical act, like holding a phone still, shaking
+  it, pointing it at your own sky, flying it, or aiming a camera at a colour.
+  **Steady Hand**, **Shake Rush**, **UFO Hunt**, **Asteroid Race**, **Neon
+  Fall** and **Color Hunt** are the ones that do. Whichever branch a game
+  takes, two things are required of it: it says who it excludes, in the lobby,
+  before anyone starts, and a permission it cannot run without is asked for by
+  Ready/Start rather than by a button of its own
+  ([docs/device-capabilities.md](./docs/device-capabilities.md) §2).
 
 ---
 

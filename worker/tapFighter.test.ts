@@ -1,4 +1,4 @@
-import { comboStreak, confront, resolveFight } from '../shared/tapFighter';
+import { comboStreak, confront, resolveFight, FIGHTER_ENCORE_BEATS } from '../shared/tapFighter';
 import { onFighterLock, startTapFighter, tick, type TapFighter } from './tapFighter';
 import type { ServerMessage } from '../shared/protocol';
 
@@ -69,13 +69,30 @@ now = (state as unknown as TapFighter).endsAt;
 await tick(ctx);
 check('equal plans produce a round draw', state !== null && (state as TapFighter).phase === 'round-over' && (state as TapFighter).draw);
 
+const roundSpans: number[] = [];
+const roundBeats: number[] = [];
 for (let round = 2; round <= 4; round++) {
   await startTapFighter(ctx, round, ['a', 'b']);
   await onFighterLock(ctx, 'a', round, Array(6).fill('punch'));
   await onFighterLock(ctx, 'b', round, Array(6).fill('jump'));
-  now = (state as unknown as TapFighter).endsAt;
+  const fight = state as unknown as TapFighter;
+  roundSpans.push(fight.endsAt - fight.startsAt);
+  roundBeats.push(fight.beats.length);
+  now = fight.endsAt;
   await tick(ctx);
 }
 check('first fighter to three rounds wins the match', state !== null && (state as TapFighter).phase === 'match-over' && (state as TapFighter).matchWinner === 'blue' && (state as TapFighter).roundWins.blue === 3);
+
+/**
+ * Punch into jump lands every beat, so green is knocked out on the fifth —
+ * five beats, ten seconds. Rounds 2 and 3 stop right there; round 4 is the one
+ * that takes blue to three wins, so it holds the finish for
+ * `FIGHTER_ENCORE_BEATS` longer. That extended `endsAt` is also what the
+ * last-round music is fitted to (`TapFighterRoom.tsx` reads `endsAt - clock()`),
+ * so a wrong span here is a track that stops before the round does.
+ */
+check('a knockout on the fifth beat is five beats long', roundBeats.every((count) => count === 5));
+check('an ordinary round runs only as long as its own beats', roundSpans[0] === 10_000 && roundSpans[1] === 10_000);
+check('the match-deciding round holds the finish for the encore beats', roundSpans[2] === 10_000 + FIGHTER_ENCORE_BEATS * 2_000);
 
 console.log('tap fighter referee passed');

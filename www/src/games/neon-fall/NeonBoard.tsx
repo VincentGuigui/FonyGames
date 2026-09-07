@@ -15,9 +15,9 @@ import { useGameText } from '../../core/i18n/gameText';
  * As in Goat Siege and Spill, the canvas animates on its own rAF loop and Preact
  * only re-renders the chrome around it.
  *
- * One steer source drives the wire either way (spec §5): tilt when it is on, or
- * a held tap zone when it is not. Both produce the same −1..1 number, sent the
- * same way, at the same rate — the referee cannot tell, and does not need to.
+ * One steer source, and only one (spec §5): the glider tilts. The held tap zones
+ * that used to stand in for a refused tilt are gone — the room does not let
+ * anybody into a round without it now, so there is no second source to blend.
  */
 export function NeonBoard({
   game,
@@ -28,7 +28,6 @@ export function NeonBoard({
   accent,
   client,
   players,
-  orientationOn,
 }: {
   game: NeonGame;
   myId: PlayerId | undefined;
@@ -38,8 +37,6 @@ export function NeonBoard({
   accent: string;
   client: RoomClient | null;
   players: Player[];
-  /** Whether tilt is available for the glider. False falls back to held tap zones. */
-  orientationOn: boolean;
 }): JSX.Element {
   const t = useT();
   const text = useGameText();
@@ -51,12 +48,9 @@ export function NeonBoard({
   const iAmGlider = !!myId && game.isGlider(myId);
   const iAmProtector = !!myId && game.isProtector(myId);
 
-  // Held while a tap zone is down; read only when tilt is unavailable.
-  const heldRef = useRef(0);
   const tiltRef = useRef<SteerTracker | null>(null);
 
   useEffect(() => {
-    if (!orientationOn) return;
     const tracker = trackSteer();
     tiltRef.current = tracker;
     // The round's own mount is the "hold your phone how you like" moment —
@@ -66,7 +60,7 @@ export function NeonBoard({
       tracker.stop();
       tiltRef.current = null;
     };
-  }, [orientationOn, roundId]);
+  }, [roundId]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -81,17 +75,17 @@ export function NeonBoard({
 
   /*
    * The glider's whole input, sent every tick regardless of whether it changed —
-   * a held tilt (or a held tap zone) keeps moving the lane, so silence would
-   * read as "centre the stick", not "nothing new to say" (spec §6).
+   * a held tilt keeps moving the lane, so silence would read as "centre the
+   * stick", not "nothing new to say" (spec §6).
    */
   useEffect(() => {
     if (!iAmGlider || !client) return;
     const timer = setInterval(() => {
-      const value = orientationOn ? (tiltRef.current?.read() ?? 0) : heldRef.current;
+      const value = tiltRef.current?.read() ?? 0;
       client.send({ t: 'neon-steer', d: { roundId, steer: value } });
     }, NEON_TICK_MS);
     return () => clearInterval(timer);
-  }, [iAmGlider, client, roundId, orientationOn]);
+  }, [iAmGlider, client, roundId]);
 
   function shoot(lane: number): void {
     client?.send({ t: 'neon-shoot', d: { roundId, lane } });
@@ -132,7 +126,6 @@ export function NeonBoard({
           onShoot={shoot}
         />
       )}
-      {iAmGlider && running && !orientationOn && <TapZones heldRef={heldRef} />}
     </div>
   );
 }
@@ -186,35 +179,3 @@ function Triggers({
   );
 }
 
-/**
- * The glider's fallback: two held zones instead of a tilt.
- *
- * Held, not tapped — the tilt this replaces is a continuous velocity, and a
- * discrete "step one lane" would be a different, lesser feel than the thing it
- * is standing in for (spec §5).
- */
-function TapZones({ heldRef }: { heldRef: { current: number } }): JSX.Element {
-  const hold = (dir: -1 | 0 | 1) => (): void => {
-    heldRef.current = dir;
-  };
-  return (
-    <div class="neon__tapzones" aria-hidden="true">
-      <button
-        type="button"
-        class="neon__tapzone neon__tapzone--left"
-        onPointerDown={hold(-1)}
-        onPointerUp={hold(0)}
-        onPointerLeave={hold(0)}
-        onPointerCancel={hold(0)}
-      />
-      <button
-        type="button"
-        class="neon__tapzone neon__tapzone--right"
-        onPointerDown={hold(1)}
-        onPointerUp={hold(0)}
-        onPointerLeave={hold(0)}
-        onPointerCancel={hold(0)}
-      />
-    </div>
-  );
-}

@@ -3,8 +3,8 @@
 | | |
 | --- | --- |
 | **Slug** | `gravity-shooter` |
-| **Catchy sentence** | *Bend your shot around a planet and blow up their ship* |
-| **Illustration** | `www/src/games/gravity-shooter/art/card.svg` — a missile mid-flight, its dashed trail curving hard around a planet toward a ship at the top of frame |
+| **Catchy sentence** | *Leverage the planets’ gravity to destroy the enemy* |
+| **Illustration** | `www/src/games/gravity-shooter/art/card.svg` — a missile mid-flight, its dashed trail curving hard around a planet toward a ship at the top of frame. **Generated** by `generate-card.mjs` from this game's own sprites, with the trail flown by this game's own `simulateShot` — see [../../design/illustrations.md](../../design/illustrations.md) |
 | **Players** | 2 — exactly |
 | **Round length** | 1–3 min |
 | **Inputs** | touch (aim above the ship, release) |
@@ -14,8 +14,8 @@
 ## 1. Pitch
 
 Two starships, one at the bottom of your screen, one at the top. Between
-them, two planets — same for both players, always on opposite sides of the
-board, placed at random when the match starts. Touch above your ship to aim
+them, three planets — same for both players, two on one side of the board and
+one on the other, placed at random when the match starts. Touch above your ship to aim
 toward your finger, let go, and your missile curves under the planets' own
 gravity on its way across the board — bigger planets pull harder. Land a hit
 and the other ship loses a life; run them out of five and you win. No score,
@@ -28,21 +28,29 @@ match, only which player is aiming does.** Each phone always draws itself
 at the bottom and the opponent at the top — the same board, rotated per
 viewer, never two different boards.
 
-1. Host starts the round. Two planets are placed once, at random positions
-   and sizes, identical on both screens (§2.1). Ships are fixed near their
+1. Host starts the round. Three planets are placed once, at random positions
+   and sizes, identical on both screens (§2.1) — and never a board without a
+   shot that lands on it. Ships are fixed near their
    own edge and never move — a 20px further margin than the original brief
    (issue #16), so neither ship reads as sitting right on the border.
 2. Turns strictly alternate, host first. On your turn, touch above your own
    ship — the finger's own position relative to the ship sets your shot's
    angle and strength; the missile fires toward wherever your finger is,
    like a targeting reticle, not away from it like a slingshot.
-3. While your finger is down, a dashed preview of the shot's own path is
-   shown, fully visible only near your own ship, fading to nothing by the
-   middle of the screen (§2.2) — a rough read on your own aim, never a
-   look at the whole shot.
-4. Release, and the missile flies, curving under both planets' gravity,
-   for as long as where it currently is allows (§2.3) before an unresolved
-   shot is abandoned outright.
+3. While your finger is down, the missile itself sits at your ship's **nose**
+   — `launchPosition`, one hull height ahead of the sprite's own base, and
+   the single place a shot leaves from: the marker under the finger, the
+   dashed preview and the flight the referee scores all start there (issue
+   #37) — **swinging in real time to face wherever your finger is**, and a
+   dashed preview of its path is shown: solid across the
+   near third of the screen, fading through the middle third, and gone for
+   the last third before the opponent (§2.2) — a real read on your own aim,
+   but never a look at where the shot actually lands.
+4. Release, and the missile flies, curving under the star's and all three
+   planets'
+   gravity and **turning to point along its own trajectory** as it goes, for as
+   long as where it currently is allows (§2.3) before an unresolved shot is
+   abandoned outright.
 5. A hit costs the other ship one of five lives. A miss — the missile
    either drifts off the board or is swallowed by a planet — costs
    nothing, and the turn simply passes.
@@ -62,73 +70,156 @@ cannot tell the two ships apart when there is only one of it.
 
 ### 2.1 The planets: rolled once, shared by construction
 
-Exactly 2 planets, `{ x, y, r, art }` each, rolled once by the referee at
-round start with `ctx.random()` — the same "the referee rolls shared
-random state once and broadcasts the resolved value" pattern Squash
-Mosquitoes' own `generatePattern()` already uses
-(`worker/squashMosquitoes.ts`), just independent draws for position/size/
-art instead of a shuffle. `y` is constrained to a middle band so both
-planets sit between the two ships; `x` keeps clear of the side edges and
-**always splits the board in half — one planet rolled left of centre, one
-right, which side is a fair coin flip** — so a shot is never faced with
-both planets bunched on the same side and nothing to curve around on the
-other. `r` is mapped from the brief's 20–100px onto the shared board's own
-normalized units. `art` picks one of ~3 planet PNGs. Broadcast once, in the
-round-start state, and never touched again for the rest of the match —
-unlike a puck or a position, a planet here is scenery the referee decided
-once, not a thing either side keeps re-agreeing on.
+Exactly **3 planets** (`GRAVITY_PLANET_COUNT`), `{ x, y, r, art }` each,
+rolled once by the referee at round start with `ctx.random()` — the same "the
+referee rolls shared random state once and broadcasts the resolved value"
+pattern Squash Mosquitoes' own `generatePattern()` already uses
+(`worker/squashMosquitoes.ts`), just independent draws for position/size/art
+instead of a shuffle. `y` is constrained to a middle band so every planet sits
+between the two ships; `x` keeps clear of the side edges. `r` is mapped from
+the brief's 20–100px onto the shared board's own normalized units. `art` picks
+one of ~3 planet PNGs.
 
-**Four shape rules, each guaranteed rather than merely likely (issue #16, plus
-a follow-up on the fourth):**
+**Two on one side of the centre line, one on the other — which side gets the
+pair is a fair coin flip.** Never all three on one half, which would leave a
+whole side of the board with nothing to curve around. The asymmetry is the
+point: a board with the same count either side has an obvious mirror-image
+shot down each flank, while a two/one split makes the two halves genuinely
+different problems, and makes which way to go round an actual decision.
 
-- **At least 30% size difference.** The two radii are never independently
-  rolled and hoped apart — the referee picks the bigger one first, from
-  high enough in the 20–100px range that shrinking it by 30% can never push
-  the smaller one below the 20px floor, then rolls the smaller one under
-  that ceiling. Two near-identical planets read as one shape drawn twice,
-  not two different things to curve a shot around.
-- **At least 50px between their own SURFACES**, not their centres — two big
-  planets can have far-apart centres and still touch. Constructed the same
-  direct way as the size rule where possible; on the rare geometry where it
-  is not, the referee re-rolls just the sizes and heights (up to ten times)
-  before accepting whatever the last attempt was rather than ever refusing
-  to start a match over it.
-- **At least 100px of vertical separation** between the two centres, so they
-  never land on the same horizontal band and read as one wide obstacle.
-  Constructed the same direct way: the lower one is rolled from a range that
-  always leaves the required gap of room for the higher one above it, so
-  this one never needs a retry at all.
-- **No dead zone**: a straight shot along the board's own centre line
-  (`x = 0.5`, both ships sit on it — §2.2) must always come within a
-  meaningful distance of at least one planet's own gravity. The gravity
-  formula (§2.3) gives acceleration `G / k²` at distance `k · planet.r` from
-  ANY planet, regardless of its size — a size-invariant "still matters here"
-  threshold. Requiring `|0.5 - planet.x| ≤ 2 · planet.r` for BOTH planets
-  independently is a complete fix, not a partial one: each planet's own
-  influence zone then reaches the centre line by construction, so the union
-  of the two has no gap anywhere between them for a shot to slip through.
-  Constructed the same direct way as the rules above: a planet's own `x` is
-  rolled from a range bounded by its own radius, so this never needs a
-  retry either — though since it now depends on radius, `x` is rolled
-  together with size/height in the retry loop above, not beforehand.
+**The board moves every `GRAVITY_SHOTS_PER_MAP` (2) resolved shots** — one
+apiece, so it only ever changes once BOTH players have aimed at it, never
+mid-exchange where one of them would inherit a map the other already had a
+free look at. A timed-out turn (§2.4) counts as that seat's shot spent, so a
+silent player cannot freeze the board. The whole geometry is re-rolled, under
+every placement rule below, not nudged.
 
-**A best-effort fairness pass, on top of the shape rules.** Issue #16 asked
-directly: *"is it possible to simulate a winning trajectory from each
-player's own position, to avoid generating an impossible map?"* — yes. Once
-a candidate map satisfies the four rules above, the referee samples a
-coarse fan of shots (seven angles, five strengths — widened from three
-strengths in this follow-up, once a slower speed range and a stronger `G`
-made the fast-and-strong end of the old fan miss far more real shots) from
-EACH ship's own position, run through a small worker-local copy of the
-client's own gravity model (`worker/gravityShooter.ts`'s
-`seatCanReachOpponent`) purely to answer "does at least one of these
-connect" — never to decide a real shot (spec §8 is unchanged: the referee
-still trusts whatever `hit` a real `gravity-shot` claims). If neither ship
-has a sampled shot that connects, the referee re-rolls the whole map (up to
-eight times) before accepting the last attempt regardless. Deliberately a
-courtesy, not a guarantee: a coarse 35-shot fan can still miss a real but
-narrow window, and the last attempt is always shipped rather than ever
-blocking a match from starting over it.
+The referee re-rolls in the very frame that reports the shot which triggered
+it — which arrives seconds before either phone has finished animating that
+shot. Two things follow from that, and both are about keeping the picture
+honest rather than about the rules:
+
+- **A client replaying `lastShot` simulates against the planets it was already
+  showing**, not the ones that frame carries, or the receiving phone would draw
+  the flight through a board that did not exist when the shot was fired
+  (`game.ts`'s own `apply`).
+- **The drawn board lags the referee's.** A new board is queued, not adopted:
+  the planets the shot was fired on stay put until that flight has landed, and
+  only then does the new board arrive — eased into place over
+  `GRAVITY_PLANET_TWEEN_MS` (450ms) — planet positions and radii, and the
+  star's own radius with them — rather than teleporting mid-flight. The two boards are paired up by SIDE for the slide
+  (there is always exactly one planet per half), so each one travels to the new
+  planet on its own side instead of crossing through the middle; each takes its
+  destination's `art` from the first frame of the slide, where the movement
+  covers the sprite change. This is `game.ts`'s own `displayedBoard`, and it
+  is the same "hold the referee's truth until the animation that justifies it
+  has played" pattern as the life pips above. **Purely cosmetic** — every
+  simulation still runs on `state.planets`, so what a shot does is never
+  decided by where the art has slid to.
+
+The match-winning shot deliberately does NOT move the board: both phones are
+still animating that flight and its explosion against the board it was won on.
+
+**A star sits permanently in the middle of the board** (`0.5, 0.5`), and only
+its size is rolled — re-rolled with the planets, on the same schedule. It is a
+body like any other: same gravity formula, same "a missile inside my own radius
+is swallowed" rule, so every simulation just runs over the star and both
+planets and never special-cases it.
+
+The star is what makes the straight line between the two ships a non-shot. Two
+earlier rules existed to do that job with planets alone — one planet had to
+physically cover the centre, and both were pinned close to the centre line so
+their gravity reached it — and **both are now gone**: the star does it better,
+and holds the middle whatever the planets do.
+
+**Three shape rules, each guaranteed rather than merely likely (issue #16):**
+
+- **At least 30% size difference, between every pair.** The radii are never
+  independently rolled and hoped apart — the referee picks the biggest first,
+  from high enough in the 20–100px range that shrinking it *twice* can never
+  push the smallest below the 20px floor, then rolls each next one under its
+  predecessor's ceiling. Which planet gets which of the three sizes is then
+  shuffled, so the crowded side is not always the one holding the big one. Two
+  near-identical planets read as one shape drawn twice, not two different
+  things to curve a shot around; with three on a board that would be worse,
+  not better.
+- **At least 50px between their own SURFACES**, every pair, not their centres
+  — two big planets can have far-apart centres and still touch. This is the
+  one rule that cannot be constructed directly, so the referee re-rolls the
+  whole geometry (up to 60 times) until it holds, and a geometry that never
+  satisfies it is discarded rather than shipped.
+- **At least 100px of vertical separation between the two that SHARE a side**,
+  so they never land on the same horizontal band and read as one wide
+  obstacle. Constructed directly: the lower one is rolled from a range that
+  always leaves the required gap of room for the higher one above it, so this
+  one never needs a retry at all. Only the crowded side owes it — three rows
+  that far apart do not fit in the middle band at all, and the lone planet
+  across the centre line is already a board-width and a star away from both of
+  the others.
+**The star owes the planets nothing, and they owe it nothing.** A planet is
+free to sit over the middle of the board and overlap the star outright — only
+the planets owe each other room. Measured across 5000 seeded rolls, a
+planet overlaps the star on about 59% of boards, which is the intended
+freedom rather than a defect; planets draw over the star, so the overlap reads
+as one body passing in front of another.
+
+**A window to aim at, guaranteed, on top of the shape rules.** Issue #16 asked
+directly: *"is it possible to simulate a winning trajectory from each player's
+own position, to avoid generating an impossible map?"* — yes, and with three
+planets in the way it is no longer a courtesy but the accept condition.
+
+The referee samples a fan of shots in **finger space** — 25 directions from
+-84° to +84°, at 7 distances out along the aim ramp, so the 175 samples are
+spread evenly over the disc a thumb can reach — and flies each through a small
+worker-local copy of the client's own gravity model
+(`worker/gravityShooter.ts`'s `seatLandingShots`). Never to decide a real shot
+(§8 is unchanged: the referee still trusts whatever `hit` a real
+`gravity-shot` claims); only to answer how much of that disc lands.
+
+**A map ships only once BOTH seats have `GRAVITY_MIN_LANDING_SHOTS` (3) of
+them.** Not one — *three*. A single hit is the wrong bar, and measurably so: it
+is satisfied by a hairline the sampling grid happened to fall on, which is a
+coincidence rather than an aim. Scanning the real winning region finely (121 ×
+70 over the aim disc, real physics, 160 rolled seat-boards) says what each bar
+is worth:
+
+| Bar | Boards kept | Worst board kept | Median board |
+| --- | --- | --- | --- |
+| ≥1 landing shot | 88% | 0.12% of the aim disc — 4px × 1.4° | 2.7%, 26px × 11° |
+| **≥3 (chosen)** | **61%** | **1.22% — 12px × 4.3°** | **3.6%, 32px × 14°** |
+| ≥4 | 47% | 1.92% — 12px × 7.1° | 4.1%, 35px × 14° |
+| ≥5 | 36% | 2.11% — 12px × 7.1° | 4.6%, 39px × 14° |
+
+Three is where the worst case stops being absurd (a tenfold improvement on the
+old bar) without the gate starting to select only wide-open boards, which would
+flatten the variety three planets were added for. Four and five buy little more
+worst case for a lot more rejection. Rejection is cheap either way — up to 200
+geometries are rolled, at 3.9ms for the whole roll, once every two shots — and
+measured over 1000 seeded rolls the fallback board never shipped once.
+
+**The sampler is deliberately stricter than the real simulation**, which is
+what turns "we found some" into a guarantee rather than an estimate. A sampled
+shot only counts if it reaches the other ship
+
+- **without ever leaving the visible board**,
+- **without ever crossing the opponent's own row**, and
+- **inside 8 seconds**.
+
+The real flight allows more than all three — it may leave the board and curve
+back in, it may overshoot and return, and it has 20s onscreen — so a trajectory
+this check accepts is one no lifetime budget and no outer wall can end early.
+It can still *miss* real shots that go the long way round; that only ever costs
+a re-roll.
+
+Both of the first two rules are there because they were needed, not on
+principle. With only the bounds rule, **5 of 600 seat-boards shipped whose
+"guaranteed" shot the real simulation never lands** — every one of them a
+missile that flew past the opponent's row and ran out its 1s `past` budget on
+the way back. That is the failure mode a coarse copy of someone else's physics
+has, and it is why the whole guarantee is checked end to end by
+`worker/gravityBoards.test.ts`, which rolls real boards and flies the fan
+through the **client's own** `simulateShot`. All 160 seat-boards clear the bar
+of 3 there, at a mean of 5.6.
 
 ### 2.2 One board, drawn twice
 
@@ -141,13 +232,34 @@ at the bottom. Nothing about physics, the wire messages, or the referee
 ever needs to know which seat is which — the flip lives entirely in the
 canvas renderer.
 
+**The aim preview's own fade is a screen distance, not a fraction of the
+path.** It is solid across the near third of the shooter's own screen, fades
+out through the middle third, and is gone for the last third before the
+opponent. Measured from where each segment actually sits on screen rather
+than from how far along the path it is, so a slow or hard-curving shot fades
+in the same place a fast straight one does — and a shot that loops back into
+the visible band is drawn again rather than cut off at its first faded
+segment.
+
 ### 2.3 The shot: aimed locally, resolved locally, trusted by the referee
 
-The finger's own position relative to the ship — not a drag delta from
-where the touch began — sets angle and strength: distance from the ship
-maps to strength (capped at `GRAVITY_MAX_AIM_DISTANCE`), and the missile
-fires toward the finger, a targeting reticle rather than a slingshot pulled
-back and released opposite the drag.
+The finger's own position relative to the ship's **nose** — not a drag delta
+from where the touch began, and not the base of the sprite, which is under the
+thumb — sets angle and strength, and the missile fires toward the finger, a
+targeting reticle rather than a slingshot pulled back and released opposite the
+drag. Distance from the nose maps to strength across a ramp with a **floor
+band** at its near end (issue #36):
+
+- anywhere within `GRAVITY_MIN_AIM_DISTANCE` (**0.08**) of the nose is
+  strength 0 — the weakest shot there is, on a pad big enough for a thumb
+  rather than a hairline against the hull. It still carries an angle, so
+  aiming close in is a real choice and not a dead zone. Strength 0 is
+  therefore a real aimed shot now, which is why a timed-out turn is marked by
+  its own `timedOut` flag rather than by being strengthless (§2.4);
+- from there strength ramps linearly out to `GRAVITY_MAX_AIM_DISTANCE`
+  (**0.42**, widened from 0.30), where it caps. The ramp alone is wider than
+  the whole range used to be, so every strength in between has more screen to
+  be picked on.
 
 Launch speed is no longer a single ceiling scaled by strength — two follow-ups
 after issue #16 reshaped it:
@@ -155,8 +267,12 @@ after issue #16 reshaped it:
 - **A speed FLOOR, not zero** (`GRAVITY_MIN_LAUNCH_SPEED`). Speed scales
   linearly between this floor (strength 0, the barest drag) and
   `GRAVITY_MAX_LAUNCH_SPEED` (strength 1, a drag of the full
-  `GRAVITY_MAX_AIM_DISTANCE`), rather than from zero — so even the weakest
-  possible pull still reads as a real, if slow, missile in flight.
+  `GRAVITY_MAX_AIM_DISTANCE` from the nose), rather than from zero — so even the weakest
+  possible pull still reads as a real, if slow, missile in flight. The floor
+  has since been halved again, putting the range at 4:1: a gentlest-possible
+  shot would take about 12 seconds to cross an empty board, and in practice is
+  usually captured by a planet long before that, which is the point of a floor
+  that low.
 - **Both ends derived from a target DURATION, not hand-picked speeds.** A
   straight, gravity-free flight across the board should take about 6 seconds
   at the floor and about 3 seconds at the ceiling — a *display* choice (this
@@ -179,12 +295,26 @@ planet's own area, so a bigger planet pulls harder at any given distance,
 not just asymptotically far away from it (the planet's own radius still
 doubles as both the softening distance near its center and its own
 absorption radius — a missile that gets within a planet's radius is
-swallowed there, ending as a plain miss) — summed over both planets. `G`
-itself is now double the original brief's value too, this same follow-up:
-a slower missile alone doesn't feel meaningfully pulled unless the pull
-itself is also stronger. The
+swallowed there, ending as a plain miss) — summed over all three planets. `G`
+itself is now **four times** the original brief's value: doubled once when
+the launch speed dropped (a slower missile alone doesn't feel meaningfully
+pulled unless the pull itself is also stronger), then doubled again
+alongside the centre-blocking rule in §2.1 (now the star's job), since a shot
+that has to go *around* something needs enough pull to actually come back. A flight begins at
+`launchPosition(seat)` — the shooter's **tip**, `GRAVITY_SHIP_HEIGHT` ahead of
+`shipPosition(seat)`. The art is 256x128 with no padding, so the tip is the top
+edge of the sprite and that distance is half the drawn width — but world x and
+world y are fractions of different screen distances, so it is converted by the
+board's own aspect before being applied down the board. Without that the launch
+point floated 28px clear of a hull only 43px tall —
+which is a fixed world constant rather than a measurement of the rasterised
+sprite, because both phones have to simulate the same flight and only one of
+them has the shooter's screen. The
 simulation stops early the moment the missile is within
-`GRAVITY_HIT_RADIUS` of the opponent's ship (a hit), gets swallowed by a
+`GRAVITY_HIT_RADIUS` of the opponent's ship (a hit) — **half the ship
+sprite's own drawn width, so the whole ship image is the target** rather than
+a dot at its centre, and derived from the same `GRAVITY_SHIP_WIDTH` the canvas
+draws with so the two cannot drift apart — gets swallowed by a
 planet (a miss), leaves a generous simulation area well outside the visible
 board (a miss) — that simulation boundary is deliberately **wider than the
 screen itself** (§7), so a shot that loops off-screen and curves back in is
@@ -207,8 +337,17 @@ almost the same place. Nothing here shortens a shot that is still headed
 somewhere plausible; it only ends the ones that have obviously missed, or
 drifted, sooner than the old flat 10-second cap did.
 
+**The flight is watched at twice the speed it is simulated** (issue #35). The
+integration is untouched — same `GRAVITY_STEP_MS`, same `GRAVITY_G`, same
+points, same outcome — and the animation simply walks
+`GRAVITY_PLAYBACK_RATE` (2) of those points per rendered frame, so a curve
+that takes 8s to simulate takes 4s to watch. Every budget in the table above
+stays in *simulated* time, which is the point: a missile gets exactly the
+flight it always had, seen twice as fast. Hurrying it with a faster launch
+speed or weaker gravity would have bent the path instead.
+
 The shooter's own phone runs this simulation the instant the finger is
-released and sends the referee `{ roundId, angle, strength, hit }` — the
+released and sends the referee `{ roundId, angle, strength, hit, flightMs }` — the
 referee stores `hit` as reported, rather than re-deriving it (§8). The
 non-shooting phone receives the same `angle`/`strength` in the next
 broadcast and independently re-runs the identical deterministic
@@ -217,16 +356,49 @@ decide the outcome, which has already arrived as `hit`/the new lives
 count. Any tiny floating-point difference between two phones' replays is
 therefore only ever cosmetic.
 
-### 2.4 Turns don't stall on a silent phone
+### 2.4 The shot clock
 
-Every turn opens with `resolvesAt = now + GRAVITY_SHOT_TIMEOUT_MS` and a
-referee alarm at that deadline. If a `gravity-shot` never arrives — a
-backgrounded tab, a dropped connection — the referee's own `tick()`
-resolves the turn as a miss and passes it to the other player, the same
-shape as Tap Fighter's own no-lock-in default
-(`worker/tapFighter.ts`). `GRAVITY_SHOT_TIMEOUT_MS` is generous (well past
-the 3-second flight itself) since it only has to cover "did the message
-ever arrive," not the flight time.
+Every turn opens with `resolvesAt = now + flightMs + GRAVITY_SHOT_TIMEOUT_MS`
+(**13s**) and a referee alarm at that deadline. **The clock starts when the
+previous missile lands, not when it was fired** (issue #34): `flightMs` is how
+long the shooter's phone will spend animating the shot it just sent, clamped by
+the referee to `GRAVITY_MAX_FLIGHT_MS` (**10s** — the missile's own maximum
+onscreen life at the playback rate above), so a client cannot claim its way to
+a longer turn. Without that hold-back the opponent spent their turn watching
+somebody else's missile and then lost a life to a shot they never had time to
+aim. Run it out and **the missile goes off in
+your own hands**: the shooter loses one of their OWN lives, which can end the
+match on the spot, and the turn passes. It is a shot clock, not merely a
+backstop against a phone that went quiet — which is why it is short enough to
+feel like one, and why dithering now costs something.
+
+**The last few seconds blink.** From 9s into a turn, the shooter's own ship
+starts pulsing — a slow blink (2 per second) that speeds up linearly as
+`resolvesAt` gets closer, reaching 5 per second right at the deadline
+(`game.ts`'s own `shotClockPulseAlpha`, timed off `resolvesAt` itself so both
+phones blink the same shooter in step). It never goes fully invisible — a
+blinking ship is still a ship — it just gets harder to ignore.
+
+**A drag that outlives its own clock cannot be released as a shot.** The
+client checks the same deadline every frame (`GravityGame.canAim`): a finger
+already down when `resolvesAt` passes has its aim cancelled outright — the
+dashed preview and the aiming missile disappear rather than sitting there
+waiting to be released into a shot the referee would reject anyway. The
+referee's own check (§6) is the actual authority; the client-side cancel is
+just for not leaving a dead drag on screen.
+
+The referee records the timeout as `lastShot.timedOut`, its marker for "nobody
+aimed this", and **clients do not animate it flying**. Since the launch speed
+has a floor (§2.3), simulating an unaimed shot would send a real missile
+straight up the centre line and — with a ship-sized hitbox —
+visibly connect, while the referee's own `hit: false` meant nothing happened.
+Instead the blast is drawn on the shooter's own ship, the life pips follow it
+immediately (there is no flight to hold the news back for), and if it was
+their last life the same impact-then-explosion send-off plays as for a
+winning shot (§4).
+
+A phone that has genuinely gone quiet is still covered: the turn always passes
+either way, so nothing stalls.
 
 ## 3. Modes / variations
 
@@ -239,24 +411,46 @@ Only `classic` at launch.
 ## 4. Screens
 
 - **Lobby**: shared template. No host setting beyond `mode`.
-- **Round**: a `<canvas>` board — two planets, two ships, a turn indicator,
+- **Round**: a `<canvas>` board — three planets, two ships, a turn indicator,
   a row of five life-pips per ship (same idiom Pass the Bomb/Steady Hand
   already use). Touching above your own ship on your turn shows the fading
-  dashed aim preview (§2.2); releasing plays the missile's flight,
-  followed by `impact_missile.gif` on a hit and, on the life-ending hit,
-  `explosion.gif` straight after (both reused from UFO Hunt's own art,
-  copied into this game's own `art/` folder). Rendered on `<canvas>`, the
-  same reasoning as every other continuously-animated board in this
-  catalogue (Neon Fall §13, Tiles Surfer §4) — not a DOM-diffing job.
+  dashed aim preview (§2.2); releasing plays the missile's flight, followed by
+  `impact_missile.gif` **wherever the flight actually ended** — on the
+  opponent's ship for a hit, or on whichever planet swallowed it for a
+  miss-by-absorption — and, on the life-ending hit, `explosion.gif` straight
+  after (both reused from UFO Hunt's own art, copied into this game's own
+  `art/` folder). A planet's own absorption radius is its drawn radius (unlike
+  a ship's, which is bigger than its sprite — §2.3), so that impact needs no
+  extra geometry to land on the hull: the point the simulation stopped at
+  already is one. Rendered on `<canvas>`, the same reasoning as every other
+  continuously-animated board in this catalogue (Neon Fall §13, Tiles Surfer
+  §4) — not a DOM-diffing job.
   **The life pips never spoil a shot still in flight.** The referee decides
   a hit and broadcasts the new life count the instant a `gravity-shot`
   arrives — seconds before either phone's own missile animation finishes —
   so each client holds the previous life count on screen until its own
   flight animation ends, the same `displayed<value>` pattern Tap Fighter's
-  round-win pips use for the identical reason. A match-ending shot's own
-  flight and impact GIF are likewise played out in full before the results
-  screen appears, rather than being cut short by the referee's `phase:
-  'done'` arriving mid-flight.
+  round-win pips use for the identical reason.
+
+  **The match-ending sequence is played out in full before the results screen
+  appears**, rather than being cut short by the referee's `phase: 'done'`
+  arriving mid-flight. In order: the missile's flight, then
+  `impact_missile.gif` **at the exact point the flight met the hull**, then —
+  only once that has actually finished — `explosion.gif` centred on the
+  destroyed ship, which fades out underneath it.
+
+  Those two positions are deliberately different. The simulation stops as soon
+  as the missile is within a hit radius of the ship's CENTRE, and that circle is
+  far taller than the ship art (the sprite is twice as wide as it is high, and
+  the board is taller than it is wide), so the last simulated point floats above
+  the ship rather than touching it — an impact drawn there plays before the
+  collision. `contactPoint` walks from that point toward the ship's centre and
+  stops on the sprite's own ellipse, which is where the two actually met. The
+  ship's own explosion still belongs at its centre. The two hold times are the GIFs' own measured durations
+  (`GRAVITY_IMPACT_GIF_MS` 540ms, `GRAVITY_EXPLOSION_GIF_MS` 960ms — 6 frames
+  at 90ms and 16 at 60ms, read off the files, not estimated), so the whole
+  sequence is 1.5s and the results panel waits out every millisecond of it.
+  Re-measure both if either file is replaced.
 - **Results**: the shared `GameOverScreen`, `rows[].value` a plain win/lose
   word per player — no numeric score anywhere, the same non-numeric
   `OverRow` shape Tic-Tac-Tic-Tac-Toe's own `symbol(id)` already uses.
@@ -271,7 +465,7 @@ to fire. No sensors, no permissions, nothing to fall back from.
 
 ```ts
 // client -> server, once per turn, on release
-{ t: 'gravity-shot', d: { roundId, angle, strength, hit } }
+{ t: 'gravity-shot', d: { roundId, angle, strength, hit, flightMs } }
 
 // server -> both, on every resolved turn (including a timeout-miss)
 { t: 'gravity', d: {
@@ -281,7 +475,7 @@ to fire. No sensors, no permissions, nothing to fall back from.
   lives: [number, number],       // indexed by seat, not by seats[]'s player id
   turn: 0 | 1,
   resolvesAt: number,
-  lastShot: { shooter: 0 | 1, angle: number, strength: number, hit: boolean } | null,
+  lastShot: { shooter: 0 | 1, angle: number, strength: number, hit: boolean, timedOut: boolean } | null,
   winner: 0 | 1 | null,
   phase: 'running' | 'done',
   solo: boolean,
@@ -290,7 +484,7 @@ to fire. No sensors, no permissions, nothing to fall back from.
 
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
-| `gravity-shot` | client → server | `{roundId, angle, strength, hit}` | This turn's shot, and its own claimed outcome — trusted as reported (§8) |
+| `gravity-shot` | client → server | `{roundId, angle, strength, hit, flightMs}` | This turn's shot, its own claimed outcome — trusted as reported (§8) — and how long it will be on screen, which holds the next shot clock back (§2.4, clamped to `GRAVITY_MAX_FLIGHT_MS`) |
 | `gravity` | server → both | see above | The planets (sent once, then echoed unchanged), lives, whose turn it is, and the last shot's numbers for the receiver's own cosmetic replay (§2.3) |
 
 `gravity-shot` is only accepted from whoever `seats[turn]` actually is, and
@@ -306,13 +500,14 @@ replay.
 | Case | Behaviour |
 | --- | --- |
 | A player leaves mid-match | The match ends immediately in the other player's favor — two fixed seats, the same rule Grid Attack/Neon Fall use, not Steady Hand's "continue without them" (which only applies at 3+ players) |
-| A shooter goes silent mid-turn | Resolved as a miss at `resolvesAt`, turn passes (§2.4) |
+| A shooter goes silent mid-turn | The shot clock runs out at `resolvesAt`: it costs them one of their own lives and the turn passes (§2.4) |
 | A shot that would exit the visible screen but could still curve back | Not clipped — the simulation's own termination bounds are deliberately wider than the render viewport (§2.3); leaving the visible board costs it its 20s onscreen budget for a shorter 7s one, not the flight itself |
-| A missile enters a planet | Absorbed there — a plain miss, no special effect |
+| A missile enters a planet | Absorbed there — a plain miss, but `impact_missile.gif` still plays at the point it was absorbed (§4) |
 | A shot rolled with no sampled winning trajectory from either ship | Ships anyway, after the referee's own retries are exhausted (§2.1) — the fairness pass is a courtesy, never a block on starting the match |
 | Both ships would reach 0 lives on the same turn | Cannot happen — a shot only ever affects the one player who is not currently shooting |
 | A player refreshes mid-match | Same seat, same lives/turn — the match state lives on the referee, not the phone |
 | A shot from the wrong seat, or after `resolvesAt` | Rejected |
+| A finger still down when `resolvesAt` passes | The client cancels the aim itself (§2.4) — the drag never becomes a shot the referee would reject anyway |
 
 ## 8. Anti-cheat
 
@@ -367,11 +562,33 @@ readable by a screen reader like any other status bar in this catalogue.
 
 ## 12. Open questions
 
-- **`G` (gravity strength) and `GRAVITY_HIT_RADIUS`** — `G` doubled in a
-  follow-up on top of the original brief's value (§2.3), `GRAVITY_HIT_RADIUS`
-  still that original stated default — both untuned against a real thumb. A
-  first playtest decides whether shots now curve enough to feel skillful
-  without becoming unpredictable, or too much to feel controllable.
+- **Three planets, two/one (§2.1), is untested on a real board.** The count
+  went from two to three at the maintainer's own ask, and the arithmetic says
+  it fits — mean radius held at 36px across 2000 seeded rolls, every roll
+  legal, every roll clearing the landing-shot bar for both seats — but "fits"
+  is not "reads". Whether the crowded side is legible at a glance on a phone,
+  or just reads as clutter, is a question only a game answers.
+- **How sensitive aiming is, is now measured, and it is the real open
+  question.** On a typical board the set of finger positions that lands a hit
+  is a curved sliver about **32px by 14°** on a 400px board — roughly 3.6% of
+  the aim disc (§2.1). That is a millimetre or two of thumb. It is not obviously
+  wrong, because the player is not aiming blind: the dashed preview updates
+  live while the finger moves (§2), so the real task is following a visible
+  curve rather than guessing. But it does mean **the board roll is not the lever
+  for making aiming more forgiving** — the window's size is set by how
+  sensitive the trajectory is to launch speed and angle, which is `G`, the
+  speed range and the hit radius, not by which board got dealt. Rolling harder
+  only selects for outlier boards and flattens the variety. If the first
+  playtest says aiming is fiddly, tune the physics; if it says it is fine,
+  the bar at 3 can come back down and boards get more varied again.
+- **`G` (gravity strength) and `GRAVITY_HIT_RADIUS`** — `G` is now four
+  times the original brief's value across two follow-ups (§2.3), and the hit
+  radius is no longer a tuned number at all: it is half the ship sprite's
+  own width by definition. Both still untuned against a real thumb. A first
+  playtest decides whether shots now curve enough to feel skillful without
+  becoming unpredictable, or too much to feel controllable — and whether a
+  ship-sized hitbox makes landing a hit too easy now that it is roughly twice
+  the old radius.
 - **The planet-radius-as-both-softening-and-absorption-radius choice**
   means the strongest pull on a missile happens right before it would be
   swallowed, with no gradual "graze and get flung" zone. Worth revisiting
@@ -383,15 +600,31 @@ readable by a screen reader like any other status bar in this catalogue.
   numbers, untested against a real thumb — a 20-second on-screen shot in
   particular is a real wait if it happens often; worth revisiting after a
   playtest if it reads as dead air rather than a shot still worth watching.
-  Worth noting: since the launch-speed follow-up below, the fastest a
-  straight, gravity-free flight can cross the whole board is about 3s and
-  the slowest about 6s — both now well under the 20s onscreen budget, so
-  that budget realistically only ever governs a shot gravity has bent into
-  looping or lingering, not a shot flying more or less directly.
-- **The "no dead zone" influence factor of `2` (§2.1)** is this follow-up's
-  own untested pick, same status as the numbers above — a first playtest
-  decides whether `2` radii of "still matters" reads as generous or barely
-  there.
+  Worth noting how the speed changes moved these around. A straight,
+  gravity-free crossing now takes about 2.6s at full strength and about 10.2s
+  at the floor, so the 20s ONSCREEN budget still only ever governs a shot
+  gravity has bent into looping or lingering. The 7s OFFSCREEN budget,
+  however, went from unreachable back to load-bearing when the minimum
+  impulse was halved: at the old floor a sideways shot crossed the margin to
+  the outer wall in about 4s and the wall always ended it first, where now it
+  cannot get there inside 7s and the budget does the ending — which is what
+  the budget is for.
+- **The star's own size range (30–60px, §2.1)** is an untested first pick. It
+  is deliberately narrower than the planets' 20–100px, because the star is
+  pinned to the middle and three planets now have to find legal room around it
+  — a star free to grow as large as a planet can would leave them nowhere to
+  stand. (They owe the star no clear space of their own, §2.1; what a big star
+  costs is the room the planets need from *each other* near the middle.) Worth
+  revisiting once it has been played: too small and it stops being the obstacle
+  it exists to be, too large and the planets get shoved into the corners every
+  time.
+- **Whether the star should pull at all** was a judgement call, not a stated
+  requirement: it was asked for as a fixed body in the middle that planets must
+  not overlap, and it was made a full gravity body (pulls and swallows, same
+  formula) because a "sun" in a game about gravity that did not pull would be
+  a hole in the board rather than a feature of it. Easy to make it a pure
+  obstacle instead — drop it from `gravityBodies` and it stops attracting while
+  still blocking.
 - **The launch-speed retune and the doubled `G` (§2.3)** are a second
   follow-up's own untested picks, on top of the first's: a full-strength
   shot is now roughly a third of the original brief's speed (having already
@@ -407,3 +640,24 @@ readable by a screen reader like any other status bar in this catalogue.
   that back down to roughly 3.8% — still higher than before this follow-up,
   still rare and fail-soft, but worth watching, and worth widening further
   or adding retry attempts if it climbs in play.
+- **Blocking the centre and the second doubling of `G` (§2.1, §2.3)** — the
+  blocking is the star's job now, but the measurements below were taken when a
+  planet did it, and the conclusion held when the star took over: 5000 seeded
+  rolls with the star in place still put winnability failures at zero.
+  are a third follow-up's own picks, and the two pull in opposite
+  directions on purpose: a planet in the middle makes every shot harder,
+  while four times the brief's gravity makes curving around it easier. Two
+  measurements across 5000 seeded rolls, worth re-checking if any of these
+  constants move again:
+  - The fairness pass's own miss rate fell from roughly 3.8% to **zero** —
+    with this much pull, the sampled fan finds a way around the blocker on
+    every map it was given. That is the pre-check reporting success, not a
+    guarantee about the real client physics.
+  - Pinning one planet to the middle while the other still owes it 100px of
+    vertical separation is genuinely tight geometry, and the surface-gap
+    retry budget had to rise from 10 to 60 attempts to keep the planets
+    from overlapping (4.2% of maps overlapped at 10, 0.02% at 30, none at
+    60). The mean radius barely moved (0.0886 → 0.0878), so the retries are
+    not quietly selecting for small planets — but if the y band or the
+    separation rule is ever retightened, this is the budget that will feel
+    it first.

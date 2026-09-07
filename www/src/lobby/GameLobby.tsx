@@ -48,7 +48,7 @@ export function GameLobby({
   startLabel,
   onStart,
   readyBlocked = false,
-  note,
+  onBeforeReady,
   playerTag,
   /** Extra explanation inside the how-to-play panel (Spill's table diagram). */
   aside,
@@ -75,8 +75,14 @@ export function GameLobby({
   onStart: () => void;
   /** Sensor games hold readiness until this phone has answered their primer. */
   readyBlocked?: boolean;
-  /** An empty string renders nothing — not an empty paragraph. */
-  note: string;
+  /**
+   * Runs from the Start tap (host) or the Ready tap (guest), before either takes
+   * effect, and resolving false abandons the tap. This is where a game whose sensor
+   * has NO fallback asks for it: gating that behind a second button is friction in
+   * front of a permission the player has no choice about (device-capabilities.md §2).
+   * Games that degrade to touch keep their own primer button instead.
+   */
+  onBeforeReady?: (() => Promise<boolean>) | undefined;
   playerTag?: (id: PlayerId) => string | null;
   aside?: ComponentChildren;
   extras?: ComponentChildren;
@@ -229,21 +235,26 @@ export function GameLobby({
             type="button"
             disabled={!canStart || readyBlocked || !everybodyReady}
             onClick={() => {
-              track('game_start', card.slug);
-              onStart();
+              const go = (): void => {
+                track('game_start', card.slug);
+                onStart();
+              };
+              // Not tracked until the setup actually clears: a start that stopped at
+              // a refused permission never became a round.
+              if (!onBeforeReady) return go();
+              void onBeforeReady().then((ok) => { if (ok) go(); });
             }}
           >
             {startLabel}
           </button>
         )}
-        {!room.isHost && <ReadyButton room={room} blocked={readyBlocked} />}
+        {!room.isHost && <ReadyButton room={room} blocked={readyBlocked} onBeforeReady={onBeforeReady} />}
         {readyBlocked && <p class="lobby__ready-note">{t.lobby.finishSetup}</p>}
         {room.isHost && canStart && !everybodyReady && (
           <p class="lobby__ready-note" role="status">
             {t.lobby.waitingReady}
           </p>
         )}
-        {note && <p class="lobby__note">{note}</p>}
         {room.isHost && <div class="lobby__switch-game"><GameSwitcher room={room} code={code} game={card.slug} /></div>}
       </footer>
     </div>

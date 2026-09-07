@@ -30,7 +30,7 @@ import { bearingDeg, saucerAt, scopeHeat, screenSpot } from './scope';
 import { UfoScreen, type GifBurst, type GifBurstKind } from './UfoScreen';
 import { startCamera, type Camera } from './camera';
 import { armLaserAudio, playExplosion, playLaser, playMissile } from './laser';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 
 /**
  * UFO Hunt's room screen. Spec: docs/specs/games/ufo-hunt.md
@@ -38,11 +38,15 @@ import { useGameText, type GameText } from '../../core/i18n/gameText';
  * One route, no picker: orientation for the aim, the live camera feed as the sky
  * the saucer hangs in — Ghost Hunt's own camera route
  * (`ghost-hunt/HuntRoom.tsx`'s `enableCameraRoute`), except **neither permission has
- * a landing place on denial** (spec §5.3). `readyBlocked` — the same mechanism
- * Steady Hand's own no-fallback motion permission already uses
- * (`steady-hand/SteadyRoom.tsx`) — is what turns that into "blocks Start": a player
- * who has not granted both cannot mark themselves ready, so the room's own
- * readiness check never lets the host's start through for them.
+ * a landing place on denial** (spec §5.3).
+ *
+ * **Both are asked for by Ready, or by Start for the host** (issue #29) — the same
+ * shape Steady Hand and Shake Rush now use, since a permission with no alternative
+ * is not something a second button can add a choice to. `readyBlocked` is still what
+ * turns a REFUSAL into "blocks Start" here: a player who has said no to either cannot
+ * mark themselves ready, so the room's own readiness check never lets the host's
+ * start through for them. Before the asking, nothing is blocked — the button that
+ * would be disabled is the one that does the asking.
  */
 const BOTH_NEEDED = {
   en: "UFO Hunt needs your camera to show the saucer in the sky above you, and your phone's motion sensor to aim at it — without both there's nothing to point at.",
@@ -256,9 +260,26 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
     return true;
   }
 
+  /**
+   * What Ready and Start hang both permissions on. Unlike the two motion games, a
+   * refusal here really does resolve false and swallow the tap — this game has no
+   * spectator seat to fall back to (spec §5.3).
+   */
+  async function ensureRequired(): Promise<boolean> {
+    if (orientationOn && cameraOn) return true;
+    return enableRequired();
+  }
+
   const again = (): void => client?.send({ t: 'start', d: { mode: 'ufo', solo } });
   const enough = enoughToStart(room.connected, [UFOHUNT_MIN_PLAYERS, UFOHUNT_MAX_PLAYERS], solo);
-  const readyBlocked = !orientationOn || !cameraOn;
+  /*
+   * Blocked by a REFUSAL, not by silence. Before anyone has been asked, Ready and
+   * Start are the thing that asks (issue #29), so disabling them until the answer
+   * exists would disable the only control that can produce one. After a refusal this
+   * game still blocks — its documented departure from "denied is a supported state"
+   * (spec §5.3) — and the primer's Try again is the way back.
+   */
+  const readyBlocked = (orientationAsked || cameraAsked) && (!orientationOn || !cameraOn);
 
   const onShoot = (): void => {
     const s = stateRef.current;
@@ -314,6 +335,7 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
         room={room}
         readyBlocked={readyBlocked}
         onReadySetup={() => void enableRequired()}
+        onBeforeReady={ensureRequired}
         slug={card.slug}
         accent={card.accent}
         title={card.title}
@@ -372,17 +394,9 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
       onToggleQr={toggleQr}
       canStart={room.isHost && enough}
       startLabel={state ? text({ en: 'Hunt again', fr: 'Rechasser' }) : text({ en: 'Start the hunt', fr: 'Démarrer la chasse' })}
-      onStart={() => {
-        if (orientationOn && cameraOn) {
-          again();
-          return;
-        }
-        void enableRequired().then((ok) => {
-          if (ok) again();
-        });
-      }}
+      onStart={again}
+      onBeforeReady={ensureRequired}
       readyBlocked={readyBlocked}
-      note={note(room.isHost, room.connected, orientationOn, cameraOn, solo, text)}
       aside={
         <p class="howto__warn" role="note">
           {text({ en: "Feet planted, turn slowly, and keep an arm's length from the furniture and from each other — the screen is not a window, and you cannot see the floor in it.", fr: 'Gardez les pieds au sol, tournez lentement et restez à une longueur de bras des meubles et des autres — l’écran n’est pas une fenêtre et vous ne voyez pas le sol.' })}
@@ -395,6 +409,7 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
           orientationAsked={orientationAsked}
           cameraOn={cameraOn}
           cameraAsked={cameraAsked}
+          isHost={room.isHost}
           onEnable={() => void enableRequired()}
         />
       }
@@ -406,6 +421,10 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
  * The one permission card this game offers — no picker, because there is only one
  * way to play it (spec §5.3). Built on the same `PermissionPrimer` shell Steady
  * Hand's own no-fallback motion permission already uses.
+ *
+ * It explains, and after a refusal it offers the way back; what it no longer does is
+ * hold a button in front of the first ask. Ready and Start do that now (issue #29),
+ * because a permission with no alternative is not a choice this panel can offer.
  */
 function UfoPrimer({
   support,
@@ -413,6 +432,7 @@ function UfoPrimer({
   orientationAsked,
   cameraOn,
   cameraAsked,
+  isHost,
   onEnable,
 }: {
   support: OrientationSupport;
@@ -420,6 +440,7 @@ function UfoPrimer({
   orientationAsked: boolean;
   cameraOn: boolean;
   cameraAsked: boolean;
+  isHost: boolean;
   onEnable: () => void;
 }): JSX.Element {
   const text = useGameText();
@@ -459,29 +480,12 @@ function UfoPrimer({
   return (
     <PermissionPrimer
       heading={heading}
-      body={text({
+      body={`${text({
         en: 'The saucer hangs in your own sky, so this needs both your camera and your phone’s motion sensor — there is no version without them. No picture ever leaves your phone; the feed is only ever shown on your own screen.',
         fr: 'La soucoupe plane dans votre propre ciel : ce jeu a besoin à la fois de votre caméra et du capteur de mouvement — il n’existe pas de version sans eux. Aucune image ne quitte votre téléphone ; le flux n’est jamais affiché qu’à l’écran.',
-      })}
-      action={{ label: text({ en: 'Allow camera and motion', fr: 'Autoriser caméra et mouvement' }), onClick: onEnable }}
+      })} ${isHost
+        ? text({ en: 'Start the hunt and your phone will ask for both.', fr: 'Démarrez la chasse et votre téléphone vous demandera les deux.' })
+        : text({ en: 'Tap Ready and your phone will ask for both.', fr: 'Touchez Prêt et votre téléphone vous demandera les deux.' })}`}
     />
   );
-}
-
-function note(
-  isHost: boolean,
-  connected: number,
-  orientationOn: boolean,
-  cameraOn: boolean,
-  solo: boolean,
-  text: GameText,
-): string {
-  if (!solo && connected < UFOHUNT_MIN_PLAYERS) {
-    const missing = UFOHUNT_MIN_PLAYERS - connected;
-    return text({ en: `Need ${missing} more player${missing === 1 ? '' : 's'} — one saucer needs more than one shooter.`, fr: `Il manque ${missing} joueur${missing === 1 ? '' : 's'} — une soucoupe seule ne suffit pas.` });
-  }
-  if (connected > UFOHUNT_MAX_PLAYERS) return text({ en: `${UFOHUNT_MAX_PLAYERS} players is the most this one takes.`, fr: `${UFOHUNT_MAX_PLAYERS} joueurs maximum.` });
-  if (!isHost) return text({ en: 'The host starts the hunt.', fr: 'L’hôte démarre la chasse.' });
-  if (!orientationOn || !cameraOn) return text({ en: 'Camera and motion are asked for when you start.', fr: 'La caméra et le mouvement seront demandés au démarrage.' });
-  return text({ en: 'Face the way you want to call forward, then start.', fr: 'Tournez-vous dans la direction qui sera devant, puis démarrez.' });
 }

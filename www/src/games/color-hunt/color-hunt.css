@@ -1,0 +1,126 @@
+/*
+ * Color Hunt. Spec: docs/specs/games/color-hunt.md §4
+ * Shared chrome is styled by core; this file owns the target band, the square
+ * viewport, and the magnifier ring.
+ */
+
+.chunt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: 100dvh;
+  padding: 0 var(--space-3) var(--space-3);
+  box-sizing: border-box;
+  background: var(--bg);
+}
+
+.chunt__target {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  /* The colour is the whole brief now that the word is gone, so it gets the
+     room the word used to justify not needing. */
+  min-height: clamp(84px, 16vh, 150px);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.18);
+}
+
+.chunt__pie {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  translate: 0 -50%;
+  width: 40px;
+  height: 40px;
+}
+
+/* Square, the full width of the board — the issue's own framing. */
+.chunt__viewport {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: 62vh;
+  /* Square and width-capped, so it cannot grow to fill a tall phone — centre
+     it in what is left rather than leaving all the slack underneath. */
+  margin-inline: auto;
+  margin-block: auto;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: #0f1a18;
+  box-shadow: inset 0 0 0 1px rgb(20 184 166 / 0.55);
+}
+
+.chunt__feed {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* The game's only readout, and the thing the player actually watches. Two-tone
+   stroke so it reads against whatever it is sitting on. */
+.chunt__ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: #1f2c2a;
+  box-shadow:
+    0 0 0 3px rgb(4 33 29 / 0.9),
+    0 0 0 5px rgb(248 250 252 / 0.95);
+}
+
+/* The points that just landed, over the feed. Big, brief, and gone before the
+   next round is scored — there is no results panel to put them in (§2). */
+.chunt__points {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  translate: -50% 0;
+  margin: 0;
+  padding: 0.1em 0.5em;
+  border-radius: var(--radius-sm);
+  font-size: 2.4rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  background: rgb(4 33 29 / 0.72);
+}
+
+.chunt__points--hit {
+  color: #5EEAD4;
+}
+
+/* Dimmed and parenthesised by its own muted colour rather than by red alone:
+   a zero is information, not an error (ui-guidelines §2). */
+.chunt__points--miss {
+  color: #94A3B8;
+}
+
+.chunt__nofeed {
+  position: absolute;
+  inset: auto var(--space-3) var(--space-3);
+  margin: 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+
+.chunt__safety,
+.chunt__warning {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+/* Mandatory copy, and it should not read as a footnote (AGENTS.md §7). */
+.chunt__safety {
+  color: var(--text);
+  font-weight: 600;
+}

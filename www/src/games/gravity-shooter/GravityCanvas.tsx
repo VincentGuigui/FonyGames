@@ -7,11 +7,19 @@ import planetArtA from './art/planet-a.png?url&no-inline';
 import planetArtB from './art/planet-b.png?url&no-inline';
 import planetArtC from './art/planet-c.png?url&no-inline';
 import missileArt from './art/missile.png?url&no-inline';
+import { GRAVITY_SHOT_TIMEOUT_MS, gravityBodies, type GravityPlanet } from '../../../../shared/protocol';
 import {
-  GRAVITY_STEP_MS,
+  GRAVITY_EXPLOSION_GIF_MS,
+  GRAVITY_SHIP_WIDTH,
   GravityGame,
+  flightDurationMs,
   aimFromFinger,
   shipPosition,
+  launchPosition,
+  contactPoint,
+  headingBetween,
+  otherSeat,
+  shotClockPulseAlpha,
   simulateShot,
   viewTransform,
   type Seat,
@@ -40,22 +48,45 @@ const BG_TOP = '#0a0a18';
 const BG_LOW = '#161033';
 const SHIP_COLORS: [string, string] = ['#38BDF8', '#F472B6'];
 const PLANET_FALLBACK = ['#94A3B8', '#A78BFA', '#FCA5A5'];
+/** How much of the shooter's own screen the aim preview covers, measured
+ *  from the shooter's own edge: solid across the near third, fading through
+ *  the middle third, gone for the last third before the opponent (spec §2.2). */
 const AIM_FRACTION_SOLID = 1 / 3;
-const AIM_FRACTION_FADE = 1 / 2;
+const AIM_FRACTION_FADE = 2 / 3;
 
-export type FlightEnd = { hit: boolean; local: Vec };
+export type FlightEnd = {
+  hit: boolean;
+  /** Where the missile actually stopped, in the viewer's own local space. */
+  local: Vec;
+  /** The ship it was aimed at, same local space — the centre of the blast when
+   *  that ship is destroyed. */
+  target: Vec;
+  /** Where the flight actually met the hull, same local space (`contactPoint`)
+   *  — the impact's own place, which is neither where the simulation stopped
+   *  (a hit radius short, floating above the ship) nor the ship's centre. */
+  contact: Vec;
+  /** Where a planet swallowed the missile, same local space — null for every
+   *  other ending. A planet's own absorption radius is its drawn radius, so
+   *  this needs no `contactPoint` walk-back the way a ship's hit does. */
+  planetImpact: Vec | null;
+};
+
+/** The ship that just lost the match, and when its explosion started — it
+ *  fades out across `GRAVITY_EXPLOSION_GIF_MS` while that GIF plays (spec §4). */
+export type DyingShip = { seat: Seat; startedAt: number };
 
 type Props = {
   game: GravityGame;
   /** The shot just finished animating — the caller decides any impact GIF (spec §4). */
   onFlightEnd: (end: FlightEnd) => void;
-  onShoot: (payload: { roundId: number; angle: number; strength: number; hit: boolean }) => void;
+  onShoot: (payload: { roundId: number; angle: number; strength: number; hit: boolean; flightMs: number }) => void;
+  dying?: DyingShip | null;
 };
 
-export function GravityCanvas({ game, onFlightEnd, onShoot }: Props): JSX.Element {
+export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Props): JSX.Element {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const latest = useRef({ game, onFlightEnd, onShoot });
-  latest.current = { game, onFlightEnd, onShoot };
+  const latest = useRef({ game, onFlightEnd, onShoot, dying });
+  latest.current = { game, onFlightEnd, onShoot, dying };
 
   useEffect(() => {
     const element = canvas.current;
@@ -63,7 +94,7 @@ export function GravityCanvas({ game, onFlightEnd, onShoot }: Props): JSX.Elemen
     let frame = 0;
 
     const draw = (): void => {
-      const { game, onFlightEnd } = latest.current;
+      const { game, onFlightEnd, dying } = latest.current;
       const width = element.clientWidth;
       const height = element.clientHeight;
       if (width === 0 || height === 0) {
@@ -94,15 +125,28 @@ export function GravityCanvas({ game, onFlightEnd, onShoot }: Props): JSX.Elemen
       ctx.fillRect(0, 0, width, height);
 
       if (state) {
-        const planetPx = state.planets.map((p) => ({ ...toPixel(toLocal(p)), r: p.r * width }));
-        for (let i = 0; i < state.planets.length; i++) {
-          const planet = state.planets[i];
+        // `displayedPlanets`, not `state.planets`: a re-rolled board waits for
+        // the shot in flight to land and then eases into place (spec §2.1).
+        // Only the drawing uses it — every simulation stays on `state.planets`.
+        const drawnBoard = game.displayedBoard();
+        const drawnPlanets = drawnBoard.planets;
+        const starPx = toPixel(toLocal({ x: 0.5, y: 0.5 }));
+        drawStar(ctx, starPx.x, starPx.y, drawnBoard.starRadius * width);
+        const planetPx = drawnPlanets.map((p: GravityPlanet) => ({ ...toPixel(toLocal(p)), r: p.r * width }));
+        for (let i = 0; i < drawnPlanets.length; i++) {
+          const planet = drawnPlanets[i];
           const px = planetPx[i];
           if (!planet || !px) continue;
           drawPlanet(ctx, px.x, px.y, px.r, planet.art, dpr);
         }
 
         const mySeat = game.mySeat;
+        // The shot clock's own countdown (spec §2.4): the ship whose turn it
+        // is starts blinking `GRAVITY_SHOT_BLINK_START_MS` in, faster as
+        // `resolvesAt` gets closer. Timed off `state.resolvesAt` itself
+        // rather than a locally-tracked start, so both phones blink the same
+        // shooter in step without agreeing on anything but that one number.
+        const turnElapsedMs = GRAVITY_SHOT_TIMEOUT_MS - (state.resolvesAt - game.now());
         const shipSeats: Seat[] = [0, 1];
         for (const seat of shipSeats) {
           const world = shipPosition(seat);
@@ -110,32 +154,76 @@ export function GravityCanvas({ game, onFlightEnd, onShoot }: Props): JSX.Elemen
           const px = toPixel(local);
           // The self ship always draws nearest local y=1 (bottom), by construction.
           const isSelf = mySeat !== null && seat === mySeat;
-          drawShip(ctx, px.x, px.y, width, isSelf, local.y > 0.5, dpr);
+          // The destroyed ship fades out under its own explosion rather than
+          // vanishing when the results screen replaces the board.
+          const fade = dying && dying.seat === seat
+            ? 1 - Math.min(1, Math.max(0, (performance.now() - dying.startedAt) / GRAVITY_EXPLOSION_GIF_MS))
+            : state.phase === 'running' && seat === state.turn
+              ? shotClockPulseAlpha(turnElapsedMs)
+              : 1;
+          drawShip(ctx, px.x, px.y, width, isSelf, local.y > 0.5, dpr, fade);
         }
+
+        // A live drag can outlive its own shot clock — `canAim` catches the
+        // deadline passing, and this is where that gets acted on: cancelled
+        // rather than left to release into a shot the referee will reject.
+        if (game.aim && !game.canAim) game.cancelAim();
 
         // The fading aim preview (spec §2), while a drag is live.
         const aim = game.aim;
         if (aim && mySeat !== null) {
           const preview = simulatePreviewPath(game, aim);
-          drawDashedPath(ctx, preview.map((p) => toPixel(toLocal(p))), width);
+          drawDashedPath(ctx, preview.map((p) => toPixel(toLocal(p))), width, height);
+          // The missile itself, at the ship's nose, swinging to face the
+          // finger as it moves — the shot's own start, shown before it is
+          // taken rather than appearing out of nowhere on release. Drawn in
+          // LOCAL space directly: the shooter always sees themselves at the
+          // bottom, so the launch point is seat 0's own and the aim angle
+          // needs no view flip. `launchPosition` is the SAME point the
+          // simulation above just flew from (issue #37), so the marker and
+          // the dashed line cannot disagree about where a shot begins.
+          const launchPx = toPixel(launchPosition(0));
+          drawMissile(ctx, launchPx.x, launchPx.y, width, dpr, aimFromFinger(aim.x, aim.y).angle);
         }
 
         // The missile in flight, or resolving (spec §2.3).
         const shot = game.activeShot;
         if (shot) {
           const elapsed = game.shotElapsedMs() ?? 0;
-          const flightMs = Math.max(1, (shot.result.path.length - 1) * GRAVITY_STEP_MS);
+          // Simulated time over `GRAVITY_PLAYBACK_RATE` (issue #35): the same
+          // points, walked two per frame, so the curve is untouched and only
+          // the wall-clock halves.
+          const flightMs = flightDurationMs(shot.result.path);
           const idx = Math.min(shot.result.path.length - 1, Math.floor((elapsed / flightMs) * (shot.result.path.length - 1)));
           const point = shot.result.path[idx];
           if (point) {
             const trail = shot.result.path.slice(0, idx + 1).map((p) => toPixel(toLocal(p)));
             drawTrail(ctx, trail, viewSeat === shot.seat ? SHIP_COLORS[0] : SHIP_COLORS[1]);
             const px = toPixel(toLocal(point));
-            drawMissile(ctx, px.x, px.y, width, dpr);
+            // Nose along the tangent: the step it just took, or the step it is
+            // about to take on the very first frame, when there is no previous.
+            const previous = shot.result.path[Math.max(0, idx - 1)] ?? point;
+            const next = shot.result.path[idx + 1] ?? point;
+            const from = idx > 0 ? toPixel(toLocal(previous)) : px;
+            const to = idx > 0 ? px : toPixel(toLocal(next));
+            drawMissile(ctx, px.x, px.y, width, dpr, headingBetween(from, to));
           }
           if (elapsed >= flightMs) {
             const end = shot.result.path.at(-1);
-            if (end) onFlightEnd({ hit: shot.result.hit, local: toLocal(end) });
+            if (end) {
+              const targetLocal = toLocal(shipPosition(otherSeat(shot.seat)));
+              const endPx = toPixel(toLocal(end));
+              const shipPx = toPixel(targetLocal);
+              const shipW = width * GRAVITY_SHIP_WIDTH;
+              const hull = contactPoint(endPx, shipPx, shipW, shipW / 2);
+              onFlightEnd({
+                hit: shot.result.hit,
+                local: toLocal(end),
+                target: targetLocal,
+                contact: { x: hull.x / width, y: hull.y / height },
+                planetImpact: shot.result.absorbedAt ? toLocal(shot.result.absorbedAt) : null,
+              });
+            }
             game.clearActiveShot();
           }
         }
@@ -156,14 +244,18 @@ export function GravityCanvas({ game, onFlightEnd, onShoot }: Props): JSX.Elemen
       if (!game.beginAim()) return;
       dragging = true;
       const p = localPoint(event);
-      const anchor = shipPosition(0); // the shooter's own local anchor is always seat 0's own world position
+      // The drag is measured from the NOSE, not the hull's base: that is where
+      // the shot leaves from, and it is the one part of the ship the thumb is
+      // not already covering (issue #36). Seat 0's own position is always the
+      // shooter's own local one.
+      const anchor = launchPosition(0);
       game.updateAim(p.x - anchor.x, p.y - anchor.y);
     };
 
     const onPointerMove = (event: PointerEvent): void => {
       if (!dragging) return;
       const p = localPoint(event);
-      const anchor = shipPosition(0);
+      const anchor = launchPosition(0);
       latest.current.game.updateAim(p.x - anchor.x, p.y - anchor.y);
     };
 
@@ -204,15 +296,16 @@ function simulatePreviewPath(game: GravityGame, aim: Vec): Vec[] {
   const state = game.state;
   const seat = game.mySeat;
   if (!state || seat === null) return [];
-  if (aim.x === 0 && aim.y === 0) return [shipPosition(seat)];
+  if (aim.x === 0 && aim.y === 0) return [launchPosition(seat)];
   const { angle, strength } = aimFromFinger(aim.x, aim.y);
-  return simulateShot(state.planets, seat, angle, strength).path;
+  return simulateShot(gravityBodies(state.starRadius, state.planets), seat, angle, strength).path;
 }
 
-/** The dashed preview: solid for the near third of the screen (spec §2), then
- *  fading to nothing by the middle — drawn per-segment since canvas has no
- *  built-in gradient-along-a-path. */
-function drawDashedPath(ctx: CanvasRenderingContext2D, points: Vec[], width: number): void {
+/** The dashed preview: solid for the near third of the screen, fading out
+ *  across the middle third, gone for the last third before the opponent
+ *  (spec §2.2) — drawn per-segment since canvas has no built-in
+ *  gradient-along-a-path. */
+function drawDashedPath(ctx: CanvasRenderingContext2D, points: Vec[], width: number, height: number): void {
   if (points.length < 2) return;
   ctx.save();
   ctx.setLineDash([6, 6]);
@@ -221,11 +314,14 @@ function drawDashedPath(ctx: CanvasRenderingContext2D, points: Vec[], width: num
     const a = points[i - 1];
     const b = points[i];
     if (!a || !b) continue;
-    // Opacity by how far along the shooter's own local screen the segment is —
-    // full near the shooter, fading out by mid-screen, gone after (spec §2).
-    const localY = 1 - i / points.length; // approximate: first points are near the shooter
-    const alpha = opacityFor(localY);
-    if (alpha <= 0) break;
+    // Opacity by where the segment actually SITS on the shooter's own screen,
+    // not by how far along the path it is — the fade is a screen distance
+    // (spec §2.2), so a slow or hard-curving shot has to fade in the same
+    // place a fast straight one does.
+    const alpha = opacityFor(b.y / height);
+    // A shot that loops back toward the shooter can re-enter the visible
+    // band, so this cannot stop at the first faded segment.
+    if (alpha <= 0) continue;
     ctx.globalAlpha = alpha;
     ctx.strokeStyle = SHIP_COLORS[0];
     ctx.beginPath();
@@ -277,13 +373,50 @@ function drawPlanet(ctx: CanvasRenderingContext2D, x: number, y: number, r: numb
   ctx.restore();
 }
 
+/**
+ * The star at the middle of the board (spec §2.1). Drawn procedurally rather
+ * than from a sprite, for the reason `docs/design/illustrations.md` gives:
+ * sprites may only be translated, scaled and rotated, and this one's radius is
+ * re-rolled every couple of shots and eased between sizes as it changes — a
+ * shape that genuinely changes over time stays code, not art. A corona twice
+ * the body's own radius sells the heat without pretending to be a light source
+ * the rest of the board reacts to.
+ */
+function drawStar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number): void {
+  if (r <= 0) return;
+  ctx.save();
+  const corona = ctx.createRadialGradient(x, y, r * 0.6, x, y, r * 2);
+  corona.addColorStop(0, 'rgba(253, 224, 71, 0.42)');
+  corona.addColorStop(0.5, 'rgba(249, 115, 22, 0.16)');
+  corona.addColorStop(1, 'rgba(249, 115, 22, 0)');
+  ctx.fillStyle = corona;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  const body = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.15, x, y, r);
+  body.addColorStop(0, '#fffbeb');
+  body.addColorStop(0.45, '#fde047');
+  body.addColorStop(1, '#f97316');
+  ctx.fillStyle = body;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 /** A half-circle-domed ship, 256x128 art (spec's own dimensions) — the dome
  *  points toward the opponent, i.e. away from local y = 1. */
-function drawShip(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidth: number, isSelf: boolean, domeUp: boolean, dpr: number): void {
-  const w = boardWidth * 0.22;
+function drawShip(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidth: number, isSelf: boolean, domeUp: boolean, dpr: number, alpha = 1): void {
+  if (alpha <= 0) return;
+  // `GRAVITY_SHIP_WIDTH`, not a literal: the hit radius is defined as half of
+  // it (`game.ts`), so a ship drawn at some other size would be a ship whose
+  // hitbox no longer matches its own image.
+  const w = boardWidth * GRAVITY_SHIP_WIDTH;
   const sprite = SHIP_ART[isSelf ? 0 : 1].at(w, dpr);
   if (sprite) {
     ctx.save();
+    ctx.globalAlpha = alpha;
     ctx.translate(x, y);
     // The art faces one way; the opponent's own ship is drawn dome-down by
     // flipping the y axis rather than keeping a second, mirrored sprite.
@@ -293,6 +426,7 @@ function drawShip(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidt
     return;
   }
   ctx.save();
+  ctx.globalAlpha = alpha;
   ctx.fillStyle = SHIP_COLORS[isSelf ? 0 : 1];
   ctx.beginPath();
   ctx.arc(x, y, w / 2, Math.PI, 0, !domeUp);
@@ -301,11 +435,20 @@ function drawShip(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidt
   ctx.restore();
 }
 
-function drawMissile(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidth: number, dpr: number): void {
+/**
+ * The missile, nose-first along `heading` — the angle its travel makes with
+ * straight-up, positive clockwise, the same convention `aimFromFinger` uses.
+ * The art is drawn pointing up, so the rotation is the heading itself.
+ */
+function drawMissile(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidth: number, dpr: number, heading = 0): void {
   const w = boardWidth * 0.05;
   const sprite = missileSprite.at(w, dpr);
   if (sprite) {
-    ctx.drawImage(sprite.source, x - sprite.w / 2, y - sprite.h / 2, sprite.w, sprite.h);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(heading);
+    ctx.drawImage(sprite.source, -sprite.w / 2, -sprite.h / 2, sprite.w, sprite.h);
+    ctx.restore();
     return;
   }
   ctx.save();
@@ -315,3 +458,4 @@ function drawMissile(ctx: CanvasRenderingContext2D, x: number, y: number, boardW
   ctx.fill();
   ctx.restore();
 }
+

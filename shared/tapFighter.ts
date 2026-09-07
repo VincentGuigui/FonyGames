@@ -46,6 +46,21 @@ export const FIGHTER_HIT_DAMAGE = 20;
 /** The fixed sequence length `validFighterPlan` requires of every locked plan. */
 export const FIGHTER_BEAT_COUNT = 6;
 
+/**
+ * Extra beats the MATCH-DECIDING round plays after its own last exchange — a
+ * finishing flourish, not more fighting: nobody throws another action and no
+ * health changes, the camera just holds on the finish for this long before the
+ * result appears.
+ *
+ * It lives here rather than client-side because the worker has to know: it is
+ * what `endsAt` is extended by, which is in turn what keeps the referee's own
+ * phase flip, the client's animation and the last-round music (whose fit
+ * duration is read straight off `endsAt`) all agreeing on when the round
+ * really ends. Which poses those beats show is the client's business
+ * (`FIGHTER_ENCORE_POSES`).
+ */
+export const FIGHTER_ENCORE_BEATS = 2;
+
 export function resolveFight(blue: readonly FighterAction[], green: readonly FighterAction[]): {
   beats: FighterBeat[];
   winner: FighterSeat | null;

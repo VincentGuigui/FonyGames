@@ -267,7 +267,33 @@ export type ClientMessage =
    * would need (the planets it rolled itself, plus `angle`/`strength`) but
    * deliberately does not re-derive it, by direct instruction (spec §8).
    */
-  | { t: 'gravity-shot'; d: { roundId: number; angle: number; strength: number; hit: boolean } }
+  /** Gravity Shooter: the shot just fired. `flightMs` is how long the shooter's
+   *  own phone will spend animating it — the referee holds the next shot clock
+   *  back by that much so the opponent's turn does not start while someone
+   *  else's missile is still on screen (issue #34); it is clamped to
+   *  `GRAVITY_MAX_FLIGHT_MS`, so claiming a long flight buys no extra time. */
+  | { t: 'gravity-shot'; d: { roundId: number; angle: number; strength: number; hit: boolean; flightMs: number } }
+  /**
+   * Color Match: this phone's pick for the level in flight (spec §6). A colour
+   * and a luminance, never a score — the referee computes what it is worth,
+   * because a claimed score is the one thing a payload must never carry.
+   */
+  | { t: 'color-pick'; d: { roundId: number; level: number; rgb: [number, number, number]; lum: number; at: number } }
+  /**
+   * Color Hunt: what this phone's magnifier last read (spec §6). Three
+   * integers — **no pixel is ever on the wire**, which is the whole of that
+   * game's privacy claim (spec §10).
+   */
+  | { t: 'hunt-find'; d: { roundId: number; round: number; rgb: [number, number, number]; at: number } }
+  /**
+   * Asteroid Race: how far I have got and what it has cost me, on a 1 s tick
+   * plus immediately on a life change or a finish (spec §6). Nothing about the
+   * flight itself is here — no position, no steer, no missile, no boost —
+   * because nobody else can see my ship, so the room has nothing to draw with
+   * them (spec §2.2). `at` is this phone's own estimate of server time, used
+   * to record WHEN a crossing happened, never to decide that it did.
+   */
+  | { t: 'asteroid-report'; d: { roundId: number; distance: number; lives: number; hits: number; at: number } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
@@ -638,6 +664,74 @@ export type TilesSurferRun = {
  * private to begin with, the same shape Aliens Love Cows' own state already
  * is for the same reason.
  */
+/**
+ * Color Match: one level of the ladder (spec §6).
+ *
+ * The **target is on the wire in the clear**, which is not an oversight: the
+ * game does not exist unless the colour is shown, so hiding it from the
+ * payload would only hide it from the honest players. Spec §8 states the
+ * position in full.
+ *
+ * Every phase boundary is an absolute server time rather than a duration, so a
+ * phone that stutters catches up instead of drifting a level behind the room —
+ * Tap Duel's `fireAt` and Tiles Surfer's spawn schedule make the same choice.
+ */
+export type ColorMatchState = {
+  roundId: number;
+  /** 1-based, and unbounded: the ladder's last rung is a formula (spec §2.3). */
+  level: number;
+  /** The colour to match, already carrying its luminance. */
+  target: [number, number, number];
+  /** Is the luminance slider live on this rung? Derived from the level, sent
+   *  anyway so the phone never has to agree with the referee about the ladder. */
+  luminance: boolean;
+  phase: 'pick' | 'reveal' | 'done';
+  /** When picks close, when the reveal starts, when the level ends. */
+  picksDueAt: number;
+  revealAt: number;
+  endsAt: number;
+  /** Running totals, every player who has played a level. */
+  totals: Record<PlayerId, number>;
+  /**
+   * Last scored level only — what everyone picked and what it was worth.
+   * Empty during `pick`.
+   *
+   * Three numbers, not one (issue #38): `accuracy` is how close the colour
+   * was, 0-100; `reactionMs` is how long that answer took from the level
+   * opening; `score` is what actually went on the total, the accuracy bent by
+   * the reaction bonus (`colorPoints`). The phone shows all three because the
+   * player cannot otherwise tell a slow bullseye from a fast near-miss.
+   */
+  picks: Record<PlayerId, { rgb: [number, number, number]; accuracy: number; reactionMs: number; score: number }>;
+  /** Consecutive levels nobody scored on. At `COLOR_BARREN_ROUNDS` the run ends. */
+  barren: number;
+  winner: PlayerId | null;
+};
+
+/**
+ * Color Hunt: one round of the hunt (spec §6).
+ *
+ * Shorter than Color Match's by one phase — there is no reveal, by design
+ * (spec §2): the next target replaces this one the instant scoring completes,
+ * because the momentum is the thing this game has that Color Match does not.
+ */
+export type ColorHuntState = {
+  roundId: number;
+  round: number;
+  target: [number, number, number];
+  /** `red` … `magenta` — the phone writes the word on the band, because a word
+   *  reads across a room faster than a swatch (spec §4). */
+  name: string;
+  phase: 'hunt' | 'done';
+  dueAt: number;
+  endsAt: number;
+  totals: Record<PlayerId, number>;
+  /** Last scored round only. Empty until the first one is scored. */
+  finds: Record<PlayerId, { rgb: [number, number, number]; score: number }>;
+  barren: number;
+  winner: PlayerId | null;
+};
+
 export type TilesSurferState = {
   roundId: number;
   startsAt: number;
@@ -645,6 +739,45 @@ export type TilesSurferState = {
   endsAt: number;
   /** Each player's own last-reported run. Absent until their first report. */
   scores: Record<PlayerId, TilesSurferRun>;
+  winner: PlayerId | null;
+  phase: 'running' | 'done';
+};
+
+/**
+ * Asteroid Race: one player's own run down the field (spec §6).
+ *
+ * Everything here is what an `asteroid-report` claimed, clamped on arrival to
+ * what the clock actually allows (`reachableBy` in worker/asteroidRace.ts) —
+ * the referee owns the ranking and the finish, never the flight, because the
+ * flight happens on a phone nobody else is looking at (spec §2.2, §8).
+ */
+export type AsteroidRun = {
+  /** Ship lengths down the track. Never decreases within a round. */
+  distance: number;
+  lives: number;
+  /** Rocks clipped so far — shown, never scored (spec §2). */
+  hits: number;
+  /** Server time they crossed the line, or null. */
+  finishedAt: number | null;
+  /** No report for `ASTEROID_AWAY_MS`: their ship is frozen on the ladder
+   *  until one arrives (spec §7). Recomputed by the referee's own tick. */
+  away: boolean;
+};
+
+/**
+ * Asteroid Race: the whole race, fully public — every run is its own phone's
+ * business (spec §2.2), so there is nothing here that is private to begin
+ * with, the same shape Tiles Surfer's own state already is for the same
+ * reason.
+ */
+export type AsteroidRaceState = {
+  roundId: number;
+  startsAt: number;
+  /** The 120 s cap. Reaching it hands the race to whoever is furthest (spec §7). */
+  endsAt: number;
+  /** Each player's own last-reported run. Present for everyone from the start,
+   *  at zero, so the ladder has a full field to draw before anybody moves. */
+  runs: Record<PlayerId, AsteroidRun>;
   winner: PlayerId | null;
   phase: 'running' | 'done';
 };
@@ -672,6 +805,12 @@ export type GravityShot = {
   angle: number;
   strength: number;
   hit: boolean;
+  /** Nobody aimed this one: the referee's own marker for a turn whose shot
+   *  clock ran out (spec §2.4). A receiving phone animates no flight for it and
+   *  draws the blast on the shooter's own ship instead. An explicit flag rather
+   *  than "strength is 0", which since issue #36 is a real, aimable shot — the
+   *  weakest one on the ramp. */
+  timedOut: boolean;
 };
 
 /**
@@ -696,8 +835,23 @@ export type GravityShooterState = {
    * tell the two ships apart when there is only one of it.
    */
   seats: [PlayerId, PlayerId];
-  /** Rolled once at round start, echoed unchanged on every later frame. */
-  planets: [GravityPlanet, GravityPlanet];
+  /**
+   * Rolled at round start and re-rolled every `GRAVITY_SHOTS_PER_MAP` resolved
+   * shots (spec §2.1) — so the board both players are aiming at changes once
+   * each of them has had a turn on it, never mid-exchange. The re-roll rides
+   * the same frame that reports the shot which triggered it, which is why a
+   * client replaying `lastShot` has to simulate against the planets it was
+   * already showing rather than these (`game.ts`'s own `apply`).
+   */
+  planets: GravityPlanetTrio;
+  /**
+   * The star's own radius. It always sits dead centre (`gravityStar`), so its
+   * position never has to cross the wire — only how big it is this time, which
+   * is re-rolled with the planets (spec §2.1).
+   */
+  starRadius: number;
+  /** Resolved shots so far, timeouts included — what the planet re-roll counts. */
+  shots: number;
   lives: [number, number];
   turn: 0 | 1;
   /** Deadline for the current turn's `gravity-shot` — a silent shooter is
@@ -931,6 +1085,12 @@ export type ServerMessage =
   | { t: 'tiles'; s: number; d: TilesSurferState }
   /** Gravity Shooter: the whole match — planets, lives, turn, phase, winner. */
   | { t: 'gravity'; s: number; d: GravityShooterState }
+  /** Asteroid Race: everyone's last-reported run, fully public — spec §6. */
+  | { t: 'asteroid'; s: number; d: AsteroidRaceState }
+  /** Color Match: the level in flight, and what the last one was worth. */
+  | { t: 'color-match'; s: number; d: ColorMatchState }
+  /** Color Hunt: the target in flight, and what the last one was worth. */
+  | { t: 'color-hunt'; s: number; d: ColorHuntState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
    * Tap Tap Music: sent to **one player only** — their own cleared
@@ -1666,6 +1826,9 @@ const CLIENT_TYPES = new Set([
   'abduct-pick',
   'tiles-report',
   'gravity-shot',
+  'asteroid-report',
+  'color-pick',
+  'hunt-find',
   'switch-game',
 ]);
 
@@ -2312,31 +2475,91 @@ export const GRAVITY_PLANET_R_MIN = 20 / GRAVITY_REFERENCE_BOARD_PX;
 export const GRAVITY_PLANET_R_MAX = 100 / GRAVITY_REFERENCE_BOARD_PX;
 
 /**
- * How different the two planets' own radii must be, as a fraction of the
- * larger one (issue #16) — two near-identical planets read as one shape
- * drawn twice, not two different things to curve a shot around.
+ * How different two planets' own radii must be, as a fraction of the larger
+ * one (issue #16) — two near-identical planets read as one shape drawn twice,
+ * not two different things to curve a shot around. With three planets the rule
+ * applies down the whole chain: sorted big to small, each is at least this much
+ * smaller than the one before it, so no two of the three are ever twins.
  */
 export const GRAVITY_PLANET_MIN_SIZE_DIFF_RATIO = 0.3;
 
 /**
- * How far apart the two planets' own SURFACES must land — centre distance
+ * How far apart any two planets' own SURFACES must land — centre distance
  * minus both radii — never their centres alone (issue #16): two big planets
  * can have far-apart centres and still touch. Same px-then-normalized shape
- * as the radius range above.
+ * as the radius range above. With three planets it is every pair, including
+ * the two that share a side.
  */
 export const GRAVITY_PLANET_MIN_GAP_PX = 50;
 export const GRAVITY_PLANET_MIN_GAP = GRAVITY_PLANET_MIN_GAP_PX / GRAVITY_REFERENCE_BOARD_PX;
 
 /**
- * How far apart the two planets' own centres must sit vertically (issue
- * #16) — otherwise they can land on the same horizontal band and read as
- * one wide obstacle rather than two separate things to route between.
+ * How far apart two planets' own centres must sit vertically (issue #16) —
+ * otherwise they can land on the same horizontal band and read as one wide
+ * obstacle rather than two separate things to route between.
+ *
+ * Required of the two planets that **share a side**, which is where that
+ * failure actually looks like one shape: three rows this far apart do not fit
+ * in the `[GRAVITY_PLANET_Y_MIN, GRAVITY_PLANET_Y_MAX]` band at all, and the
+ * lone planet on the other half is already a whole board-width away from both
+ * of them with the star in between.
  */
 export const GRAVITY_PLANET_MIN_Y_DIFF_PX = 100;
 export const GRAVITY_PLANET_MIN_Y_DIFF = GRAVITY_PLANET_MIN_Y_DIFF_PX / GRAVITY_REFERENCE_BOARD_PX;
 
 /** How many pre-made planet PNGs `GravityPlanet.art` may index into. */
 export const GRAVITY_PLANET_ART_COUNT = 3;
+
+/**
+ * How many planets a board carries, and how they are split across the centre
+ * line: **three, two on one side and one on the other** (which side gets the
+ * pair is a fair coin flip each roll). The asymmetry is the point — a board
+ * with the same count either side has an obvious mirror-image shot down each
+ * flank, while a 2/1 split makes the two halves genuinely different problems.
+ *
+ * A count rather than a bare tuple length so the rules below can be read
+ * against it, and so the placement code says what it means.
+ */
+export const GRAVITY_PLANET_COUNT = 3;
+
+/** The board's planets, exactly `GRAVITY_PLANET_COUNT` of them. */
+export type GravityPlanetTrio = [GravityPlanet, GravityPlanet, GravityPlanet];
+
+/**
+ * How many resolved shots a set of planets lasts before the referee rolls a
+ * fresh board (spec §2.1). Two means one shot apiece: the board changes only
+ * once BOTH players have aimed at it, so nobody inherits a map their opponent
+ * already had a free look at. Timeouts count — a turn that expired is still
+ * that seat's shot spent.
+ */
+export const GRAVITY_SHOTS_PER_MAP = 2;
+
+/**
+ * The star's own radius range, same px-then-normalized shape as the planets'.
+ * Deliberately narrower than theirs: the star is pinned to the middle of the
+ * board and every planet owes it the same surface gap it owes the other planet,
+ * so a star free to grow as large as a planet can would leave the two planets
+ * nowhere legal to stand.
+ */
+export const GRAVITY_STAR_R_MIN_PX = 30;
+export const GRAVITY_STAR_R_MAX_PX = 60;
+export const GRAVITY_STAR_R_MIN = GRAVITY_STAR_R_MIN_PX / GRAVITY_REFERENCE_BOARD_PX;
+export const GRAVITY_STAR_R_MAX = GRAVITY_STAR_R_MAX_PX / GRAVITY_REFERENCE_BOARD_PX;
+
+/**
+ * The star as a body the physics can use, at its own fixed home in the middle
+ * of the board. It pulls and swallows exactly like a planet — same formula,
+ * same absorption-at-its-own-radius rule — so every simulation just runs over
+ * `gravityBodies()` and never special-cases it.
+ */
+export function gravityStar(radius: number): GravityPlanet {
+  return { x: 0.5, y: 0.5, r: radius, art: 0 };
+}
+
+/** Everything that pulls, in one list: the star first, then every planet. */
+export function gravityBodies(starRadius: number, planets: readonly GravityPlanet[]): GravityPlanet[] {
+  return [gravityStar(starRadius), ...planets];
+}
 
 /**
  * How far a planet's own gravity is required to reach, as a multiple of its
@@ -2383,11 +2606,174 @@ export const GRAVITY_SHIP_MARGIN = 0.08 + 20 / GRAVITY_REFERENCE_BOARD_PX;
  */
 export const GRAVITY_MAX_STRENGTH = 1;
 
-/** How long a turn waits for its own `gravity-shot` before the referee
- *  resolves it as a miss and passes the turn on (spec §2.4) — comfortably
- *  longer than the 3s flight itself, since it only covers message arrival. */
-export const GRAVITY_SHOT_TIMEOUT_MS = 15_000;
+/**
+ * The aim ramp, in the shooter's own local view units, measured from the
+ * ship's nose (`launchPosition`): everything inside `GRAVITY_MIN_AIM_DISTANCE`
+ * is the weakest shot there is — a pad the thumb can land on rather than a
+ * hairline against the hull — and strength ramps from there out to
+ * `GRAVITY_MAX_AIM_DISTANCE`, where it caps (issue #36).
+ *
+ * These live here, not with the client-only tuning, because the referee now
+ * samples a board's shots in **finger space** rather than in angle/strength:
+ * it measures how big a target the winning shots make for an actual thumb
+ * (`GRAVITY_AIM_TOLERANCE`), and that measurement is meaningless unless it
+ * uses the same ramp the thumb will. Same reasoning as `GRAVITY_SHIP_MARGIN`
+ * above — the duplicated copy is exactly what let the referee's own model
+ * drift from the client's once already.
+ */
+export const GRAVITY_MIN_AIM_DISTANCE = 0.08;
+export const GRAVITY_MAX_AIM_DISTANCE = 0.42;
+
+/**
+ * How many of the referee's sampled shots have to land before a freshly rolled
+ * board ships, for **each** seat (spec §2.1) — the accept condition.
+ *
+ * More than one, deliberately. The sampler's fan is spread evenly over the aim
+ * disc, so the share of it that lands is an estimate of the share of the disc
+ * that lands, and that is the thing a person actually needs: not "a winning
+ * shot exists" but "there is enough of a window to aim at". One hit is
+ * consistent with a hairline the grid fell on by luck.
+ *
+ * The number itself is picked from measurement, not taste — see the spec's
+ * §2.1 for what each threshold does to the worst boards.
+ */
+export const GRAVITY_MIN_LANDING_SHOTS = 3;
+
+/**
+ * How long a player has to take their shot (spec §2.4). Dawdle past it and the
+ * missile goes off in their own hands: the shooter loses one of their own
+ * lives and the turn passes. It is a shot clock now, not just a backstop
+ * against a phone that went quiet, which is why it is short enough to feel
+ * like one. The last few seconds blink increasingly fast on the shooter's
+ * own ship (`game.ts`'s own `GRAVITY_SHOT_BLINK_START_MS`) — a client-only
+ * cosmetic, so that constant lives there rather than here.
+ */
+export const GRAVITY_SHOT_TIMEOUT_MS = 13_000;
+
+/**
+ * The longest flight a client may claim, in ms of wall-clock animation — the
+ * shot clock above only starts once the missile it is waiting on has landed
+ * (issue #34), and this is what stops a phone buying itself an unbounded turn
+ * by reporting a flight that never ends.
+ *
+ * It is the missile's own maximum life seen at the client's playback rate:
+ * `GRAVITY_ONSCREEN_LIFETIME_MS` (20s of simulated flight) at
+ * `GRAVITY_PLAYBACK_RATE` (2x). Both of those are client-only tuning and stay
+ * in `www/src/games/gravity-shooter/game.ts`; this is the one number the
+ * referee needs, and that file's own test asserts the two still agree.
+ */
+export const GRAVITY_MAX_FLIGHT_MS = 10_000;
 
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const GRAVITY_MIN_PLAYERS = PLAYERS['gravity-shooter'][0];
 export const GRAVITY_MAX_PLAYERS = PLAYERS['gravity-shooter'][1];
+
+/* ------------------------------------------------------------------ */
+/* Asteroid Race (docs/specs/games/asteroid-race.md)                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Only the constants the REFEREE needs are here — the ones it clamps a report
+ * with (`reachableBy`), plus the race's own length, lives and cap. Everything
+ * about the field, the view and the missile is client-only tuning and lives in
+ * `www/src/games/asteroid-race/game.ts`, the same split Gravity Shooter's own
+ * physics already uses: the referee never simulates a flight (spec §2.2, §8),
+ * so it has no use for a rock's radius or a fog distance and no need to agree
+ * with the phone about either.
+ *
+ * Distances are in **ship lengths** throughout (spec §5b).
+ */
+
+/** The finish line. 60 s of clean cruising. */
+export const ASTEROID_TRACK_LENGTH = 2400;
+
+/** Forward speed with nothing pressed — the ship never throttles, it only
+ *  steers (spec §2), so this and the boost below are the whole speed model. */
+export const ASTEROID_CRUISE_SPEED = 40;
+
+/** Boost: how much faster, for how long, and how long until the next one.
+ *  The referee needs all three to know the fastest run physically available
+ *  in a given elapsed time (spec §8) — it never sees a boost being used. */
+export const ASTEROID_BOOST_MULTIPLIER = 1.8;
+export const ASTEROID_BOOST_MS = 2_000;
+export const ASTEROID_BOOST_COOLDOWN_MS = 9_000;
+
+/** Clip a rock and you stand still this long, blinking (spec §2, the issue's
+ *  own second). Also what each reported hit takes off `reachableBy`'s bound. */
+export const ASTEROID_STUN_MS = 1_000;
+
+export const ASTEROID_LIVES = 5;
+
+/** The hard cap. Nobody wants a race that never ends (spec §7). */
+export const ASTEROID_ROUND_CAP_MS = 120_000;
+
+/** How often a phone reports, and how often the referee broadcasts the
+ *  ladder. One second each way keeps 8 players inside Profile A (spec §6). */
+export const ASTEROID_REPORT_MS = 1_000;
+
+/**
+ * How long a phone may go quiet before its run freezes on the ladder — and,
+ * more load-bearing, the most flying any single report may claim (spec §8).
+ * Without that second job a silent phone could bank a minute and spend it in
+ * one frame, satisfying `reachableBy` and arriving from a standing start;
+ * Shake Rush's own `RUSH_AWAY_MS` closes the identical hole.
+ */
+export const ASTEROID_AWAY_MS = 3_000;
+
+/** Slack on `reachableBy`, in ship lengths — half a second of cruising, so a
+ *  phone whose clock estimate is a little off is not quietly slowed. */
+export const ASTEROID_CLAIM_SLACK = 20;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const ASTEROID_MIN_PLAYERS = PLAYERS['asteroid-race'][0];
+export const ASTEROID_MAX_PLAYERS = PLAYERS['asteroid-race'][1];
+
+/* ------------------------------------------------------------------ */
+/* Color Match (docs/specs/games/color-match.md)                       */
+/* ------------------------------------------------------------------ */
+
+/* The action window is tiered by level and lives in `shared/color.ts`
+   (`colorActionMs`), beside the ladder whose rungs decide where the tiers
+   step — a copy here would be a second place for those boundaries to drift. */
+
+/** The rest of a level, after picking closes. The referee sends every boundary
+ *  as an absolute time, so these are durations it adds up rather than anything
+ *  a phone counts down on its own. */
+export const COLOR_SCORE_HOLD_MS = 2_000;
+export const COLOR_SOLVE_MS = 1_000;
+export const COLOR_REVEAL_HOLD_MS = 1_000;
+
+/** Above this many colours in the rung's palette, the wheel stops drawing
+ *  wedges and goes continuous (spec §4.2). A guess. */
+export const COLOR_SECTOR_MAX = 64;
+
+/** The safety cap. Ten minutes of a room that will not stop scoring is not a
+ *  design element, it is a way out (spec §2.1). */
+export const COLOR_RUN_CAP_MS = 600_000;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const COLOR_MATCH_MIN_PLAYERS = PLAYERS['color-match'][0];
+export const COLOR_MATCH_MAX_PLAYERS = PLAYERS['color-match'][1];
+
+/* ------------------------------------------------------------------ */
+/* Color Hunt (docs/specs/games/color-hunt.md)                         */
+/* ------------------------------------------------------------------ */
+
+/** Fifteen seconds. Far longer than Color Match's own first tier, because
+ *  finding a red thing means standing up and walking to it — and because a hunt
+ *  is at most six rounds (spec §2.2), so the whole game is ~90 s of hunting
+ *  even at this length. */
+export const COLOR_HUNT_ACTION_MS = 15_000;
+
+/** The issue's own 10x10 patch, and how often it is re-read. Sampling at frame
+ *  rate makes the magnifier a strobe; averaging a few reads is what makes it
+ *  settle enough to aim with (spec §5). */
+export const COLOR_HUNT_SAMPLE = 10;
+export const COLOR_HUNT_SAMPLE_HZ = 10;
+
+/** The safety cap, and the reason §9's safety copy can promise a bound: nobody
+ *  is walking around looking at a screen for longer than this. */
+export const COLOR_HUNT_CAP_MS = 600_000;
+
+export const COLOR_HUNT_MIN_PLAYERS = PLAYERS['color-hunt'][0];
+export const COLOR_HUNT_MAX_PLAYERS = PLAYERS['color-hunt'][1];

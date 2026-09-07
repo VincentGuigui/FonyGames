@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
-import { TILES_HEIGHT_TRACKS, TILES_LINE_FRACTION, TILES_TRACK_COUNT } from '../../../../shared/protocol';
-import { TILES_COMMENT_MS, type TilesRun } from './game';
+import { TILES_HEIGHT_TRACKS, TILES_LINE_FRACTION, TILES_SPAWN_INTERVAL_MS, TILES_TRACK_COUNT } from '../../../../shared/protocol';
+import { TILES_COMMENT_MS, type LiveTile, type TilesRun } from './game';
 
 /** Where the line sits for a board this tall — one formula, shared by drawing
  *  and by tap detection, so the two can never drift apart. */
@@ -9,8 +9,17 @@ function lineYFor(height: number): number {
   return height * TILES_LINE_FRACTION;
 }
 
+/** How long a tile is drawn: its own height, plus one spawn interval's worth of
+ *  travel for every beat merged into it (spec §2.2b). */
+function tileLengthPx(tile: LiveTile, tileHeightPx: number, lineY: number): number {
+  return tileHeightPx + ((tile.beats - 1) * TILES_SPAWN_INTERVAL_MS * lineY) / tile.fallMs;
+}
+
 /** A tapped tile's own flash — a lighter version of the accent, always green. */
 const TILES_HIT_COLOR = '#4ADE80';
+/** A long tile being held right now — the same green, so "I have this" reads
+ *  the same whether it is a flash or a hold in progress (spec §4). */
+const TILES_HELD_COLOR = '#4ADE80';
 /** A missed tile's own flash — the same idea, in red. */
 const TILES_MISS_COLOR = '#F87171';
 
@@ -74,6 +83,9 @@ export function TilesCanvas({ run, elapsedMs, accent, onTick }: Props): JSX.Elem
 
       if (run.alive) {
         run.spawnDue(t);
+        // Banked before the sweep: a hold whose last beat lands this very frame
+        // has been played out, not dropped.
+        run.awardHolds(t);
         run.sweepMissed(t, tileHeightPx, lineY);
       }
 
@@ -92,14 +104,30 @@ export function TilesCanvas({ run, elapsedMs, accent, onTick }: Props): JSX.Elem
       context.fillStyle = accent;
       context.fillRect(0, lineY, width, 2);
 
-      context.globalAlpha = 0.85;
       const pad = laneWidth * 0.12;
       for (const tile of run.tiles) {
+        // A merged tile is drawn as ONE tile as long as the beats it swallowed
+        // (spec §2.2b): its own height, plus a spawn interval's worth of travel
+        // for every extra beat. Nothing here decides anything — `beatAt` in
+        // game.ts owns when a beat actually lands.
         const bottomY = (lineY * (t - tile.spawnedAt)) / tile.fallMs;
-        const topY = bottomY - tileHeightPx;
+        const lengthPx = tileLengthPx(tile, tileHeightPx, lineY);
+        const topY = bottomY - lengthPx;
         if (bottomY < 0 || topY > height) continue;
         const x = tile.track * laneWidth;
-        context.fillRect(x + pad, topY, laneWidth - pad * 2, tileHeightPx);
+        context.globalAlpha = 0.85;
+        context.fillStyle = tile.held ? TILES_HELD_COLOR : accent;
+        context.fillRect(x + pad, topY, laneWidth - pad * 2, lengthPx);
+        // The beats inside a long tile, as faint ticks — a player has to see
+        // that a long tile is worth several before holding one is a decision.
+        if (tile.beats > 1) {
+          context.globalAlpha = 0.35;
+          context.fillStyle = '#0B1220';
+          for (let n = 1; n < tile.beats; n++) {
+            const y = bottomY - (lineY * n * TILES_SPAWN_INTERVAL_MS) / tile.fallMs;
+            context.fillRect(x + pad, y - 1, laneWidth - pad * 2, 2);
+          }
+        }
       }
       context.globalAlpha = 1;
 
@@ -127,21 +155,48 @@ export function TilesCanvas({ run, elapsedMs, accent, onTick }: Props): JSX.Elem
       frame = requestAnimationFrame(draw);
     };
 
+    /**
+     * Which lane each finger went down in. A long tile is held, so a press and
+     * its release have to be paired per POINTER — two thumbs is the normal way
+     * to hold one lane while tapping another, and a release has to free the
+     * lane its own finger took, not whichever lane happens to be held.
+     */
+    const holding = new Map<number, number>();
+
+    const laneOf = (event: PointerEvent, rect: DOMRect): number => {
+      const laneWidth = rect.width / TILES_TRACK_COUNT;
+      return Math.min(TILES_TRACK_COUNT - 1, Math.max(0, Math.floor((event.clientX - rect.left) / laneWidth)));
+    };
+
     const onPointerDown = (event: PointerEvent): void => {
       const rect = element.getBoundingClientRect();
       const laneWidth = rect.width / TILES_TRACK_COUNT;
-      const track = Math.min(TILES_TRACK_COUNT - 1, Math.max(0, Math.floor((event.clientX - rect.left) / laneWidth)));
-      const tileHeightPx = laneWidth * TILES_HEIGHT_TRACKS;
-      const lineY = lineYFor(rect.height);
-      latest.current.run.tap(track, latest.current.elapsedMs(), tileHeightPx, lineY);
+      const track = laneOf(event, rect);
+      holding.set(event.pointerId, track);
+      latest.current.run.press(track, latest.current.elapsedMs(), laneWidth * TILES_HEIGHT_TRACKS, lineYFor(rect.height));
+      latest.current.onTick();
+    };
+
+    const onPointerUp = (event: PointerEvent): void => {
+      const track = holding.get(event.pointerId);
+      if (track === undefined) return;
+      holding.delete(event.pointerId);
+      latest.current.run.release(track, latest.current.elapsedMs());
       latest.current.onTick();
     };
 
     element.addEventListener('pointerdown', onPointerDown);
+    // On window, not the canvas: a finger that slides off the board still has
+    // to end its hold, and a pointercancel (a call, the app backgrounding)
+    // must too — otherwise the tile is held by a finger that is not there.
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('pointercancel', onPointerUp);
     frame = requestAnimationFrame(draw);
     return () => {
       cancelAnimationFrame(frame);
       element.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', onPointerUp);
     };
   }, []);
 

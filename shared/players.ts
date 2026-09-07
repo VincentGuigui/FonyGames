@@ -57,6 +57,9 @@ export const PLAYERS = {
   'aliens-love-cows': [2, 8],
   'tiles-surfer': [1, 8],
   'gravity-shooter': [2, 2],
+  'asteroid-race': [1, 8],
+  'color-match': [1, 8],
+  'color-hunt': [2, 8],
 } as const satisfies Record<string, PlayerLimits>;
 
 export type GameSlug = keyof typeof PLAYERS;
@@ -67,6 +70,7 @@ export const BUILT_GAMES = [
   'cat-and-mouse', 'shake-rush', 'steady-hand', 'ghost-hunt', 'grid-attack',
   'squash-mosquitoes', 'neon-fall', 'tap-tap-music', 'tic-tac-tic-tac-toe',
   'hundred-taps', 'ufo-hunt', 'aliens-love-cows', 'tiles-surfer', 'gravity-shooter',
+  'asteroid-race', 'color-match', 'color-hunt',
 ] as const;
 
 export type BuiltGame = typeof BUILT_GAMES[number];

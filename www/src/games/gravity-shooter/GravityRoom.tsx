@@ -14,10 +14,17 @@ import { GameLobby } from '../../lobby/GameLobby';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { useSoloTesting } from '../../core/useSolo';
-import { GravityGame } from './game';
-import { GravityCanvas, type FlightEnd } from './GravityCanvas';
+import {
+  GravityGame,
+  GRAVITY_EXPLOSION_GIF_MS,
+  GRAVITY_IMPACT_GIF_MS,
+  shipPosition,
+  viewTransform,
+  type Seat,
+} from './game';
+import { GravityCanvas, type DyingShip, type FlightEnd } from './GravityCanvas';
 import impactMissileGif from './art/impact_missile.gif?url&no-inline';
 import explosionGif from './art/explosion.gif?url&no-inline';
 import './gravity-shooter.css';
@@ -36,7 +43,9 @@ export function GravityRoom(props: { game: GameCard }): JSX.Element {
 
 type Burst = { id: number; kind: 'missile' | 'explosion'; x: number; y: number };
 
-const BURST_MS: Record<Burst['kind'], number> = { missile: 580, explosion: 1000 };
+/** Each burst stays up for exactly as long as its own GIF runs — the real
+ *  durations, measured off the files (`game.ts`), not padded guesses. */
+const BURST_MS: Record<Burst['kind'], number> = { missile: GRAVITY_IMPACT_GIF_MS, explosion: GRAVITY_EXPLOSION_GIF_MS };
 const BURST_ART: Record<Burst['kind'], string> = { missile: impactMissileGif, explosion: explosionGif };
 
 function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
@@ -64,13 +73,50 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
    * seats (see shared/protocol.ts's own `GravityShooterState` docblock).
    */
   const [displayedLives, setDisplayedLives] = useState<[number, number]>([GRAVITY_LIVES, GRAVITY_LIVES]);
+  /** The match-ending GIF sequence is still playing — see `onFlightEnd`. */
+  const [finaleRunning, setFinaleRunning] = useState(false);
+  const [dying, setDying] = useState<DyingShip | null>(null);
+  /** The last timed-out turn this phone has already reacted to, so a re-sent
+   *  frame does not blow the same ship up twice. */
+  const blownUpAt = useRef(-1);
+
+  const addBurst = useCallback((kind: Burst['kind'], pos: { x: number; y: number }): void => {
+    const id = ++burstId.current;
+    setBursts((prev) => [...prev, { id, kind, x: Math.min(1, Math.max(0, pos.x)), y: Math.min(1, Math.max(0, pos.y)) }]);
+    setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), BURST_MS[kind]);
+  }, []);
 
   const onGame = useCallback(
     (msg: ServerMessage) => {
       game.apply(msg);
+      /**
+       * A turn that ran out the shot clock (spec §2.4): the referee marks it
+       * with a zero-strength `lastShot` and takes a life off the SHOOTER. There
+       * is no flight to watch, so unlike a real shot there is nothing to hold
+       * the news back for — the blast goes off on their own ship right now, and
+       * the pips follow it immediately rather than waiting for an
+       * `onFlightEnd` that will never come.
+       */
+      if (msg.t === 'gravity' && msg.d.lastShot?.timedOut && msg.d.shots !== blownUpAt.current) {
+        blownUpAt.current = msg.d.shots;
+        const victim = msg.d.lastShot.shooter;
+        const at = viewTransform(game.mySeat ?? 0, shipPosition(victim));
+        addBurst('missile', at);
+        setDisplayedLives(msg.d.lives);
+        // A shot clock that ends the match earns the same send-off a winning
+        // shot gets, rather than cutting straight to the results panel.
+        if (msg.d.phase === 'done') {
+          setFinaleRunning(true);
+          setTimeout(() => {
+            addBurst('explosion', at);
+            setDying({ seat: victim, startedAt: performance.now() });
+          }, GRAVITY_IMPACT_GIF_MS);
+          setTimeout(() => setFinaleRunning(false), GRAVITY_IMPACT_GIF_MS + GRAVITY_EXPLOSION_GIF_MS);
+        }
+      }
       redraw((n) => n + 1);
     },
-    [game],
+    [game, addBurst],
   );
 
   const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
@@ -84,24 +130,45 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
 
   useEffect(() => {
     if (game.state) setDisplayedLives(game.state.lives);
+    // A fresh match starts with nothing exploding and both ships intact.
+    setFinaleRunning(false);
+    setDying(null);
   }, [game, roundId]);
-
-  const addBurst = useCallback((kind: Burst['kind'], pos: { x: number; y: number }): void => {
-    const id = ++burstId.current;
-    setBursts((prev) => [...prev, { id, kind, x: Math.min(1, Math.max(0, pos.x)), y: Math.min(1, Math.max(0, pos.y)) }]);
-    setTimeout(() => setBursts((prev) => prev.filter((b) => b.id !== id)), BURST_MS[kind]);
-  }, []);
 
   const onFlightEnd = useCallback(
     (end: FlightEnd) => {
+      // A shot swallowed by a planet gets the same impact GIF a ship hit
+      // does, played where it was actually absorbed — a miss is still a
+      // collision, just not with the ship it was aimed at.
+      if (end.planetImpact) addBurst('missile', end.planetImpact);
       if (end.hit) {
-        addBurst('missile', end.local);
+        // `end.contact` — where the flight actually met the hull. Not
+        // `end.local` (the simulation stops a hit radius out, floating above
+        // the ship) and not `end.target` either (the ship's centre, which is
+        // where the ship's own explosion belongs, not the missile's impact).
+        addBurst('missile', end.contact);
         // The referee's own broadcast — which decides `phase`/`winner` — arrives
         // well before the flight animation finishes, so by the time the flight
         // ends `game.state` already knows whether this was the killing blow
         // (spec §4).
-        if (game.state?.phase === 'done') {
-          setTimeout(() => addBurst('explosion', end.local), 200);
+        const finished = game.state;
+        if (finished?.phase === 'done' && finished.winner !== null) {
+          /**
+           * The match-ending sequence, played out in full before the result
+           * panel appears (spec §4): the missile's own impact GIF where it
+           * landed, then — once that has actually finished, not 200ms in — an
+           * explosion centred on the ship that was destroyed, which fades out
+           * underneath it. `finaleRunning` is what holds the results screen
+           * back for the whole span; without it the panel replaced the board
+           * the frame the flight ended, cutting both GIFs off.
+           */
+          const loser: Seat = finished.winner === 0 ? 1 : 0;
+          setFinaleRunning(true);
+          setTimeout(() => {
+            addBurst('explosion', end.target);
+            setDying({ seat: loser, startedAt: performance.now() });
+          }, GRAVITY_IMPACT_GIF_MS);
+          setTimeout(() => setFinaleRunning(false), GRAVITY_IMPACT_GIF_MS + GRAVITY_EXPLOSION_GIF_MS);
         }
       }
       // The flight this phone has been watching is over — only now does the
@@ -112,7 +179,7 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
   );
 
   const onShoot = useCallback(
-    (payload: { roundId: number; angle: number; strength: number; hit: boolean }) => {
+    (payload: { roundId: number; angle: number; strength: number; hit: boolean; flightMs: number }) => {
       client?.send({ t: 'gravity-shot', d: payload });
       redraw((n) => n + 1);
     },
@@ -128,7 +195,7 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
   // 'done'` the instant the shot lands, but the missile carrying that news is
   // still flying (or the impact GIF is still playing) on this phone. Cutting
   // straight to the results screen would skip the very shot that won it.
-  const stillAnimating = game.activeShot !== null;
+  const stillAnimating = game.activeShot !== null || finaleRunning;
 
   if (state && state.phase === 'done' && !stillAnimating) {
     return (
@@ -178,7 +245,7 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
           {pips(opponentLives)}
         </p>
         <div class="gravity__board">
-          <GravityCanvas game={game} onFlightEnd={onFlightEnd} onShoot={onShoot} />
+          <GravityCanvas game={game} onFlightEnd={onFlightEnd} onShoot={onShoot} dying={dying} />
           {bursts.map((b) => (
             <img
               key={b.id}
@@ -209,7 +276,6 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
       canStart={room.isHost && enoughToStart(room.connected, [GRAVITY_MIN_PLAYERS, GRAVITY_MAX_PLAYERS], solo)}
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'gravity', solo } })}
-      note={note(room.isHost, room.connected, solo, text)}
     />
   );
 }
@@ -221,11 +287,4 @@ function pips(lives: number): JSX.Element {
       {'○'.repeat(Math.max(0, GRAVITY_LIVES - lives))}
     </span>
   );
-}
-
-function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
-  if (!isHost) return text({ en: 'The host starts the match.', fr: "L’hôte démarre la partie." });
-  if (!solo && connected < GRAVITY_MAX_PLAYERS) return text({ en: 'Waiting for your opponent…', fr: 'En attente de votre adversaire…' });
-  if (connected > GRAVITY_MAX_PLAYERS) return text({ en: 'Gravity Shooter is exactly two players.', fr: 'Gravity Shooter se joue exactement à deux.' });
-  return text({ en: 'Touch above your ship to aim, let go, and let the planets bend your shot.', fr: 'Touchez au-dessus de votre vaisseau pour viser, lâchez, et laissez les planètes courber votre tir.' });
 }

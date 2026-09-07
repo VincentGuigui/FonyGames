@@ -8,10 +8,13 @@ export type GameInput =
   | 'gps'
   | 'compass'
   /**
-   * The rear camera, as **scenery** rather than input. Ghost Hunt draws the live feed
-   * behind its detector ring; no game reads a pixel of it for gameplay, and nothing
-   * leaves the phone (docs/specs/games/ghost-hunt.md §10). Listed on the card anyway,
-   * because a player deserves to know a game will ask before they open it.
+   * The rear camera. Usually **scenery** — Ghost Hunt and UFO Hunt draw the live
+   * feed behind their own overlays and read nothing from it. Color Hunt is the
+   * exception and genuinely samples it: 100 pixels from the centre of the frame,
+   * averaged on the phone (docs/specs/games/color-hunt.md §5). Either way nothing
+   * leaves the phone — not a frame, not a crop — and either way it is listed on
+   * the card, because a player deserves to know a game will ask before they open
+   * it.
    */
   | 'camera'
   | 'mic';
@@ -109,6 +112,13 @@ export type GameCard = {
   showPlayerCount?: boolean;
   /** Same, for the duration half. */
   showDuration?: boolean;
+  /**
+   * Same, for the input modality. Random Game's own "touch" describes tapping
+   * a card, which every card takes — it is not a promise about how the game on
+   * the other side is played, and reading "touch" next to a die that lands you
+   * in a motion game is worse than reading nothing.
+   */
+  showInputs?: boolean;
   inputs: GameInput[];
   /** 1–3 of `GameTag`. See that type's own comment. */
   tags: GameTag[];

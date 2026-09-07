@@ -13,7 +13,7 @@ import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { useSoloTesting } from '../../core/useSolo';
 import { SoundToggle, Taps100Board } from './Taps100Board';
 import { Taps100Game, formatClock } from './game';
@@ -167,16 +167,6 @@ function Taps100RoomInner({ game: card, code }: { game: GameCard; code: string }
       canStart={room.isHost && enoughToStart(room.connected, limits, solo)}
       startLabel={state ? t.common.playAgain : text({ en: 'Start the board', fr: 'Démarrer le plateau' })}
       onStart={() => client?.send({ t: 'start', d: { mode: 'taps100', solo } })}
-      note={note(room.isHost, room.connected, solo, text)}
     />
   );
-}
-
-function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
-  if (!solo && connected < TAPS100_MIN_PLAYERS) return text({ en: 'Waiting for one more player…', fr: 'En attente d’un joueur supplémentaire…' });
-  if (connected > TAPS100_MAX_PLAYERS) {
-    return text({ en: `100 Taps is ${TAPS100_MIN_PLAYERS}–${TAPS100_MAX_PLAYERS} players.`, fr: `100 Taps se joue de ${TAPS100_MIN_PLAYERS} à ${TAPS100_MAX_PLAYERS} joueurs.` });
-  }
-  if (!isHost) return text({ en: 'The host starts the board.', fr: "L’hôte démarre le plateau." });
-  return text({ en: `Everyone gets the same ${TAPS100_TOTAL} numbers, shuffled the same way. First to tap them all in order wins.`, fr: `Tout le monde reçoit les mêmes ${TAPS100_TOTAL} nombres, mélangés de la même façon. Le premier à tous les toucher dans l’ordre gagne.` });
 }

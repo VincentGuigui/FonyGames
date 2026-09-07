@@ -1,0 +1,85 @@
+/*
+ * Everyone's score across the bottom, four to a line.
+ * Component: core/ui/WideScoreboard.tsx · spec: docs/design/game-chrome.md §6
+ *
+ * The corner panel's twin, and deliberately built from its own tokens rather
+ * than a fresh look — same white-on-scrim, same accent for the number, same
+ * "you" rule and struck-through "out". What differs is that this one takes a
+ * place in the layout instead of floating over the board, because the games
+ * that use it have a bottom third with nothing else in it.
+ *
+ * Imported by `game-chrome.css` like its twin, so a game never has to remember
+ * to import it — or the panel arrives unstyled in exactly the game nobody
+ * checked.
+ */
+
+.wscores {
+  display: grid;
+  /* Four to a line at a full room, and no more: 4.75rem is the narrowest a
+     name-plus-score stays readable at, and four of those is a phone's width.
+     `auto-fit` rather than a flat `repeat(4, 1fr)` so a two-player room does
+     not sit in four columns with both names truncated to "Rec…" — the empty
+     tracks collapse and the two that are left take the width. */
+  grid-template-columns: repeat(auto-fit, minmax(4.75rem, 1fr));
+  gap: 1px var(--space-2);
+  margin: 0;
+  padding: var(--space-2);
+  list-style: none;
+  border-radius: var(--radius-sm);
+  background: rgb(0 0 0 / 0.5);
+  /* In the flow, so it never covers the board — but still nothing to tap. */
+  pointer-events: none;
+}
+
+.wscores__cell {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3em;
+  min-width: 0;
+  font-size: var(--font-small);
+  /* White, explicitly, for the same reason the corner panel is: this sits on
+     its own scrim rather than on the page. */
+  color: #fff;
+}
+
+.wscores__avatar {
+  font-size: 1rem;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+.wscores__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wscores__value {
+  flex: 0 0 auto;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--game-accent, var(--color-accent));
+}
+
+.wscores__cell--me {
+  padding-left: 0.35em;
+  margin-left: -0.35em;
+  box-shadow: inset 0.15em 0 0 var(--game-accent, var(--color-accent));
+}
+
+.wscores__cell--best .wscores__name,
+.wscores__cell--best .wscores__value {
+  font-weight: 800;
+}
+
+/* Dimmed *and* struck, so it never rests on colour alone. */
+.wscores__cell--out {
+  opacity: 0.55;
+}
+
+.wscores__cell--out .wscores__name,
+.wscores__cell--out .wscores__value {
+  text-decoration: line-through;
+}

@@ -1,13 +1,29 @@
-import type { GravityPlanet } from '../../../../shared/protocol';
+import { GRAVITY_MAX_FLIGHT_MS, GRAVITY_SHOT_TIMEOUT_MS, gravityBodies, type GravityPlanet, type GravityPlanetTrio, type ServerMessage } from '../../../../shared/protocol';
 import {
+  GravityGame,
+  GRAVITY_HIT_RADIUS,
   GRAVITY_MAX_AIM_DISTANCE,
+  GRAVITY_MIN_AIM_DISTANCE,
   GRAVITY_MAX_LAUNCH_SPEED,
   GRAVITY_MIN_LAUNCH_SPEED,
+  GRAVITY_OFFSCREEN_LIFETIME_MS,
+  GRAVITY_PLANET_TWEEN_MS,
   GRAVITY_PAST_OPPONENT_LIFETIME_MS,
+  GRAVITY_SHIP_WIDTH,
+  GRAVITY_SHIP_HEIGHT,
+  GRAVITY_SHOT_BLINK_MAX_HZ,
+  GRAVITY_SHOT_BLINK_START_MS,
   GRAVITY_STEP_MS,
+  GRAVITY_PLAYBACK_RATE,
+  GRAVITY_MAX_STEPS,
+  flightDurationMs,
   aimFromFinger,
+  contactPoint,
+  headingBetween,
   localAimToWorldVelocity,
   shipPosition,
+  launchPosition,
+  shotClockPulseAlpha,
   simulateShot,
   viewTransform,
 } from './game';
@@ -37,6 +53,18 @@ function symmetricPlanets(): [GravityPlanet, GravityPlanet] {
   return [
     { x: 0.2, y: 0.5, r: 0.05, art: 0 },
     { x: 0.8, y: 0.5, r: 0.05, art: 1 },
+  ];
+}
+
+/** A whole board as the referee ships one (spec §2.1): three planets, two on
+ *  one side and one on the other. Fixtures above stay two-planet on purpose —
+ *  `simulateShot` takes any list of bodies, and two is the cheapest way to say
+ *  what a physics test means. */
+function boardTrio(): GravityPlanetTrio {
+  return [
+    { x: 0.26, y: 0.36, r: 0.05, art: 0 },
+    { x: 0.28, y: 0.64, r: 0.08, art: 1 },
+    { x: 0.76, y: 0.5, r: 0.13, art: 2 },
   ];
 }
 
@@ -78,6 +106,47 @@ function aiming(): void {
   // A finger past the cap is clamped, not amplified.
   const over = aimFromFinger(0, -GRAVITY_MAX_AIM_DISTANCE * 5);
   check('a finger past the cap is clamped to full strength', over.strength === 1, over.strength);
+
+  // Issue #36: the weakest shot is a PAD, not a hairline against the hull.
+  // Everything inside the floor band is the same minimum-strength shot, and
+  // still carries an angle, so aiming close in is a real choice.
+  const onTheFloor = aimFromFinger(0, -GRAVITY_MIN_AIM_DISTANCE * 0.5);
+  const atTheFloor = aimFromFinger(0, -GRAVITY_MIN_AIM_DISTANCE);
+  check('a finger inside the floor band is the weakest shot', onTheFloor.strength === 0, onTheFloor.strength);
+  check('and so is one right at its edge', atTheFloor.strength === 0, atTheFloor.strength);
+  const nudged = aimFromFinger(GRAVITY_MIN_AIM_DISTANCE * 0.5, 0);
+  check('a floor-band finger still fires toward itself', nudged.angle > 0, nudged.angle);
+
+  // And it is a shot, not a non-shot: `releaseAim` used to reject strength 0,
+  // which after the floor band would have swallowed the whole minimum-power
+  // pad. Only a finger that never left the nose at all is nothing.
+  const game = new GravityGame();
+  game.identify('a', () => 1_000);
+  game.apply({
+    t: 'gravity', s: 1,
+    d: {
+      roundId: 7, startsAt: 0, seats: ['a', 'b'], planets: boardTrio(), starRadius: 0.08, shots: 0,
+      lives: [5, 5], turn: 0, resolvesAt: 90_000, lastShot: null, winner: null, phase: 'running', solo: false,
+    },
+  });
+  game.beginAim();
+  game.updateAim(0, -GRAVITY_MIN_AIM_DISTANCE * 0.5);
+  const weakest = game.releaseAim();
+  check('the weakest pad shot does fire', weakest !== null && weakest.strength === 0, weakest);
+  game.clearActiveShot();
+  game.beginAim();
+  const untouched = game.releaseAim();
+  check('and a finger that never moved is still not a shot', untouched === null, untouched);
+
+  // The ramp itself runs from the edge of the floor band to the cap, linearly.
+  const halfway = aimFromFinger(0, -(GRAVITY_MIN_AIM_DISTANCE + (GRAVITY_MAX_AIM_DISTANCE - GRAVITY_MIN_AIM_DISTANCE) / 2));
+  check('and halfway up the ramp is half strength', near(halfway.strength, 0.5), halfway.strength);
+
+  // The point of the change: the floor is worth real screen. Both the pad and
+  // the ramp are wider than the whole ramp used to be at 0.3 with no floor.
+  check('the floor band is a thumb-sized pad, and the ramp is wider than it was',
+    GRAVITY_MIN_AIM_DISTANCE > 0 && GRAVITY_MAX_AIM_DISTANCE - GRAVITY_MIN_AIM_DISTANCE > 0.3,
+    { GRAVITY_MIN_AIM_DISTANCE, GRAVITY_MAX_AIM_DISTANCE });
 }
 
 function velocity(): void {
@@ -128,6 +197,22 @@ function targets(): void {
   check('seat 0 sits near world y = 1', seat0.y > 0.5, seat0.y);
   check('seat 1 sits near world y = 0', seat1.y < 0.5, seat1.y);
   check('both centred on x', seat0.x === 0.5 && seat1.x === 0.5);
+
+  // Issue #37: a shot leaves the ship's NOSE, not the middle of its hull, and
+  // there is exactly one such point — the marker under the finger, the dashed
+  // preview and the real flight all read it here.
+  const nose0 = launchPosition(0);
+  const nose1 = launchPosition(1);
+  check('each launch point is one hull height toward the opponent',
+    near(seat0.y - nose0.y, GRAVITY_SHIP_HEIGHT) && near(nose1.y - seat1.y, GRAVITY_SHIP_HEIGHT), [nose0, nose1]);
+  check('and still on the centre line', nose0.x === 0.5 && nose1.x === 0.5);
+  check('the two noses face each other across the board', nose0.y > nose1.y, [nose0.y, nose1.y]);
+  check('a nose is still inside the visible board', nose0.y < 1 && nose0.y > 0 && nose1.y > 0 && nose1.y < 1);
+
+  // The flight the player is shown starts where the missile marker sits.
+  const fired = simulateShot(noPlanets, 0, 0, 1).path[0];
+  check('and simulateShot itself starts from that point',
+    !!fired && near(fired.x, nose0.x) && near(fired.y, nose0.y), fired);
 }
 
 /** No pull at all — a planet's own acceleration formula is `G * r² / ...`,
@@ -138,25 +223,53 @@ const noPlanets: [GravityPlanet, GravityPlanet] = [
   { x: 0.5, y: 0.5, r: 0, art: 0 },
 ];
 
+/** Issue #35 and #34, which meet here: playback is a pure rate over an
+ *  unchanged simulation, and the referee's own cap on a claimed flight has to
+ *  be exactly what the longest possible flight costs at that rate. */
+function playback(): void {
+  console.log('\nthe missile is watched at twice simulated speed, and the cap knows it');
+
+  const shot = simulateShot(noPlanets, 0, 0, 0);
+  const simulatedMs = (shot.path.length - 1) * GRAVITY_STEP_MS;
+  check('watching a flight takes its simulated time over the playback rate',
+    near(flightDurationMs(shot.path), simulatedMs / GRAVITY_PLAYBACK_RATE), flightDurationMs(shot.path));
+  check('which is faster than the simulation, not slower', GRAVITY_PLAYBACK_RATE > 1, GRAVITY_PLAYBACK_RATE);
+
+  // The path itself is untouched by the rate — that is the whole of issue #35:
+  // the same points, walked more per frame.
+  const again = simulateShot(noPlanets, 0, 0, 0);
+  check('and the curve itself is identical either way',
+    again.path.length === shot.path.length && near(again.path[10]?.y ?? 0, shot.path[10]?.y ?? 1), again.path.length);
+
+  // The referee clamps a claimed flight to GRAVITY_MAX_FLIGHT_MS, and it has
+  // no way of knowing the two client-only constants that decide the real
+  // maximum. This is the check that keeps them honest.
+  const longestPossible = ((GRAVITY_MAX_STEPS) * GRAVITY_STEP_MS) / GRAVITY_PLAYBACK_RATE;
+  check('the referee\'s cap is exactly the longest flight at this rate',
+    near(longestPossible, GRAVITY_MAX_FLIGHT_MS), { longestPossible, GRAVITY_MAX_FLIGHT_MS });
+}
+
 function lifetime(): void {
   console.log("\na shot's own lifetime depends on where it actually is (issue #16)");
 
-  // A near-sideways shot at the weakest possible pull: even the SLOWEST a
-  // missile can now fly (`GRAVITY_MIN_LAUNCH_SPEED`, a follow-up after #16)
-  // crosses the `GRAVITY_SIM_BOUNDS_MAX` margin faster than the 7s OFFSCREEN
-  // budget allows — so, unlike before that follow-up, a straight
-  // (gravity-free) sideways shot now always meets the outer wall first, not
-  // the budget. That budget still matters for a shot gravity curves back
-  // toward the board rather than straight out of it; this one just is not
-  // that shot.
+  // A near-sideways shot at the weakest possible pull: slow enough to leave
+  // the visible board without ever reaching the opponent's own row, and — now
+  // that the minimum impulse is half what it was — slow enough that the 7s
+  // OFFSCREEN budget runs out before it can reach the far
+  // `GRAVITY_SIM_BOUNDS_MAX` wall. So the budget is what ends it, which is
+  // what the spec says that budget is for.
   const grazing = simulateShot(noPlanets, 0, 1.5, 0);
   const target1 = shipPosition(1);
   const leftBoard = grazing.path.findIndex((p) => p.x > 1 || p.x < 0 || p.y > 1 || p.y < 0);
+  const timeOffscreen = (grazing.path.length - 1 - leftBoard) * GRAVITY_STEP_MS;
   check('it does leave the visible board before ending', leftBoard > 0, leftBoard);
   check('never crosses the opponent\'s own row', !grazing.path.some((p) => p.y < target1.y));
   check('and still ends as a miss', grazing.hit === false);
+  check('one offscreen budget after leaving, not a moment more',
+    Math.abs(timeOffscreen - GRAVITY_OFFSCREEN_LIFETIME_MS) < GRAVITY_STEP_MS, timeOffscreen);
   const last = grazing.path.at(-1);
-  check('ending at the outer wall, not the visible edge', !!last && last.x > 1.5 - 1e-6, last);
+  check('and well inside the outer wall, so the budget ended it — not the wall',
+    !!last && last.x < 1.5 - 0.05, last);
 
   // A shot aimed just past the opponent, missing by more than the hit
   // radius: once it flies beyond that row, "past" always wins over
@@ -173,10 +286,18 @@ function lifetime(): void {
     Math.abs(timePast - GRAVITY_PAST_OPPONENT_LIFETIME_MS) < GRAVITY_STEP_MS * 2, timePast);
 }
 
-/** No pull at all, same fixture `noPlanets` above serves — a clean read of
- *  what the speed range alone (no gravity) does to flight time. */
-const GRAVITY_FREE_MIN_IMPULSE_FRAMES = 331;
-const GRAVITY_FREE_MAX_IMPULSE_FRAMES = 166;
+/**
+ * No pull at all, same fixture `noPlanets` above serves — a clean read of what
+ * the speed range alone (no gravity) does to flight time. Both are the
+ * nose-to-ship distance minus one hit radius, over the speed for that end of
+ * the range: halving the minimum impulse roughly doubled the slow one, widening
+ * the hitbox to the ship's full width shortened both (the missile counts as
+ * arrived further out), and launching from the tip rather than the hull's
+ * middle (issue #37) took a hull height off the front of every flight — a
+ * shorter one since that height was corrected to a world-y distance.
+ */
+const GRAVITY_FREE_MIN_IMPULSE_FRAMES = 549;
+const GRAVITY_FREE_MAX_IMPULSE_FRAMES = 138;
 
 function impulseRange(): void {
   console.log('\nlaunch speed is capped, floored, and shaped by launch intensity (follow-up after #16)');
@@ -200,11 +321,14 @@ function impulseRange(): void {
   const weakest = simulateShot(noPlanets, 0, 0, 0);
   const strongest = simulateShot(noPlanets, 0, 0, 1);
   check('the weakest pull still reaches the opponent', weakest.hit === true);
-  check('taking about 5.5s — near the slow end of the display range',
+  check('taking about 9.2s — the slow end of the display range',
     weakest.path.length - 1 === GRAVITY_FREE_MIN_IMPULSE_FRAMES, weakest.path.length - 1);
   check('a full-strength pull also reaches the opponent', strongest.hit === true);
-  check('taking about 2.8s — near the fast end of the display range',
+  check('taking about 2.3s — the fast end of the display range',
     strongest.path.length - 1 === GRAVITY_FREE_MAX_IMPULSE_FRAMES, strongest.path.length - 1);
+  check('and the weakest is four times the slowest — the impulse range itself',
+    Math.abs(GRAVITY_MAX_LAUNCH_SPEED / GRAVITY_MIN_LAUNCH_SPEED - 4) < 1e-9,
+    GRAVITY_MAX_LAUNCH_SPEED / GRAVITY_MIN_LAUNCH_SPEED);
 
   // The same two shots, now with two real planets in the way — a specific,
   // known gravitational pull, not none. Both still connect (their own pull
@@ -225,7 +349,287 @@ function impulseRange(): void {
     strongestPulled.path.length < strongest.path.length, strongestPulled.path.length - 1);
 }
 
-for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, lifetime, impulseRange]) {
+function shipSizedHitbox(): void {
+  console.log('\nthe whole ship image is the target, not a dot at its centre');
+
+  // The requirement is "the hitbox is the ship's own width", so the radius has
+  // to be half of it — and derived from the same constant `GravityCanvas` draws
+  // with, not a second number that happens to agree today.
+  check('the hit DIAMETER is exactly the drawn ship width',
+    Math.abs(GRAVITY_HIT_RADIUS * 2 - GRAVITY_SHIP_WIDTH) < 1e-9, { GRAVITY_HIT_RADIUS, GRAVITY_SHIP_WIDTH });
+
+  // Fired with no planets, a shot travels dead straight, so the angle that
+  // passes a chosen distance to the side of the opponent is pure geometry:
+  // `atan(offset / the ship-to-ship distance)`. Checking just inside and just
+  // outside the radius proves this measures the hitbox rather than merely
+  // finding that everything connects.
+  const reach = launchPosition(0).y - shipPosition(1).y;
+  const offsetBy = (distance: number) => simulateShot(noPlanets, 0, Math.atan(distance / reach), 1);
+  const clipping = offsetBy(GRAVITY_HIT_RADIUS * 0.9);
+  const clearing = offsetBy(GRAVITY_HIT_RADIUS * 1.4);
+  check('a shot passing inside the sprite\'s own edge connects', clipping.hit === true, clipping.path.at(-1));
+  check('and one passing outside it still misses', clearing.hit === false, clearing.path.at(-1));
+  // The old 0.06 hitbox would have missed the first of those outright.
+  check('which the old dot-sized hitbox would not have caught', GRAVITY_HIT_RADIUS * 0.9 > 0.06);
+}
+
+function replayUsesTheBoardTheShotWasFiredOn(): void {
+  console.log('\na replayed shot flies on the board it was fired on (moving planets)');
+
+  const fired = boardTrio();
+  const rerolled: GravityPlanetTrio = [
+    { x: 0.35, y: 0.62, r: 0.14, art: 2 },
+    { x: 0.72, y: 0.31, r: 0.07, art: 0 },
+    { x: 0.78, y: 0.66, r: 0.05, art: 1 },
+  ];
+  const shot = { shooter: 0 as const, angle: 0.35, strength: 0.8, hit: false, timedOut: false };
+  const frame = (planets: GravityPlanetTrio, lastShot: typeof shot | null): ServerMessage => ({
+    t: 'gravity',
+    s: 1,
+    d: {
+      roundId: 7, startsAt: 0, seats: ['a', 'b'], planets, starRadius: 0, shots: 1,
+      lives: [5, 5], turn: 1, resolvesAt: 0, lastShot, winner: null, phase: 'running', solo: false,
+    },
+  });
+
+  // This phone is the RECEIVER: it never simulated the shot itself, so it
+  // builds the replay from the frame. The referee re-rolls the board in the
+  // same frame that reports the shot which triggered it, so that frame carries
+  // the new planets and a shot fired on the old ones.
+  const receiver = new GravityGame();
+  receiver.identify('b', () => 0);
+  receiver.apply(frame(fired, null));
+  receiver.apply(frame(rerolled, shot));
+
+  const onOldBoard = simulateShot(fired, 0, shot.angle, shot.strength);
+  const onNewBoard = simulateShot(rerolled, 0, shot.angle, shot.strength);
+  check('the two boards really do produce different flights',
+    JSON.stringify(onOldBoard.path) !== JSON.stringify(onNewBoard.path));
+  check('and the replay follows the board the shot was fired on',
+    JSON.stringify(receiver.activeShot?.result.path) === JSON.stringify(onOldBoard.path));
+}
+
+function movingBoardIsHeldThenEased(): void {
+  console.log('\na re-rolled board waits for the shot, then eases into place');
+
+  const fired = boardTrio();
+  // Deliberately slot-shuffled relative to `fired` (rightmost planet first), to
+  // prove the tween pairs by SCREEN ORDER rather than by array index — pairing
+  // by index would send planets across each other through the middle. The
+  // crowded side swaps too, which is exactly what the old pair-by-side
+  // ordering could not survive.
+  const rerolled: GravityPlanetTrio = [
+    { x: 0.74, y: 0.32, r: 0.09, art: 2 },
+    { x: 0.30, y: 0.66, r: 0.15, art: 1 },
+    { x: 0.80, y: 0.62, r: 0.06, art: 0 },
+  ];
+  const shot = { shooter: 0 as const, angle: 0.2, strength: 0.9, hit: false, timedOut: false };
+
+  let clock = 1_000;
+  const game = new GravityGame();
+  game.identify('b', () => clock);
+  const frame = (planets: GravityPlanetTrio, lastShot: typeof shot | null): ServerMessage => ({
+    t: 'gravity',
+    s: 1,
+    d: {
+      roundId: 3, startsAt: 0, seats: ['a', 'b'], planets, starRadius: planets === fired ? 0.08 : 0.14, shots: 2,
+      lives: [5, 5], turn: 1, resolvesAt: 0, lastShot, winner: null, phase: 'running', solo: false,
+    },
+  });
+
+  game.apply(frame(fired, null));
+  check('the opening board is drawn as-is', JSON.stringify(game.displayedBoard().planets) === JSON.stringify(fired));
+
+  // The frame that reports the shot also carries the new board.
+  game.apply(frame(rerolled, shot));
+  check('the referee has already moved on', JSON.stringify(game.state?.planets) === JSON.stringify(rerolled));
+  check('but the drawn board stays where the shot was fired', JSON.stringify(game.displayedBoard().planets) === JSON.stringify(fired));
+  check('because that shot is still in the air', game.activeShot !== null);
+
+  // Mid-flight: still held, however long the flight runs.
+  clock += 2_000;
+  check('and it is still held mid-flight', JSON.stringify(game.displayedBoard().planets) === JSON.stringify(fired));
+
+  // The canvas clears the shot when the flight animation finishes.
+  game.clearActiveShot();
+  // Position and radius only: the art is the destination's from the first
+  // frame of the slide (by design — the movement masks the sprite change), and
+  // the pair comes back side-ordered while a tween is running.
+  const atStart = game.displayedBoard().planets;
+  const geometry = (board: readonly GravityPlanet[]) =>
+    JSON.stringify([...board].sort((p, q) => p.x - q.x).map(({ x, y, r }) => [x, y, r]));
+  check('the slide starts from the old board, not a jump', geometry(atStart) === geometry(fired), atStart);
+
+  // The left planet slides 0.2 -> 0.26 and grows 0.05 -> 0.15, so halfway
+  // through it must be strictly inside both of those ranges.
+  clock += GRAVITY_PLANET_TWEEN_MS / 2;
+  const midway = game.displayedBoard().planets;
+  // Leftmost to leftmost: 0.26 -> 0.30, growing 0.05 -> 0.15.
+  const left = [...midway].sort((p, q) => p.x - q.x)[0] as GravityPlanet;
+  check('halfway through, the leftmost planet is between its two positions', left.x > 0.26 && left.x < 0.30, left.x);
+  check('and between its two sizes', left.r > 0.05 && left.r < 0.15, left.r);
+  const midStar = game.displayedBoard().starRadius;
+  check('and the star is easing between its own two sizes too',
+    midStar > Math.min(0.08, 0.14) && midStar < Math.max(0.08, 0.14), midStar);
+  check('with planets still on both halves of the board mid-slide',
+    midway.some((p) => p.x < 0.5) && midway.some((p) => p.x > 0.5), midway.map((p) => p.x));
+
+  clock += GRAVITY_PLANET_TWEEN_MS;
+  const settled = game.displayedBoard().planets;
+  check('once it is over, the drawn board is exactly the referee\'s own',
+    JSON.stringify(settled) === JSON.stringify(rerolled), settled);
+}
+
+function theStarBlocksTheMiddle(): void {
+  console.log('\nthe star in the middle is a body like any other');
+
+  // The same dead-centre, full-strength shot, with and without the star. Both
+  // ships sit on x = 0.5, so this is the shot the star exists to rule out.
+  const clearRun = simulateShot(noPlanets, 0, 0, 1);
+  const throughTheStar = simulateShot(gravityBodies(0.1, noPlanets), 0, 0, 1);
+  check('without it, straight up the middle connects', clearRun.hit === true);
+  check('with it, the same shot never arrives', throughTheStar.hit === false);
+  const swallowedAt = throughTheStar.path.at(-1);
+  check('it is swallowed at the star, not somewhere else',
+    !!swallowedAt && Math.hypot(swallowedAt.x - 0.5, swallowedAt.y - 0.5) <= 0.1 + 1e-6, swallowedAt);
+  check('and the result says exactly where — for the impact GIF to land on',
+    JSON.stringify(throughTheStar.absorbedAt) === JSON.stringify(swallowedAt), throughTheStar.absorbedAt);
+  check('a shot that connects instead carries no absorption point',
+    clearRun.absorbedAt === undefined);
+
+  // And it pulls, rather than just being a hole in the board: an off-centre
+  // shot that misses it entirely still comes out on a different path.
+  const offCentre = simulateShot(noPlanets, 0, 0.9, 1);
+  const offCentreNearStar = simulateShot(gravityBodies(0.1, noPlanets), 0, 0.9, 1);
+  check('and a shot that passes it is bent by it',
+    JSON.stringify(offCentre.path) !== JSON.stringify(offCentreNearStar.path));
+}
+
+function missileAimAndImpact(): void {
+  console.log('\nwhere the missile points, and where its impact actually lands');
+
+  // Heading is the aim convention: 0 straight up the screen, clockwise positive.
+  check('straight up reads as zero', Math.abs(headingBetween({ x: 5, y: 9 }, { x: 5, y: 1 })) < 1e-9);
+  check('to the right is a quarter turn clockwise',
+    Math.abs(headingBetween({ x: 0, y: 0 }, { x: 4, y: 0 }) - Math.PI / 2) < 1e-9);
+  check('to the left is the same, the other way',
+    Math.abs(headingBetween({ x: 0, y: 0 }, { x: -4, y: 0 }) + Math.PI / 2) < 1e-9);
+  // Straight up is what a fresh full-strength shot does, and it must agree with
+  // what `aimFromFinger` calls straight up — the aiming missile and the flying
+  // one use the same convention or they visibly disagree at the moment of release.
+  check('and it agrees with the aim angle', Math.abs(headingBetween({ x: 0, y: 1 }, { x: 1, y: 0 })
+    - aimFromFinger(1, -1).angle) < 1e-9);
+
+  // The ship's drawn box, in pixels, on a portrait board.
+  const ship = { x: 210, y: 100 };
+  const shipW = 92;
+  const shipH = 46;
+  // A missile stopping well above the ship — what the hit radius actually
+  // produces — is walked down to the hull rather than left hanging.
+  const above = contactPoint({ x: 210, y: 20 }, ship, shipW, shipH);
+  check('a shot stopping short is brought down to the hull',
+    Math.abs(above.x - 210) < 1e-9 && Math.abs(above.y - (ship.y - shipH / 2)) < 1e-6, above);
+  check('and that is nearer the ship than where it stopped', above.y > 20);
+  check('but not as far in as the ship centre', above.y < ship.y);
+
+  // One arriving from the side lands on the side of the hull, not the top.
+  const fromLeft = contactPoint({ x: 40, y: 100 }, ship, shipW, shipH);
+  check('a side-on shot lands on the side of the hull',
+    Math.abs(fromLeft.x - (ship.x - shipW / 2)) < 1e-6 && Math.abs(fromLeft.y - 100) < 1e-9, fromLeft);
+
+  // Already touching: left where it is rather than dragged inward.
+  const touching = { x: ship.x + 5, y: ship.y + 5 };
+  const inside = contactPoint(touching, ship, shipW, shipH);
+  check('a shot already on the hull is left where it is',
+    inside.x === touching.x && inside.y === touching.y, inside);
+}
+
+function timedOutTurnIsNotAFlight(): void {
+  console.log('\na turn that timed out is not a shot anybody fired');
+
+  const planets = boardTrio();
+  const game = new GravityGame();
+  game.identify('b', () => 0);
+  const frame = (lastShot: { shooter: 0 | 1; angle: number; strength: number; hit: boolean; timedOut: boolean } | null): ServerMessage => ({
+    t: 'gravity',
+    s: 1,
+    d: {
+      roundId: 4, startsAt: 0, seats: ['a', 'b'], planets, starRadius: 0, shots: 1,
+      lives: [5, 5], turn: 1, resolvesAt: 0, lastShot, winner: null, phase: 'running', solo: false,
+    },
+  });
+  game.apply(frame(null));
+
+  // The referee marks a timed-out turn with `timedOut` (spec §2.4). Since the
+  // launch speed has a floor, simulating it would fly a real missile dead up
+  // the centre line and — with a ship-sized hitbox — connect, while the
+  // referee's own `hit: false` means nothing happens. Nothing should fly.
+  game.apply(frame({ shooter: 0, angle: 0, strength: 0, hit: false, timedOut: true }));
+  check('nothing is animated for it', game.activeShot === null);
+
+  // And a real shot right after it still animates: the guard is about the flag,
+  // not about being the first shot seen.
+  game.apply(frame({ shooter: 1, angle: 0.1, strength: 0.5, hit: false, timedOut: false }));
+  check('a real shot after one still flies', game.activeShot !== null);
+
+  // Issue #36's floor band makes strength 0 a REAL shot — the weakest one on
+  // the ramp — so it has to fly on the receiving phone like any other. That is
+  // the whole reason the timed-out marker is a flag now.
+  game.clearActiveShot();
+  game.apply(frame({ shooter: 0, angle: 0.2, strength: 0, hit: false, timedOut: false }));
+  check('and the weakest aimable shot flies too, strength zero and all', game.activeShot !== null);
+}
+
+function shotClockCountdown(): void {
+  console.log("\nthe shot clock: a blink that speeds up, and a drag that cannot outlive it");
+
+  check('solid well before the blink threshold', shotClockPulseAlpha(0) === 1);
+  check('still solid right up to it', shotClockPulseAlpha(GRAVITY_SHOT_BLINK_START_MS - 1) === 1);
+
+  // Once it starts, the pulse never goes fully invisible or over full opacity.
+  for (const elapsed of [GRAVITY_SHOT_BLINK_START_MS, GRAVITY_SHOT_BLINK_START_MS + 500, GRAVITY_SHOT_TIMEOUT_MS, GRAVITY_SHOT_TIMEOUT_MS + 5_000]) {
+    const alpha = shotClockPulseAlpha(elapsed);
+    check(`alpha at ${elapsed}ms stays in [0.35, 1]`, alpha >= 0.35 - 1e-9 && alpha <= 1 + 1e-9, alpha);
+  }
+
+  // Past the deadline the ramp is clamped rather than accelerating further, so
+  // one full cycle at the top rate (5Hz) later lands on the same phase.
+  const atDeadline = shotClockPulseAlpha(GRAVITY_SHOT_TIMEOUT_MS + 100);
+  const oneCycleLater = shotClockPulseAlpha(GRAVITY_SHOT_TIMEOUT_MS + 100 + 1000 / GRAVITY_SHOT_BLINK_MAX_HZ);
+  check('the pulse rate is capped at the deadline, not still accelerating',
+    Math.abs(atDeadline - oneCycleLater) < 1e-6, { atDeadline, oneCycleLater });
+
+  // A live drag cannot be released once its own deadline has passed — the
+  // client cuts it off itself rather than waiting on the referee to reject it.
+  let clock = 0;
+  const game = new GravityGame();
+  game.identify('a', () => clock);
+  const frame = (resolvesAt: number): ServerMessage => ({
+    t: 'gravity',
+    s: 1,
+    d: {
+      roundId: 1, startsAt: 0, seats: ['a', 'a'], planets: boardTrio(), starRadius: 0, shots: 0,
+      lives: [5, 5], turn: 0, resolvesAt, lastShot: null, winner: null, phase: 'running', solo: true,
+    },
+  });
+  game.apply(frame(10_000));
+  check('can aim before the deadline', game.canAim);
+  check('and can begin a drag', game.beginAim());
+  game.updateAim(0, -GRAVITY_MAX_AIM_DISTANCE);
+
+  clock = 10_000;
+  check('cannot aim once the deadline has passed', !game.canAim);
+  check('the drag is still there — only the canvas actually cancels it', game.aim !== null);
+  check('but releasing it now fires nothing', game.releaseAim() === null);
+
+  // canAim is read live off the current clock, not cached from when the drag
+  // began — turning the clock back proves it, though only the referee's own
+  // clock ever moves forward for real.
+  clock = 5_000;
+  check('and recovers once the clock is back before the deadline', game.canAim);
+}
+
+for (const t of [viewFlip, aiming, velocity, determinism, symmetry, simBoundsWiderThanTheBoard, targets, playback, lifetime, impulseRange, shipSizedHitbox, replayUsesTheBoardTheShotWasFiredOn, movingBoardIsHeldThenEased, theStarBlocksTheMiddle, missileAimAndImpact, timedOutTurnIsNotAFlight, shotClockCountdown]) {
   t();
 }
 

@@ -13,7 +13,7 @@ import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
-import { useGameText, type GameText } from '../../core/i18n/gameText';
+import { useGameText } from '../../core/i18n/gameText';
 import { useSoloTesting } from '../../core/useSolo';
 import { SquashBoard } from './SquashBoard';
 import { SquashGame } from './game';
@@ -140,16 +140,6 @@ function SquashRoomInner({ game: card, code }: { game: GameCard; code: string })
       canStart={room.isHost && enoughToStart(room.connected, limits, solo)}
       startLabel={state ? t.common.playAgain : text({ en: 'Start the swarm', fr: 'Lancer l’essaim' })}
       onStart={() => client?.send({ t: 'start', d: { mode: 'squash', solo } })}
-      note={note(room.isHost, room.connected, solo, text)}
     />
   );
-}
-
-function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
-  if (!solo && connected < SQUASH_MIN_PLAYERS) return text({ en: 'Waiting for one more player…', fr: 'En attente d’un joueur supplémentaire…' });
-  if (connected > SQUASH_MAX_PLAYERS) {
-    return text({ en: `Squash Mosquitoes is ${SQUASH_MIN_PLAYERS}–${SQUASH_MAX_PLAYERS} players.`, fr: `Squash Mosquitoes se joue de ${SQUASH_MIN_PLAYERS} à ${SQUASH_MAX_PLAYERS} joueurs.` });
-  }
-  if (!isHost) return text({ en: 'The host starts the swarm.', fr: "L’hôte lance l’essaim." });
-  return text({ en: `Everyone gets the same ${SQUASH_TOTAL} mosquitoes. First to squash them all wins.`, fr: `Tout le monde reçoit les mêmes ${SQUASH_TOTAL} moustiques. Le premier à tous les écraser gagne.` });
 }

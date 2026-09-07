@@ -1,5 +1,5 @@
 import type { PlayerId, ServerMessage, TapFighterState } from '../shared/protocol';
-import { REVEAL_LEAD_MS, resolveFight, validFighterPlan, type FighterAction, type FighterSeat } from '../shared/tapFighter';
+import { FIGHTER_ENCORE_BEATS, REVEAL_LEAD_MS, resolveFight, validFighterPlan, type FighterAction, type FighterSeat } from '../shared/tapFighter';
 
 const PLAN_CAP_MS = 75_000;
 /** Must match `game.ts`'s `FIGHTER_WINDUP_MS + ACTION_BEAT_MS` (client-only, issue #11). */
@@ -92,8 +92,13 @@ export async function onFighterLock(ctx: Ctx, playerId: PlayerId, roundId: numbe
     state.startsAt = ctx.now() + REVEAL_LEAD_MS;
     // Only as long as the beats that actually happened — a knockout (issue #3)
     // shortens `result.beats`, and the round ends there rather than always
-    // waiting out a fixed six-beat clock.
-    state.endsAt = state.startsAt + result.beats.length * BEAT_MS;
+    // waiting out a fixed six-beat clock. The round that ENDS THE MATCH runs
+    // `FIGHTER_ENCORE_BEATS` longer, so the finish gets held on screen before
+    // the result panel replaces it; extending `endsAt` (rather than timing the
+    // flourish client-side) is what keeps this phase flip, the animation and
+    // the last-round music from disagreeing about when the round is over.
+    const encore = state.matchWinner !== null ? FIGHTER_ENCORE_BEATS : 0;
+    state.endsAt = state.startsAt + (result.beats.length + encore) * BEAT_MS;
   }
   await ctx.save(state);
   emit(ctx, state);

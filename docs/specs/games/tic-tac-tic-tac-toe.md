@@ -69,13 +69,38 @@ Every mode shares the core loop. A mode that doesn't is a different game.
   the result briefly, zoom back to the meta grid, stamp the cell, and hand
   selection to the other player. The transition is one server event so both
   phones zoom together.
+- **The winning finale:** the tap that wins the meta grid used to take the
+  board off the screen in the same frame — the one move the whole match was
+  played for was the one move nobody ever saw land. It now gets five seconds,
+  in two beats, before the result panel appears:
+
+  1. **The stamp**, 2 s (`TTT_STAMP_MS`): the child grid that was just won
+     stays on screen, full size, with the winner's own symbol over it in the
+     same yellow a claimed meta cell wears — because that is what it is about
+     to become.
+  2. **The line**, 3 s (`TTT_PULSE_MS`): back out to the meta grid, and the
+     **three aligned symbols pulse once a second**. The win is shown as a line
+     rather than announced as a name.
+
+  Only a real meta win earns it. A draw has no line to pulse and the
+  five-minute cap ends the match with no winner from wherever it had got to;
+  holding a winner's send-off over either would be the game lying about what
+  happened (`finaleLine` in `game.ts`, and its test).
+
+  The clock starts when the phone first sees the won state rather than from a
+  server time. It is cosmetic and the same length for everybody, so a phone
+  that arrives late should see the celebration from where it arrived rather
+  than miss it or catch the tail of it.
 - **Results:** the shared end screen names the meta winner or draw and shows the
   final meta grid. No score panel is shown.
 
 The zoom lasts 1000 ms and is keyed to the server's `zoomAt` time. Reopened cells
 blink and fade their blocked dot out while their empty mini grid fades in over
 the same 1000 ms. A reduced-motion
-preference skips the animation but preserves the same state sequence.
+preference skips the animation but preserves the same state sequence — including
+the finale's, which keeps both beats and their timings and only drops the
+movement: the stamp appears without scaling, and the winning line wears a steady
+ring instead of a pulse.
 
 ## 5. Inputs & sensors
 

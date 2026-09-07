@@ -278,7 +278,6 @@ function BombRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       startLabel={state ? t.common.playAgain : t.common.startRound}
       onStart={() => client?.send({ t: 'start', d: { mode: 'bomb', solo } })}
       readyBlocked={support !== 'unsupported' && !motionAsked}
-      note={note(room.isHost, room.connected, solo, text)}
       playerTag={(id) => {
         if (!state) return null;
         if (state.winner === id) return text({ en: 'won', fr: 'gagnant' });
@@ -372,16 +371,4 @@ function matchNote(m: BombMatch, text: GameText): string {
   if (m.done) return m.rounds === BOMB_CLASSIC_ROUNDS ? text({ en: 'Last one standing', fr: 'Dernier survivant' })
     : text({ en: `${m.rounds} rounds played`, fr: `${m.rounds} manches jouées` });
   return text({ en: `Round ${m.round} of ${m.rounds}`, fr: `Manche ${m.round} sur ${m.rounds}` });
-}
-
-function note(isHost: boolean, connected: number, solo: boolean, text: GameText): string {
-  if (!solo && connected < BOMB_MIN_PLAYERS) {
-    const missing = BOMB_MIN_PLAYERS - connected;
-    return text({ en: `Need ${missing} more player${missing === 1 ? '' : 's'} — it takes ${BOMB_MIN_PLAYERS} to pass a bomb around.`, fr: `Il manque ${missing} joueur${missing === 1 ? '' : 's'} — il faut être ${BOMB_MIN_PLAYERS} pour faire circuler la bombe.` });
-  }
-  if (connected > BOMB_MAX_PLAYERS) {
-    return text({ en: `${BOMB_MAX_PLAYERS} players is the most this one takes.`, fr: `${BOMB_MAX_PLAYERS} joueurs maximum.` });
-  }
-  if (!isHost) return text({ en: 'The host starts the round.', fr: "L’hôte démarre la manche." });
-  return text({ en: 'Stand in a circle, arms out. The fuse is hidden.', fr: 'Placez-vous en cercle, bras tendus. La mèche est cachée.' });
 }

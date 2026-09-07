@@ -217,7 +217,10 @@ const en: UiStrings = {
       'Solo testing is on, but not for this one — it is two phones facing each other across a gap, so there is no board to render alone. It still needs a second player.',
     ready: 'Ready',
     readyOn: 'Ready ✓',
-    finishSetup: 'Choose the sensor or fallback option above before marking yourself ready.',
+    // Not "choose the sensor or fallback option": the games that block on this now
+    // include ones with no fallback to choose, where the panel above offers a retry
+    // rather than an alternative (device-capabilities.md §2 rule 3).
+    finishSetup: 'Finish the setup above before marking yourself ready.',
     waitingReady: 'Waiting for every player to be ready.',
     setUpControls: 'Set up controls',
     soloAdminLabel: 'Admin solo testing',
@@ -345,7 +348,7 @@ const fr: UiStrings = {
       "Le test en solo est activé, mais pas pour ce jeu — ce sont deux téléphones face à face, donc il n'y a pas de plateau à afficher seul. Il faut toujours un second joueur.",
     ready: 'Prêt',
     readyOn: 'Prêt ✓',
-    finishSetup: "Choisissez le capteur ou l'option de secours ci-dessus avant de vous déclarer prêt.",
+    finishSetup: 'Terminez la configuration ci-dessus avant de vous déclarer prêt.',
     waitingReady: 'En attente de tous les joueurs.',
     setUpControls: 'Configurer les commandes',
     soloAdminLabel: 'Test solo administrateur',
