@@ -352,7 +352,13 @@ are worth the width rather than being furniture to tuck into a corner.
 
 **The score shown is always this level's**, and there is nothing there before
 it exists: a panel still reading 100 while a new colour is on screen is the
-previous level's news pretending to be this one's. On reveal, every player's
+previous level's news pretending to be this one's. It is emptied rather than
+removed, though — both its lines are always in the DOM and both reserve their
+own height — because a panel that appears on reveal shoves the wheel down the
+page in the middle of a round. Under the points: accuracy, how long the answer
+took, and, when the clock changed the score, the word **bonus** in green or
+**malus** in red. Not the multiplier itself: it is arithmetic nobody reads with
+two seconds left on the pie. On reveal, every player's
 cursor animates to the solution at once — including the other players', drawn
 faintly. Seeing that four people all missed the same
 way is most of this game's table talk, and it costs one extra field on the wire.

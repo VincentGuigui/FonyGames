@@ -38,7 +38,6 @@
   text-align: center;
   font-size: 1.3rem;
   font-weight: 700;
-  min-height: 2.6em;
   color: var(--text);
 }
 
@@ -47,8 +46,13 @@
   color: var(--text-dim);
 }
 
+/* Both lines reserve their height whatever they hold, so the panel is the same
+   size all round: the prompt is 1.3rem and the points are 2.2rem, and a panel
+   that grew on reveal would shove the wheel down the page mid-level. */
 .cmatch__score {
   margin: 0;
+  min-height: 2.7rem;
+  line-height: 2.7rem;
 }
 
 /* What the points are made of, one line under them: accuracy out of 100 and
@@ -59,6 +63,8 @@
   font-weight: 500;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
+  min-height: 1.2rem;
+  line-height: 1.2rem;
 }
 
 .cmatch__breakdown strong {
@@ -79,6 +85,18 @@
 /* Muted rather than red: a zero is information, not an error. */
 .cmatch__verdict--miss {
   color: var(--text-dim);
+}
+
+/* Whether the clock helped or hurt, as a word rather than a multiplier — the
+   number was arithmetic nobody reads with two seconds left on the pie. */
+.cmatch__bonus {
+  color: #22c55e;
+  font-weight: 700;
+}
+
+.cmatch__malus {
+  color: #f87171;
+  font-weight: 700;
 }
 
 .cmatch__board {

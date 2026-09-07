@@ -183,31 +183,53 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
           </svg>
         </div>
 
-        {/* THIS level's points, the moment they exist, and nothing at all
-            before that — a panel still showing the last level's score while a
-            new colour is on screen is worse than an empty one. */}
-        {revealing ? (
-          <div class={`cmatch__verdict cmatch__verdict--${(mine?.score ?? 0) > 0 ? 'hit' : 'miss'}`} aria-live="polite">
-            <p class="cmatch__score">
-              <strong class="cmatch__points">{mine?.score ?? 0}</strong>
-              {text({ en: 'points', fr: 'points' })}
-            </p>
-            {/* The two numbers the points are made of (issue #38) — without
-                them a slow bullseye and a fast near-miss look identical. */}
-            <p class="cmatch__breakdown">
-              {text({ en: 'accuracy', fr: 'précision' })} <strong>{mine?.accuracy ?? 0}</strong>
-              {' · '}
-              {mine
-                ? text({
-                    en: `${(mine.reactionMs / 1000).toFixed(1)}s ×${reactionMultiplier(mine.reactionMs, colorActionMs(state.level))}`,
-                    fr: `${(mine.reactionMs / 1000).toFixed(1)} s ×${reactionMultiplier(mine.reactionMs, colorActionMs(state.level))}`,
-                  })
-                : text({ en: 'no answer', fr: 'aucune réponse' })}
-            </p>
-          </div>
-        ) : (
-          <p class="cmatch__verdict cmatch__verdict--quiet">{text({ en: 'Find it', fr: 'Trouvez-la' })}</p>
-        )}
+        {/*
+          The verdict panel. Its footprint never changes: both lines are always
+          in the DOM and both reserve their own height, so the wheel does not
+          jump down the page the moment a score appears. What varies is what
+          they say, and whether the second one is visible at all.
+        */}
+        <div
+          class={`cmatch__verdict${revealing ? ` cmatch__verdict--${(mine?.score ?? 0) > 0 ? 'hit' : 'miss'}` : ' cmatch__verdict--quiet'}`}
+          aria-live="polite"
+        >
+          <p class="cmatch__score">
+            {revealing ? (
+              <>
+                <strong class="cmatch__points">{mine?.score ?? 0}</strong>
+                {text({ en: 'points', fr: 'points' })}
+              </>
+            ) : (
+              text({ en: 'Find it', fr: 'Trouvez-la' })
+            )}
+          </p>
+          {/* Accuracy, how long it took, and whether the clock helped or hurt.
+              The multiplier itself is not shown (it is arithmetic nobody reads
+              mid-round); the word and its colour are the whole message. */}
+          <p class="cmatch__breakdown" style={{ visibility: revealing ? 'visible' : 'hidden' }}>
+            {text({ en: 'accuracy', fr: 'précision' })} <strong>{mine?.accuracy ?? 0}</strong>
+            {mine ? (
+              <>
+                {' · '}
+                {text({ en: `${(mine.reactionMs / 1000).toFixed(1)}s`, fr: `${(mine.reactionMs / 1000).toFixed(1)} s` })}
+                {(() => {
+                  const k = reactionMultiplier(mine.reactionMs, colorActionMs(state.level));
+                  if (k === 1) return null;
+                  return (
+                    <>
+                      {' · '}
+                      <span class={k > 1 ? 'cmatch__bonus' : 'cmatch__malus'}>
+                        {k > 1 ? text({ en: 'bonus', fr: 'bonus' }) : text({ en: 'malus', fr: 'malus' })}
+                      </span>
+                    </>
+                  );
+                })()}
+              </>
+            ) : (
+              <>{' · '}{text({ en: 'no answer', fr: 'aucune réponse' })}</>
+            )}
+          </p>
+        </div>
 
         <div class="cmatch__board">
           <ColorWheel
