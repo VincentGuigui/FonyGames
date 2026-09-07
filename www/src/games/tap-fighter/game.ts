@@ -69,7 +69,8 @@ export const ACTION_POSE = {
  * render the identical frame from the identical `elapsed` clock, not their own
  * independently-ticking one.
  */
-export const FIGHTER_WINDUP_FRAME_MS = 250;
+export const BG_MUSIC_BEAT_MS = 590
+export const FIGHTER_WINDUP_FRAME_MS = BG_MUSIC_BEAT_MS / 2;
 export const FIGHTER_WINDUP_MS = FIGHTER_WINDUP_FRAME_MS * 4;
 
 /**
@@ -79,7 +80,7 @@ export const FIGHTER_WINDUP_MS = FIGHTER_WINDUP_FRAME_MS * 4;
  * a beat lasts `FIGHTER_WINDUP_MS + ACTION_BEAT_MS` and contact lands exactly at
  * its midpoint.
  */
-export const ACTION_BEAT_MS = 1_000;
+export const ACTION_BEAT_MS = BG_MUSIC_BEAT_MS * 2;
 
 /**
  * The canvas lunge's own envelope inside that action half (`FightCanvas.tsx`'s
