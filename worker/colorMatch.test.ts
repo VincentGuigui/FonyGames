@@ -100,7 +100,7 @@ async function starting(): Promise<void> {
   check('at level 1', h.state.level === 1);
   check('everyone is on the board at zero', h.state.totals[A] === 0 && h.state.totals[B] === 0);
   check('picking is open', h.state.phase === 'pick');
-  check('a level-1 level is 5 s of picking plus 4 s of tail', levelMs(1) === 9000, levelMs(1));
+  check('a level-1 level is 3 s of picking plus 4 s of tail', levelMs(1) === 7000, levelMs(1));
   check('the first broadcast carries the target', h.sent.length === 1 && h.sent[0]?.t === 'color-match');
 
   // The ladder's first rung is one component out of {0, 255} with the rest at
@@ -136,9 +136,13 @@ async function scoring(): Promise<void> {
 
   await h.step();
   check('the window closes into the reveal', h.state.phase === 'reveal');
-  check('an exact match is worth 100', h.state.totals[A] === 100, h.state.totals);
+  // Issue #38: accuracy is the colour, the score is that accuracy bent by how
+  // fast it was settled. Both picks landed instantly, in the first fifth of the
+  // window, which is worth half again.
+  check('an exact match is 100 accuracy', h.state.picks[A]?.accuracy === 100, h.state.picks[A]);
+  check('and being early is worth half again', h.state.totals[A] === 150, h.state.totals);
   check('the far side of the wheel is worth nothing', h.state.totals[B] === 0, h.state.totals);
-  check('and being early bought nothing extra', h.state.picks[A]?.score === 100);
+  check('a zero accuracy earns no bonus either', h.state.picks[B]?.score === 0, h.state.picks[B]);
   check('now the picks are on the wire', Object.keys(toState(h.state).picks).length === 2);
   check('somebody scored, so the streak resets', h.state.barren === 0);
 }
@@ -163,7 +167,8 @@ async function replacing(): Promise<void> {
   g.advance(colorActionMs(1) + COLOR_PICK_GRACE_MS - 50);
   await onColorPick(g.ctx, A, 1, 1, [...t2], 1, 0);
   await g.step();
-  check('a pick inside the grace still counts', g.state.totals[A] === 100, g.state.totals);
+  // Dead on the deadline: the last reaction slice, so the accuracy is halved.
+  check('a pick inside the grace still counts', g.state.totals[A] === 50, g.state.totals);
 
   const l = harness();
   await startColorMatch(l.ctx, 1, [A, B]);
@@ -187,7 +192,7 @@ async function chaining(): Promise<void> {
   await h.step();
   check('then level 2 is dealt on its own', h.state.level === 2 && h.state.phase === 'pick');
   check('with a fresh picks board', Object.keys(h.state.picks).length === 0);
-  check('and the totals carried over', h.state.totals[A] === 100);
+  check('and the totals carried over', h.state.totals[A] === 150, h.state.totals);
 
   // Walk far enough up the ladder to cross the luminance rung.
   for (let n = 2; n <= 36; n++) {
@@ -299,7 +304,7 @@ async function leaving(): Promise<void> {
   await h.step();
 
   await onPlayerGone(h.ctx, A);
-  check('their total stays on the board', h.state.totals[A] === 100, h.state.totals);
+  check('their total stays on the board', h.state.totals[A] === 150, h.state.totals);
   check('and the run carries on', h.state.phase === 'pick');
 }
 
@@ -329,10 +334,11 @@ async function timing(): Promise<void> {
   // The boundaries are derived from the ladder, so this asserts the RUNGS the
   // steps sit on rather than the numbers they currently work out to — those
   // move the moment a rung's length does, and did when the first was shortened.
-  const [twoComponents, lastBeforeSlider] = [RUNG_ENDS[1] ?? 0, RUNG_ENDS[6] ?? 0];
-  check('5 s while the palette is one or two components', colorActionMs(1) === 5000 && colorActionMs(twoComponents) === 5000);
-  check('10 s once it is a real cube', colorActionMs(twoComponents + 1) === 10000 && colorActionMs(lastBeforeSlider) === 10000);
-  check('15 s from the rung that adds the slider', colorActionMs(lastBeforeSlider + 1) === 15000 && colorActionMs(400) === 15000);
+  const lastBeforeSlider = RUNG_ENDS[6] ?? 0;
+  check('3 s while the answer is one tap on the wheel',
+    colorActionMs(1) === 3000 && colorActionMs(lastBeforeSlider) === 3000, colorActionMs(1));
+  check('10 s from the rung that adds the slider',
+    colorActionMs(lastBeforeSlider + 1) === 10000 && colorActionMs(400) === 10000, colorActionMs(lastBeforeSlider + 1));
   check('and that rung really is the first with luminance', rungAt(lastBeforeSlider + 1).luminance && !rungAt(lastBeforeSlider).luminance);
   check('the tiers only ever get longer', COLOR_ACTION_TIERS.every((t, i, a) => i === 0 || t.ms > (a[i - 1]?.ms ?? 0)));
   check('and the last one catches every level', COLOR_ACTION_TIERS[COLOR_ACTION_TIERS.length - 1]?.upTo === Infinity);
@@ -340,7 +346,7 @@ async function timing(): Promise<void> {
 
   const h = harness();
   await startColorMatch(h.ctx, 1, [A, B]);
-  check('a level-1 round really closes after 5 s', h.state.picksDueAt - h.state.startsAt === 5000);
+  check('a level-1 round really closes after 3 s', h.state.picksDueAt - h.state.startsAt === 3000);
 }
 
 async function phases(): Promise<void> {

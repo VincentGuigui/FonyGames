@@ -9,7 +9,7 @@ import {
   type PlayerId,
   type ServerMessage,
 } from '../shared/protocol';
-import { COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, asRgb, colorActionMs, colorKey, colorScore, dealTarget, rungAt, withLuminance, type Rgb } from '../shared/color';
+import { COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, asRgb, colorActionMs, colorKey, colorPoints, colorScore, dealTarget, rungAt, withLuminance, type Rgb } from '../shared/color';
 import { enoughToStart } from '../shared/players';
 
 /**
@@ -31,7 +31,14 @@ import { enoughToStart } from '../shared/players';
 
 export type ColorPick = {
   rgb: Rgb;
-  /** Filled in when the level is scored, not when the pick arrives. */
+  /** How long after the level opened this answer was settled, in ms — the
+   *  referee's own arrival time, never the payload's `at` (spec §8). Reset
+   *  every time the pick is replaced, because the LAST answer is the answer. */
+  reactionMs: number;
+  /** Both filled in when the level is scored, not when the pick arrives:
+   *  how close the colour was, and what that was worth after the reaction
+   *  bonus (issue #38). */
+  accuracy: number;
   score: number;
 };
 
@@ -180,7 +187,11 @@ export async function onColorPick(
   const k = typeof lum === 'number' && Number.isFinite(lum) ? Math.min(1, Math.max(0, lum)) : 1;
   // A pick's score is never taken from the payload — it cannot even carry one
   // (spec §8). It arrives as a colour and leaves as a colour.
-  s.picks[playerId] = { rgb: s.luminance ? withLuminance(base, k) : base, score: 0 };
+  // Measured here, from the level's own opening — a payload cannot be trusted
+  // with the clock any more than with the score, and this is the clock the
+  // deadline above is enforced on anyway.
+  const reactionMs = Math.max(0, ctx.now() - (s.picksDueAt - colorActionMs(s.level)));
+  s.picks[playerId] = { rgb: s.luminance ? withLuminance(base, k) : base, reactionMs, accuracy: 0, score: 0 };
   await ctx.save(s);
 }
 
@@ -237,11 +248,18 @@ export async function tick(ctx: Ctx): Promise<boolean> {
  * zero — not tapping is a pick (spec §7).
  */
 function score(s: ColorMatch): void {
+  const actionMs = colorActionMs(s.level);
   let anybody = false;
   for (const id of Object.keys(s.totals)) {
     const pick = s.picks[id];
-    const points = pick ? colorScore(pick.rgb, s.target) : 0;
-    if (pick) pick.score = points;
+    // Accuracy is the colour; the points are the accuracy bent by how fast it
+    // was settled (issue #38). Both are kept, because the phone shows both.
+    const accuracy = pick ? colorScore(pick.rgb, s.target) : 0;
+    const points = pick ? colorPoints(accuracy, pick.reactionMs, actionMs) : 0;
+    if (pick) {
+      pick.accuracy = accuracy;
+      pick.score = points;
+    }
     if (points > 0) {
       anybody = true;
       s.totals[id] = (s.totals[id] ?? 0) + points;
@@ -296,7 +314,7 @@ export function toState(s: ColorMatch): ColorMatchState {
   // could copy the best one.
   if (s.phase !== 'pick') {
     for (const [id, p] of Object.entries(s.picks)) {
-      picks[id] = { rgb: [p.rgb[0], p.rgb[1], p.rgb[2]], score: p.score };
+      picks[id] = { rgb: [p.rgb[0], p.rgb[1], p.rgb[2]], accuracy: p.accuracy, reactionMs: p.reactionMs, score: p.score };
     }
   }
   return {

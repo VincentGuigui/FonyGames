@@ -193,23 +193,63 @@ export function rungAt(level: number): Rung {
 /**
  * The action window, by level (color-match.md §2.2).
  *
- * Three tiers, and the steps are **derived from the ladder** rather than
- * written as round numbers, so shortening a rung moves them automatically:
- * 5 s while the palette is one or two components out of {0, 255} (a glance),
- * 10 s once it is a real cube and needs looking at, 15 s from the rung that
- * adds the luminance slider and a second control to work.
+ * Two tiers, and the step is **derived from the ladder** rather than written as
+ * a round number, so shortening a rung moves it automatically: **3 s** while
+ * the answer is one tap on the wheel, **10 s** from the rung that adds the
+ * luminance slider, where a level needs two controls set rather than one.
+ *
+ * Three seconds is short on purpose (issue #38). The whole point of the run is
+ * pace, and every level up to the slider is a single tap — the old 5 s and 10 s
+ * left the pie draining with nothing left to do. The reaction bonus below is
+ * what makes that window worth beating rather than merely surviving.
  */
 export const COLOR_ACTION_TIERS: readonly { readonly upTo: number; readonly ms: number }[] = [
-  { upTo: RUNG_ENDS[1] ?? 8, ms: 5_000 },
-  { upTo: RUNG_ENDS[LADDER.findIndex((row) => row.rung.luminance) - 1] ?? 33, ms: 10_000 },
-  { upTo: Infinity, ms: 15_000 },
+  { upTo: RUNG_ENDS[LADDER.findIndex((row) => row.rung.luminance) - 1] ?? 31, ms: 3_000 },
+  { upTo: Infinity, ms: 10_000 },
 ];
 
 /** Both the referee and the pie read this, so the bar on screen cannot
  *  disagree with the deadline being enforced. */
 export function colorActionMs(level: number): number {
   for (const tier of COLOR_ACTION_TIERS) if (level <= tier.upTo) return tier.ms;
-  return COLOR_ACTION_TIERS[COLOR_ACTION_TIERS.length - 1]?.ms ?? 15_000;
+  return COLOR_ACTION_TIERS[COLOR_ACTION_TIERS.length - 1]?.ms ?? 10_000;
+}
+
+/* --------------------------- what a level is worth ------------------------ */
+
+/**
+ * How the reaction time turns accuracy into points (issue #38).
+ *
+ * The action window is cut into **five equal slices**, and which slice the
+ * player's own final answer landed in scales their accuracy: answer in the
+ * first fifth and it is worth half again, dawdle into the last fifth and it is
+ * worth half. Same shape as Color Hunt's own "the clock is the score", but
+ * multiplicative rather than additive, so a fast wrong answer still scores
+ * nothing and precision stays the thing being rewarded.
+ *
+ * One multiplier per slice, first slice first.
+ */
+export const COLOR_REACTION_MULTIPLIERS: readonly number[] = [1.5, 1.2, 1, 0.75, 0.5];
+
+/** Which slice a reaction landed in, and what it multiplies by. `reactionMs`
+ *  is measured from the level opening; anything at or past the window is the
+ *  last slice, and a missing answer never reaches here at all. */
+export function reactionMultiplier(reactionMs: number, actionMs: number): number {
+  const slices = COLOR_REACTION_MULTIPLIERS.length;
+  const window = Math.max(1, actionMs);
+  const at = Math.min(window - 1, Math.max(0, reactionMs));
+  const slice = Math.min(slices - 1, Math.floor((at / window) * slices));
+  return COLOR_REACTION_MULTIPLIERS[slice] ?? 1;
+}
+
+/**
+ * A level's points: the accuracy of the colour, bent by how fast it was set
+ * (issue #38). Rounded once, at the end, so the number on screen is the number
+ * added to the total.
+ */
+export function colorPoints(accuracy: number, reactionMs: number, actionMs: number): number {
+  if (accuracy <= 0) return 0;
+  return Math.round(accuracy * reactionMultiplier(reactionMs, actionMs));
 }
 
 /** The values one component may take at `splits` intervals: `splits + 1` of

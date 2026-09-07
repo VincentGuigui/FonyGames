@@ -10,6 +10,10 @@
  */
 import {
   COLOR_BARREN_ROUNDS,
+  COLOR_REACTION_MULTIPLIERS,
+  colorActionMs,
+  colorPoints,
+  reactionMultiplier,
   COLOR_D_MAX,
   COLOR_LUM_MIN,
   COLOR_LADDER_END,
@@ -364,6 +368,48 @@ function hunt(): void {
   })());
 }
 
+/** Issue #38: the score is accuracy bent by reaction time. */
+function reaction(): void {
+  console.log('\nthe clock bends the accuracy into a score (issue #38)');
+
+  const window = colorActionMs(1);
+  check('a level up to the slider gives three seconds', window === 3000, window);
+  check('and the slider rungs give ten', colorActionMs(RUNG_ENDS[6] as number + 1) === 10_000);
+
+  // One multiplier per fifth of the window, first fifth first.
+  const slices = COLOR_REACTION_MULTIPLIERS.length;
+  check('five slices', slices === 5, slices);
+  const mids = COLOR_REACTION_MULTIPLIERS.map((_, i) => reactionMultiplier(((i + 0.5) * window) / slices, window));
+  check('the middle of each slice reads its own multiplier',
+    JSON.stringify(mids) === JSON.stringify([...COLOR_REACTION_MULTIPLIERS]), mids);
+  check('the multipliers only ever fall', COLOR_REACTION_MULTIPLIERS.every((m, i, a) => i === 0 || m < (a[i - 1] as number)));
+
+  // The edges, which is where an off-by-one would hide.
+  check('an instant answer is the first slice', reactionMultiplier(0, window) === 1.5);
+  check('one tick before the boundary is still the first slice', reactionMultiplier(window / 5 - 1, window) === 1.5);
+  check('and on the boundary it is the second', reactionMultiplier(window / 5, window) === 1.2);
+  check('the last tick of the window is the last slice', reactionMultiplier(window - 1, window) === 0.5);
+  check('past the window it stays the last slice, never worse', reactionMultiplier(window * 4, window) === 0.5);
+  check('a negative reaction cannot buy more than the best slice', reactionMultiplier(-500, window) === 1.5);
+
+  // And the points themselves.
+  check('a fast bullseye is worth half again', colorPoints(100, 0, window) === 150);
+  check('a slow bullseye is worth half', colorPoints(100, window - 1, window) === 50);
+  check('the middle slice changes nothing', colorPoints(80, window * 0.5, window) === 80);
+  check('no accuracy is no points, however fast', colorPoints(0, 0, window) === 0);
+  // The consequence of a +50%/-50% spread, pinned deliberately: speed can
+  // outweigh a large accuracy gap. The crossover is 1/3 — anything above 34
+  // accuracy taken in the first fifth beats a bullseye taken in the last.
+  check('a fast near miss really does beat a slow bullseye',
+    colorPoints(40, 0, window) > colorPoints(100, window - 1, window),
+    [colorPoints(40, 0, window), colorPoints(100, window - 1, window)]);
+  check('and the crossover sits where the multipliers put it',
+    colorPoints(34, 0, window) > colorPoints(100, window - 1, window)
+    && colorPoints(33, 0, window) <= colorPoints(100, window - 1, window),
+    [colorPoints(34, 0, window), colorPoints(33, 0, window)]);
+  check('points are whole numbers', Number.isInteger(colorPoints(37, window * 0.9, window)), colorPoints(37, window * 0.9, window));
+}
+
 function wire(): void {
   console.log('\nnothing off the wire is trusted');
 
@@ -388,6 +434,7 @@ palettes();
 luminance();
 dealing();
 hunt();
+reaction();
 wire();
 
 if (failures > 0) throw new Error(`${failures} check(s) failed`);

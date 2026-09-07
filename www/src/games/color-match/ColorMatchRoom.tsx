@@ -8,7 +8,7 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { COLOR_LUM_MIN, colorActionMs, luminanceSteps, rungAt, withLuminance, type Rgb } from '../../../../shared/color';
+import { COLOR_LUM_MIN, colorActionMs, luminanceSteps, reactionMultiplier, rungAt, withLuminance, type Rgb } from '../../../../shared/color';
 import { useGameRoom } from '../../core/room/useRoom';
 import { useSoloTesting } from '../../core/useSolo';
 import { RoomGate } from '../../lobby/RoomGate';
@@ -187,10 +187,24 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
             before that — a panel still showing the last level's score while a
             new colour is on screen is worse than an empty one. */}
         {revealing ? (
-          <p class={`cmatch__verdict cmatch__verdict--${(mine?.score ?? 0) > 0 ? 'hit' : 'miss'}`} aria-live="polite">
-            <strong class="cmatch__points">{mine?.score ?? 0}</strong>
-            {text({ en: 'points', fr: 'points' })}
-          </p>
+          <div class={`cmatch__verdict cmatch__verdict--${(mine?.score ?? 0) > 0 ? 'hit' : 'miss'}`} aria-live="polite">
+            <p class="cmatch__score">
+              <strong class="cmatch__points">{mine?.score ?? 0}</strong>
+              {text({ en: 'points', fr: 'points' })}
+            </p>
+            {/* The two numbers the points are made of (issue #38) — without
+                them a slow bullseye and a fast near-miss look identical. */}
+            <p class="cmatch__breakdown">
+              {text({ en: 'accuracy', fr: 'précision' })} <strong>{mine?.accuracy ?? 0}</strong>
+              {' · '}
+              {mine
+                ? text({
+                    en: `${(mine.reactionMs / 1000).toFixed(1)}s ×${reactionMultiplier(mine.reactionMs, colorActionMs(state.level))}`,
+                    fr: `${(mine.reactionMs / 1000).toFixed(1)} s ×${reactionMultiplier(mine.reactionMs, colorActionMs(state.level))}`,
+                  })
+                : text({ en: 'no answer', fr: 'aucune réponse' })}
+            </p>
+          </div>
         ) : (
           <p class="cmatch__verdict cmatch__verdict--quiet">{text({ en: 'Find it', fr: 'Trouvez-la' })}</p>
         )}

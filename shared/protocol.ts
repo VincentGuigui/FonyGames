@@ -692,9 +692,17 @@ export type ColorMatchState = {
   endsAt: number;
   /** Running totals, every player who has played a level. */
   totals: Record<PlayerId, number>;
-  /** Last scored level only — what everyone picked and what it was worth.
-   *  Empty during `pick`. */
-  picks: Record<PlayerId, { rgb: [number, number, number]; score: number }>;
+  /**
+   * Last scored level only — what everyone picked and what it was worth.
+   * Empty during `pick`.
+   *
+   * Three numbers, not one (issue #38): `accuracy` is how close the colour
+   * was, 0-100; `reactionMs` is how long that answer took from the level
+   * opening; `score` is what actually went on the total, the accuracy bent by
+   * the reaction bonus (`colorPoints`). The phone shows all three because the
+   * player cannot otherwise tell a slow bullseye from a fast near-miss.
+   */
+  picks: Record<PlayerId, { rgb: [number, number, number]; accuracy: number; reactionMs: number; score: number }>;
   /** Consecutive levels nobody scored on. At `COLOR_BARREN_ROUNDS` the run ends. */
   barren: number;
   winner: PlayerId | null;

@@ -38,13 +38,31 @@
   text-align: center;
   font-size: 1.3rem;
   font-weight: 700;
-  min-height: 1.4em;
+  min-height: 2.6em;
   color: var(--text);
 }
 
 .cmatch__verdict--quiet {
   font-weight: 500;
   color: var(--text-dim);
+}
+
+.cmatch__score {
+  margin: 0;
+}
+
+/* What the points are made of, one line under them: accuracy out of 100 and
+   the reaction time with the multiplier it earned (issue #38). */
+.cmatch__breakdown {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.cmatch__breakdown strong {
+  color: var(--text);
 }
 
 /* The number is the feedback; the word is a unit. */

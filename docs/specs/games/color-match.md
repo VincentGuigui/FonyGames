@@ -38,7 +38,8 @@ how close they got. Then a harder one.
 1. The referee picks a target colour for level *n* from that level's own
    palette (§2.3) and sends it to the room.
 2. The target is displayed, big. A pie circle beside it drains over that
-   level's own window — 5, 10 or 15 seconds, by how hard the level is (§2.2).
+   level's own window — 3 seconds, or 10 once the luminance slider is live
+   (§2.2). Answering early is worth more (§2.4).
 3. Each player drags a cursor on the colour wheel — and, from the luminance
    rung (level 32), a second cursor on the luminance slider. The pick is whatever the cursors read
    when the pie empties. Not tapping is a pick of wherever the cursor already
@@ -79,14 +80,19 @@ The action window is tiered — `colorActionMs` — and the steps are where the
 
 | Levels | Window | Why there |
 | --- | --- | --- |
-| 1–6 | **5 s** | Rungs 1–2: one or two components out of {0, 255}. A glance |
-| 7–31 | **10 s** | Rung 3 on: the palette is a real cube and needs looking at |
-| 32+ | **15 s** | Rung 8 adds the luminance slider — a second control to work |
+| 1–31 | **3 s** | Rungs 1–7: the answer is one tap on the wheel |
+| 32+ | **10 s** | Rung 8 adds the luminance slider — a second control to work |
 
-The boundaries are **`RUNG_ENDS[1]` and the level before the first luminance
-rung**, not the numbers in that first column: they are computed from the
-ladder, so a rung changing length moves the tier with it. `colorActionMs` lives
-in `shared/color.ts` beside the ladder for the same reason.
+Three seconds is short on purpose (issue #38). Every level up to the slider is
+a single tap, and the old 5 s / 10 s / 15 s left the pie draining with nothing
+left to do; the reaction bonus in §2.4 is what makes a short window worth
+*beating* rather than merely surviving. Ten seconds from rung 8 because two
+controls have to be set, not one.
+
+The boundary is **the level before the first luminance rung**, not the number
+in that first column: it is computed from the ladder, so a rung changing length
+moves the tier with it. `colorActionMs` lives in `shared/color.ts` beside the
+ladder for the same reason.
 
 Plus a fixed 4 s tail on every level: `COLOR_SCORE_HOLD_MS` (2 s) +
 `COLOR_SOLVE_MS` (1 s) + `COLOR_REVEAL_HOLD_MS` (1 s). So a level is 9 s at the
@@ -228,12 +234,49 @@ d  = √( (2 + r̄/256)·Δr² + 4·Δg² + (2 + (255−r̄)/256)·Δb² )
 score = round(100 × max(0, 1 − dNorm / COLOR_MISS))
 ```
 
-100 for an exact match, 0 at or beyond `COLOR_MISS`, linear between. The
+100 for an exact match, 0 at or beyond `COLOR_MISS`, linear between. **This is
+the *accuracy*, not the score** (issue #38) — see the reaction bonus below. The
 **threshold is flat rather than scaled to the rung**, which means the early
 levels are all-or-nothing — the four starting colours are nowhere near each
 other, so a wrong sector scores zero and a right one scores 100 — and the late
 levels are where partial credit lives. That is the simpler rule and probably the
 right one, but see §12 Q3.
+
+### The reaction bonus: accuracy is not the score
+
+**Points = accuracy × how fast that answer was settled** (issue #38). The
+action window is cut into **five equal slices** and the slice the player's own
+final answer landed in scales their accuracy:
+
+| Slice of the window | Multiplier |
+| --- | --- |
+| first fifth | **+50%** |
+| second fifth | **+20%** |
+| middle fifth | **±0** |
+| fourth fifth | **−25%** |
+| last fifth | **−50%** |
+
+Multiplicative rather than additive, so **a fast wrong answer still scores
+nothing** and precision stays the thing being rewarded. Rounded once, at the
+end, so the number on screen is the number added to the total.
+
+Two consequences worth stating rather than discovering:
+
+- **Speed can outweigh a large accuracy gap.** The spread is 1.5 against 0.5,
+  so the crossover is a third: anything above **34 accuracy** taken in the
+  first fifth beats a **bullseye** taken in the last. `shared/color.test.ts`
+  pins that number, so moving the multipliers moves a test rather than
+  quietly changing who wins.
+- **Reaction time is the referee's own measurement**, from the level opening to
+  the arrival of the answer it scored — never the `at` the payload carries. A
+  payload cannot be trusted with the clock any more than with the score (§8),
+  and lag is already forgiven by `COLOR_PICK_GRACE_MS`. A player who keeps
+  adjusting is timed from their **last** answer, because that is the answer.
+
+The phone shows **all three numbers**: the points, the accuracy they came from,
+and the reaction time with the multiplier it earned. Without the breakdown a
+slow bullseye and a fast near-miss look identical, which makes the bonus
+invisible and the score arbitrary.
 
 Both the distance and the ladder live in **`shared/color.ts`**, because the
 referee scores and the phone previews, and a second copy of either is a second
@@ -310,7 +353,8 @@ Every one of these is a proposal. ⚖ marks the ones §12 expects to move.
 
 | Constant | Value | Why |
 | --- | --- | --- |
-| `COLOR_ACTION_TIERS` | 5000 / 10000 / 15000 | ⚖ The action window, by rung (§2.2). Was a flat 3 s |
+| `COLOR_ACTION_TIERS` | 3000 / 10000 | ⚖ The action window, by rung (§2.2). Was 5/10/15 until issue #38 |
+| `COLOR_REACTION_MULTIPLIERS` | 1.5 / 1.2 / 1 / 0.75 / 0.5 | ⚖ One per fifth of the window (§2.4, issue #38) |
 | `COLOR_SCORE_HOLD_MS` | 2000 | The issue's own two seconds of score |
 | `COLOR_SOLVE_MS` | 1000 | The issue's own one-second cursor animation |
 | `COLOR_REVEAL_HOLD_MS` | 1000 | The issue's own one-second hold |
@@ -336,7 +380,7 @@ per player per level, and no per-frame traffic at all.
 | --- | --- | --- | --- |
 | `color-level` | server → all | `{ roundId, level, target: [r,g,b], lum, palette, phase, picksDueAt, revealAt, endsAt }` | A new level, and every phase boundary as a server timestamp |
 | `color-pick` | client → server | `{ roundId, level, rgb: [r,g,b], lum, at }` | This phone's pick. Last one before `picksDueAt` wins; later ones are dropped |
-| `color-scores` | server → all | `{ roundId, level, solution, picks: {id: {rgb, lum, score}}, totals, barren }` | What everybody picked, what it was worth, and the running totals |
+| `color-scores` | server → all | `{ roundId, level, solution, picks: {id: {rgb, lum, accuracy, reactionMs, score}}, totals, barren }` | What everybody picked, how close and how fast it was, what it was worth, and the running totals |
 
 **Latency:** the phase boundaries are absolute server times rendered through
 `client.now()`, so 100–300 ms of lag costs a player a sliver of their three
