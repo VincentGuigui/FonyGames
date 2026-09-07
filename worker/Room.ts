@@ -172,6 +172,16 @@ import {
   type Ctx as ScreamCtx,
 } from './screamMeter';
 import {
+  nextDeadline as darkDeadline,
+  onAct as onDarkAct,
+  onPlayerGone as darkPlayerGone,
+  startDark,
+  tick as darkTick,
+  toState as darkToState,
+  type Dark,
+  type Ctx as DarkCtx,
+} from './togetherInTheDark';
+import {
   nextDeadline as huntColorDeadline,
   onHuntFind,
   onPlayerGone as huntColorPlayerGone,
@@ -544,6 +554,11 @@ export class Room extends DurableObject<Env> {
         if (id) await onColorPick(this.#matchCtx(), id, msg.d.roundId, msg.d.level, msg.d.rgb, msg.d.lum, msg.d.at);
         return;
       }
+      case 'dark-act': {
+        const id = this.#idOf(ws);
+        if (id) await onDarkAct(this.#darkCtx(), id, msg.d.roundId, msg.d.turn, msg.d.action, msg.d.dir);
+        return;
+      }
       case 'scream-alive': {
         const id = this.#idOf(ws);
         if (id) await onScreamAlive(this.#screamCtx(), id, msg.d.roundId);
@@ -808,6 +823,12 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const inTheDark = await this.#dark();
+    if (inTheDark && inTheDark.phase !== 'done' && Date.now() >= darkDeadline(inTheDark)) {
+      await darkTick(this.#darkCtx());
+      await this.#rearm();
+      return;
+    }
     const hunting = await this.#colorHunt();
     if (hunting && hunting.phase === 'hunt' && Date.now() >= huntColorDeadline(hunting)) {
       await huntColorTick(this.#huntColorCtx());
@@ -951,6 +972,8 @@ export class Room extends DurableObject<Env> {
     if (tilting && tilting.phase !== 'done') return;
     const screaming = await this.#scream();
     if (screaming && screaming.phase !== 'done') return;
+    const inTheDark = await this.#dark();
+    if (inTheDark && inTheDark.phase !== 'done') return;
     const colorHunting = await this.#colorHunt();
     if (colorHunting && colorHunting.phase !== 'done') return;
     const tttt = await this.#tttt();
@@ -986,6 +1009,7 @@ export class Room extends DurableObject<Env> {
       mode === 'math' ||
       mode === 'tilt' ||
       mode === 'scream' ||
+      mode === 'dark' ||
       mode === 'tttt'
       || mode === 'fighter'
     ) {
@@ -1014,6 +1038,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'math') started = await startMathOMatic(this.#mathCtx(), roundId, ids, math, solo);
       else if (mode === 'tilt') started = await startTiltRace(this.#tiltCtx(), roundId, ids, solo);
       else if (mode === 'scream') started = await startScreamMeter(this.#screamCtx(), roundId, ids, solo);
+      else if (mode === 'dark') started = await startDark(this.#darkCtx(), roundId, ids, solo);
       else if (mode === 'color-hunt') started = await startColorHunt(this.#huntColorCtx(), roundId, ids, solo);
       else if (mode === 'tttt') started = await startTttt(this.#ttttCtx(), roundId, ids, symbols, solo);
       else if (mode === 'fighter') started = await startTapFighter(this.#fighterCtx(), roundId, ids, solo);
@@ -1088,7 +1113,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'scream', 'tttt', 'fighter', 'roundId', 'scores']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'scream', 'dark', 'tttt', 'fighter', 'roundId', 'scores']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -1470,6 +1495,22 @@ export class Room extends DurableObject<Env> {
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#scream(),
       save: (s) => this.ctx.storage.put('scream', s),
+      setAlarm: () => this.#rearm(),
+      random: () => Math.random(),
+    };
+  }
+
+  async #dark(): Promise<Dark | null> {
+    return (await this.ctx.storage.get<Dark>('dark')) ?? null;
+  }
+
+  #darkCtx(): DarkCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#dark(),
+      save: (s) => this.ctx.storage.put('dark', s),
       setAlarm: () => this.#rearm(),
       random: () => Math.random(),
     };
@@ -1903,6 +1944,16 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'scream', s: this.#nextSeq(), d: screamToState(screaming) });
     }
 
+    /* Together in the Dark: the ONE game whose snapshot is deliberately
+       incomplete. `toState` sends the lit cells and the room's terrain memory
+       and never the map, because here the hidden information is the game
+       (spec §6). A phone joining mid-run gets what the room has learned and
+       nothing more. */
+    const inTheDark = await this.#dark();
+    if (inTheDark && inTheDark.phase !== 'done') {
+      this.#send(ws, { t: 'dark', s: this.#nextSeq(), d: darkToState(inTheDark) });
+    }
+
     await this.#broadcastPresence(ws);
   }
 
@@ -1993,6 +2044,7 @@ export class Room extends DurableObject<Env> {
     await mathPlayerGone(this.#mathCtx(), id);
     await tiltPlayerGone(this.#tiltCtx(), id);
     await screamPlayerGone(this.#screamCtx(), id);
+    await darkPlayerGone(this.#darkCtx(), id);
     // Neon Fall is the same shape as Grid Attack: two fixed seats, and a phone
     // leaving means one of the roles is simply gone — there is no game left.
     await neonPlayerGone(this.#neonCtx(), id);
@@ -2120,6 +2172,9 @@ export class Room extends DurableObject<Env> {
 
     const screaming = await this.#scream();
     if (screaming && screaming.phase !== 'done') return screamDeadline(screaming);
+
+    const inTheDark = await this.#dark();
+    if (inTheDark && inTheDark.phase !== 'done') return darkDeadline(inTheDark);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);

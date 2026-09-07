@@ -320,6 +320,15 @@ export type ClientMessage =
    */
   | { t: 'scream-score'; d: { roundId: number; score: number; peak: number; floor: number; partial: boolean } }
   /**
+   * Together in the Dark: the current player's one action for their turn.
+   *
+   * `turn` is the turn index, so a double-tap cannot spend two turns
+   * (together-in-the-dark.md §8), and `action` is the whole choice the game
+   * turns on: a step buys progress but blind, a light buys knowledge but no
+   * progress — and it is the TEAM's turn either way.
+   */
+  | { t: 'dark-act'; d: { roundId: number; turn: number; action: 'walk' | 'light'; dir: string } }
+  /**
    * Color Hunt: what this phone's magnifier last read (spec §6). Three
    * integers — **no pixel is ever on the wire**, which is the whole of that
    * game's privacy claim (spec §10).
@@ -846,6 +855,60 @@ export type ScreamState = {
 };
 
 /**
+ * Together in the Dark, as every phone is *allowed* to know it.
+ * Spec: docs/specs/games/together-in-the-dark.md §6
+ *
+ * **This is the one game in the catalogue whose state is deliberately
+ * incomplete.** Every other game can broadcast everything it has — Gravity
+ * Shooter ships its entire board, because the board was never secret. Here the
+ * hidden information *is* the game, so a modified client handed the full grid
+ * would just read the fog and the game would evaporate.
+ *
+ * So the map is never on the wire. What travels is `lit` (this turn's revealed
+ * cells), `seen` (the dim terrain memory), and `escape` only once somebody has
+ * actually seen it. Sending the visible subset is cheap and keeps the secret
+ * server-side, and it is much easier to get right from the start than to
+ * retrofit.
+ */
+export type DarkState = {
+  roundId: number;
+  cols: number;
+  rows: number;
+  /** 0-based turn index. `dark-act` must carry the matching one. */
+  turn: number;
+  /** Whose turn it is. Turn order is join order (§2). */
+  who: PlayerId | null;
+  /** Absolute server time the turn is resolved on, one way or another. */
+  turnEndsAt: number;
+  /** Where the character is. Public — everyone is guiding the same one. */
+  at: { x: number; y: number };
+  /** Revealed THIS turn, and what each cell held. Goes dark again next turn. */
+  lit: { x: number; y: number; kind: string }[];
+  /**
+   * The dim terrain memory.
+   *
+   * Terrain is remembered; **monsters never are** (§2.2). Without any memory
+   * the team just screenshots the screen and a player who looks away loses
+   * everything the room has learned; with monster memory the danger becomes a
+   * solved map. Stale monster information that quietly became a lie is the
+   * right kind of cruelty.
+   */
+  seen: { x: number; y: number; kind: string }[];
+  /** Only once it has been seen (§12 Q5 asks whether it should be from the
+   *  start; this is the tenser answer). */
+  escape: { x: number; y: number } | null;
+  lives: number;
+  /** Turns taken. The record to beat, shown on the results screen (§2). */
+  turns: number;
+  /** Three lines of what just happened — the shared memory the arguing runs
+   *  on, and cheap (§4). */
+  log: string[];
+  phase: 'playing' | 'done';
+  /** Co-op: the room wins or loses together, so this is a flag not a player. */
+  won: boolean;
+};
+
+/**
  * Color Hunt: one round of the hunt (spec §6).
  *
  * Shorter than Color Match's by one phase — there is no reveal, by design
@@ -1229,6 +1292,7 @@ export type ServerMessage =
   | { t: 'math'; s: number; d: MathState }
   | { t: 'tilt'; s: number; d: TiltState }
   | { t: 'scream'; s: number; d: ScreamState }
+  | { t: 'dark'; s: number; d: DarkState }
   /** Color Hunt: the target in flight, and what the last one was worth. */
   | { t: 'color-hunt'; s: number; d: ColorHuntState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
@@ -1974,6 +2038,7 @@ const CLIENT_TYPES = new Set([
   'tilt-finish',
   'scream-alive',
   'scream-score',
+  'dark-act',
   'switch-game',
 ]);
 
@@ -3134,3 +3199,40 @@ export const SCREAM_MIN_ALIVE = 3;
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const SCREAM_MIN_PLAYERS = PLAYERS['scream-meter'][0];
 export const SCREAM_MAX_PLAYERS = PLAYERS['scream-meter'][1];
+
+/* ------------------------------------------------------------------ */
+/* Together in the Dark (docs/specs/games/together-in-the-dark.md)     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How long a player has to take their turn.
+ *
+ * The round-length risk lives here (spec §12 Q1): 8 s at 8 players is already
+ * a 3-minute round even with a shortened path. 7 s is the compromise, and it
+ * is the first thing to shorten if a real room drags.
+ */
+export const DARK_TURN_MS = 7_000;
+
+/** Lives. Contact costs one and shoves the character back; it does not kill
+ *  (spec §2.2) — instant death would make fifteen steps a minefield. */
+export const DARK_LIVES = 3;
+
+/** How many turns a woken monster takes to move one cell. Slow on purpose:
+ *  at a third of the character's speed it can only truly seal a one-wide
+ *  corridor, which is what the two-wide route rule is about. */
+export const DARK_MONSTER_TURNS = 3;
+
+/** How many of its own moves a monster spends at the cell it was heading for
+ *  before giving up and going back to sleep (spec §2.2). Baiting one is a real
+ *  play, not a permanent removal. */
+export const DARK_MONSTER_PATIENCE = 2;
+
+/** How many lines of turn log travel. Three is what fits above the controls. */
+export const DARK_LOG_LINES = 3;
+
+/** The safety cap. A co-op room that will not finish is not a design element. */
+export const DARK_RUN_CAP_TURNS = 200;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const DARK_MIN_PLAYERS = PLAYERS['together-in-the-dark'][0];
+export const DARK_MAX_PLAYERS = PLAYERS['together-in-the-dark'][1];
