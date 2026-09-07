@@ -9,7 +9,7 @@
 | **Round length** | 30 s |
 | **Inputs** | mic |
 | **Accent colour** | `#FB4D3D` |
-| **Status** | 📝 draft — awaiting approval ([#15](https://github.com/VincentGuigui/FonyGames/issues/15)) |
+| **Status** | 🎮 beta — built; the catalogue's first mic game, and the sustain window and per-round floor are untested in a real room ([#15](https://github.com/VincentGuigui/FonyGames/issues/15)) |
 
 ## 1. Pitch
 
@@ -206,15 +206,47 @@ sounds much worse than what it actually does.
 
 ## 12. Open questions
 
-1. **`SCREAM_SUSTAIN_MS` = 3 s of the 10 s window** is the central number and
-   it is a guess. Too short and a bark wins; too long and it becomes a
-   breath-holding contest.
+Five were open when this spec was written. Building it settled two and left
+three genuinely open — which is honest for a game whose central number can
+only be judged in a room full of people.
+
+1. **`SCREAM_SUSTAIN_MS` = 3 s of the 10 s window.** Still the central number
+   and still a guess. What the build *can* show is that it does the job it was
+   chosen for: `shared/scream.test.ts` fires a full-scale single-frame bark and
+   three seconds of a quieter real scream at it, and the bark loses
+   (−54 dB against −12) even though it has the higher peak. That is the
+   anti-cheat working; whether three seconds is the *fun* length is a room
+   question.
 2. **Is the per-round noise floor enough** to make two different phones
-   comparable in one room? A cheap phone with a bad mic may be unwinnable, in
-   which case this becomes a per-*device* handicap measured in the lobby.
-3. **What a `partial` window scores** — zero, or the mean of what it got? Zero
-   is simpler; scaling is fairer to iOS.
-4. **Whether `relay` earns its place.** It doubles the round length and needs
-   its own turn machinery. It may be better as a second game, or not at all.
-5. **Prompt list**: are four vowels and two pitches enough variety for a game
-   this short, or does it want silly ones ("scream like a seagull")?
+   comparable? Still open, and now with a measurement to argue about:
+   `screamScore` divides by `SCREAM_DB_SPAN` (45 dB), so the same margin over
+   the floor scores the same in a quiet and a noisy room — the test pins that.
+   What it cannot pin is whether a cheap microphone's 45 dB is the same 45 dB
+   as a good one's. If it is not, this becomes a per-*device* handicap measured
+   in the lobby.
+3. ~~**What a `partial` window scores.**~~ **Settled: the mean of what it got,
+   flagged as partial.** Zero would be simpler and is the wrong answer for iOS,
+   which suspends the audio context in a backgrounded tab through no fault of
+   the player. `loudestWindow` averages a short run rather than padding it, the
+   phone sets `partial` when it collected under 80% of the samples it should
+   have, and the results screen marks it rather than hiding it.
+4. ~~**Whether `relay` earns its place.**~~ **Not built**, and on reflection it
+   is a different game rather than a mode: one at a time doubles the round
+   length and needs its own turn machinery, and the whole appeal of `classic`
+   is eight people screaming at once. Declared in §3 and left there.
+5. **Prompt list**: four vowels and two pitches are built and dealt by the
+   referee. Whether it wants silly ones ("scream like a seagull") is a content
+   question nobody has answered.
+
+Two the build raised:
+
+6. **`SCREAM_DB_SPAN` is doing more work than it looks.** It is the single
+   number that turns dB over the floor into 0–100, so it decides whether a
+   normal shout scores 40 or 90 — and 45 dB was picked from what a phone
+   microphone plausibly spans, not from anybody screaming into one. It is the
+   first thing to adjust if scores bunch at either end.
+7. **The heartbeat bar is deliberately low** (`SCREAM_MIN_ALIVE` = 3). It only
+   catches a client that did not even pretend to sample, because this is a
+   party game in one room where everybody can hear everybody and the social
+   check is the real one. Raising it would start punishing a phone with a bad
+   connection instead.
