@@ -161,6 +161,17 @@ import {
   type Ctx as TiltCtx,
 } from './tiltRace';
 import {
+  nextDeadline as screamDeadline,
+  onAlive as onScreamAlive,
+  onPlayerGone as screamPlayerGone,
+  onScore as onScreamScore,
+  startScreamMeter,
+  tick as screamTick,
+  toState as screamToState,
+  type ScreamMeter,
+  type Ctx as ScreamCtx,
+} from './screamMeter';
+import {
   nextDeadline as huntColorDeadline,
   onHuntFind,
   onPlayerGone as huntColorPlayerGone,
@@ -533,6 +544,16 @@ export class Room extends DurableObject<Env> {
         if (id) await onColorPick(this.#matchCtx(), id, msg.d.roundId, msg.d.level, msg.d.rgb, msg.d.lum, msg.d.at);
         return;
       }
+      case 'scream-alive': {
+        const id = this.#idOf(ws);
+        if (id) await onScreamAlive(this.#screamCtx(), id, msg.d.roundId);
+        return;
+      }
+      case 'scream-score': {
+        const id = this.#idOf(ws);
+        if (id) await onScreamScore(this.#screamCtx(), id, msg.d.roundId, msg.d.score, msg.d.peak, msg.d.floor, msg.d.partial);
+        return;
+      }
       case 'tilt-move': {
         const id = this.#idOf(ws);
         if (id) await onTiltMove(this.#tiltCtx(), id, msg.d.roundId, msg.d.s, msg.d.lap);
@@ -781,6 +802,12 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const screaming = await this.#scream();
+    if (screaming && screaming.phase !== 'done' && Date.now() >= screamDeadline(screaming)) {
+      await screamTick(this.#screamCtx());
+      await this.#rearm();
+      return;
+    }
     const hunting = await this.#colorHunt();
     if (hunting && hunting.phase === 'hunt' && Date.now() >= huntColorDeadline(hunting)) {
       await huntColorTick(this.#huntColorCtx());
@@ -922,6 +949,8 @@ export class Room extends DurableObject<Env> {
     if (summing && summing.phase !== 'done') return;
     const tilting = await this.#tilt();
     if (tilting && tilting.phase !== 'done') return;
+    const screaming = await this.#scream();
+    if (screaming && screaming.phase !== 'done') return;
     const colorHunting = await this.#colorHunt();
     if (colorHunting && colorHunting.phase !== 'done') return;
     const tttt = await this.#tttt();
@@ -956,6 +985,7 @@ export class Room extends DurableObject<Env> {
       mode === 'color-hunt' ||
       mode === 'math' ||
       mode === 'tilt' ||
+      mode === 'scream' ||
       mode === 'tttt'
       || mode === 'fighter'
     ) {
@@ -983,6 +1013,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'color-match') started = await startColorMatch(this.#matchCtx(), roundId, ids, solo);
       else if (mode === 'math') started = await startMathOMatic(this.#mathCtx(), roundId, ids, math, solo);
       else if (mode === 'tilt') started = await startTiltRace(this.#tiltCtx(), roundId, ids, solo);
+      else if (mode === 'scream') started = await startScreamMeter(this.#screamCtx(), roundId, ids, solo);
       else if (mode === 'color-hunt') started = await startColorHunt(this.#huntColorCtx(), roundId, ids, solo);
       else if (mode === 'tttt') started = await startTttt(this.#ttttCtx(), roundId, ids, symbols, solo);
       else if (mode === 'fighter') started = await startTapFighter(this.#fighterCtx(), roundId, ids, solo);
@@ -1057,7 +1088,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'tttt', 'fighter', 'roundId', 'scores']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'scream', 'tttt', 'fighter', 'roundId', 'scores']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -1423,6 +1454,22 @@ export class Room extends DurableObject<Env> {
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#tilt(),
       save: (s) => this.ctx.storage.put('tilt', s),
+      setAlarm: () => this.#rearm(),
+      random: () => Math.random(),
+    };
+  }
+
+  async #scream(): Promise<ScreamMeter | null> {
+    return (await this.ctx.storage.get<ScreamMeter>('scream')) ?? null;
+  }
+
+  #screamCtx(): ScreamCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#scream(),
+      save: (s) => this.ctx.storage.put('scream', s),
       setAlarm: () => this.#rearm(),
       random: () => Math.random(),
     };
@@ -1847,6 +1894,15 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'tilt', s: this.#nextSeq(), d: tiltToState(tilting) });
     }
 
+    /* Scream Meter: the prompt and the two timestamps. No score is in there
+       while the window is open — `toState` withholds every number until the
+       close, so arriving mid-scream tells you nothing about what to beat
+       (spec §4). */
+    const screaming = await this.#scream();
+    if (screaming && screaming.phase !== 'done') {
+      this.#send(ws, { t: 'scream', s: this.#nextSeq(), d: screamToState(screaming) });
+    }
+
     await this.#broadcastPresence(ws);
   }
 
@@ -1936,6 +1992,7 @@ export class Room extends DurableObject<Env> {
     await huntColorPlayerGone(this.#huntColorCtx(), id);
     await mathPlayerGone(this.#mathCtx(), id);
     await tiltPlayerGone(this.#tiltCtx(), id);
+    await screamPlayerGone(this.#screamCtx(), id);
     // Neon Fall is the same shape as Grid Attack: two fixed seats, and a phone
     // leaving means one of the roles is simply gone — there is no game left.
     await neonPlayerGone(this.#neonCtx(), id);
@@ -2060,6 +2117,9 @@ export class Room extends DurableObject<Env> {
 
     const tilting = await this.#tilt();
     if (tilting && tilting.phase !== 'done') return tiltDeadline(tilting);
+
+    const screaming = await this.#scream();
+    if (screaming && screaming.phase !== 'done') return screamDeadline(screaming);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);

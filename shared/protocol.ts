@@ -305,6 +305,21 @@ export type ClientMessage =
   /** Tilt Race: crossed the finish line. */
   | { t: 'tilt-finish'; d: { roundId: number; at: number } }
   /**
+   * Scream Meter: a heartbeat, twice a second — "still here, still sampling".
+   *
+   * Its only job is anti-cheat: a score that arrives with no heartbeats through
+   * the window was not measured (scream-meter.md §8).
+   */
+  | { t: 'scream-alive'; d: { roundId: number; at: number } }
+  /**
+   * Scream Meter: this phone's own result, once, at the close.
+   *
+   * Three numbers and a flag, and **no audio** — nothing else ever leaves the
+   * phone (§10). `floor` and `peak` travel beside `score` so an implausible
+   * combination is visible rather than merely unlikely (§8).
+   */
+  | { t: 'scream-score'; d: { roundId: number; score: number; peak: number; floor: number; partial: boolean } }
+  /**
    * Color Hunt: what this phone's magnifier last read (spec §6). Three
    * integers — **no pixel is ever on the wire**, which is the whole of that
    * game's privacy claim (spec §10).
@@ -804,6 +819,33 @@ export type TiltState = {
 };
 
 /**
+ * Scream Meter, as every phone needs it. Spec: docs/specs/games/scream-meter.md §6
+ *
+ * The lightest state in the catalogue: a prompt, two timestamps, and one number
+ * per player at the end. Ten seconds of sampling produce a single frame up.
+ */
+export type ScreamState = {
+  roundId: number;
+  /** Which vowel or pitch the room was told to scream. Never scored (§3). */
+  prompt: string;
+  phase: 'countdown' | 'window' | 'done';
+  /** Absolute server times: when the screaming starts, and when it closes. */
+  startsAt: number;
+  endsAt: number;
+  /**
+   * Who has reported in. During the window this is the row of avatars lighting
+   * up — presence only, no numbers, because a live leaderboard mid-scream is
+   * eight streams on the wire for a ten-second round (§4).
+   */
+  reported: PlayerId[];
+  /** Filled at the close: each phone's own result. Empty during the window. */
+  scores: Record<PlayerId, { score: number; peak: number; partial: boolean }>;
+  winner: PlayerId | null;
+  /** Everybody silent, or a tie at the top: a legitimate outcome (§7). */
+  draw: boolean;
+};
+
+/**
  * Color Hunt: one round of the hunt (spec §6).
  *
  * Shorter than Color Match's by one phase — there is no reveal, by design
@@ -1186,6 +1228,7 @@ export type ServerMessage =
   | { t: 'color-match'; s: number; d: ColorMatchState }
   | { t: 'math'; s: number; d: MathState }
   | { t: 'tilt'; s: number; d: TiltState }
+  | { t: 'scream'; s: number; d: ScreamState }
   /** Color Hunt: the target in flight, and what the last one was worth. */
   | { t: 'color-hunt'; s: number; d: ColorHuntState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
@@ -1929,6 +1972,8 @@ const CLIENT_TYPES = new Set([
   'math-answer',
   'tilt-move',
   'tilt-finish',
+  'scream-alive',
+  'scream-score',
   'switch-game',
 ]);
 
@@ -3038,3 +3083,54 @@ export function tiltSpeedAt(ms: number): number {
   }
   return TILT_TOP_SPEED;
 }
+
+/* ------------------------------------------------------------------ */
+/* Scream Meter (docs/specs/games/scream-meter.md)                     */
+/* ------------------------------------------------------------------ */
+
+/** Ten seconds of screaming, and not a millisecond more — the cap is a safety
+ *  promise as much as a rule (spec §9). */
+export const SCREAM_WINDOW_MS = 10_000;
+
+/** "Get ready", so eight people start together rather than trickling in. */
+export const SCREAM_COUNTDOWN_MS = 3_000;
+
+/** The first second of the countdown measures the room's own noise floor, so
+ *  two different microphones in one room are comparable (spec §5). */
+export const SCREAM_FLOOR_MS = 1_000;
+
+/**
+ * The window that is actually scored: the loudest three seconds of the ten.
+ *
+ * The central number of the game (spec §12 Q1) and still a guess. Too short and
+ * a bark wins; too long and it becomes a breath-holding contest. It is also the
+ * main anti-cheat, because a tap on the microphone cannot be held for three
+ * seconds (§8).
+ */
+export const SCREAM_SUSTAIN_MS = 3_000;
+
+/** How often the phone reads its own microphone. ~30 Hz, per spec §5 — fast
+ *  enough for a meter to look alive, slow enough to be free. */
+export const SCREAM_SAMPLE_MS = 33;
+
+/** How often a phone says it is still there. Twice a second (spec §6). */
+export const SCREAM_ALIVE_MS = 500;
+
+/** A score is accepted this long after the close; past it the phone scores 0
+ *  and the results say "no answer" rather than pretending (spec §6). */
+export const SCREAM_REPORT_GRACE_MS = 2_000;
+
+/**
+ * How few heartbeats make a score untrustworthy.
+ *
+ * A phone that sampled the whole window sends about twenty; one that sends a
+ * score with none at all did not measure anything (spec §8). Set low
+ * deliberately — this is a party game in one room, and the social check is
+ * stronger than any server check, so the bar only has to catch a client that
+ * did not even pretend.
+ */
+export const SCREAM_MIN_ALIVE = 3;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const SCREAM_MIN_PLAYERS = PLAYERS['scream-meter'][0];
+export const SCREAM_MAX_PLAYERS = PLAYERS['scream-meter'][1];
