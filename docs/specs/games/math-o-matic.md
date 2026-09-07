@@ -9,7 +9,7 @@
 | **Round length** | 1–2 min |
 | **Inputs** | touch |
 | **Accent colour** | `#2DD4BF` |
-| **Status** | 📝 draft — awaiting approval ([#5](https://github.com/VincentGuigui/FonyGames/issues/5)) |
+| **Status** | 🎮 beta — built; the answer window and the distractor mix untested on real thumbs ([#5](https://github.com/VincentGuigui/FonyGames/issues/5)) |
 
 ## 1. Pitch
 
@@ -195,18 +195,51 @@ the room's own lifetime. No text the player types, because there is none.
 
 ## 12. Open questions
 
-1. **Referee-generated questions instead of host-generated** (§6). This is a
-   deliberate departure from the issue and the one thing worth a yes or no
-   before any code.
-2. **Negative answers** at 3+ digit settings: allowed, or is subtraction always
-   ordered? Allowing them makes the wrong answers much better bait.
-3. **Brackets** on 2–3 operator questions: rely on precedence, or render
-   explicit brackets? Precedence is the more interesting test and the more
-   likely argument.
-4. **`MATH_ANSWER_MS`**: the issue does not name a window. A guess of **8 s**
-   at one operator, scaling with the operator count, is the first thing to
-   playtest — this is a game where too short punishes reading speed rather than
-   arithmetic.
-5. **How the three wrong answers are generated.** Off-by-one and
-   transposed-digit distractors are much harder than random numbers, and the
-   difficulty of the game is mostly in this choice rather than in the sum.
+Five were open when this spec was written. The build settled four of them; what
+it settled, and what is left, is below.
+
+1. ~~**Referee-generated questions instead of host-generated** (§6).~~
+   **Settled: the referee rolls them**, for the three reasons in §6. The host's
+   toggles travel in the `start` payload and are sanitised by
+   `normaliseOptions` rather than trusted.
+2. ~~**Negative answers** at 3+ digit settings.~~ **Settled: never.** Nothing
+   goes negative at any point in the left-to-right evaluation, not just at the
+   end — `shared/mathQuestion.test.ts` checks every additive prefix across all
+   300 option combinations. Allowing negatives would make better bait, but it
+   would also make `4 − 9` a legal question at a setting a parent picked for a
+   seven-year-old.
+3. ~~**Brackets** on 2–3 operator questions.~~ **Settled: precedence, no
+   brackets** — and the left-to-right misreading is deliberately offered as one
+   of the three wrong answers (Q5), which is what makes a multi-operator
+   question worth asking.
+4. ~~**`MATH_ANSWER_MS`.**~~ **Settled as a formula rather than a number**:
+   `MATH_ANSWER_BASE_MS` (8 s) plus `MATH_ANSWER_PER_OPERATOR_MS` (4 s) for each
+   operator past the first, so a three-operator sum gets 16 s. Still a guess,
+   and still the first thing to playtest — but it scales with the reading, which
+   is the part that was actually wrong about a single number.
+5. ~~**How the three wrong answers are generated.**~~ **Settled as a ranked
+   list**, best first: the precedence trap, off-by-one either way, transposed
+   last two digits, one digit nudged, then off-by-ten and off-by-the-last-operand.
+   A random number in the right magnitude is the last resort, not the design.
+   The test pins that every wrong answer is within an order of magnitude of the
+   right one, and that the trap is on the buttons every time it exists.
+
+Still open, and now with the build's own answers to argue with:
+
+6. **The operator count is a ceiling, not a promise.** Some settings cannot
+   express what they ask: three exact divisions at three digits needs a
+   first operand divisible by three three-digit numbers *and* three digits
+   wide, and `a − b − c − d ≥ 0` needs `a` to beat three same-width operands.
+   The generator gives up the **count** in those cases and never the ticked
+   operations. Ten of the 300 combinations relax; the test names them
+   exactly, so a new one appearing is a regression rather than a surprise.
+   Whether the lobby should instead *grey out* those combinations is the open
+   part.
+7. **Five digits × three operators is arithmetic homework**, not a party game.
+   It is legal because the issue asked for those ranges, and the default is
+   the whole range. A narrower default — say 1–3 digits — is probably the
+   friendlier first experience.
+8. **`sudden-death` is declared and not built.** One life each, `MATH_LIVES`
+   = 1, and nothing else changes; it is a one-line mode whose only real
+   question is whether a room of eight enjoys being three-quarters eliminated
+   after two questions.
