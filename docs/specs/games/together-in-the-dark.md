@@ -113,14 +113,18 @@ and keeps the round moving.
 | Mode | Blurb (one line, shown in the lobby) | Difference from core |
 | --- | --- | --- |
 | `relay` | Take turns. One action each | baseline |
-| `vote` | Everyone votes each step. Majority moves | The whole room picks each turn and the plurality action is taken; ties go to the longest-waiting player's choice |
+| `blindfold` | Only the player on turn can see the light | The reveal goes to the current player alone, who has to describe it — the arguing becomes talking rather than looking |
 
-`vote` exists to resolve the overlap with
-[#18](https://github.com/VincentGuigui/FonyGames/issues/18) (Escape
-Labyrinth): the fog-and-light economy here is the stronger idea, and voting is
-a *mode* of it rather than a second game. If #18 survives as its own game it
-should become an auto-scrolling chase, where the pressure comes from the scroll
-rather than from the darkness — see §12 Q4.
+**This game is turn-by-turn, and that is what distinguishes it from
+[#18](https://github.com/VincentGuigui/FonyGames/issues/18)** (Escape
+Labyrinth), which is a **voting** game: there, the whole room decides each
+move together. Two different co-op mechanics on adjacent themes, and neither
+is a mode of the other — one turn passes a *decision* around the room, the
+other pools it. Voting belongs to #18 and is deliberately absent here; the
+sequel to a turn here is a different player's turn, not a tally.
+
+`blindfold` is this game's own second idea instead, and it stays inside the
+turn structure: the same one action, seen by one person.
 
 ## 4. Screens
 
@@ -160,7 +164,6 @@ Profile A, and frames far under 1 KB. One intent per turn.
 | --- | --- | --- | --- |
 | `dark-state` | server → all | `{ roundId, turn: id, turnEndsAt, at: {x,y}, lit: [{x,y,kind}], seen: [{x,y,kind}], lives, turns, escape?: {x,y} }` | Everything this room is allowed to know |
 | `dark-act` | client → server | `{ roundId, turn, action: 'walk' \| 'light', dir: 'N'\|'E'\|'S'\|'W' }` | The current player's one action |
-| `dark-vote` | client → server | `{ roundId, turn, action, dir }` | `vote` mode only |
 | `dark-over` | server → all | `{ roundId, won, turns, lives }` | The run ended |
 
 **The one real architectural decision: broadcast only what is lit, never the
@@ -239,8 +242,10 @@ the room does.
 3. **`DARK_MONSTER_PATIENCE` and re-sleeping.** A monster that sleeps again is
    bait-able and forgiving; one that never sleeps makes lighting genuinely
    frightening. This decides how tense the game is.
-4. **The #18 overlap** (§3). Fold voting in here as a mode — this spec's
-   assumption — or keep #18 as a distinct auto-scrolling chase?
+4. **Does `blindfold` earn its place?** It needs the reveal addressed to one
+   player rather than broadcast, which is a real change to §6 rather than a
+   flag, and it may simply be a worse version of the base game. Cut it if the
+   base loop already produces the arguing.
 5. **Whether the escape is visible from the start.** Hidden is more tense;
    shown-as-a-direction (a compass arrow, no distance) may be the sweet spot
    and would cut a lot of aimless lighting.
