@@ -9,7 +9,7 @@ import {
   type PlayerId,
   type ServerMessage,
 } from '../shared/protocol';
-import { COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, asRgb, colorActionMs, colorKey, colorPoints, colorScore, dealTarget, rungAt, withLuminance, type Rgb } from '../shared/color';
+import { COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, asRgb, colorActionMs, colorKey, colorPoints, colorScore, dealTarget, hasLuminance, rungAt, withLuminance, type Rgb } from '../shared/color';
 import { enoughToStart } from '../shared/players';
 
 /**
@@ -108,7 +108,7 @@ function armLevel(ctx: Ctx, s: ColorMatch, level: number): void {
   s.level = level;
   s.target = dealt.rgb;
   s.used.push(colorKey(dealt.rgb));
-  s.luminance = rungAt(level).luminance;
+  s.luminance = hasLuminance(rungAt(level));
   s.phase = 'pick';
   s.picksDueAt = now + colorActionMs(level);
   s.revealAt = s.picksDueAt + COLOR_SCORE_HOLD_MS;

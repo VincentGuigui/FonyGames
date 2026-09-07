@@ -8,7 +8,7 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { COLOR_LUM_MIN, colorActionMs, luminanceSteps, reactionMultiplier, rungAt, withLuminance, type Rgb } from '../../../../shared/color';
+import { COLOR_LUM_MIN, colorActionMs, reactionMultiplier, rungAt, valueSteps, withLuminance, type Rgb } from '../../../../shared/color';
 import { useGameRoom } from '../../core/room/useRoom';
 import { useSoloTesting } from '../../core/useSolo';
 import { RoomGate } from '../../lobby/RoomGate';
@@ -67,10 +67,10 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
   /** This phone's own pick, and its own luminance. Reset every level — a
    *  cursor left on the last answer would hand out free points whenever two
    *  levels happened to want the same colour. */
-  const [pick, setPick] = useState<Rgb>(() => neutralFor(rung));
+  const [pick, setPick] = useState<Rgb>(() => neutralFor());
   const [lum, setLum] = useState(1);
   useEffect(() => {
-    setPick(neutralFor(rungAt(level)));
+    setPick(neutralFor());
     setLum(1);
   }, [level, state?.roundId]);
 
@@ -224,7 +224,7 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
                 type="range"
                 min={COLOR_LUM_MIN}
                 max={1}
-                step={(1 - COLOR_LUM_MIN) / (luminanceSteps().length - 1)}
+                step={(1 - COLOR_LUM_MIN) / Math.max(1, valueSteps(rung.values).length - 1)}
                 value={lum}
                 disabled={revealing}
                 onInput={(e) => onLum(Number((e.currentTarget as HTMLInputElement).value))}

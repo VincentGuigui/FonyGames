@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { COLOR_SECTOR_MAX } from '../../../../shared/protocol';
-import type { Rgb, Rung } from '../../../../shared/color';
-import { WHEEL_HUB, continuousAt, positionOf, sectorAt, sectorsFor } from './wheel';
+import { saturationSteps, type Rgb, type Rung } from '../../../../shared/color';
+import { WHEEL_HUB, continuousAt, positionOf, ringBand, sectorAt, sectorsFor } from './wheel';
 
 /**
  * The wheel a thumb drags. Spec: docs/specs/games/color-match.md §4.1, §4.2
@@ -88,7 +88,11 @@ export function ColorWheel({ rung, value, onPick, disabled, label }: Props): JSX
     [disabled, local, wedges, sectors, rung, onPick],
   );
 
-  const cursor = wedges ? cursorOnWedges(sectors, value) : positionOf(value);
+  /* One geometry for both presentations, so the cursor is placed by the same
+     maths that decides what a tap picks — and is simply absent while the pick
+     is still the neutral grey, which no rung offers. */
+  const cursor = positionOf(value, rung);
+  const rings = useMemo(() => saturationSteps(rung.sats).map((s, i) => ({ s, ...ringBand(rung.sats, i) })), [rung]);
 
   return (
     <svg
@@ -120,7 +124,23 @@ export function ColorWheel({ rung, value, onPick, disabled, label }: Props): JSX
           {HUE_WEDGES.map((w) => (
             <path key={w.a0} d={wedge(0, 1, w.a0, w.a1)} fill={w.fill} />
           ))}
-          <circle r={R} fill="url(#cmatch-sat)" />
+          {/* Saturation, as one white ring per step rather than a smooth
+              gradient. White at opacity `1 - s` over a pure hue IS
+              `hsv(h, s, 1)`, so each band paints exactly the saturation the
+              hit test will return there — and a rung with a single step gets
+              no bands at all, which is the outer ring and nothing else. */}
+          {rings.map((band) => (
+            band.s >= 1 ? null : (
+              <circle
+                key={band.s}
+                r={((band.r0 + band.r1) / 2) * R}
+                fill="none"
+                stroke="#FFFFFF"
+                stroke-width={(band.r1 - band.r0) * R}
+                opacity={1 - band.s}
+              />
+            )
+          ))}
         </>
       )}
 
@@ -135,25 +155,6 @@ export function ColorWheel({ rung, value, onPick, disabled, label }: Props): JSX
           <circle r="6.2" fill="none" stroke="#FFFFFF" stroke-width="1.8" />
         </g>
       )}
-
-      <defs>
-        <radialGradient id="cmatch-sat">
-          <stop offset="0" stop-color="#FFFFFF" stop-opacity="1" />
-          <stop offset="1" stop-color="#FFFFFF" stop-opacity="0" />
-        </radialGradient>
-      </defs>
     </svg>
   );
-}
-
-/** On a sector wheel the cursor belongs on the wedge that holds the pick, not
- *  at the pick's own hue/saturation position — the wedges are laid out in
- *  palette order, which is not the same geometry. */
-function cursorOnWedges(sectors: ReturnType<typeof sectorsFor>, value: Rgb): { nx: number; ny: number } | null {
-  const key = value.join(',');
-  const found = sectors.find((s) => s.rgb.join(',') === key);
-  if (!found) return null;
-  const r = (found.r0 + found.r1) / 2;
-  const a = (found.a0 + found.a1) / 2;
-  return { nx: Math.sin(a) * r, ny: -Math.cos(a) * r };
 }

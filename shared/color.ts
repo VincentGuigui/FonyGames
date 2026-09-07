@@ -77,32 +77,96 @@ export function isExtreme(rgb: Rgb): boolean {
   return Math.max(rgb[0], rgb[1], rgb[2]) < COLOR_VALUE_FLOOR || Math.min(rgb[0], rgb[1], rgb[2]) > COLOR_WHITE_FLOOR;
 }
 
-/* --------------------------------- luminance ------------------------------ */
+/* ------------------------ the three axes of a colour ---------------------- */
 
-/** How many intervals the luminance slider is cut into once it appears. */
-export const COLOR_LUM_SPLITS = 4;
+/**
+ * The wheel says hue and saturation, the slider says value (color-match.md
+ * §2.3) — and those three axes are now the *only* way a colour is built, in
+ * the palette as much as on screen. The old model randomised RGB components on
+ * a grid, which could produce a dark green the wheel had no way to reach: the
+ * disc is drawn at full value, so `hsv(hue, sat, 1)` was all a thumb could ever
+ * point at (issue: a level 17 target the wheel did not offer).
+ *
+ * Stated as the min/max a component may take, which is what the eye reads:
+ *
+ * - `max(r, g, b) = 255 x value` — **value is how dark it is allowed to get**,
+ *   and a rung with one value step has no dark colours at all.
+ * - `min(r, g, b) = 255 x value x (1 - sat)` — **saturation is how pale it is
+ *   allowed to get**, and a rung with one saturation step is the outer ring
+ *   alone: no light colours at all.
+ */
 
-/** The dimmest a quantised luminance ever goes. Zero would make every colour on
- *  the slider's bottom step black, which is one indistinguishable answer for a
- *  whole row of the wheel. 0.4 rather than 0.25 so the dimmest step of a
- *  single-channel colour still clears `COLOR_VALUE_FLOOR`: 255 x 0.25 is 64,
- *  which `isExtreme` bans, and a slider whose bottom notch is unreachable is
- *  worse than a shorter slider. */
+/** The palest a quantised saturation ever goes. Below it a colour has no
+ *  colour left to name: `min(r, g, b)` at value 1 is `255 x (1 - s)`, so
+ *  `COLOR_WHITE_FLOOR` (200) is crossed at s = 0.216. A quarter leaves the
+ *  palest ring at 191 — pale, still nameable, and never `isExtreme`. */
+export const COLOR_SAT_MIN = 0.25;
+
+/** The dimmest a quantised value ever goes. Zero would make a whole ring of the
+ *  wheel the same black. 0.4 rather than 0.25 so the dimmest step still clears
+ *  `COLOR_VALUE_FLOOR`: 255 x 0.25 is 64, which `isExtreme` bans, and a slider
+ *  whose bottom notch is unreachable is worse than a shorter slider. */
 export const COLOR_LUM_MIN = 0.4;
 
-/** Apply a 0..1 luminance as a multiplier (color-match.md §2.3): the wheel says
- *  hue and saturation, the slider says brightness, which is the pair a thumb
- *  can actually separate. */
+/** Apply a 0..1 value as a multiplier (color-match.md §2.3). Scaling all three
+ *  components scales HSV's value and leaves hue and saturation alone, which is
+ *  exactly why the slider can be a separate control from the disc. */
 export function withLuminance(base: Rgb, lum: number): Rgb {
   const k = Math.min(1, Math.max(0, lum));
   return [Math.round(base[0] * k), Math.round(base[1] * k), Math.round(base[2] * k)];
 }
 
-/** The luminance values a rung offers, dimmest first. */
-export function luminanceSteps(splits = COLOR_LUM_SPLITS): number[] {
+/** The hues a rung offers, in degrees, starting at red. Evenly spaced, so a
+ *  rung with twice as many hues contains every hue of the one before it and
+ *  the ladder never takes a colour away. */
+export function hueSteps(hues: number): number[] {
+  const n = Math.max(1, Math.floor(hues));
   const out: number[] = [];
-  for (let i = 0; i <= splits; i++) out.push(COLOR_LUM_MIN + ((1 - COLOR_LUM_MIN) * i) / splits);
+  for (let i = 0; i < n; i++) out.push((360 * i) / n);
   return out;
+}
+
+/** The saturations a rung offers, palest first. **One step is the outer ring
+ *  alone** — fully saturated, no light colours anywhere on the wheel. */
+export function saturationSteps(sats: number): number[] {
+  const n = Math.max(1, Math.floor(sats));
+  if (n === 1) return [1];
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) out.push(COLOR_SAT_MIN + ((1 - COLOR_SAT_MIN) * i) / (n - 1));
+  return out;
+}
+
+/** The values a rung offers, dimmest first — the notches on the brightness
+ *  slider. **One step is full value alone**: no dark colours, and no slider. */
+export function valueSteps(values: number): number[] {
+  const n = Math.max(1, Math.floor(values));
+  if (n === 1) return [1];
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) out.push(COLOR_LUM_MIN + ((1 - COLOR_LUM_MIN) * i) / (n - 1));
+  return out;
+}
+
+/** 0..360, and -1 for a grey, which has no hue at all. */
+export function hueOf(c: Rgb): number {
+  const hi = Math.max(c[0], c[1], c[2]);
+  const lo = Math.min(c[0], c[1], c[2]);
+  if (hi === lo) return -1;
+  const d = hi - lo;
+  const h =
+    hi === c[0] ? ((c[1] - c[2]) / d + 6) % 6 : hi === c[1] ? (c[2] - c[0]) / d + 2 : (c[0] - c[1]) / d + 4;
+  return h * 60;
+}
+
+/** 0..1. */
+export function satOf(c: Rgb): number {
+  const hi = Math.max(c[0], c[1], c[2]);
+  return hi === 0 ? 0 : (hi - Math.min(c[0], c[1], c[2])) / hi;
+}
+
+/** The shorter way round the circle between two hues, in degrees. */
+export function hueGap(a: number, b: number): number {
+  const d = (((a - b) % 360) + 360) % 360;
+  return Math.min(d, 360 - d);
 }
 
 /* ---------------------------------- ladder -------------------------------- */
@@ -110,51 +174,56 @@ export function luminanceSteps(splits = COLOR_LUM_SPLITS): number[] {
 /**
  * One rung of the difficulty ladder (color-match.md §2.3).
  *
- * **`splits` means intervals, not values** — the issue's own examples say so:
- * 1 split is `{0, 255}`, 2 is `{0, 128, 255}`, 4 is `{0, 64, 128, 192, 255}`.
- * A rung therefore offers `splits + 1` values per component, and 0 splits pins
- * a component to 0.
+ * Three counts, one per axis, and **every one of them is a count of steps, not
+ * of intervals**: `sats: 1` is the outer ring alone, `values: 1` is full value
+ * alone. That is the whole point of the shape — a rung says exactly what the
+ * wheel offers, so the randomiser cannot ask for a colour the wheel cannot
+ * reach. `www/src/games/color-match/wheel.ts` lays out hue around and
+ * saturation outward from these same three numbers.
  */
 export type Rung = {
-  /** How many of the three components are randomised at `splits`. */
-  readonly components: number;
-  /** Splits on those components. */
-  readonly splits: number;
-  /** Splits on the ones left over. 0 pins them to black. */
-  readonly restSplits: number;
-  /** Is the luminance slider live on this rung? */
-  readonly luminance: boolean;
+  /** How many hues around the disc, evenly spaced from red. */
+  readonly hues: number;
+  /** How many saturation rings, palest first. 1 means no light colours. */
+  readonly sats: number;
+  /** How many notches on the brightness slider. 1 means no dark colours, and
+   *  no slider at all. */
+  readonly values: number;
 };
+
+/** Is the brightness slider live on this rung? Derived rather than declared, so
+ *  a rung cannot claim a slider it has no values for. */
+export function hasLuminance(rung: Rung): boolean {
+  return rung.values > 1;
+}
 
 /**
  * The ladder: one row per rung, each declaring **how many levels it lasts**.
  *
- * The spans were a flat five until the "never ask twice in a session" rule
- * (§2.3b) made two of them impossible. **A rung may not outlast the colours it
- * adds** — and what counts is what it adds *cumulatively*, not what its own
- * palette holds:
+ * The progression is one axis at a time, which is what makes it teachable:
+ * **hue resolution first, then light, then dark.** Up to level 21 the wheel is
+ * the outer ring and nothing else — every target is a pure, fully-saturated
+ * hue, and getting better means telling 10 degrees of hue apart. Rung 6 adds a
+ * pale ring inside it. Rung 7 adds the brightness slider, and only then can a
+ * target be dark.
  *
- * - Rung 1 is one component out of {0, 255} with black banned: red, green,
- *   blue. Three colours, so three levels.
- * - Rung 2 adds yellow, magenta and cyan — its palette is six, but the other
- *   three are rung 1's and already spent. Three new colours, so three levels
- *   too. This is the one that is easy to miss by counting palettes.
- * - Rung 3 opens all three components at 2 splits: 25 colours, 19 of them new.
- *   Five levels, and every rung after it has more room still.
- *
- * `color.test.ts` asserts the rule itself rather than these numbers, so a rung
- * that is later widened or shortened cannot quietly reintroduce a repeat.
+ * **A rung may not outlast the colours it adds** — cumulatively, not just what
+ * its own palette holds, because of the "never ask twice in a session" rule
+ * (§2.3b). Doubling the hue count keeps every hue of the rung before it, so
+ * what a rung contributes is what is genuinely new: rung 2 adds three hues,
+ * rung 5 adds twenty-four, rung 6 adds a whole ring. `color.test.ts` asserts
+ * the rule itself rather than these numbers.
  */
 const LADDER: readonly { readonly levels: number; readonly rung: Rung }[] = [
-  { levels: 3, rung: { components: 1, splits: 1, restSplits: 0, luminance: false } },
-  { levels: 3, rung: { components: 2, splits: 1, restSplits: 0, luminance: false } },
-  { levels: 5, rung: { components: 3, splits: 2, restSplits: 2, luminance: false } },
-  { levels: 5, rung: { components: 3, splits: 4, restSplits: 4, luminance: false } },
-  { levels: 5, rung: { components: 1, splits: 8, restSplits: 4, luminance: false } },
-  { levels: 5, rung: { components: 2, splits: 8, restSplits: 4, luminance: false } },
-  { levels: 5, rung: { components: 3, splits: 8, restSplits: 8, luminance: false } },
-  { levels: 5, rung: { components: 3, splits: 8, restSplits: 8, luminance: true } },
-  { levels: 5, rung: { components: 3, splits: 16, restSplits: 16, luminance: true } },
+  { levels: 3, rung: { hues: 3, sats: 1, values: 1 } },
+  { levels: 3, rung: { hues: 6, sats: 1, values: 1 } },
+  { levels: 5, rung: { hues: 12, sats: 1, values: 1 } },
+  { levels: 5, rung: { hues: 24, sats: 1, values: 1 } },
+  { levels: 5, rung: { hues: 36, sats: 1, values: 1 } },
+  { levels: 5, rung: { hues: 36, sats: 2, values: 1 } },
+  { levels: 5, rung: { hues: 36, sats: 2, values: 2 } },
+  { levels: 5, rung: { hues: 48, sats: 3, values: 3 } },
+  { levels: 5, rung: { hues: 60, sats: 4, values: 4 } },
 ];
 
 /** The last level of each rung: 3, 6, 11, 16, 21, 26, 31, 36, 41. Derived
@@ -171,21 +240,26 @@ export const COLOR_LADDER_END = RUNG_ENDS[RUNG_ENDS.length - 1] ?? 0;
 /** How long each rung of the ladder runs, past the table. */
 const TIER_LEVELS = 5;
 
-/** The finest the ladder ever gets: a step of 1, every 8-bit value reachable.
- *  The cap is where the colour space runs out, not an arbitrary ceiling. */
-export const COLOR_MAX_SPLITS = 255;
+/** One hue per degree is where the circle runs out; sixteen steps on the other
+ *  two is where a thumb does. Caps, not tunables. */
+export const COLOR_MAX_HUES = 360;
+export const COLOR_MAX_STEPS = 16;
 
 /** The rung for a level, 1-based. Past the table, every five levels doubles the
- *  split count until `COLOR_MAX_SPLITS` (color-match.md §2.3). */
+ *  hues and adds a step to each of the other two, up to the caps
+ *  (color-match.md §2.3). */
 export function rungAt(level: number): Rung {
   const n = Math.max(1, Math.floor(level));
   for (let i = 0; i < LADDER.length; i++) {
     if (n <= (RUNG_ENDS[i] ?? 0)) return LADDER[i]?.rung ?? (LADDER[0]!.rung as Rung);
   }
-  const tier = Math.floor((n - COLOR_LADDER_END - 1) / TIER_LEVELS);
-  const last = LADDER[COLOR_LADDER_ROWS - 1]?.rung.splits ?? 16;
-  const splits = Math.min(COLOR_MAX_SPLITS, last * 2 ** (tier + 1));
-  return { components: 3, splits, restSplits: splits, luminance: true };
+  const tier = Math.floor((n - COLOR_LADDER_END - 1) / TIER_LEVELS) + 1;
+  const last = LADDER[COLOR_LADDER_ROWS - 1]?.rung ?? { hues: 60, sats: 4, values: 4 };
+  return {
+    hues: Math.min(COLOR_MAX_HUES, last.hues * 2 ** tier),
+    sats: Math.min(COLOR_MAX_STEPS, last.sats + tier),
+    values: Math.min(COLOR_MAX_STEPS, last.values + tier),
+  };
 }
 
 /* ------------------------ how long a level gives you ---------------------- */
@@ -204,7 +278,7 @@ export function rungAt(level: number): Rung {
  * what makes that window worth beating rather than merely surviving.
  */
 export const COLOR_ACTION_TIERS: readonly { readonly upTo: number; readonly ms: number }[] = [
-  { upTo: RUNG_ENDS[LADDER.findIndex((row) => row.rung.luminance) - 1] ?? 31, ms: 3_000 },
+  { upTo: RUNG_ENDS[LADDER.findIndex((row) => hasLuminance(row.rung)) - 1] ?? 26, ms: 3_000 },
   { upTo: Infinity, ms: 10_000 },
 ];
 
@@ -252,87 +326,31 @@ export function colorPoints(accuracy: number, reactionMs: number, actionMs: numb
   return Math.round(accuracy * reactionMultiplier(reactionMs, actionMs));
 }
 
-/** The values one component may take at `splits` intervals: `splits + 1` of
- *  them, evenly spread over 0..255. `splits` of 0 pins it to black. */
-export function componentValues(splits: number): number[] {
-  if (splits <= 0) return [0];
-  // A whole-number step, clamped at the top — `i * round(255 / splits)`, not
-  // `round(i * 255 / splits)`. The two differ by a point or two in the middle
-  // and the issue's own example settles it: 4 splits is {0, 64, 128, 192, 255},
-  // which the rounded-fraction version would render {0, 64, 128, 191, 255}.
-  const step = Math.max(1, Math.round(255 / splits));
-  const out: number[] = [];
-  for (let i = 0; i <= splits; i++) out.push(Math.min(255, i * step));
-  return out;
-}
-
 /**
- * Every colour a rung can produce, deduplicated and in a stable order.
+ * Every colour a rung's **disc** can produce, at full value, in the order the
+ * wheel lays them out: palest ring first, and hue by hue around each ring.
  *
- * Deduplicated because the rungs overlap themselves: rung 1 randomises one
- * component out of `{0, 255}`, so picking red-at-0, green-at-0 and blue-at-0
- * are all the same black, and a wheel that drew it three times would be
- * offering the player the same answer under three wedges.
+ * The order is load-bearing rather than cosmetic — `wheel.ts` maps index `i` to
+ * ring `floor(i / hues)` and slot `i % hues`, so a palette in any other order
+ * would put the colours somewhere other than where the hit test looks for them.
  *
- * The count explodes — 4 colours at level 1, 729 by level 31 — which is why
- * the wheel has two presentations (color-match.md §4.2) and why callers should
- * ask `paletteSize` before asking for the list.
+ * Brightness is not in here: it is the slider's axis, and a dealt target is a
+ * palette entry under one of `valueSteps(rung.values)` (`dealTarget`).
  */
 export function palette(rung: Rung): Rgb[] {
-  const hot = componentValues(rung.splits);
-  const cold = componentValues(rung.restSplits);
-  const seen = new Set<number>();
   const out: Rgb[] = [];
-  for (const which of choose3(rung.components)) {
-    walk(which, hot, cold, (rgb) => {
-      // Black and white are never on offer (`COLOR_EXTREME`), so the wheel
-      // never draws a wedge nobody should be asked to pick.
-      if (isExtreme(rgb)) return;
-      const key = (rgb[0] << 16) | (rgb[1] << 8) | rgb[2];
-      if (seen.has(key)) return;
-      seen.add(key);
-      out.push(rgb);
-    });
+  for (const s of saturationSteps(rung.sats)) {
+    for (const h of hueSteps(rung.hues)) out.push(hsvToRgb(h, s, 1));
   }
   return out;
 }
 
-/** How big `palette(rung)` would be, without building it — the wheel asks this
- *  every level and only needs the list below `COLOR_SECTOR_MAX`. */
+/** How big `palette(rung)` is, without building it. Exact, not a bound: the
+ *  grid has no duplicates to remove and no extremes to filter, because
+ *  `COLOR_SAT_MIN` and `COLOR_LUM_MIN` are chosen so nothing on it can be
+ *  either (asserted in `color.test.ts`). */
 export function paletteSize(rung: Rung): number {
-  // An upper bound first, so a 255-split rung is never enumerated just to
-  // discover it is far too big. The bound ignores both de-duplication and the
-  // extreme filter, which only ever make the real count smaller.
-  const hot = rung.splits + 1;
-  const cold = rung.restSplits <= 0 ? 1 : rung.restSplits + 1;
-  if (Math.max(hot, cold) ** 3 > 4096) return Math.max(hot, cold) ** 3;
-  return palette(rung).length;
-}
-
-/** Which component indices are the randomised ones, for every way of choosing
- *  `k` of the three. Exported so `dealTarget` can index into it rather than
- *  drawing indices until it happens to get distinct ones — a rejection loop
- *  there never terminates on a degenerate `rand` (one that always returns the
- *  same number), which is exactly what a test injects. */
-export function choose3(k: number): number[][] {
-  const n = Math.min(3, Math.max(0, k));
-  const out: number[][] = [];
-  for (let mask = 0; mask < 8; mask++) {
-    const bits = [0, 1, 2].filter((i) => mask & (1 << i));
-    if (bits.length === n) out.push(bits);
-  }
-  return out;
-}
-
-function walk(which: number[], hot: number[], cold: number[], emit: (rgb: Rgb) => void): void {
-  const pick = (i: number, acc: number[]): void => {
-    if (i === 3) {
-      emit([acc[0] ?? 0, acc[1] ?? 0, acc[2] ?? 0]);
-      return;
-    }
-    for (const v of which.includes(i) ? hot : cold) pick(i + 1, [...acc, v]);
-  };
-  pick(0, []);
+  return Math.max(1, Math.floor(rung.hues)) * Math.max(1, Math.floor(rung.sats));
 }
 
 /** A colour as a map key, for the "never twice in one session" rule. */
@@ -340,9 +358,9 @@ export function colorKey(rgb: Rgb): string {
   return `${rgb[0]},${rgb[1]},${rgb[2]}`;
 }
 
-/** Above this many colours a rung is sampled rather than enumerated. The
- *  ladder's last rungs run to millions, so listing them to pick one is not an
- *  option; below it, enumerating is both cheap and exact. */
+/** Above this many targets a rung is sampled rather than enumerated. The
+ *  ladder's last rungs run to tens of thousands, so listing them to pick one
+ *  stops being free; below it, enumerating is both cheap and exact. */
 const ENUMERABLE = 50_000;
 
 /**
@@ -350,12 +368,16 @@ const ENUMERABLE = 50_000;
  * `Math.random` read here, so the referee owns the randomness and a test can
  * pin a level to an exact colour.
  *
+ * **Every target is a colour the wheel offers**, by construction rather than by
+ * check: it is one of `palette(rung)` under one of `valueSteps(rung.values)`,
+ * which is exactly the set a thumb can reach (issue: a dark green dealt at
+ * level 17 while the disc showed only light and bright colours).
+ *
  * `used` is every colour this session has already asked for (`colorKey`).
  * **A session never asks twice for the same colour** — except when a rung has
  * nothing left to offer, which is not hypothetical: the first rung is red,
- * green and blue and lasts five levels, so levels 4 and 5 must repeat. When
- * that happens the deal falls back to the whole palette rather than failing,
- * and `repeat` says so, so a caller can tell the difference.
+ * green and blue and lasts three levels. When that happens the deal falls back
+ * to the whole palette rather than failing, and `repeat` says so.
  */
 export function dealTarget(
   level: number,
@@ -363,74 +385,59 @@ export function dealTarget(
   used: ReadonlySet<string> = new Set(),
 ): { rgb: Rgb; base: Rgb; lum: number; repeat: boolean } {
   const rung = rungAt(level);
-  const steps = luminanceSteps();
-  const lum = rung.luminance ? (steps[Math.min(steps.length - 1, Math.floor(rand() * steps.length))] ?? 1) : 1;
+  const hues = hueSteps(rung.hues);
+  const sats = saturationSteps(rung.sats);
+  const lums = valueSteps(rung.values);
+  // Clamped rather than rejected, so a degenerate `rand` — one a test pins to a
+  // constant — picks a colour instead of spinning.
+  const draw = (n: number): number => Math.min(n - 1, Math.max(0, Math.floor(rand() * n)));
 
-  if (paletteSize(rung) <= ENUMERABLE) {
-    const all = palette(rung);
-    const fresh = all.filter((c) => !used.has(colorKey(withLuminance(c, lum))));
+  if (hues.length * sats.length * lums.length <= ENUMERABLE) {
+    const all: { base: Rgb; lum: number }[] = [];
+    const fresh: { base: Rgb; lum: number }[] = [];
+    for (const s of sats) {
+      for (const h of hues) {
+        const base = hsvToRgb(h, s, 1);
+        for (const lum of lums) {
+          const one = { base, lum };
+          all.push(one);
+          if (!used.has(colorKey(withLuminance(base, lum)))) fresh.push(one);
+        }
+      }
+    }
     const pool = fresh.length > 0 ? fresh : all;
-    const base = pool[Math.min(pool.length - 1, Math.floor(rand() * pool.length))] ?? [255, 0, 0];
-    return { rgb: withLuminance(base, lum), base, lum, repeat: fresh.length === 0 };
+    const one = pool[draw(pool.length)] ?? { base: [255, 0, 0] as Rgb, lum: 1 };
+    return { rgb: withLuminance(one.base, one.lum), base: one.base, lum: one.lum, repeat: fresh.length === 0 };
   }
 
-  // Too many to list. Draw one and nudge it off black or white if it landed
-  // there — deterministically, so no random source can make this spin.
-  const hot = componentValues(rung.splits);
-  const cold = componentValues(rung.restSplits);
-  const ways = choose3(rung.components);
-  const which = new Set(ways[Math.min(ways.length - 1, Math.floor(rand() * ways.length))] ?? []);
-  const comp = (i: number): number => {
-    const from = which.has(i) ? hot : cold;
-    return from[Math.min(from.length - 1, Math.floor(rand() * from.length))] ?? 0;
-  };
-  const base = liftOffExtremes([comp(0), comp(1), comp(2)], lum, hot, cold, which);
+  // Too many to list. One draw per axis; a repeat is reported rather than
+  // avoided, which at this size is a coincidence rather than a pattern.
+  const base = hsvToRgb(hues[draw(hues.length)] ?? 0, sats[draw(sats.length)] ?? 1, 1);
+  const lum = lums[draw(lums.length)] ?? 1;
   const rgb = withLuminance(base, lum);
   return { rgb, base, lum, repeat: used.has(colorKey(rgb)) };
 }
 
 /**
- * Move a colour that would land on black or white onto the nearest allowed
- * value on its own grid. Raising the brightest component fixes a dark one;
- * dropping the dimmest fixes a pale one. Both stay on the rung.
+ * Snap a freely-dragged colour onto the rung's own grid — what the continuous
+ * disc does (color-match.md §4.2).
  *
- * **Judged on the colour after its luminance**, not on the base: dimming is
- * what pushes a mid colour under the floor, so checking the base alone lets a
- * near-black through the moment the slider is live. Raising the brightest
- * component to the grid's own top is always enough — 255 x `COLOR_LUM_MIN`
- * clears the floor with room to spare.
+ * Quantised in HSV, on the two axes the disc actually has, and returned at full
+ * value: brightness is the slider's, and a disc that returned a dimmed colour
+ * would be answering for a control the player has not touched. Hue is snapped
+ * the short way round the circle, so 350 degrees lands on red rather than on
+ * the last step before it.
  */
-function liftOffExtremes(rgb: Rgb, lum: number, hot: number[], cold: number[], which: ReadonlySet<number>): Rgb {
-  if (!isExtreme(withLuminance(rgb, lum))) return rgb;
-  const out: number[] = [...rgb];
-  const gridFor = (i: number): number[] => (which.has(i) ? hot : cold);
-
-  if (Math.max(...out) * lum < COLOR_VALUE_FLOOR) {
-    let at = 0;
-    for (let i = 1; i < 3; i++) if ((out[i] ?? 0) > (out[at] ?? 0)) at = i;
-    const grid = gridFor(at);
-    out[at] = grid[grid.length - 1] ?? 255;
-  }
-  // Dimming never makes a colour paler, so this one only ever reads the base.
-  if (Math.min(...out) > COLOR_WHITE_FLOOR) {
-    let at = 0;
-    for (let i = 1; i < 3; i++) if ((out[i] ?? 0) < (out[at] ?? 0)) at = i;
-    const grid = gridFor(at);
-    out[at] = grid[0] ?? 0;
-  }
-  return [out[0] ?? 0, out[1] ?? 0, out[2] ?? 0];
-}
-
-/** Snap a freely-dragged colour onto the rung's own grid — what the continuous
- *  wheel does on release (color-match.md §4.2). */
 export function snapToRung(rgb: Rgb, rung: Rung): Rgb {
-  const values = componentValues(Math.max(rung.splits, rung.restSplits));
-  const near = (v: number): number => {
-    let best = values[0] ?? 0;
-    for (const c of values) if (Math.abs(c - v) < Math.abs(best - v)) best = c;
-    return best;
-  };
-  return [near(rgb[0]), near(rgb[1]), near(rgb[2])];
+  const hues = hueSteps(rung.hues);
+  const sats = saturationSteps(rung.sats);
+  const h = Math.max(0, hueOf(rgb));
+  const s = satOf(rgb);
+  let bestH = hues[0] ?? 0;
+  for (const c of hues) if (hueGap(c, h) < hueGap(bestH, h)) bestH = c;
+  let bestS = sats[0] ?? 1;
+  for (const c of sats) if (Math.abs(c - s) < Math.abs(bestS - s)) bestS = c;
+  return hsvToRgb(bestH, bestS, 1);
 }
 
 /* -------------------------- Color Hunt's own targets ---------------------- */

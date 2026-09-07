@@ -4,12 +4,14 @@
  * `ColorWheel.tsx` is SVG and is covered by looking at a real round
  * (docs/testing.md §1.2). What is here is the part a player can lose to: that
  * every colour a rung offers has a wedge, that no two wedges overlap, that
- * tapping a wedge picks the colour that is drawn there, and that the
- * continuous disc submits the colour it is showing rather than a different one
- * it snapped to afterwards.
+ * tapping a wedge picks the colour that is drawn there — and, above all, that
+ * **the wheel and the randomiser cannot disagree**. This is the only test with
+ * both halves in scope, so it is where the reachability rule lives: a target
+ * the disc has no way to show is a level nobody can win, which is exactly what
+ * a dark green dealt at level 17 was.
  */
 import { COLOR_SECTOR_MAX } from '../../../../shared/protocol';
-import { componentValues, palette, rungAt, snapToRung } from '../../../../shared/color';
+import { dealTarget, palette, paletteSize, rungAt, snapToRung, valueSteps, type Rgb } from '../../../../shared/color';
 import {
   WHEEL_HUB,
   continuousAt,
@@ -17,10 +19,8 @@ import {
   isSectorRung,
   neutralFor,
   positionOf,
-  ringsFor,
   sectorAt,
   sectorsFor,
-  sortForWheel,
 } from './wheel';
 
 let failures = 0;
@@ -30,6 +30,16 @@ function check(label: string, cond: boolean, extra?: unknown): void {
     failures++;
     console.log(`  FAIL ${label}`, extra === undefined ? '' : JSON.stringify(extra));
   }
+}
+
+/** A deterministic 0..1 source, so a "random" deal is a fixed one in a test. */
+function seeded(seed: number): () => number {
+  let h = seed >>> 0;
+  return () => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0;
+    h = (h ^ (h >>> 13)) >>> 0;
+    return h / 4294967296;
+  };
 }
 
 /** A point inside a wedge, in disc-radius units from the centre. */
@@ -42,14 +52,13 @@ function inside(s: { r0: number; r1: number; a0: number; a1: number }): { nx: nu
 function which(): void {
   console.log('\nwhich presentation a rung gets');
 
-  check('level 1, four colours, is a sector wheel', isSectorRung(rungAt(1), COLOR_SECTOR_MAX));
-  check('level 11, twenty-seven, still is', isSectorRung(rungAt(11), COLOR_SECTOR_MAX));
-  check('level 16, a hundred and twenty-five, is already too many', !isSectorRung(rungAt(16), COLOR_SECTOR_MAX), palette(rungAt(16)).length);
-  check('level 31, seven hundred, is not', !isSectorRung(rungAt(31), COLOR_SECTOR_MAX));
+  check('level 1, three colours, is a sector wheel', isSectorRung(rungAt(1), COLOR_SECTOR_MAX));
+  check('level 17, thirty-six, still is', isSectorRung(rungAt(17), COLOR_SECTOR_MAX), paletteSize(rungAt(17)));
+  check('level 22, seventy-two, is already too many', !isSectorRung(rungAt(22), COLOR_SECTOR_MAX), paletteSize(rungAt(22)));
   check('and neither is the ladder\'s far end', !isSectorRung(rungAt(200), COLOR_SECTOR_MAX));
-  check('the switch is on the palette, not the level', isSectorRung(rungAt(16), COLOR_SECTOR_MAX) === (palette(rungAt(16)).length <= COLOR_SECTOR_MAX));
+  check('the switch is on the palette, not the level', isSectorRung(rungAt(22), COLOR_SECTOR_MAX) === (paletteSize(rungAt(22)) <= COLOR_SECTOR_MAX));
 
-  // A 255-split rung has 16.7M colours; asking must not enumerate them.
+  // The far end of the ladder is 360 hues on 16 rings; asking must not build it.
   const started = Date.now();
   isSectorRung(rungAt(1000), COLOR_SECTOR_MAX);
   check('asking about a huge rung is instant, not an enumeration', Date.now() - started < 50);
@@ -58,14 +67,20 @@ function which(): void {
 function layout(): void {
   console.log('\nlaying the wedges out');
 
-  for (const level of [1, 6, 11]) {
+  for (const level of [1, 6, 11, 17, 22]) {
     const rung = rungAt(level);
     const colors = palette(rung);
     const sectors = sectorsFor(rung, COLOR_SECTOR_MAX);
+    if (!isSectorRung(rung, COLOR_SECTOR_MAX)) {
+      check(`level ${level}: too big for wedges, so none are laid out`, sectors.length === 0);
+      continue;
+    }
     check(`level ${level}: every colour the rung offers has a wedge`, sectors.length === colors.length, { sectors: sectors.length, colors: colors.length });
+    check('  in the palette\'s own order, which is what the hit test indexes', sectors.every((s, i) => s.rgb.join(',') === (colors[i] as Rgb).join(',')));
     check('  and no colour is drawn twice', new Set(sectors.map((s) => s.rgb.join(','))).size === sectors.length);
     check('  every wedge is inside the disc', sectors.every((s) => s.r0 >= WHEEL_HUB - 1e-9 && s.r1 <= 1 + 1e-9));
     check('  and has real width', sectors.every((s) => s.a1 > s.a0 && s.r1 > s.r0));
+    check('  there are exactly as many rings as the rung has saturations', new Set(sectors.map((s) => s.ring)).size === rung.sats);
 
     // Each ring closes the circle exactly: no gap that reads as a missing
     // colour, and no overlap that makes a tap ambiguous.
@@ -81,10 +96,10 @@ function layout(): void {
     }));
   }
 
-  check('a rung too big for wedges lays none out', sectorsFor(rungAt(31), COLOR_SECTOR_MAX).length === 0);
-  check('four colours go in one ring', ringsFor(4) === 1);
-  check('twenty-seven go in three', ringsFor(27) === 3, ringsFor(27));
-  check('and the ring count grows with the palette', ringsFor(64) >= ringsFor(27));
+  // The report, restated as an assertion: up to level 21 there is nothing on
+  // the wheel but the outer ring, so no wedge is light and none is dark.
+  check('up to level 21 no wedge is light or dark', [1, 6, 11, 17, 21].every((lv) => sectorsFor(rungAt(lv), COLOR_SECTOR_MAX)
+    .every((s) => Math.min(...s.rgb) === 0 && Math.max(...s.rgb) === 255)));
 }
 
 function tapping(): void {
@@ -101,28 +116,32 @@ function tapping(): void {
   check('the hub in the middle is not a pick', sectorAt(sectors, 0, 0) === null);
   check('nor is just inside it', sectorAt(sectors, 0, -(WHEEL_HUB - 0.02)) === null);
   check('and neither is outside the disc', sectorAt(sectors, 0, -1.4) === null);
-  check('twelve o\'clock lands in the first wedge of a ring', (() => {
+  // Each hue is centred on its own angle rather than starting there, so twelve
+  // o'clock is the middle of red's wedge and not the seam beside it.
+  check('twelve o\'clock is red, dead centre of its wedge', (() => {
     const hit = sectorAt(sectors, 0, -(WHEEL_HUB + 0.02));
-    return hit !== null && hit.ring === 0 && hit.a0 === 0;
-  })());
+    return hit !== null && hit.ring === 0 && hit.rgb.join(',') === '255,0,0';
+  })(), sectorAt(sectors, 0, -(WHEEL_HUB + 0.02))?.rgb);
+  check('and a hair either side of it is still red', [-0.04, 0.04].every((a) => {
+    const r = WHEEL_HUB + 0.3;
+    return sectorAt(sectors, Math.sin(a) * r, -Math.cos(a) * r)?.rgb.join(',') === '255,0,0';
+  }));
 }
 
 function ordering(): void {
   console.log('\nthe order colours are laid out in');
 
-  const sorted = sortForWheel(palette(rungAt(16)));
-  check('nothing is lost or gained by sorting', sorted.length === palette(rungAt(16)).length);
-  check('greys come first, all together', (() => {
-    const greys = sorted.filter((c) => hueOf(c) < 0);
-    const firstColoured = sorted.findIndex((c) => hueOf(c) >= 0);
-    return greys.length > 0 && firstColoured === greys.length;
-  })(), sorted.slice(0, 6));
-  check('and hue never goes backwards after that', (() => {
-    let last = -1;
-    for (const c of sorted) {
-      const h = hueOf(c);
-      if (h < last) return false;
-      last = h;
+  const rung = rungAt(26);
+  const colors = palette(rung);
+  check('a palette is one ring after another, hue by hue', colors.length === rung.hues * rung.sats);
+  check('hue climbs within a ring and restarts at the next', (() => {
+    for (let ring = 0; ring < rung.sats; ring++) {
+      let last = -1;
+      for (let i = 0; i < rung.hues; i++) {
+        const h = hueOf(colors[ring * rung.hues + i] as Rgb);
+        if (h < last) return false;
+        last = h;
+      }
     }
     return true;
   })());
@@ -135,85 +154,115 @@ function ordering(): void {
 function continuous(): void {
   console.log('\nthe continuous disc submits what it shows');
 
-  const rung = rungAt(31);
-  const values = componentValues(rung.splits);
-  let checked = 0;
-  let good = true;
-  for (let a = 0; a < Math.PI * 2; a += 0.21) {
-    for (const r of [0.15, 0.5, 0.95]) {
-      const got = continuousAt(rung, Math.sin(a) * r, -Math.cos(a) * r);
-      if (!got) {
-        good = false;
-        continue;
+  for (const level of [22, 31, 60, 200]) {
+    const rung = rungAt(level);
+    const onGrid = new Set(palette(rung).map((c) => c.join(',')));
+    let checked = 0;
+    let good = true;
+    for (let a = 0; a < Math.PI * 2; a += 0.21) {
+      for (const r of [0.15, 0.5, 0.95]) {
+        const got = continuousAt(rung, Math.sin(a) * r, -Math.cos(a) * r);
+        if (!got) {
+          good = false;
+          continue;
+        }
+        checked++;
+        // Already a colour the rung offers: what is drawn under the cursor is
+        // what goes on the wire, never a different one snapped later.
+        if (!onGrid.has(got.join(','))) good = false;
+        // And snapping it again barely moves it. Not "not at all": at the far
+        // end of the ladder a hue step on the palest ring is worth less than
+        // one 8-bit unit, so reading a hue back out of a rounded triple can
+        // land on the neighbouring step. Every colour is still one the rung
+        // offers, which is the property that matters — this bounds the wobble
+        // rather than pretending it is absent.
+        const again = snapToRung(got, rung);
+        if (again.some((v, i) => Math.abs(v - (got[i] ?? 0)) > 1)) good = false;
       }
-      checked++;
-      // Already on the rung's grid: the colour drawn under the cursor is the
-      // colour that goes on the wire, never a different one snapped later.
-      if (!got.every((v) => values.includes(v))) good = false;
-      if (JSON.stringify(snapToRung(got, rung)) !== JSON.stringify(got)) good = false;
     }
+    check(`level ${level}: every point on the disc is a colour the rung offers (${checked} sampled)`, good && checked > 40);
   }
-  check(`every point on the disc snaps to the rung (${checked} sampled)`, good && checked > 40);
+
+  const rung = rungAt(31);
   check('outside the disc is not a pick', continuousAt(rung, 0, -1.3) === null);
   check('the centre is a pick, unlike the sector wheel', continuousAt(rung, 0, 0) !== null);
-  check('the centre is unsaturated', (() => {
+  check('the centre is the palest ring', (() => {
     const c = continuousAt(rung, 0, 0);
-    return !!c && c[0] === c[1] && c[1] === c[2];
-  })());
-  check('the rim is saturated', (() => {
+    return !!c && Math.min(...c) > 150;
+  })(), continuousAt(rung, 0, 0));
+  check('the rim is the saturated one', (() => {
     const c = continuousAt(rung, 0, -0.99);
-    return !!c && Math.max(...c) - Math.min(...c) > 100;
+    return !!c && Math.min(...c) === 0 && Math.max(...c) === 255;
   })(), continuousAt(rung, 0, -0.99));
+}
+
+function reachable(): void {
+  console.log('\nthe randomiser only ever asks for a colour the wheel has');
+
+  /*
+   * The rule the whole rewrite exists for, checked end to end and at every
+   * level: deal a target, take the base the wheel is responsible for, and find
+   * the thumb position that returns it. Both presentations, because the bug
+   * was in one of them: the disc could only ever produce a full-value colour,
+   * while the randomiser was building targets on an RGB grid that had plenty
+   * of others.
+   */
+  let bad: unknown = null;
+  for (const level of [1, 3, 8, 14, 17, 21, 22, 26, 27, 31, 36, 41, 50, 80, 200]) {
+    const rung = rungAt(level);
+    const sectors = sectorsFor(rung, COLOR_SECTOR_MAX);
+    for (let s = 1; s <= 12 && bad === null; s++) {
+      const t = dealTarget(level, seeded(s * 13 + level));
+      const at = positionOf(t.base, rung);
+      if (!at) {
+        bad = { level, why: 'no position', target: t };
+        break;
+      }
+      const back = sectors.length > 0
+        ? sectorAt(sectors, at.nx, at.ny)?.rgb ?? null
+        : continuousAt(rung, at.nx, at.ny);
+      if (!back || back.join(',') !== t.base.join(',')) bad = { level, why: 'not reachable', target: t, back };
+      // And the brightness the target carries is one the slider can be set to.
+      if (!valueSteps(rung.values).some((v) => Math.abs(v - t.lum) < 1e-9)) bad = { level, why: 'brightness off the slider', target: t };
+    }
+  }
+  check('every dealt target is reachable, at every level, in both presentations', bad === null, bad);
 }
 
 function cursor(): void {
   console.log('\nwhere the cursor is drawn');
 
-  check('a saturated colour sits near the rim', (() => {
-    const p = positionOf([255, 0, 0]);
-    return Math.abs(Math.hypot(p.nx, p.ny) - 1) < 1e-9;
+  const wide = rungAt(31);
+  check('a saturated colour sits on the outermost ring', (() => {
+    const p = positionOf([255, 0, 0], wide);
+    return !!p && Math.abs(Math.hypot(p.nx, p.ny) - (1 - (1 - WHEEL_HUB) / (2 * wide.sats))) < 1e-9;
+  })(), positionOf([255, 0, 0], wide));
+  check('red sits at twelve o\'clock', (() => {
+    const p = positionOf([255, 0, 0], wide);
+    return !!p && Math.abs(p.nx) < 1e-9 && p.ny < 0;
   })());
-  check('a grey sits at the centre', (() => {
-    const p = positionOf([120, 120, 120]);
-    return Math.hypot(p.nx, p.ny) < 1e-9;
-  })());
+  check('a grey is nowhere on the wheel, so no cursor is drawn', positionOf([120, 120, 120], wide) === null);
+
   // The disc carries hue and saturation only — brightness is the slider's job
-  // (spec §2.3) — so a round trip preserves those two and nothing else. Fully
-  // bright colours are the ones it can return exactly.
-  check('a fully bright colour round-trips through the disc exactly', (() => {
-    const rung = rungAt(31);
-    for (const rgb of [[255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [0, 255, 255]] as const) {
-      const p = positionOf(rgb);
-      const back = continuousAt(rung, p.nx, p.ny);
-      if (!back || JSON.stringify(back) !== JSON.stringify(snapToRung(rgb, rung))) return false;
-    }
-    return true;
-  })());
-  check('and a dim one comes back at full brightness, same hue', (() => {
-    const rung = rungAt(31);
-    const p = positionOf([0, 96, 0]);
-    const back = continuousAt(rung, p.nx, p.ny);
+  // (spec §2.3) — so a dimmed target still points at its own hue.
+  check('a dimmed target is drawn at its own hue, not off the wheel', (() => {
+    const p = positionOf([0, 96, 0], wide);
+    if (!p) return false;
+    const back = continuousAt(wide, p.nx, p.ny);
     return !!back && hueOf(back) === 120 && Math.max(...back) === 255;
-  })(), (() => { const p = positionOf([0, 96, 0]); return continuousAt(rungAt(31), p.nx, p.ny); })());
+  })(), (() => { const p = positionOf([0, 96, 0], wide); return p ? continuousAt(wide, p.nx, p.ny) : null; })());
 }
 
 function neutral(): void {
   console.log('\nwhat a level opens on');
 
-  check('the middle of the rung, not black', (() => {
-    const n = neutralFor(rungAt(16));
+  check('a mid grey, not black', (() => {
+    const n = neutralFor();
     return n[0] > 0 && n[0] === n[1] && n[1] === n[2];
-  })(), neutralFor(rungAt(16)));
-  check('and it is on the rung\'s own grid', (() => {
-    const rung = rungAt(16);
-    return JSON.stringify(snapToRung(neutralFor(rung), rung)) === JSON.stringify(neutralFor(rung));
-  })());
-  // Level 1's palette is black, red, green, blue — a grey default is not one
-  // of them, which is the point: never touching the wheel scores nothing.
-  check('at level 1 the default is not a possible answer', (() => {
-    const n = neutralFor(rungAt(1));
-    return !palette(rungAt(1)).some((c) => c.join(',') === n.join(','));
-  })(), neutralFor(rungAt(1)));
+  })(), neutralFor());
+  // Never touching the wheel must score nothing, so the default may not be an
+  // answer — at any level, not just the first.
+  check('and it is never a possible answer', [1, 11, 17, 26, 31, 60].every((lv) => !palette(rungAt(lv)).some((c) => c.join(',') === neutralFor().join(','))));
 }
 
 which();
@@ -221,6 +270,7 @@ layout();
 tapping();
 ordering();
 continuous();
+reachable();
 cursor();
 neutral();
 

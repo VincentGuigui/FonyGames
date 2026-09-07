@@ -10,7 +10,7 @@ import {
   type Ctx,
 } from './colorMatch';
 import { COLOR_SCORE_HOLD_MS, type PlayerId, type ServerMessage } from '../shared/protocol';
-import { COLOR_ACTION_TIERS, COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, RUNG_ENDS, colorActionMs, rungAt, colorKey, isExtreme } from '../shared/color';
+import { COLOR_ACTION_TIERS, COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, RUNG_ENDS, colorActionMs, hasLuminance, rungAt, colorKey, isExtreme } from '../shared/color';
 
 /**
  * Color Match's referee.
@@ -334,12 +334,12 @@ async function timing(): Promise<void> {
   // The boundaries are derived from the ladder, so this asserts the RUNGS the
   // steps sit on rather than the numbers they currently work out to — those
   // move the moment a rung's length does, and did when the first was shortened.
-  const lastBeforeSlider = RUNG_ENDS[6] ?? 0;
+  const lastBeforeSlider = RUNG_ENDS[5] ?? 0;
   check('3 s while the answer is one tap on the wheel',
     colorActionMs(1) === 3000 && colorActionMs(lastBeforeSlider) === 3000, colorActionMs(1));
   check('10 s from the rung that adds the slider',
     colorActionMs(lastBeforeSlider + 1) === 10000 && colorActionMs(400) === 10000, colorActionMs(lastBeforeSlider + 1));
-  check('and that rung really is the first with luminance', rungAt(lastBeforeSlider + 1).luminance && !rungAt(lastBeforeSlider).luminance);
+  check('and that rung really is the first with a slider', hasLuminance(rungAt(lastBeforeSlider + 1)) && !hasLuminance(rungAt(lastBeforeSlider)));
   check('the tiers only ever get longer', COLOR_ACTION_TIERS.every((t, i, a) => i === 0 || t.ms > (a[i - 1]?.ms ?? 0)));
   check('and the last one catches every level', COLOR_ACTION_TIERS[COLOR_ACTION_TIERS.length - 1]?.upTo === Infinity);
   check('a whole level is its own window plus a fixed tail', levelMs(1) === colorActionMs(1) + 4000 && levelMs(40) === colorActionMs(40) + 4000);

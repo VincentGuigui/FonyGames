@@ -4,9 +4,10 @@
  *
  * Both colour games score from this file and the referee is the only thing
  * that runs it for real, so every rule worth arguing about is pinned here:
- * "splits" meaning intervals rather than values (the two readings differ by
- * one, and the whole ladder is built on it), the past-45 formula and its cap,
- * and the fact that a palette must not offer the same colour twice.
+ * a rung being hue x saturation x value and nothing else (so the randomiser
+ * cannot ask for a colour the wheel has no way to show), the order light and
+ * dark arrive in, the past-41 formula and its caps, and the fact that a
+ * palette must not offer the same colour twice.
  */
 import {
   COLOR_BARREN_ROUNDS,
@@ -17,7 +18,9 @@ import {
   COLOR_D_MAX,
   COLOR_LUM_MIN,
   COLOR_LADDER_END,
-  COLOR_MAX_SPLITS,
+  COLOR_MAX_HUES,
+  COLOR_MAX_STEPS,
+  COLOR_SAT_MIN,
   RUNG_ENDS,
   COLOR_MISS,
   COLOR_VALUE_FLOOR,
@@ -27,15 +30,20 @@ import {
   colorDistance,
   colorKey,
   colorScore,
-  componentValues,
   dealTarget,
+  hasLuminance,
+  hsvToRgb,
+  hueSteps,
   huntColor,
   isExtreme,
-  luminanceSteps,
   nextHuntTarget,
   palette,
+  paletteSize,
   rungAt,
+  satOf,
+  saturationSteps,
   snapToRung,
+  valueSteps,
   withLuminance,
   type Rgb,
 } from './color';
@@ -83,17 +91,29 @@ function distance(): void {
   check('the threshold itself is the zero point', COLOR_MISS > 0 && atMiss > 0 && colorScore([0, 0, 0], [0, 0, 0], 1e-9) === 100);
 }
 
-function splits(): void {
-  console.log('\n"splits" means intervals, not values (§2.3)');
+function axes(): void {
+  console.log('\nhue, saturation and value are the only three axes (§2.3)');
 
-  // The issue's own three examples, which is the whole reason this is pinned.
-  check('1 split is {0, 255}', JSON.stringify(componentValues(1)) === '[0,255]', componentValues(1));
-  check('2 splits is {0, 128, 255}', JSON.stringify(componentValues(2)) === '[0,128,255]', componentValues(2));
-  check('4 splits is {0, 64, 128, 192, 255}', JSON.stringify(componentValues(4)) === '[0,64,128,192,255]', componentValues(4));
-  check('so a rung offers splits + 1 values', componentValues(8).length === 9);
-  check('0 splits pins the component to black', JSON.stringify(componentValues(0)) === '[0]');
-  check('every value stays in range', componentValues(16).every((v) => v >= 0 && v <= 255));
-  check('and they climb', componentValues(16).every((v, i, a) => i === 0 || v > (a[i - 1] ?? -1)));
+  check('one hue step is red alone', JSON.stringify(hueSteps(1)) === '[0]');
+  check('three are red, green and blue', JSON.stringify(hueSteps(3)) === '[0,120,240]', hueSteps(3));
+  check('and doubling the count keeps every hue it had', hueSteps(24).every((h) => hueSteps(48).includes(h)));
+
+  // The two that the bug report was about: one step means one ring.
+  check('one saturation step is the outer ring alone', JSON.stringify(saturationSteps(1)) === '[1]');
+  check('one value step is full brightness alone', JSON.stringify(valueSteps(1)) === '[1]');
+  check('more rings reach inward, no further than the pale floor', saturationSteps(4)[0] === COLOR_SAT_MIN);
+  check('more notches reach down, no further than the dark floor', valueSteps(4)[0] === COLOR_LUM_MIN);
+  check('both end at the top', saturationSteps(5)[4] === 1 && valueSteps(5)[4] === 1);
+  check('and both climb', saturationSteps(6).every((v, i, a) => i === 0 || v > (a[i - 1] ?? -1)) && valueSteps(6).every((v, i, a) => i === 0 || v > (a[i - 1] ?? -1)));
+
+  // The min/max reading of the same three numbers, which is how the issue
+  // asked for it and how an eye reads a colour.
+  const maxOf = (c: Rgb): number => Math.max(c[0], c[1], c[2]);
+  const minOf = (c: Rgb): number => Math.min(c[0], c[1], c[2]);
+  check('value IS max(r, g, b)', [0.4, 0.7, 1].every((v) => maxOf(hsvToRgb(200, 0.6, v)) === Math.round(255 * v)));
+  check('saturation IS min(r, g, b), over that max', [0.25, 0.6, 1].every((sat) => minOf(hsvToRgb(200, sat, 1)) === Math.round(255 * (1 - sat))));
+  check('so one ring at full value has min 0 — no light colour', saturationSteps(1).every((sat) => minOf(hsvToRgb(90, sat, 1)) === 0));
+  check('and one notch has max 255 — no dark colour', valueSteps(1).every((v) => maxOf(hsvToRgb(90, 1, v)) === 255));
 }
 
 function ladder(): void {
@@ -106,31 +126,36 @@ function ladder(): void {
   check('and every later one is five', RUNG_ENDS.every((e, i, a) => i < 2 || e - (a[i - 1] ?? 0) === 5), RUNG_ENDS);
   check('the ladder\'s table ends where its last rung does', COLOR_LADDER_END === at(RUNG_ENDS.length - 1));
 
-  check('level 1 randomises one component at 1 split', rungAt(1).components === 1 && rungAt(1).splits === 1);
-  check('and the rest are pinned to black', rungAt(1).restSplits === 0);
+  check('level 1 is three hues, one ring, one notch', JSON.stringify(rungAt(1)) === JSON.stringify({ hues: 3, sats: 1, values: 1 }), rungAt(1));
   check('a rung holds for its whole span', JSON.stringify(rungAt(1)) === JSON.stringify(rungAt(at(0))));
   check('and changes on the next level', JSON.stringify(rungAt(at(0) + 1)) !== JSON.stringify(rungAt(at(0))));
-  check('rung 2 is two components at 1 split', rungAt(at(0) + 1).components === 2 && rungAt(at(0) + 1).splits === 1);
-  check('rung 3 opens all three at 2 splits', rungAt(at(1) + 1).components === 3 && rungAt(at(1) + 1).splits === 2);
-  check('rung 4 goes to 4', rungAt(at(2) + 1).splits === 4);
-  check('rung 5 is one component at 8 over a 4-split rest', rungAt(at(3) + 1).components === 1 && rungAt(at(3) + 1).splits === 8 && rungAt(at(3) + 1).restSplits === 4);
-  check('rung 6 is two', rungAt(at(4) + 1).components === 2 && rungAt(at(4) + 1).splits === 8);
-  check('rung 7 is all three at 8', rungAt(at(5) + 1).components === 3 && rungAt(at(5) + 1).splits === 8);
+  check('the hue count climbs 3, 6, 12, 24, 36', [1, at(0) + 1, at(1) + 1, at(2) + 1, at(3) + 1].map((lv) => rungAt(lv).hues).join(',') === '3,6,12,24,36');
 
-  check('luminance is off right up to rung 8', !rungAt(1).luminance && !rungAt(at(6)).luminance);
-  check('and on from it', rungAt(at(6) + 1).luminance);
-  check('rung 9 doubles to 16', rungAt(at(7) + 1).splits === 16);
+  // The heart of the fix. Up to level 21 the wheel is the outer ring and
+  // nothing else, so a target can be neither light nor dark; then light
+  // arrives on its own, and only after it, dark.
+  check('nothing is light or dark up to level 21', [1, 5, 10, 15, 17, 21].every((lv) => rungAt(lv).sats === 1 && rungAt(lv).values === 1));
+  check('level 17 — the level the report was about — is pure hue, 36 of them', rungAt(17).hues === 36 && rungAt(17).sats === 1 && rungAt(17).values === 1, rungAt(17));
+  check('the next rung adds light, and only light', rungAt(at(4) + 1).sats === 2 && rungAt(at(4) + 1).values === 1, rungAt(at(4) + 1));
+  check('the rung after it adds dark', rungAt(at(5) + 1).values === 2 && rungAt(at(5) + 1).sats === 2, rungAt(at(5) + 1));
+  check('so the brightness slider stays off until then', !hasLuminance(rungAt(at(5))) && hasLuminance(rungAt(at(5) + 1)));
+  check('and no rung ever claims a slider it has no notches for', [1, 9, 21, 26, 31, 41, 60, 500].every((lv) => hasLuminance(rungAt(lv)) === (rungAt(lv).values > 1)));
 
-  // Past the table it is a formula: double every five levels.
-  check('the level after the table doubles again, to 32', rungAt(COLOR_LADDER_END + 1).splits === 32, rungAt(COLOR_LADDER_END + 1));
-  check('then 64', rungAt(COLOR_LADDER_END + 6).splits === 64);
-  check('then 128', rungAt(COLOR_LADDER_END + 11).splits === 128);
-  check('then the cap', rungAt(COLOR_LADDER_END + 16).splits === COLOR_MAX_SPLITS);
-  check('and stays there forever', rungAt(500).splits === COLOR_MAX_SPLITS && rungAt(5000).splits === COLOR_MAX_SPLITS);
-  check('the cap is a step of one, not an arbitrary ceiling', componentValues(COLOR_MAX_SPLITS).length === 256);
+  // Past the table it is a formula: double the hues every five levels, and add
+  // a step to each of the other two.
+  const past = rungAt(COLOR_LADDER_END + 1);
+  check('the level after the table doubles the hues to 120', past.hues === 120, past);
+  check('and adds one ring and one notch', past.sats === 5 && past.values === 5, past);
+  check('then doubles again, to 240', rungAt(COLOR_LADDER_END + 6).hues === 240);
+  check('up to one hue per degree', rungAt(COLOR_LADDER_END + 11).hues === COLOR_MAX_HUES && rungAt(5000).hues === COLOR_MAX_HUES);
+  check('and the other two cap as well', rungAt(5000).sats === COLOR_MAX_STEPS && rungAt(5000).values === COLOR_MAX_STEPS);
 
   check('the ladder never goes backwards', (() => {
-    for (let n = 2; n <= 80; n++) if (rungAt(n).splits < rungAt(n - 1).splits) return false;
+    for (let n = 2; n <= 200; n++) {
+      const a = rungAt(n - 1);
+      const b = rungAt(n);
+      if (b.hues < a.hues || b.sats < a.sats || b.values < a.values) return false;
+    }
     return true;
   })());
   check('a level below 1 is treated as level 1', JSON.stringify(rungAt(0)) === JSON.stringify(rungAt(1)));
@@ -139,20 +164,27 @@ function ladder(): void {
 function palettes(): void {
   console.log('\nwhat a rung can actually produce');
 
-  // Level 1: one component out of {0, 255}, the others black — which would be
-  // black, red, green and blue, except that nobody is asked to guess black.
   const first = palette(rungAt(1));
   check('the first rung offers three colours — and lasts three levels', first.length === 3 && (RUNG_ENDS[0] ?? 0) === first.length, first);
-  check('red, green and blue — black is not on offer', JSON.stringify([...first].sort()) === JSON.stringify([[0, 0, 255], [0, 255, 0], [255, 0, 0]].sort()), first);
+  check('red, green and blue, in that order', JSON.stringify(first) === JSON.stringify([[255, 0, 0], [0, 255, 0], [0, 0, 255]]), first);
 
   const dupes = (list: Rgb[]): boolean => new Set(list.map((c) => c.join(','))).size === list.length;
-  check('no rung offers the same colour twice', dupes(first) && dupes(palette(rungAt(6))) && dupes(palette(rungAt(11))));
+  check('no rung offers the same colour twice', [1, 6, 11, 16, 21, 26, 31].every((lv) => dupes(palette(rungAt(lv)))));
 
-  // A full n-cube, less whatever the extreme filter takes off the two corners.
-  check('rung 3 is a 3-cube less its black and white corners', palette(rungAt(9)).length === 25, palette(rungAt(9)).length);
-  check('rung 4 is 5 cubed less nine', palette(rungAt(14)).length === 116, palette(rungAt(14)).length);
-  check('rung 7 is 9 cubed less thirty-five', palette(rungAt(29)).length === 694, palette(rungAt(29)).length);
-  check('and no rung ever offers black or white', [1, 4, 9, 14, 19, 24, 29, 34].every((lv) => palette(rungAt(lv)).every((c) => !isExtreme(c))));
+  check('a palette is hues x rings, exactly — no dedup, no filter', [1, 11, 21, 26, 31, 41].every((lv) => palette(rungAt(lv)).length === paletteSize(rungAt(lv))));
+  check('and level 22 is 36 hues on two rings', paletteSize(rungAt(22)) === 72, paletteSize(rungAt(22)));
+
+  // The order is what the wheel's hit test indexes into, so it is a rule.
+  const wide = palette(rungAt(26));
+  check('laid out ring by ring, palest ring first', Math.abs(satOf(wide[0] as Rgb) - COLOR_SAT_MIN) < 0.02 && satOf(wide[wide.length - 1] as Rgb) === 1, [wide[0], wide[wide.length - 1]]);
+  check('and hue by hue within a ring, starting at red', JSON.stringify(wide[36]) === JSON.stringify([255, 0, 0]), wide[36]);
+
+  check('no rung ever offers black or white', [1, 4, 9, 14, 19, 24, 29, 34, 41, 60].every((lv) => palette(rungAt(lv)).every((c) => !isExtreme(c))));
+  check('nor does any of them once dimmed to the bottom notch', [26, 31, 41, 60].every((lv) => {
+    const rung = rungAt(lv);
+    const dimmest = valueSteps(rung.values)[0] ?? 1;
+    return palette(rung).every((c) => !isExtreme(withLuminance(c, dimmest)));
+  }));
   check('the palette grows down the ladder', palette(rungAt(4)).length > palette(rungAt(1)).length);
   check('every entry is a real colour', palette(rungAt(19)).every((c) => c.every((v) => Number.isInteger(v) && v >= 0 && v <= 255)));
 }
@@ -176,7 +208,7 @@ function extremes(): void {
 
   // The dimmest luminance step must not drag a colour under the floor, or the
   // bottom notch of the slider would be unpickable.
-  const dimmest = luminanceSteps()[0] ?? 1;
+  const dimmest = valueSteps(4)[0] ?? 1;
   check('the dimmest slider step still clears the floor', !isExtreme(withLuminance([255, 0, 0], dimmest)), withLuminance([255, 0, 0], dimmest));
 
   // And a rung too big to enumerate cannot deal one either: the deal nudges a
@@ -202,10 +234,10 @@ function spansFitTheirColours(): void {
     const span = (RUNG_ENDS[i] ?? 0) - (i === 0 ? 0 : RUNG_ENDS[i - 1] ?? 0);
     const rung = rungAt((RUNG_ENDS[i] ?? 1) - span + 1);
     // What the rung can actually DEAL, not what its base palette holds: once
-    // the slider is live every base is five colours. Rung 8 is rung 7 with
-    // luminance and nothing else, so by base palette it adds nothing at all —
-    // counting bases would call it broken when it has thousands to give.
-    const lums = rung.luminance ? luminanceSteps() : [1];
+    // the slider is live every base is several colours. The rung that adds
+    // dark keeps the palette it had and multiplies it by its notches, so
+    // counting bases alone would call it broken when it doubles the targets.
+    const lums = valueSteps(rung.values);
     const mine = palette(rung).flatMap((c) => lums.map((l) => colorKey(withLuminance(c, l))));
     const fresh = new Set(mine.filter((k) => !offered.has(k))).size;
     for (const k of mine) offered.add(k);
@@ -253,61 +285,102 @@ function noRepeats(): void {
   check('the first rung fits its three colours in its three levels', rung1.size === 3 && repeats === 0, { size: rung1.size, repeats });
 }
 
-function luminance(): void {
-  console.log('\nluminance is a multiplier, not a fourth component (§2.3)');
+function brightness(): void {
+  console.log('\nbrightness is a multiplier, not a fourth component (§2.3)');
 
-  check('full luminance leaves a colour alone', JSON.stringify(withLuminance([200, 100, 50], 1)) === JSON.stringify([200, 100, 50]));
+  check('full brightness leaves a colour alone', JSON.stringify(withLuminance([200, 100, 50], 1)) === JSON.stringify([200, 100, 50]));
   check('half of it halves every channel', JSON.stringify(withLuminance([200, 100, 50], 0.5)) === JSON.stringify([100, 50, 25]));
   check('it clamps rather than overflowing', JSON.stringify(withLuminance([200, 100, 50], 9)) === JSON.stringify([200, 100, 50]));
+  // Which is exactly why the slider can be a control of its own: scaling all
+  // three channels moves value and leaves hue and saturation where they were.
+  check('and it moves value without touching hue or saturation', (() => {
+    const base: Rgb = [255, 128, 0];
+    const dim = withLuminance(base, 0.6);
+    return Math.abs(satOf(dim) - satOf(base)) < 0.01 && Math.max(...dim) === Math.round(255 * 0.6);
+  })());
 
-  const steps = luminanceSteps();
-  check('the slider offers splits + 1 steps', steps.length === 5, steps);
+  const steps = valueSteps(4);
+  check('a four-notch rung offers four steps', steps.length === 4, steps);
   check('the dimmest is not black', (steps[0] ?? 0) === COLOR_LUM_MIN && COLOR_LUM_MIN > 0);
   check('the brightest is full', Math.abs((steps[steps.length - 1] ?? 0) - 1) < 1e-9);
   check('and they climb', steps.every((v, i, a) => i === 0 || v > (a[i - 1] ?? -1)));
+  check('one notch is no slider at all', JSON.stringify(valueSteps(1)) === '[1]');
 }
 
 function dealing(): void {
   console.log('\ndealing a target');
 
-  check('a level-1 target is one of that rung\'s four', (() => {
+  // The last level before the brightness slider, read off the ladder rather
+  // than written down, so shortening a rung moves it.
+  const lastFlat = RUNG_ENDS[5] ?? 26;
+
+  check('a level-1 target is one of that rung\'s three', (() => {
     const allowed = new Set(palette(rungAt(1)).map((c) => c.join(',')));
-    for (let s = 1; s < 60; s++) if (!allowed.has(dealTarget(1, seeded(s)).rgb.join(','))) return false;
+    for (let s2 = 1; s2 < 60; s2++) if (!allowed.has(dealTarget(1, seeded(s2)).rgb.join(','))) return false;
     return true;
   })());
-  check('and it never carries a luminance before the slider rung', (() => {
-    for (let s = 1; s < 40; s++) if (dealTarget(RUNG_ENDS[6] ?? 33, seeded(s)).lum !== 1) return false;
-    return true;
-  })());
-  check('from that rung it does', (() => {
-    for (let s = 1; s < 40; s++) if (dealTarget((RUNG_ENDS[6] ?? 33) + 1, seeded(s)).lum === 1) return true;
-    return false;
-  })());
-  check('the dealt colour is the base under that luminance', (() => {
-    for (let s = 1; s < 40; s++) {
-      const t = dealTarget((RUNG_ENDS[6] ?? 33) + 3, seeded(s));
-      if (JSON.stringify(t.rgb) !== JSON.stringify(withLuminance(t.base, t.lum))) return false;
+
+  /*
+   * The rule the whole rewrite exists for: a dealt target is a palette colour
+   * under one of the rung's own brightness notches, and nothing else. The old
+   * randomiser built colours on an RGB grid and could hand out a dark green at
+   * level 17 that the wheel — drawn at full value — had no way to show.
+   */
+  check('every target is a palette colour under a slider notch, at every level', (() => {
+    for (const lv of [1, 3, 8, 14, 17, 21, 24, 29, 33, 40, 45, 60]) {
+      const rung = rungAt(lv);
+      const bases = new Set(palette(rung).map((c) => c.join(',')));
+      const lums = valueSteps(rung.values);
+      for (let s2 = 1; s2 < 25; s2++) {
+        const t = dealTarget(lv, seeded(s2 + lv));
+        if (!bases.has(t.base.join(','))) return false;
+        if (!lums.some((l) => Math.abs(l - t.lum) < 1e-9)) return false;
+        if (JSON.stringify(t.rgb) !== JSON.stringify(withLuminance(t.base, t.lum))) return false;
+      }
     }
     return true;
   })());
-  // A degenerate source — one that always returns the same number — used to
-  // hang the deal outright: choosing k distinct components by drawing indices
-  // until they differ never terminates when they cannot. It indexes into the
-  // combination list now, so any source at all terminates.
+
+  check('and it never carries a brightness before the slider rung', (() => {
+    for (const lv of [1, 9, 17, lastFlat]) {
+      for (let s2 = 1; s2 < 40; s2++) if (dealTarget(lv, seeded(s2)).lum !== 1) return false;
+    }
+    return true;
+  })());
+  check('from that rung it does', (() => {
+    for (let s2 = 1; s2 < 40; s2++) if (dealTarget(lastFlat + 1, seeded(s2)).lum !== 1) return true;
+    return false;
+  })());
+
+  // A degenerate source — one that always returns the same number — must still
+  // deal rather than spin: every draw is a clamped index, never a retry.
   check('a constant random source still deals, rather than spinning', (() => {
     for (const v of [0, 0.5, 0.999]) {
-      const t = dealTarget(31, () => v);
-      if (!t.rgb.every((c) => c >= 0 && c <= 255)) return false;
+      for (const lv of [31, 80]) {
+        const t = dealTarget(lv, () => v);
+        if (!t.rgb.every((c) => c >= 0 && c <= 255)) return false;
+      }
     }
     return true;
   })());
   check('the same seed deals the same target', JSON.stringify(dealTarget(20, seeded(7))) === JSON.stringify(dealTarget(20, seeded(7))));
-  check('different seeds do not all deal the same one', new Set([1, 2, 3, 4, 5, 6, 7, 8].map((s) => dealTarget(14, seeded(s)).rgb.join(','))).size > 1);
+  check('different seeds do not all deal the same one', new Set([1, 2, 3, 4, 5, 6, 7, 8].map((s2) => dealTarget(14, seeded(s2)).rgb.join(','))).size > 1);
 
+  // Snapping is the same grid seen from the other side: whatever a thumb drags
+  // to, what comes back is a colour the rung offers.
   const rung = rungAt(14);
-  const snapped = snapToRung([70, 200, 3], rung);
-  check('a free drag snaps onto the rung\'s grid', snapped.every((v) => componentValues(rung.splits).includes(v)), snapped);
-  check('and snaps to the nearest value', JSON.stringify(snapped) === JSON.stringify([64, 192, 0]), snapped);
+  const onGrid = new Set(palette(rung).map((c) => c.join(',')));
+  check('a free drag snaps onto the rung\'s own palette', onGrid.has(snapToRung([70, 200, 3], rung).join(',')), snapToRung([70, 200, 3], rung));
+  check('and it snaps to the nearest hue, the short way round', JSON.stringify(snapToRung([255, 8, 40], rungAt(1))) === JSON.stringify([255, 0, 0]), snapToRung([255, 8, 40], rungAt(1)));
+  check('a snapped colour is already snapped', [1, 14, 26, 31, 60].every((lv) => {
+    const r = rungAt(lv);
+    const once = snapToRung([70, 200, 3], r);
+    return JSON.stringify(snapToRung(once, r)) === JSON.stringify(once);
+  }));
+  check('and every palette colour snaps to itself', [1, 11, 22, 31].every((lv) => {
+    const r = rungAt(lv);
+    return palette(r).every((c) => JSON.stringify(snapToRung(c, r)) === JSON.stringify(c));
+  }));
 }
 
 function hunt(): void {
@@ -425,13 +498,13 @@ function wire(): void {
 }
 
 distance();
-splits();
+axes();
 extremes();
 spansFitTheirColours();
 noRepeats();
 ladder();
 palettes();
-luminance();
+brightness();
 dealing();
 hunt();
 reaction();
