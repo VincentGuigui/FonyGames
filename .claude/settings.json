@@ -2,5 +2,19 @@
   "attribution": {
     "commit": "",
     "pr": ""
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/scripts/branch-state.mjs\" --json 2>/dev/null || true",
+            "timeout": 30,
+            "statusMessage": "Checking where main/dev/prod stand"
+          }
+        ]
+      }
+    ]
   }
 }

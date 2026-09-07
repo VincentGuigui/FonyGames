@@ -56,6 +56,19 @@ beyond a commit id or a status word):
 🔴 prod
 ```
 
+**Do not answer this from memory.** Run `npm run branch-state`
+(`scripts/branch-state.mjs`): it fetches `main`, `dev` and `prod` and asks each
+remote ref whether it contains the commit checked out here. Memory got it wrong
+once — a deploy branch the maintainer had moved himself was reported at the SHA
+an agent last saw it at — and a confidently wrong 🟢/🔴 is worse than no report.
+When the network is unavailable the script prints `❔` and says so, rather than
+guessing off a stale ref.
+
+A `Stop` hook in [`.claude/settings.json`](../.claude/settings.json) runs the
+same script at the end of every turn, so the three lines appear whether or not
+the agent remembered the rule. The hook is the safety net; §5 of
+[AGENTS.md](../AGENTS.md) is still the rule.
+
 ## 2. GitHub Environments
 
 Two environments exist in **Settings → Environments**, named **exactly** like
