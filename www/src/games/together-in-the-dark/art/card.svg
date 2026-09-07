@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" role="img" width="120" height="90">
+  <title>Together in the Dark</title>
+  <rect width="120" height="90" fill="#05070A"/>
+  <g fill="#0B1410">
+    <path d="M8 90 L14 52 L20 90 Z"/>
+    <path d="M22 90 L28 60 L34 90 Z"/>
+    <path d="M96 90 L102 56 L108 90 Z"/>
+    <path d="M84 90 L89 64 L94 90 Z"/>
+    <path d="M2 90 L6 68 L10 90 Z"/>
+  </g>
+  <circle cx="60" cy="48" r="26" fill="#141A12"/>
+  <circle cx="60" cy="48" r="17" fill="#2A2A16"/>
+  <circle cx="60" cy="48" r="9" fill="#F6B93B" opacity="0.32"/>
+  <g fill="#1C2617">
+    <path d="M40 74 L45 56 L50 74 Z"/>
+    <path d="M72 72 L77 54 L82 72 Z"/>
+  </g>
+  <g transform="translate(60 48)">
+    <circle cx="0" cy="-6" r="3.2" fill="#E8DCC0"/>
+    <path d="M0 -3 L0 6" stroke="#E8DCC0" stroke-width="3" stroke-linecap="round"/>
+    <path d="M0 6 L-3 12 M0 6 L3 12" stroke="#E8DCC0" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M0 0 L6 -3" stroke="#E8DCC0" stroke-width="2.2" stroke-linecap="round"/>
+    <circle cx="8" cy="-4" r="2.6" fill="#F6B93B"/>
+  </g>
+  <g fill="#3A2C10" opacity="0.85">
+    <circle cx="30" cy="30" r="1.6"/>
+    <circle cx="92" cy="34" r="1.4"/>
+    <circle cx="86" cy="20" r="1.1"/>
+  </g>
+</svg>

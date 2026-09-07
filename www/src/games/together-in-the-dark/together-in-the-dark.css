@@ -1,0 +1,188 @@
+/*
+ * Together in the Dark. Spec: docs/specs/games/together-in-the-dark.md §4
+ * Shared chrome (StatusBar, lobby) is styled by core; this file owns the board,
+ * the turn log, the timer and the two D-pads.
+ *
+ * Most of this screen is black, which is a real budget advantage: the board is
+ * a CSS grid rather than a canvas, and the art is a handful of glyphs.
+ */
+
+.dark {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: 100dvh;
+  padding: 0 var(--space-3) var(--space-3);
+  background: #05070a;
+}
+
+/*
+ * The viewport follows the character, so the grid can be far larger than the
+ * screen with no zoom and no pan (spec §4).
+ *
+ * Sized as a SQUARE that fits, not as a flex item with an aspect ratio: at
+ * `flex: 1 1 auto` the flex height won and `aspect-ratio` was ignored, so the
+ * nine rows were laid out at 93 px each and the bottom two fell off the
+ * screen — a board that silently loses its edges is worse than a smaller one.
+ */
+.dark__board {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(var(--dark-span), 1fr);
+  grid-auto-rows: 1fr;
+  gap: 2px;
+  width: min(100%, 26rem, 46dvh);
+  aspect-ratio: 1;
+  /* Auto on every side: the board is the only flex item with auto margins, so
+     it absorbs the column's free space and ends up centred in whatever is left
+     between the status bar and the controls. */
+  margin: auto;
+}
+
+.dark__cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: clamp(0.75rem, 3.4vw, 1.25rem);
+  line-height: 1;
+  /* Black by default: the dark is the game. */
+  background: #080b10;
+}
+
+/* Off the edge of the forest — distinguishable from unlit ground, so walking
+   into it is not a mystery. */
+.dark__cell--edge {
+  background: #04050700;
+}
+
+/* Remembered terrain, drawn at low opacity behind the light (spec §2.2). */
+.dark__cell--seen {
+  background: #10151d;
+  color: #4d5a6b;
+}
+
+/* The lit circle: the character and one cell in every direction, the only
+   part of the board that is not black. */
+.dark__cell--circle {
+  background: #1a1d16;
+  color: #c9c19b;
+}
+
+/* This turn's light — a match, and it goes out next turn. */
+.dark__cell--lit {
+  background: var(--game-accent, #F6B93B);
+  color: #241a05;
+  box-shadow: 0 0 14px 2px rgb(246 185 59 / 0.45);
+}
+
+.dark__him {
+  filter: drop-shadow(0 0 6px rgb(246 185 59 / 0.9));
+}
+
+/* Three lines. The shared memory the arguing runs on, and the accessible
+   version of the whole board (spec §4, §11). */
+.dark__log {
+  flex: 0 0 auto;
+  min-height: 3.6em;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+  text-align: center;
+}
+
+.dark__log li:last-child {
+  color: var(--color-text);
+}
+
+.dark__timer {
+  height: 4px;
+  border-radius: 999px;
+  background: #141922;
+  overflow: hidden;
+}
+
+.dark__timer-fill {
+  height: 100%;
+  background: var(--game-accent, var(--color-accent));
+  transform-origin: left center;
+  transform: scaleX(1);
+}
+
+/* The same footprint whoever's turn it is, so the layout never jumps. */
+.dark__controls {
+  flex: 0 0 auto;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
+  align-items: center;
+  min-height: 9.5rem;
+}
+
+.dark__waiting {
+  margin: 0;
+  text-align: center;
+  font-size: var(--font-title);
+  color: var(--color-text-dim);
+}
+
+.dark__pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.dark__pad-label {
+  font-size: var(--font-small);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-dim);
+}
+
+/* A 3x3 with the four arrows on the cross — the middle stays empty, because
+   there is no "stay put" action. */
+.dark__pad-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 2.5rem);
+  grid-template-rows: repeat(3, 2.5rem);
+  gap: 2px;
+}
+
+.dark__key {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: inherit;
+  font-size: 1.1rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.dark__key--n { grid-area: 1 / 2; }
+.dark__key--w { grid-area: 2 / 1; }
+.dark__key--e { grid-area: 2 / 3; }
+.dark__key--s { grid-area: 3 / 2; }
+
+/* Light is match-yellow, walk is plain: the two differ only in colour and
+   label, because the choice between them IS the game and making them look
+   like different kinds of control would suggest one is the real one. */
+.dark__pad--light .dark__key {
+  color: #241a05;
+  background: var(--game-accent, #F6B93B);
+  border-color: var(--game-accent, #F6B93B);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The light does not flicker and the viewport snaps rather than easing
+     (spec §11) — which is already how both are built, so there is nothing
+     to suppress beyond the match's own glow. */
+  .dark__cell--lit {
+    box-shadow: none;
+  }
+}

@@ -51,6 +51,7 @@ export default defineConfig({
         'math-o-matic': 'www/math-o-matic/index.html',
         'tilt-race': 'www/tilt-race/index.html',
         'scream-meter': 'www/scream-meter/index.html',
+        'together-in-the-dark': 'www/together-in-the-dark/index.html',
         // The admin centre. Built to a PLACEHOLDER directory name and renamed to the
         // ADMIN_PATH secret by the deploy — this repository is public, so the real
         // path cannot be committed (docs/deployment.md §3.4).

@@ -25,6 +25,7 @@ import { CARD as COLOR_HUNT_CARD } from './color-hunt/card';
 import { CARD as MATH_CARD } from './math-o-matic/card';
 import { CARD as TILT_RACE_CARD } from './tilt-race/card';
 import { CARD as SCREAM_METER_CARD } from './scream-meter/card';
+import { CARD as DARK_CARD } from './together-in-the-dark/card';
 import type { GameCard } from '../core/types';
 
 /**
@@ -68,6 +69,7 @@ export const GAMES: GameCard[] = [
   MATH_CARD,
   TILT_RACE_CARD,
   SCREAM_METER_CARD,
+  DARK_CARD,
 ];
 
 /** Display order by status. One entry per value of `GameCard['status']`. */
