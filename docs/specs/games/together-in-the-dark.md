@@ -9,7 +9,7 @@
 | **Round length** | 2–3 min |
 | **Inputs** | touch |
 | **Accent colour** | `#F6B93B` |
-| **Status** | 📝 draft — awaiting approval ([#20](https://github.com/VincentGuigui/FonyGames/issues/20)) |
+| **Status** | 🎮 beta — built; the turn timer and the terrain-memory rule untested in a real room ([#20](https://github.com/VincentGuigui/FonyGames/issues/20)) |
 
 ## 1. Pitch
 
@@ -234,18 +234,49 @@ the room does.
 
 ## 12. Open questions
 
-1. **`DARK_TURN_MS`** — the round-length risk lives here. 8 s at 8 players is
-   already a 3-minute round with a shortened path; 6 s may be needed.
-2. **Does the dim terrain memory make it too easy?** It is the right call for
-   fairness (§2.2) but it is the one rule most likely to need tightening —
-   perhaps memory that fades after N turns.
-3. **`DARK_MONSTER_PATIENCE` and re-sleeping.** A monster that sleeps again is
-   bait-able and forgiving; one that never sleeps makes lighting genuinely
-   frightening. This decides how tense the game is.
-4. **Does `blindfold` earn its place?** It needs the reveal addressed to one
-   player rather than broadcast, which is a real change to §6 rather than a
-   flag, and it may simply be a worse version of the base game. Cut it if the
-   base loop already produces the arguing.
-5. **Whether the escape is visible from the start.** Hidden is more tense;
-   shown-as-a-direction (a compass arrow, no distance) may be the sweet spot
-   and would cut a lot of aimless lighting.
+Five were open when this spec was written. Three are settled by the build; two
+are genuinely room questions and stay open.
+
+1. **`DARK_TURN_MS`** — built at **7 s**, between the 6 and the 8 the spec
+   weighed. The round-length risk still lives here and it is the first thing to
+   shorten if a real room of eight drags. What the build can say is that the
+   deadline behaves: a run left completely alone auto-lights exactly once every
+   7 s, measured in a browser rather than argued about.
+2. **Does the dim terrain memory make it too easy?** Still open, and still the
+   rule most likely to need tightening. Memory that fades after N turns is the
+   obvious next thing to try, and nothing in the build makes that hard —
+   `seen` is a map from cell to kind and a turn number beside each entry would
+   do it.
+3. ~~**`DARK_MONSTER_PATIENCE` and re-sleeping.**~~ **Settled at 2, and it
+   sleeps again.** A monster that never sleeps makes lighting genuinely
+   frightening, and it also makes one bad light permanently ruin a run — which
+   in a co-op game is the same as ending it. Baiting one is now a real play,
+   and the test drives a full wake-walk-wait-sleep cycle to prove the bait
+   works.
+4. ~~**Does `blindfold` earn its place?**~~ **Not built.** It needs the reveal
+   addressed to one player rather than broadcast, which §6 correctly calls a
+   real change rather than a flag — and the base loop already produces the
+   arguing, which was the condition for cutting it. Declared in §3 and left
+   there.
+5. ~~**Whether the escape is visible from the start.**~~ **Settled: hidden.**
+   It appears on the wire only once somebody has actually lit it, which is the
+   tenser answer and the one that keeps `escape` out of a modified client's
+   reach. The compass-arrow middle ground from the spec would cut a lot of
+   aimless lighting and is the obvious thing to try if playtesting says the
+   first two minutes are dull.
+
+Three the build raised:
+
+6. **The guarantee is verified, not trusted.** The roller builds a map to have
+   a clear path and then re-derives it with a BFS that knows nothing about the
+   construction; a roll that fails is thrown away. 200 maps across five room
+   sizes are checked that way in `shared/darkMap.test.ts`. Worth knowing
+   because it makes the *cost* of tightening the map generation almost zero.
+7. **The unlit board is invisible, and that is intentional but untested.** An
+   unlit cell is `#080b10` on `#05070a`, so the board's extent can barely be
+   made out — which is right for a game about darkness and may read as a bug on
+   a phone in daylight. The first thing to check outdoors.
+8. **Trees are new.** The spec's map has traps and monsters; the build adds
+   trees as scenery that blocks a step and costs only the turn, because a
+   forest with nothing in it but hazards did not read as a forest. They are on
+   the guarantee's blocked list, so a rolled map still has a way through.
