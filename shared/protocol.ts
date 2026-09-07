@@ -3059,50 +3059,66 @@ export const TILT_SPOOL_MS = 3_000;
 export const TILT_TARGET_LAP_MS = 100_000;
 
 /**
- * Above `TILT_CRUISE_SPEED` the car skids: its heading lags the tilt, and the
- * velocity keeps pointing where the car used to face (spec §2.2). This is the
- * lag's time constant — the single number that decides whether the top of the
- * speed range is exciting or infuriating (§12 Q3).
+ * The turn rate the circuit actually demands, in radians per second.
  *
- * **It cannot be chosen apart from `TILT_TURN_RATE`.** Holding a constant turn
- * rate `w` against a first-order lag of time constant `t` settles at a steady
- * skid of `w × t` radians, so the two multiply: at the 320 ms this started as,
- * raising the turn rate to 4.6 gave a steady-state skid of 1.47 rad — the car
- * sliding 84° sideways at full tilt, which is not a skid, it is a spin.
+ * **Measured off the track, not chosen by feel.** A snaking circuit contains
+ * corners of radius `TILE / 3` ≈ 33 world units (`TIGHTEST_CORNER` in
+ * shared/tiltTrack.ts), and following a corner of radius `r` at speed `v` needs
+ * `v / r` rad/s. At `TILT_TOP_SPEED` that is 3.6.
  *
- * 110 ms puts the worst case at 0.5 rad, about 29°: enough to push a careless
- * driver into the outside rail on a corner, not enough to lose the car
- * altogether. `drive.test.ts` asserts the product rather than the constant, so
- * changing either one alone fails there.
+ * Nothing enforces it any more — the heading is the phone's own rotation, 1:1,
+ * so how fast the car turns is how fast the wrist turns (spec §2.1). It stays
+ * because it is the number the skid below has to be judged against, and because
+ * it is what says the circuit is drivable at all: 3.6 rad/s is 206°/s, well
+ * inside a wrist.
  */
-export const TILT_SKID_TAU_MS = 110;
+export const TILT_CORNER_RATE = 3.6;
 
 /**
- * How fast the world rotates at full tilt, in radians per second.
+ * Above `TILT_CRUISE_SPEED` the car skids: its momentum lags its heading, and
+ * the velocity keeps pointing where the car used to face (spec §2.2). This is
+ * the lag's time constant — the single number that decides whether the top of
+ * the speed range is exciting or infuriating (§12 Q3).
  *
- * **Derived from the tightest corner, not chosen by feel.** A snaking circuit
- * contains corners of radius `TILE / 3` ≈ 33 world units (`TIGHTEST_CORNER` in
- * shared/tiltTrack.ts), and following a corner of radius `r` at speed `v` needs
- * `v / r` rad/s. At `TILT_TOP_SPEED` that is 3.6 rad/s — so at the 2.2 this
- * started as, the car was *physically unable* to take a corner even at cruise,
- * and an autopilot driving the circuit hit a rail on 98% of its frames. Found
- * by making `drive.test.ts` drive a whole lap rather than by playing it.
+ * **It can only be judged against a turn rate.** Holding a constant turn rate
+ * `w` against a first-order lag of time constant `t` settles at a steady skid
+ * of `w × t` radians, so the two multiply: at the 320 ms this started as, a
+ * corner-rate turn would settle at 1.15 rad — the car sliding 66° sideways,
+ * which is not a skid, it is a spin.
  *
- * 4.6 leaves about 25% of margin over the worst case, which the road's own
- * width adds to — a driver may cut a corner as well as follow it.
+ * 110 ms puts a corner-rate turn at 0.4 rad, about 23°: enough to push a
+ * careless driver into the outside rail, not enough to lose the car altogether.
+ * `drive.test.ts` asserts the product rather than the constant, so changing
+ * either one alone fails there. It is also now the *only* thing standing
+ * between a violent wrist flick and an instant reversal, which is exactly the
+ * physics it should be.
  */
-export const TILT_TURN_RATE = 4.6;
+export const TILT_SKID_TAU_MS = 110;
 
 /** Reverse is slow and deliberate — it is a way out of a mistake, not a
  *  driving mode. */
 export const TILT_REVERSE_SPEED = 45;
 
-/** A head-on hit resets speed to zero; a graze scrubs it by this much
- *  (the issue's "friction constant"). */
-export const TILT_SCRAPE_FRICTION = 0.55;
+/**
+ * How hard a rail keeps scrubbing while the car is still against it, in world
+ * units per second squared.
+ *
+ * The impact itself is a one-off (`railKeep` in the client's `drive.ts`); this
+ * is the part that runs for as long as contact lasts, which is what makes
+ * riding a wall round a corner a losing line rather than a free guide.
+ *
+ * **It has to beat the spool to mean anything.** A car regains speed at about
+ * `TILT_CRUISE_SPEED` per second, so anything under 100 here would let a
+ * scraping car accelerate. 180 leaves a net loss of ~80 u/s^2: about a second
+ * and a half of continuous contact to stop from cruise, and an immediate
+ * recovery the moment the car comes off the wall.
+ */
+export const TILT_SCRAPE_DECEL = 180;
 
-/** How square a hit has to be, as |cos| between the car's heading and the
- *  rail, before it counts as head-on rather than a graze. */
+/** How square a hit has to be, as |cos| between the car's momentum and the
+ *  rail's normal, before it is *called* head-on rather than a graze. The speed
+ *  it costs is continuous in that angle either way (`railKeep`); this only
+ *  decides which shake and which sound the renderer plays. */
 export const TILT_HEAD_ON = 0.55;
 
 /** How often a phone reports its own progress. The issue says "every 0.25ms",

@@ -3,43 +3,45 @@
 | | |
 | --- | --- |
 | **Slug** | `tilt-race` |
-| **Catchy sentence** | *The car holds still. Tilt the world around it* |
-| **Illustration** | `www/src/games/tilt-race/art/card.svg` — a small car dead centre, the track and its guardrails rotated hard around it, skid marks trailing out of the turn |
+| **Catchy sentence** | *Your phone is the steering wheel. Turn it right round* |
+| **Illustration** | `www/src/games/tilt-race/art/card.svg` — a small car dead centre on a track of red-kerbed corridors, turned hard into a bend with skid marks trailing out of it |
 | **Players** | 2–8 |
 | **Round length** | ~100 s |
 | **Inputs** | orientation + touch |
 | **Accent colour** | `#E4572E` |
-| **Status** | 🎮 beta — built; the skid, the turn rate and the circuit's own length untested on real phones ([#14](https://github.com/VincentGuigui/FonyGames/issues/14)) |
+| **Status** | 🎮 beta — built; the 1:1 steering, the skid and the circuit's own length untested on real phones ([#14](https://github.com/VincentGuigui/FonyGames/issues/14)) |
 
 ## 1. Pitch
 
-A little car on a track, seen from above — except the car never turns. It sits
-dead centre pointing up, and tilting the phone **rotates the world around it**.
-The whole track swings; you thread it through the gap.
+A little car on a track, seen from above. The map never moves — it is pinned
+north-up like a paper map on a table — and **the phone is the steering wheel**:
+turn it and the car turns with it, degree for degree, as far round as your
+wrist will go.
 
-It is the inversion that makes it, and it is the reason the game needs a
-primer: for about ten seconds it feels wrong, and then it feels like nothing
-else in the catalogue.
+It is the directness that makes it. There is no gain to learn and no rate to
+anticipate: where the phone points, the car points.
 
 ## 2. Core loop
 
-Forward is automatic and the car cannot steer. Tilt to rotate the track under
-it; hold reverse to back out of a mistake.
+Forward is automatic. Turn the phone to turn the car; hold reverse to back out
+of a mistake.
 
 1. The referee rolls a **track** at start — one closed circuit with guardrails
    down both sides — identical for every player, and broadcasts it.
 2. Everyone starts on the line together.
 3. **Speed builds by itself**: 0 → 100 over `TILT_SPOOL_MS` (3 s), then
    100 → 120 over another 3 s. There is no throttle.
-4. **Tilt rotates the terrain** around the fixed car (§5). Above 100, the car
-   **skids**: rotation lags the tilt and the car keeps some of its old heading
-   through a turn.
+4. **The phone's own rotation is the heading**, one for one (§2.1, §5). Above
+   100, the car **skids**: the momentum lags the heading and the car keeps some
+   of its old direction through a turn.
 5. **A reverse button** sits at the bottom of the screen — the bottom as
    gravity sees it, so it slides around the screen's edge as the phone turns.
    Press it and it **locks in place** until released, then falls back to
    wherever down has become.
-6. **Guardrails cost speed**: a front-on hit resets speed to 0; a glancing hit
-   scrubs it by `TILT_SCRAPE_FRICTION`.
+6. **Guardrails cost speed, by the angle of the hit** (§2.3): square on to the
+   rail leaves nothing, forty-five degrees leaves half, a pure graze costs
+   nothing on impact — and then `TILT_SCRAPE_DECEL` keeps taking speed off for
+   as long as the car is against the rail.
 7. First across the finish line wins. Everyone else runs until
    `TILT_RUN_CAP_MS` so a whole room gets a placing.
 
@@ -47,26 +49,82 @@ it; hold reverse to back out of a mistake.
 **Scoring:** finishing order; then distance along the track for anyone who did
 not finish, and best lap as a footnote.
 
-### 2.1 What "the car is fixed" actually means
+### 2.1 The map is fixed. The car turns.
 
-The car is drawn at the centre of the screen, pointing up, always. What
-changes is the **world transform**: the track rotates and translates under it.
-That is a rendering decision with one simulation consequence worth stating —
-the physics still runs in track space, where the car has a heading and a
-velocity like anything else. The renderer simply always puts the camera on the
-car and rotates so the car's heading is up.
+The track is drawn in one orientation and never rotates; the camera follows the
+car across it. The car sprite is at the centre of the screen and points wherever
+the car is pointing.
 
-This is the same relationship Asteroid Race has between its ship and its
-tunnel, and the same trap: the offsets must be derived from the axis they are
+**The steering is the phone's own rotation, and it is 1:1.** Turn the phone
+through a quarter, a half or a whole circle in its own plane and the car's
+heading turns by exactly that. No gain, no rate, no integration: `heading` is
+`base + roll`, where `base` is where the car pointed when the round started and
+`roll` comes straight from `roll.ts`.
+
+The two halves are one decision, not two. It was the other way round first —
+the car pinned upright with the world turning under it, steered by a tilt-to-
+turn-rate — and that pairing cannot survive a 1:1 control: a map that turned
+with the phone would cancel exactly the rotation the player is making, so the
+car would sit motionless on screen no matter how far the wrist went, and the one
+cue that the control is direct would be invisible. Fixed map, turning car.
+
+**Nothing caps how fast the heading can change**, and nothing should: the skid
+(§2.2) is the physics of a car that cannot change direction instantly, so a
+violent flick makes it slide rather than teleport. A rate cap on top would break
+the only property the control has.
+
+`TILT_CORNER_RATE` (3.6 rad/s) is no longer enforced anywhere — it is what the
+tightest corner *demands* at top speed, kept because it is the number the skid
+has to be judged against and because it is what says the circuit is drivable at
+all. 206°/s is well inside a wrist.
+
+### 2.3 What a guardrail costs
+
+Two things, and they are different in kind.
+
+**The impact**, once, and continuous in the angle. Writing `into` for the
+fraction of the car's momentum pointing *across* the track — |cos| against the
+rail's local normal — the speed retained is `1 - into²`:
+
+| Approach | `into` | Keeps |
+| --- | --- | --- |
+| square on to the rail | 1 | nothing |
+| forty-five degrees | cos 45 | half |
+| a pure graze, along the rail | 0 | everything |
+
+Those first two rows are the rule as it was given, and `1 - into²` is the curve
+through them. It is also the honest physical reading rather than a fitted one:
+`1 - into²` is `along²`, so what is absorbed is the kinetic energy aimed across
+the rail and what survives is the energy running along it.
+
+**The scrape**, every frame the car is still touching, at `TILT_SCRAPE_DECEL`
+(180 units/s²). This is what makes riding a wall round a corner a losing line
+rather than a free guide, and it has to beat the spool to mean anything at all
+— a car regains speed at about `TILT_CRUISE_SPEED` per second, so anything under
+100 would let a scraping car accelerate. The net −80 u/s² is about a second and
+a half of contact to stop from cruise, and an immediate recovery the moment the
+car comes off.
+
+`TILT_HEAD_ON` survives as a *presentation* threshold only: it decides whether
+the renderer plays the head-on shake or the graze one. The speed is continuous
+in the angle either way.
+
+The physics still runs in track space, where the car has a real heading and a
+real velocity — this is the same trap Asteroid Race warns about: the offsets
+must be derived from the axis they are
 applied to, or the framing drifts with the aspect ratio.
 
 ### 2.2 Skid
 
-Below 100, rotation is immediate — the world turns exactly as far as the tilt
-says. Above it, the car's heading is a **low-passed** version of the tilt,
-lagging by `TILT_SKID_TAU`, and the velocity keeps pointing where the car used
-to face. That is what makes the last 20 of the speed range a cost as well as a
-gain: the fast line is faster only if you can hold it.
+Below 100 the car goes exactly where it points. Above it, its **momentum** is a
+low-passed version of its heading, lagging by `TILT_SKID_TAU_MS`, so the
+velocity keeps pointing where the car used to face. That is what makes the last
+20 of the speed range a cost as well as a gain: the fast line is faster only if
+you can hold it.
+
+It is also the only limit on how fast the car can be turned, now that the
+heading is the wrist's own (§2.1) — snap the phone round at speed and the car
+does not follow, it slides.
 
 ## 3. Modes / variations
 
@@ -94,17 +152,30 @@ The round screen:
 
 ## 5. Inputs & sensors
 
-**`deviceorientation`** through the shared filter in
-`www/src/core/sensors/steer.ts`, calibrated at Ready
-([../device-capabilities.md](../device-capabilities.md) §2).
+**`deviceorientation`**, read once and used twice, through `roll.ts` — not the
+shared `core/sensors/steer.ts` filter, which this game no longer uses.
 
-- **One axis steers** (`gamma` → world rotation rate), with the dead zone the
-  shared filter already applies so a hand at rest does not creep.
-- **Gravity's own direction** places the reverse button, from the same
-  orientation event — no separate sensor.
+- **The phone's in-plane rotation steers** it, 1:1 (§2.1), calibrated at Ready
+  ([../device-capabilities.md](../device-capabilities.md) §2) so "hold it how
+  you like" is the zero.
+- **Gravity's own direction** places the reverse button, from the same event.
 - **Touch** for the reverse button only.
 
-**Fallbacks** (mandatory): none. The inverted tilt is the entire game, and a
+**Why not `gamma`.** `gamma` spans only −90..90 and folds back on itself past
+vertical, so it cannot describe a phone turned right round — and turning right
+round is the control. The in-plane direction of **gravity** can: it sweeps a
+full circle with no fold and no gimbal, and `gravityButton.ts` already derives
+it, pose by pose, for the reverse button. One instrument, two consumers.
+
+`rollTracker` **accumulates** rather than reporting an angle, adding the short
+way round from each reading to the last, so passing upside-down is continuous
+and two turns of the wrist read as two turns. There is no smoothing and no dead
+zone: the angle of a vector is a far steadier signal than one component of one,
+and a dead zone would break the very property the control is for. Below
+`ROLL_MIN_GRAVITY` of in-plane gravity — a phone nearly flat on its back — there
+is no direction to read and the tracker holds still rather than following noise.
+
+**Fallbacks** (mandatory): none. The tilt steering is the entire game, and a
 touch-steered version is a different one — the same call AGENTS.md §4 allows
 for Asteroid Race and Neon Fall. Disclosed in the lobby before anyone starts.
 
@@ -178,8 +249,9 @@ stored. Raw orientation readings never leave the phone.
 
 - **Tilt-only is an exclusion**, disclosed in the lobby (§5).
 - **Sensitivity is adjustable** in the gear menu, as Asteroid Race's is.
-- **Reduced motion**: the world still rotates — that is the game — but the
-  skid's visual smear and the collision shake are suppressed.
+- **Reduced motion**: the map never rotates at all now, which is a real
+  improvement here — only the car turns. The skid's visual smear and the
+  collision shake are still suppressed.
 - **The progress rail is announced as text** ("4th of 6, lap 1"), so the race
   state does not depend on reading a rotating map.
 - **The reverse button has a fixed accessible position** as an option, for
@@ -200,12 +272,14 @@ turned up two the spec had not thought to ask.
    ~100 s target lap rather than the speed being derived from a guess.
    `shared/tiltTrack.test.ts` measures the median lap at 105 s across 120
    rolled circuits.
-3. ~~**`TILT_SKID_TAU_MS`.**~~ **Settled at 110 ms, and it cannot be chosen
+3. ~~**`TILT_SKID_TAU_MS`.**~~ **Settled at 110 ms, and it cannot be judged
    alone.** A constant turn rate against a first-order lag settles at
    `rate × tau` radians of slide, so the skid and the turn rate multiply. At the
-   320 ms first written here the car slid 84° sideways at full tilt, which is a
-   spin rather than a skid; 110 ms puts the worst case at 29°. The test asserts
-   the *product*, so changing either constant alone fails.
+   320 ms first written here a corner-rate turn would settle at 66° of slide,
+   which is a spin rather than a skid; 110 ms puts it at 23°. The test asserts
+   the *product*, against `TILT_CORNER_RATE`. Since the heading is now the
+   wrist's own, this is also the only thing between a violent flick and an
+   instant reversal — which is exactly the physics it should be.
 4. **Does the reverse button really need to move?** Still open, and still a
    lovely detail with a real accessibility cost. It is built as the issue asks
    — it follows gravity round the screen's edge and freezes while held — and
@@ -221,12 +295,12 @@ turned up two the spec had not thought to ask.
 
 Two the build raised:
 
-6. **The turn rate is set by the tightest corner, and it is fast.** A snaking
-   circuit contains corners of radius `TILE / 3`, and following one at top
-   speed needs 3.6 rad/s — so `TILT_TURN_RATE` is 4.6, which is 260°/s of world
-   rotation at full tilt. That is a lot of screen movement, and it is the first
-   thing to feel wrong on a real phone. The alternative is a slower car or a
-   looser roller, and both change the lap time.
+6. **The tightest corner asks for 206°/s of wrist.** A snaking circuit contains
+   corners of radius `TILE / 3`, and following one at top speed needs 3.6 rad/s
+   (`TILT_CORNER_RATE`). Nothing caps it any more — the wrist is the limit — but
+   it is a real physical demand, and whether a hand can hold that through a
+   sequence of corners is the first thing to find out on a real phone. The
+   alternative is a slower car or a looser roller, and both change the lap time.
 7. **The circuit reads as a maze rather than a race track.** Getting a 100 s lap
    out of an 11×15 grid means corridors packed one tile apart, so a lot of road
    is visible that cannot be reached from where the car is. It is correct — the

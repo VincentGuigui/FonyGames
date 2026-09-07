@@ -1,10 +1,9 @@
 import {
   TILT_HEAD_ON,
   TILT_REVERSE_SPEED,
-  TILT_SCRAPE_FRICTION,
+  TILT_SCRAPE_DECEL,
   TILT_SKID_TAU_MS,
   TILT_SPOOL_MS,
-  TILT_TURN_RATE,
   TILT_CRUISE_SPEED,
   tiltSpeedAt,
 } from '../../../../shared/protocol';
@@ -31,8 +30,13 @@ import { TRACK_HALF_WIDTH, atArc, locate, type Point, type Track } from '../../.
  */
 
 export type DriveInput = {
-  /** Filtered tilt, −1..1, from `core/sensors/steer.ts`. */
-  steer: number;
+  /**
+   * How far the phone has been rotated in its own plane since the round
+   * started, in radians, from `roll.ts`. **Not a steer**: this is an angle the
+   * car's heading matches one for one, so a quarter turn of the wrist is a
+   * quarter turn of the car.
+   */
+  roll: number;
   /** Is the reverse button held? */
   reverse: boolean;
 };
@@ -44,6 +48,9 @@ export type Drive = {
   at: Point;
   /** Where the car points, radians. 0 is +x. */
   heading: number;
+  /** Where it pointed when the phone's roll was zero. `heading` is always
+   *  `base + roll`, which is what makes the control 1:1 (spec §2.1). */
+  base: number;
   /** How fast it is going along `heading`, world units per second. */
   speed: number;
   /**
@@ -69,6 +76,7 @@ export function startDrive(track: Track, startS = 0): Drive {
   return {
     at: { x: at.x, y: at.y },
     heading,
+    base: heading,
     speed: 0,
     drift: heading,
     runMs: 0,
@@ -119,13 +127,21 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
     next.speed = car.speed < 0 ? 0 : Math.min(ceiling, car.speed + ceiling * dt);
   }
 
-  // Tilt rotates the world around the car, which in track space is the car
-  // turning (spec §2.1).
-  next.heading = car.heading + input.steer * TILT_TURN_RATE * dt;
+  /*
+   * The heading IS the phone's rotation, offset by wherever the car started
+   * (spec §2.1). No gain, no rate, no integration — turn the wrist through a
+   * half circle and the car points the other way.
+   *
+   * Nothing here limits how fast that can happen, and it does not need to: the
+   * skid below is the physics of a car that cannot change direction instantly,
+   * so a violent flick makes it slide rather than teleport. A rate cap on top
+   * would only break the one property the control exists for.
+   */
+  next.heading = car.base + input.roll;
 
   /*
-   * Skid. Below cruise the momentum is the heading exactly — the world turns
-   * as far as the tilt says. Above it, the momentum is a low-passed version,
+   * Skid. Below cruise the momentum is the heading exactly — the car goes
+   * where it points. Above it, the momentum is a low-passed version,
    * so the car keeps some of its old direction through a turn and the last
    * fifth of the speed range is a cost as well as a gain (spec §2.2).
    */
@@ -155,27 +171,27 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
   }
 
   /*
-   * Into a rail. The car does not move, and how much it costs depends on how
-   * square the hit was: head-on resets the speed to zero, a graze scrubs it by
-   * a constant (spec §2, the issue's own rule).
+   * Into a rail. The car does not move, and what it costs depends on how
+   * square the hit was — continuously, not in two buckets.
    *
    * "Square" is measured against the RAIL, which runs along the track, so the
    * test is how much of the momentum was across the track rather than along
-   * it — the component along the local normal.
+   * it: the component along the local normal.
    */
   const normal = { x: -found.tangent.y, y: found.tangent.x };
   const into = Math.abs(Math.cos(next.drift) * normal.x + Math.sin(next.drift) * normal.y);
-  if (into >= TILT_HEAD_ON) {
-    next.speed = 0;
-    next.runMs = 0;
-    next.bump = 'head-on';
-  } else {
-    next.speed *= 1 - TILT_SCRAPE_FRICTION;
-    // The spool is wound back to match, so a scrub is a real setback rather
-    // than a single slow frame.
-    next.runMs = spoolFor(next.speed);
-    next.bump = 'graze';
-  }
+  const before = next.speed;
+  next.speed = before * railKeep(into);
+  // Then friction, for as long as the car is still against the rail. This is
+  // the part that makes riding a wall round a corner a losing line: the impact
+  // is paid once, the scrape is paid every frame of contact.
+  const scrubbed = Math.max(0, Math.abs(next.speed) - TILT_SCRAPE_DECEL * dt);
+  next.speed = Math.sign(next.speed) * scrubbed;
+  // The spool is wound back to match, so a hit is a real setback rather than a
+  // single slow frame.
+  next.runMs = spoolFor(next.speed);
+  next.bump = into >= TILT_HEAD_ON ? 'head-on' : 'graze';
+
   // Slide along the rail rather than sticking to it: a car pinned to a wall at
   // zero speed with no way out is what the reverse button exists for, but a
   // graze should still carry you round the corner.
@@ -191,6 +207,26 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
     next.s = after.s;
   }
   return next;
+}
+
+/**
+ * What fraction of its speed a car keeps when it meets a rail, given `into` —
+ * how much of its momentum was pointing across the track rather than along it,
+ * as |cos| against the local normal.
+ *
+ * **Square-on keeps nothing, forty-five degrees keeps half.** Those are the two
+ * points the rule was given as, and `1 - into^2` is the curve through them:
+ * at 45 degrees to the rail `into` is cos 45, so `into^2` is a half. It is also
+ * the honest physical reading rather than a fitted curve — the kinetic energy
+ * aimed across the rail is absorbed and the energy running along it is not,
+ * which is what `1 - into^2 = along^2` says.
+ *
+ * A pure graze (momentum along the rail, `into` 0) therefore costs nothing on
+ * impact; what it costs is `TILT_SCRAPE_DECEL`, for as long as contact lasts.
+ */
+export function railKeep(into: number): number {
+  const n = Math.min(1, Math.max(0, into));
+  return 1 - n * n;
 }
 
 /** How far into the spool a given speed is — the inverse of `tiltSpeedAt`,

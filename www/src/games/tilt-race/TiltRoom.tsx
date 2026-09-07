@@ -20,12 +20,12 @@ import { StatusBar } from '../../core/ui/StatusBar';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { PermissionPrimer } from '../../core/ui/PermissionPrimer';
 import { orientationSupport, requestOrientation, type OrientationSupport } from '../../core/sensors/orientation';
-import { trackSteer } from '../../core/sensors/steer';
 import { useT } from '../../core/i18n/strings';
 import { useGameText } from '../../core/i18n/gameText';
 import { TrackCanvas } from './TrackCanvas';
 import { progress, startDrive, step, type Drive } from './drive';
 import { reverseSpot, type EdgeSpot } from './gravityButton';
+import { rollTracker } from './roll';
 import './tilt-race.css';
 
 /**
@@ -103,7 +103,7 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
 
   // The car. A ref, for the reason in this component's own doc comment.
   const carRef = useRef<Drive | null>(null);
-  const steerRef = useRef<ReturnType<typeof trackSteer> | null>(null);
+  const rollRef = useRef<ReturnType<typeof rollTracker> | null>(null);
   const reverseRef = useRef(false);
   const orientRef = useRef<{ gamma: number | null; beta: number | null }>({ gamma: null, beta: null });
   const lastReportRef = useRef(0);
@@ -123,19 +123,20 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     carRef.current = startDrive(track);
     finishedRef.current = false;
     lastReportRef.current = 0;
-    const tracker = trackSteer();
+    const tracker = rollTracker();
     tracker.calibrate();
-    steerRef.current = tracker;
+    rollRef.current = tracker;
 
-    // The same event the steering reads, for the reverse button's own place
-    // (spec §5) — no second sensor, no second permission.
+    // One event, one instrument: the steering and the reverse button's own
+    // place both come out of where gravity points (spec §5) — no second
+    // sensor, no second permission.
     const onOrient = (e: DeviceOrientationEvent): void => {
       orientRef.current = { gamma: e.gamma, beta: e.beta };
+      tracker.sample(e.gamma, e.beta);
     };
     window.addEventListener('deviceorientation', onOrient);
     return () => {
-      tracker.stop();
-      steerRef.current = null;
+      rollRef.current = null;
       window.removeEventListener('deviceorientation', onOrient);
     };
   }, [track, roundId, phase]);
@@ -157,8 +158,8 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       // phones away together (spec §2).
       if (s.phase !== 'running' || now < s.startsAt) return;
 
-      const steer = steerRef.current?.read() ?? 0;
-      const next = step(track, car, { steer, reverse: reverseRef.current }, dtMs);
+      const roll = rollRef.current?.read() ?? 0;
+      const next = step(track, car, { roll, reverse: reverseRef.current }, dtMs);
       carRef.current = next;
 
       if (now - lastReportRef.current >= TILT_REPORT_MS) {
@@ -366,12 +367,12 @@ function TiltPrimer({
   onEnable: () => void;
 }): JSX.Element {
   const text = useGameText();
-  const heading = text({ en: 'Tilt to turn the world', fr: 'Inclinez pour tourner le monde' });
+  const heading = text({ en: 'Your phone is the steering wheel', fr: 'Votre téléphone est le volant' });
 
   if (support === 'unsupported') {
     return <PermissionPrimer heading={heading} body={text({
-      en: 'This phone has no tilt sensor, and tilting is the only control this game has — Tilt Race cannot run here.',
-      fr: 'Ce téléphone n’a pas de capteur d’inclinaison, et l’inclinaison est la seule commande du jeu — Tilt Race ne peut pas fonctionner ici.',
+      en: 'This phone has no tilt sensor, and turning the phone is the only control this game has — Tilt Race cannot run here.',
+      fr: 'Ce téléphone n’a pas de capteur d’inclinaison, et tourner le téléphone est la seule commande du jeu — Tilt Race ne peut pas fonctionner ici.',
     })} />;
   }
 
@@ -380,8 +381,8 @@ function TiltPrimer({
       <PermissionPrimer
         heading={heading}
         body={text({
-          en: 'Tilt was turned down. There is no steering wheel and no tap version — the car cannot be pointed anywhere without it.',
-          fr: 'L’inclinaison a été refusée. Il n’y a ni volant ni version tactile — sans elle, la voiture ne peut être dirigée nulle part.',
+          en: 'Tilt was turned down. There is no on-screen wheel and no tap version — the car cannot be pointed anywhere without it.',
+          fr: 'L’inclinaison a été refusée. Il n’y a ni volant à l’écran ni version tactile — sans elle, la voiture ne peut être dirigée nulle part.',
         })}
         action={{ label: text({ en: 'Try again', fr: 'Réessayer' }), onClick: onEnable }}
       />
@@ -390,13 +391,13 @@ function TiltPrimer({
 
   if (on) {
     return <PermissionPrimer heading={heading} enabled body={text({
-      en: 'Ready. The car never turns — tilting rotates the track around it. It feels wrong for ten seconds, then it does not.',
-      fr: 'Prêt. La voiture ne tourne jamais — l’inclinaison fait pivoter la piste autour d’elle. C’est déroutant dix secondes, puis plus du tout.',
+      en: 'Ready. Turn the phone and the car turns with it, degree for degree — right round if you like. The map stays put.',
+      fr: 'Prêt. Tournez le téléphone et la voiture tourne avec lui, degré pour degré — un tour complet si vous voulez. La carte, elle, ne bouge pas.',
     })} />;
   }
 
   return <PermissionPrimer heading={heading} body={text({
-    en: 'This one needs the tilt sensor, and nothing else can play it. The car holds still and the whole track swings around it.',
-    fr: 'Ce jeu a besoin du capteur d’inclinaison, et rien d’autre ne permet d’y jouer. La voiture reste immobile et toute la piste pivote autour d’elle.',
+    en: 'This one needs the tilt sensor, and nothing else can play it. The phone is the steering wheel — turn it and the car turns with it.',
+    fr: 'Ce jeu a besoin du capteur d’inclinaison, et rien d’autre ne permet d’y jouer. Le téléphone est le volant — tournez-le et la voiture tourne avec lui.',
   })} />;
 }

@@ -1,12 +1,12 @@
-import { progress, spoolFor, startDrive, step, type Drive, type DriveInput } from './drive';
+import { progress, railKeep, spoolFor, startDrive, step, type Drive, type DriveInput } from './drive';
 import {
+  TILT_CORNER_RATE,
   TILT_CRUISE_SPEED,
   TILT_REVERSE_SPEED,
-  TILT_SCRAPE_FRICTION,
+  TILT_SCRAPE_DECEL,
   TILT_SKID_TAU_MS,
   TILT_SPOOL_MS,
   TILT_TOP_SPEED,
-  TILT_TURN_RATE,
   tiltSpeedAt,
 } from '../../../../shared/protocol';
 import { TRACK_HALF_WIDTH, atArc, locate, rollTrack, type Track } from '../../../../shared/tiltTrack';
@@ -21,8 +21,10 @@ import { TRACK_HALF_WIDTH, atArc, locate, rollTrack, type Track } from '../../..
  * silently wrong if it is applied in the wrong order:
  *
  * - **forward is automatic** and spools 0 → cruise → top;
+ * - **the heading is the phone's own rotation, 1:1** — no gain, no rate;
  * - **above cruise the car skids**, so the momentum lags the heading;
- * - **a head-on rail resets speed to zero, a graze scrubs it** by a constant;
+ * - **a rail costs what the angle of the hit says**, then keeps costing while
+ *   the car is against it;
  * - **reverse** backs out of a mistake.
  *
  * Plus the thing that would be invisible until somebody played a whole race:
@@ -88,7 +90,7 @@ function circleTrack(radius = 20000, steps = 720): Track {
 }
 
 const CIRCLE = circleTrack();
-const STRAIGHT: DriveInput = { steer: 0, reverse: false };
+const STRAIGHT: DriveInput = { roll: 0, reverse: false };
 const FRAME = 1000 / 60;
 
 /** Run `ms` of driving with a fixed input. */
@@ -104,10 +106,10 @@ function drive(car: Drive, input: DriveInput, ms: number, track = TRACK): Drive 
  *
  * This is a test instrument, not a game feature, and it earns its place by
  * being the only thing that can answer "is this circuit drivable at all?".
- * The first version steered at a third of this gain and had a dead
- * centreline term, which read as "the physics is broken" when the real
- * finding was that `TILT_TURN_RATE` was too low for the corners the roller
- * produces.
+ * Now that the heading is the phone's own rotation, an autopilot is simply a
+ * hand: it names the angle it wants the car to point at, and the car points
+ * there. That is a much more honest instrument than the old one, which had to
+ * guess a gain and hope the turn rate could keep up.
  */
 function autopilot(track: Track, car: Drive): DriveInput {
   const found = locate(track, car.at, car.index);
@@ -119,10 +121,9 @@ function autopilot(track: Track, car: Drive): DriveInput {
   // so a car on the rail does not try to drive straight at the far one.
   const correction = Math.max(-0.7, Math.min(0.7, -side / (TRACK_HALF_WIDTH * 1.5)));
   const want = along + correction;
-  let d = (want - car.heading) % (Math.PI * 2);
-  if (d > Math.PI) d -= Math.PI * 2;
-  if (d < -Math.PI) d += Math.PI * 2;
-  return { steer: Math.max(-1, Math.min(1, d * 6)), reverse: false };
+  // The roll a wrist would be holding to point the car there: heading is
+  // `base + roll`, so the roll it needs is the difference.
+  return { roll: want - car.base, reverse: false };
 }
 
 function theTrack(): void {
@@ -152,16 +153,35 @@ function spooling(): void {
 }
 
 function steering(): void {
-  console.log('\ntilt rotates the world around the car (§2.1)');
+  console.log('\nthe heading is the phone\'s own rotation, 1:1 (§2.1)');
 
   const car = startDrive(CIRCLE);
-  const left = step(CIRCLE, car, { steer: -1, reverse: false }, 100);
-  const right = step(CIRCLE, car, { steer: 1, reverse: false }, 100);
-  check('a left tilt turns one way', left.heading < car.heading);
-  check('a right tilt the other', right.heading > car.heading);
-  check('by the tilt rate', Math.abs(Math.abs(right.heading - car.heading) - TILT_TURN_RATE * 0.1) < 1e-9);
-  check('no tilt holds the heading', step(CIRCLE, car, STRAIGHT, 100).heading === car.heading);
-  check('half a tilt turns half as far', Math.abs(step(CIRCLE, car, { steer: 0.5, reverse: false }, 100).heading - car.heading - TILT_TURN_RATE * 0.05) < 1e-9);
+  check('a car starts pointing along the track, with the roll at zero', car.base === car.heading);
+
+  const quarter = Math.PI / 2;
+  check('a quarter turn of the wrist is a quarter turn of the car',
+    Math.abs(step(CIRCLE, car, { roll: quarter, reverse: false }, 100).heading - (car.base + quarter)) < 1e-12);
+  check('and the other way, the other way',
+    Math.abs(step(CIRCLE, car, { roll: -quarter, reverse: false }, 100).heading - (car.base - quarter)) < 1e-12);
+  check('no rotation holds the heading', step(CIRCLE, car, STRAIGHT, 100).heading === car.heading);
+
+  // The property that makes it "1:1" rather than "proportional": it is an
+  // angle, not a rate, so holding still does not keep turning.
+  const held = drive(car, { roll: 0.4, reverse: false }, 1_000, CIRCLE);
+  check('holding a rotation does not keep turning', Math.abs(held.heading - (car.base + 0.4)) < 1e-12, held.heading - car.base);
+  check('and it does not depend on how long the frame was',
+    Math.abs(step(CIRCLE, car, { roll: 0.4, reverse: false }, 5).heading
+      - step(CIRCLE, car, { roll: 0.4, reverse: false }, 500).heading) < 1e-12);
+
+  // All the way round, which is the point of the control: the wrist can go
+  // further than a gamma reading ever could, and the car goes with it.
+  for (const turns of [1, 2, -3]) {
+    const round = step(CIRCLE, car, { roll: turns * Math.PI * 2, reverse: false }, 100);
+    check(`  ${turns} whole turns of the wrist is ${turns} whole turns of the car`,
+      Math.abs(round.heading - (car.base + turns * Math.PI * 2)) < 1e-12);
+  }
+
+  check('the circuit never asks for more than a wrist can do', TILT_CORNER_RATE < 4, TILT_CORNER_RATE);
 }
 
 function skidding(): void {
@@ -171,13 +191,13 @@ function skidding(): void {
   // as the tilt says.
   const slow = drive(startDrive(CIRCLE), STRAIGHT, 1_000, CIRCLE);
   check(`below cruise (${slow.speed.toFixed(0)}) there is no skid`, Math.abs(slow.speed) <= TILT_CRUISE_SPEED && Math.abs(slow.heading - slow.drift) < 1e-9);
-  const turnedSlow = step(CIRCLE, slow, { steer: 1, reverse: false }, FRAME);
+  const turnedSlow = step(CIRCLE, slow, { roll: 0.3, reverse: false }, FRAME);
   check('so a turn moves the momentum with it', Math.abs(turnedSlow.heading - turnedSlow.drift) < 1e-9);
 
   // Above it, the momentum lags — the car keeps some of its old direction.
   const fast = drive(startDrive(CIRCLE), STRAIGHT, TILT_SPOOL_MS * 2.5, CIRCLE);
   check(`above cruise (${fast.speed.toFixed(0)})`, fast.speed > TILT_CRUISE_SPEED);
-  const turnedFast = step(CIRCLE, fast, { steer: 1, reverse: false }, FRAME);
+  const turnedFast = step(CIRCLE, fast, { roll: 0.3, reverse: false }, FRAME);
   check('a turn leaves the momentum behind', Math.abs(turnedFast.heading - turnedFast.drift) > 1e-6, {
     heading: turnedFast.heading,
     drift: turnedFast.drift,
@@ -194,8 +214,12 @@ function skidding(): void {
    * never from the position.
    */
   let held = fast;
+  let turned = 0;
   for (let i = 0; i < 120; i++) {
-    held = step(CIRCLE, held, { steer: 1, reverse: false }, FRAME);
+    // A wrist turning steadily at the rate the tightest corner demands, which
+    // is the worst case the circuit can actually ask for.
+    turned += TILT_CORNER_RATE * (FRAME / 1000);
+    held = step(CIRCLE, held, { roll: turned, reverse: false }, FRAME);
     const on = atArc(CIRCLE, held.s);
     held = { ...held, at: { x: on.at.x, y: on.at.y } };
   }
@@ -205,7 +229,7 @@ function skidding(): void {
    * eye — which is what makes it fail if either is changed alone.
    */
   const gap = Math.abs(held.heading - held.drift);
-  const steady = TILT_TURN_RATE * (TILT_SKID_TAU_MS / 1000);
+  const steady = TILT_CORNER_RATE * (TILT_SKID_TAU_MS / 1000);
   check(`the skid settles at w x t = ${steady.toFixed(2)} rad, and it did (${gap.toFixed(2)})`, Math.abs(gap - steady) < 0.05, { gap, steady });
   check(`which is a slide (${((steady * 180) / Math.PI).toFixed(0)} deg), not a spin`, steady < 0.7, steady);
   check('and the car is still at speed, so it really was skidding', held.speed > TILT_CRUISE_SPEED, held.speed);
@@ -242,13 +266,31 @@ function rails(): void {
     ...fast,
     at: { x: at.at.x + normal.x * TRACK_HALF_WIDTH * 0.9, y: at.at.y + normal.y * TRACK_HALF_WIDTH * 0.9 },
     heading: outward,
+    // `base` too, not just `heading`: the heading is derived from it every
+    // frame now, so a fixture that set only the heading would be steered
+    // straight back onto the track by the next step.
+    base: outward,
     drift: outward,
   };
   const hit = untilBump(intoWall);
-  check('a head-on hit is reported as one', hit.bump === 'head-on', hit.bump);
-  check('and resets the speed to nothing', hit.speed === 0, hit.speed);
+  check('a square-on hit is reported as head-on', hit.bump === 'head-on', hit.bump);
+  check('and leaves nothing at all', hit.speed === 0, hit.speed);
   check('and winds the spool back to the start', hit.runMs === 0);
   check('the car is still on the road', locate(CIRCLE, hit.at, hit.index).offset <= TRACK_HALF_WIDTH + 1e-6);
+
+  /*
+   * The curve itself, at the two points it was specified by: square on to the
+   * rail keeps nothing, forty-five degrees keeps half. `railKeep` takes the
+   * fraction of the momentum pointing ACROSS the track, so square-on is 1 and
+   * a 45-degree approach is cos 45.
+   */
+  check('square on to the rail keeps nothing', railKeep(1) === 0);
+  check('forty-five degrees keeps exactly half', Math.abs(railKeep(Math.cos(Math.PI / 4)) - 0.5) < 1e-12, railKeep(Math.cos(Math.PI / 4)));
+  check('and a pure graze keeps everything, on impact', railKeep(0) === 1);
+  check('it only ever falls as the hit squares up', (() => {
+    for (let i = 1; i <= 40; i++) if (railKeep(i / 40) > railKeep((i - 1) / 40)) return false;
+    return true;
+  })());
 
   // A shallow approach: mostly along the track, a little across it.
   const alongAngle = Math.atan2(at.tangent.y, at.tangent.x);
@@ -257,13 +299,35 @@ function rails(): void {
     ...fast,
     at: { x: at.at.x + normal.x * TRACK_HALF_WIDTH * 0.9, y: at.at.y + normal.y * TRACK_HALF_WIDTH * 0.9 },
     heading: shallow,
+    base: shallow,
     drift: shallow,
   };
   const scraped = untilBump(grazing);
   check(`a glancing hit is reported as a graze (${scraped.bump})`, scraped.bump === 'graze', scraped.bump);
-  check(`and scrubs the speed by ${(TILT_SCRAPE_FRICTION * 100).toFixed(0)}%`, scraped.speed < grazing.speed * 0.6, { before: grazing.speed, after: scraped.speed });
+  // sin(0.3) of the momentum is across the rail, so the impact alone keeps
+  // 1 - sin^2 = cos^2(0.3) ≈ 91%. What actually takes the speed off a shallow
+  // hit is the scrape, one frame of which is TILT_SCRAPE_DECEL * dt.
+  const impactOnly = grazing.speed * railKeep(Math.abs(Math.sin(0.3)));
+  const oneFrameOfScrape = TILT_SCRAPE_DECEL * (FRAME / 1000);
+  check('the impact itself barely touches it', Math.abs(impactOnly - grazing.speed * 0.91) < grazing.speed * 0.02, { impactOnly, before: grazing.speed });
+  check(`and the scrape is what costs, ${oneFrameOfScrape.toFixed(0)} per frame of contact`, scraped.speed < impactOnly - oneFrameOfScrape * 0.5, { after: scraped.speed, impactOnly });
   check('rather than stopping the car dead', scraped.speed > grazing.speed * 0.2, scraped.speed);
   check('and it keeps its place on the track rather than sticking', locate(CIRCLE, scraped.at, scraped.index).offset <= TRACK_HALF_WIDTH + 1e-6);
+
+  /*
+   * The scrape is a rate, not a one-off — which is the whole difference between
+   * a wall you bounce off and a wall you must not ride. Held against the rail,
+   * the speed keeps falling frame after frame.
+   */
+  let riding = scraped;
+  const trail: number[] = [riding.speed];
+  for (let i = 0; i < 20 && riding.bump !== 'none'; i++) {
+    riding = step(CIRCLE, riding, { roll: riding.heading - riding.base, reverse: false }, FRAME);
+    trail.push(riding.speed);
+  }
+  check(`riding the rail keeps costing (${trail[0]?.toFixed(0)} → ${riding.speed.toFixed(0)})`, riding.speed < (trail[0] ?? 0), trail.map((v) => Math.round(v)));
+  check('and the scrape beats the spool, or a wall would be a free guide', TILT_SCRAPE_DECEL > TILT_CRUISE_SPEED, TILT_SCRAPE_DECEL);
+
   check('a clean lap step reports no bump', drive(startDrive(CIRCLE), STRAIGHT, 200, CIRCLE).bump === 'none');
 }
 
@@ -271,7 +335,7 @@ function reversing(): void {
   console.log('\nreverse backs out of a mistake (§2)');
 
   const stuck = drive(startDrive(CIRCLE), STRAIGHT, 2_000, CIRCLE);
-  const backing = step(CIRCLE, stuck, { steer: 0, reverse: true }, FRAME);
+  const backing = step(CIRCLE, stuck, { roll: 0, reverse: true }, FRAME);
   check('reverse is a negative speed', backing.speed === -TILT_REVERSE_SPEED);
   check('and it is slow', TILT_REVERSE_SPEED < TILT_CRUISE_SPEED);
   check('it resets the spool', backing.runMs === 0);
@@ -315,7 +379,7 @@ function reversingOverTheLine(): void {
   // over the line: the lap must come back off rather than counting twice.
   let car = startDrive(TRACK, TRACK.length * 0.02);
   car = { ...car, lap: 1 };
-  const backed = drive(car, { steer: 0, reverse: true }, 3_000);
+  const backed = drive(car, { roll: 0, reverse: true }, 3_000);
   check('backing over the line takes the lap back off', backed.lap <= 1, backed.lap);
   const forward = drive(backed, STRAIGHT, 4_000);
   check('and driving forward over it again re-earns it, not double-counts', forward.lap <= 1 + 1, forward.lap);

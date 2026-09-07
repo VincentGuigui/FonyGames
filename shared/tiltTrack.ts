@@ -55,7 +55,7 @@ export const TRACK_HALF_WIDTH = TILE * 0.36;
  * the radius at a third of the shorter leg, so the tightest corner on a real
  * track is `TILE / 3` ≈ 33 units. Following a corner of radius `r` at speed
  * `v` needs `v / r` radians per second, so at `TILT_TOP_SPEED` that is
- * 120 / 33 ≈ 3.6 rad/s — which is why `TILT_TURN_RATE` is what it is. The two
+ * 120 / 33 ≈ 3.6 rad/s, which is what `TILT_CORNER_RATE` records. The two
  * constants cannot be chosen apart, and `drive.test.ts` drives a whole lap to
  * prove the pairing works.
  */

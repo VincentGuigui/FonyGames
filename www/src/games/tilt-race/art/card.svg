@@ -1,20 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" role="img" width="120" height="90">
   <title>Tilt Race</title>
   <rect width="120" height="90" fill="#151A16"/>
-  <g transform="rotate(-24 60 45)">
-    <path d="M-30 22 H150" stroke="#2B2F38" stroke-width="30" stroke-linecap="round"/>
-    <path d="M-30 22 H150" stroke="#C0392B" stroke-width="2" stroke-dasharray="7 6" opacity="0.75" transform="translate(0 -15)"/>
-    <path d="M-30 22 H150" stroke="#C0392B" stroke-width="2" stroke-dasharray="7 6" opacity="0.75" transform="translate(0 15)"/>
-    <path d="M-30 70 H150" stroke="#2B2F38" stroke-width="30" stroke-linecap="round"/>
-    <path d="M-30 70 H150" stroke="#C0392B" stroke-width="2" stroke-dasharray="7 6" opacity="0.75" transform="translate(0 -15)"/>
-    <path d="M-30 70 H150" stroke="#C0392B" stroke-width="2" stroke-dasharray="7 6" opacity="0.75" transform="translate(0 15)"/>
-    <path d="M22 6 V16 M34 4 V14" stroke="#E8EAF0" stroke-width="2" opacity="0.5"/>
+  <!-- The map is level, always. Kerb first, road on top of it, exactly as
+       TrackCanvas draws it, so a bend gets its red edge for free. -->
+  <g fill="none" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M-27 30 H48 Q66 30 66 48 V105" stroke="#C0392B" stroke-width="36"/>
+    <path d="M-27 30 H48 Q66 30 66 48 V105" stroke="#2B2F38" stroke-width="30"/>
+    <path d="M-27 30 H48 Q66 30 66 48 V105" stroke="#E8EAF0" stroke-width="1.6" stroke-dasharray="7 6" opacity="0.5"/>
+    <path d="M100 -12 V38 Q100 56 118 56 H140" stroke="#C0392B" stroke-width="36"/>
+    <path d="M100 -12 V38 Q100 56 118 56 H140" stroke="#2B2F38" stroke-width="30"/>
+    <path d="M100 -12 V38 Q100 56 118 56 H140" stroke="#E8EAF0" stroke-width="1.6" stroke-dasharray="7 6" opacity="0.5"/>
   </g>
-  <g opacity="0.55" stroke="#E8EAF0" stroke-width="2" stroke-linecap="round" fill="none">
-    <path d="M46 62 C50 57 52 54 51 50"/>
-    <path d="M74 62 C70 57 68 54 69 50"/>
+  <!-- Skid marks, trailing back up the straight the car has just left. -->
+  <g opacity="0.5" stroke="#E8EAF0" stroke-width="2" stroke-linecap="round" fill="none">
+    <path d="M36 24 C44 24 50 26 54 30"/>
+    <path d="M32 37 C40 37 47 38 51 41"/>
   </g>
-  <g transform="translate(60 45)">
+  <!-- The car, turned into the bend: it points where it is going, and the map
+       underneath it does not move. -->
+  <g transform="translate(60 35) rotate(130)">
     <path d="M0 -13 L7 12 L0 8 L-7 12 Z" fill="#E4572E"/>
     <ellipse cx="0" cy="-2" rx="2.6" ry="4.4" fill="#0F1420"/>
   </g>

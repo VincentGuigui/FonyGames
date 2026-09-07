@@ -14,15 +14,22 @@ import type { Drive } from './drive';
  *
  * ## The one thing that makes this canvas different
  *
- * **The car never moves and never rotates on screen.** It is drawn dead centre
- * pointing up, always, and what changes is the world transform: the track
- * rotates and translates under it (spec §2.1).
+ * **The map never rotates. The car does.** The track is drawn in a fixed
+ * orientation — north up, always — and the camera simply follows the car across
+ * it (spec §2.1).
  *
  * That is two lines of `ctx` setup and it is the whole game:
  *
  *     translate(width / 2, height / 2)     put the camera on the car
- *     rotate(-heading - PI / 2)            turn so the car's heading is up
  *     translate(-car.x, -car.y)            and centre it
+ *
+ * It was the other way round first: the car pinned upright and the world
+ * turning under it. That is the conventional choice and it is wrong for *this*
+ * control, because the steering is the phone's own rotation, 1:1 (`roll.ts`).
+ * A map that turned with the phone would cancel the very rotation the player is
+ * making — the car would sit still on screen no matter how far the wrist went,
+ * and the one cue that the control is direct would be invisible. Fixed map,
+ * turning car: the sprite on screen points wherever the phone points.
  *
  * The physics is untouched by any of it — `drive.ts` runs in track space, where
  * the car has a real heading. Simulating in screen space instead is the trap
@@ -101,7 +108,6 @@ export function TrackCanvas({ track, car, rivals, accent, span = 460, onFrame }:
       ctx.save();
       ctx.translate(width / 2, height / 2);
       ctx.scale(scale, scale);
-      ctx.rotate(-state.heading - Math.PI / 2);
       ctx.translate(-state.at.x, -state.at.y);
 
       // The road: one thick stroke down the centreline, so the drawn surface
@@ -154,22 +160,26 @@ export function TrackCanvas({ track, car, rivals, accent, span = 460, onFrame }:
         ctx.save();
         ctx.globalAlpha = 0.55;
         ctx.translate(on.at.x, on.at.y);
-        // Undo the world rotation so an avatar is never upside down.
-        ctx.rotate(state.heading + Math.PI / 2);
+        // No counter-rotation needed any more: the world never turns, so an
+        // avatar drawn upright stays upright.
         ctx.fillText(rival.avatar, 0, 0);
         ctx.restore();
       }
       ctx.restore();
 
       /*
-       * The car, in SCREEN space: dead centre, pointing up, never rotating.
-       * Drawn after `restore()` precisely so no world transform can reach it —
-       * that is what "the car is fixed" means (spec §2.1).
+       * The car: always dead centre of the screen, and rotated to its own
+       * heading. Drawn after `restore()` so it is sized in pixels rather than
+       * world units — a car that scaled with the zoom would vanish at 460 span.
+       *
+       * The art points up (nose at -y) and a heading of 0 is +x, so the sprite
+       * is turned by `heading + PI/2` to point where the car is going.
        */
       const carLength = Math.max(26, 44 * scale * 1.6);
       const carWidth = carLength * 0.55;
       ctx.save();
       ctx.translate(width / 2, height / 2);
+      ctx.rotate(state.heading + Math.PI / 2);
       ctx.fillStyle = accent;
       ctx.beginPath();
       // A blunt wedge: nose up, so "which way is forward" needs no explaining.
@@ -185,9 +195,11 @@ export function TrackCanvas({ track, car, rivals, accent, span = 460, onFrame }:
       ctx.fill();
 
       /*
-       * The skid, drawn as a wedge behind the car pointing where the momentum
-       * actually goes. It is the only cue that the car is sliding, since the
-       * car itself cannot rotate on screen to show it.
+       * The skid, as a wedge trailing where the momentum actually goes rather
+       * than where the nose points. The car does rotate on screen now, so this
+       * is no longer the only cue that it is sliding — but the gap between the
+       * two is exactly what a skid is, and drawing it is what makes the gap
+       * legible at speed.
        */
       const slip = state.drift - state.heading;
       if (Math.abs(state.speed) > TILT_CRUISE_SPEED && Math.abs(slip) > 0.02) {
