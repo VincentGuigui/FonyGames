@@ -46,13 +46,17 @@
   color: var(--text-dim);
 }
 
-/* Both lines reserve their height whatever they hold, so the panel is the same
+/* Both lines are a fixed height whatever they hold, so the panel is the same
    size all round: the prompt is 1.3rem and the points are 2.2rem, and a panel
-   that grew on reveal would shove the wheel down the page mid-level. */
+   that grew on reveal would shove the wheel down the page mid-level. Flex
+   rather than a line box, because two inline fonts of different sizes on one
+   line union their extents and can outgrow the line-height they were given. */
 .cmatch__score {
   margin: 0;
-  min-height: 2.7rem;
-  line-height: 2.7rem;
+  height: 2.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* What the points are made of, one line under them: accuracy out of 100 and
@@ -63,8 +67,9 @@
   font-weight: 500;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
-  min-height: 1.2rem;
+  height: 1.2rem;
   line-height: 1.2rem;
+  overflow: hidden;
 }
 
 .cmatch__breakdown strong {
@@ -74,6 +79,7 @@
 /* The number is the feedback; the word is a unit. */
 .cmatch__points {
   font-size: 2.2rem;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
   margin-right: 0.25em;
 }
