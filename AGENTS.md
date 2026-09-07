@@ -13,32 +13,23 @@ file under 200 lines** — put detail in `docs/`, not here.
 
 | Aspect | File |
 | --- | --- |
-| Project overview & pitch | [README.md](./README.md) |
-| Full docs index | [docs/README.md](./docs/README.md) |
+| Overview & pitch · full docs index | [README.md](./README.md) · [docs/README.md](./docs/README.md) |
 | Architecture & tech stack | [docs/architecture.md](./docs/architecture.md) |
 | Multiplayer & networking | [docs/multiplayer.md](./docs/multiplayer.md) |
-| Realtime backend survey (D3) | [docs/realtime-options.md](./docs/realtime-options.md) |
-| Realtime server (Durable Objects) | [docs/realtime-server.md](./docs/realtime-server.md) |
-| Device capabilities (sensors, GPS, bump…) | [docs/device-capabilities.md](./docs/device-capabilities.md) |
-| Voice/spectrum matching study (#28) | [docs/audio-voice-matching.md](./docs/audio-voice-matching.md) |
+| Realtime: [options survey](./docs/realtime-options.md) · [the server](./docs/realtime-server.md) | Durable Objects |
+| Device capabilities (sensors, GPS, bump…) | [docs/device-capabilities.md](./docs/device-capabilities.md) — plus the [voice-matching study](./docs/audio-voice-matching.md) (#28) |
 | Deployment (branches, environments, secrets) | [docs/deployment.md](./docs/deployment.md) |
 | Database (MySQL, migrations) | [docs/database.md](./docs/database.md) |
-| UI / UX & visual guidelines | [docs/design/ui-guidelines.md](./docs/design/ui-guidelines.md) |
-| Illustrations & game art (where art lives, sprites) | [docs/design/illustrations.md](./docs/design/illustrations.md) |
-| In-game chrome (gear menu, rules panel) | [docs/design/game-chrome.md](./docs/design/game-chrome.md) |
-| Commit convention | [docs/conventions/commits.md](./docs/conventions/commits.md) |
-| Code style | [docs/conventions/code-style.md](./docs/conventions/code-style.md) |
+| Design: [UI / UX](./docs/design/ui-guidelines.md) · [illustrations & sprites](./docs/design/illustrations.md) · [in-game chrome](./docs/design/game-chrome.md) | `docs/design/` |
+| Conventions: [commits](./docs/conventions/commits.md) · [code style](./docs/conventions/code-style.md) | `docs/conventions/` |
 | Testing strategy | [docs/testing.md](./docs/testing.md) |
-| Roadmap & open decisions | [docs/roadmap.md](./docs/roadmap.md) |
-| Monetization options & what each costs | [docs/monetization.md](./docs/monetization.md) |
-| Specs index (hub + games) | [docs/specs/README.md](./docs/specs/README.md) |
-| Hub spec | [docs/specs/hub.md](./docs/specs/hub.md) |
+| Roadmap & open decisions · monetization | [docs/roadmap.md](./docs/roadmap.md) · [monetization_v1](./docs/monetization_v1.md), [v2](./docs/monetization_v2_global.md), [interstitials](./docs/monetization_v2_interstitial.md) |
+| Specs: [index](./docs/specs/README.md) · [hub](./docs/specs/hub.md) · [game template](./docs/specs/game-spec-template.md) | `docs/specs/` |
 | Join methods (link, code, QR, smart join) | [docs/specs/join.md](./docs/specs/join.md) |
 | Backoffice spec (flags, admin — in PHP) | [docs/specs/backoffice.md](./docs/specs/backoffice.md) |
 | SEO, link previews & server-rendered HTML | [docs/specs/seo.md](./docs/specs/seo.md) |
 | Language (English + French) | [docs/specs/i18n.md](./docs/specs/i18n.md) |
 | Analytics (Cloudflare beacon + activity log) | [docs/specs/analytics.md](./docs/specs/analytics.md) |
-| Game spec template | [docs/specs/game-spec-template.md](./docs/specs/game-spec-template.md) |
 
 ---
 
@@ -46,22 +37,18 @@ file under 200 lines** — put detail in `docs/`, not here.
 
 ```
 /                     README.md, CLAUDE.md, AGENTS.md, package.json, wrangler.jsonc
-/docs                 documentation
-/docs/conventions     commits, code style
-/docs/design          UI/UX guidelines, assets guidance
-/docs/specs           hub spec + one file per game under /docs/specs/games
+/docs                 documentation — conventions/, design/, specs/ (see §1)
 /www                  source of the site (hub + games) — compiled, not served
 /worker               the room server: Cloudflare Durable Objects
-/api                  PHP: flags, admin centre, counters — the only thing that
-                      can reach MySQL. Tested by `npm run test:php`
+/api                  PHP: flags, admin, counters — the only thing that reaches
+                      MySQL. Tested by `npm run test:php`
 /db                   init.sql + idempotent migrations
 /shared               wire protocol *and game maths* shared by www/ and worker/
 /dist                 build output — generated, gitignored, deployed
 ```
 
-Two deploy targets, both driven from `dev`/`prod`:
-`dist/` + `api/` → the web host, `worker/` → Cloudflare.
-Nothing outside those ships. Nothing outside `docs/` documents.
+Two deploy targets, both driven from `dev`/`prod`: `dist/` + `api/` → the web
+host, `worker/` → Cloudflare. Nothing else ships; nothing outside `docs/` documents.
 
 ---
 
@@ -70,7 +57,10 @@ Nothing outside those ships. Nothing outside `docs/` documents.
 1. **Everything is written down.** Any rule, decision, or statement produced in
    a conversation must land in one of the files indexed above — in the right
    one. If it fits nowhere, create the file and add it to the index (here and
-   in `docs/README.md`).
+   in `docs/README.md`). **Anything about how a contributor or agent *behaves
+   every time* goes HERE; `docs/` gets the reasoning.** This is the only file an
+   agent is guaranteed to have read, so a behavioural rule left in `docs/` alone
+   gets silently dropped — which is how both of §5's were lost once already.
 2. **One change, one commit.** Every modification is committed with a short,
    explicit, prefixed message. See
    [docs/conventions/commits.md](./docs/conventions/commits.md). Update docs in
@@ -78,19 +68,17 @@ Nothing outside those ships. Nothing outside `docs/` documents.
 3. **No big-bang changes without validation.** Do not introduce a framework,
    restructure directories, add a backend, add a dependency, or ship a new game
    engine without asking the maintainer first. Propose → get a yes → build.
-   Small, incremental, reviewable steps are the default. That default is
-   *pragmatic*, not closed: a rendering library or game engine (PixiJS,
-   Phaser, …) is worth proposing case by case when a specific game's motion,
-   particle count, or effects genuinely need it — weighed against its real
-   bundle cost ([architecture.md](./docs/architecture.md) §4) and against
-   what plain DOM/canvas already covers, not adopted as a house default for
-   every future game. Still asked first, every time.
-4. **Art is a file, comments are short.** Illustrations, sprites and other
-   hand-drawn game art belong in `art/*.svg`, never inline SVG in a component —
-   see [docs/design/illustrations.md](./docs/design/illustrations.md) and
-   [docs/conventions/code-style.md](./docs/conventions/code-style.md). Comments in
-   CSS and client-side code stay to a line or two of *why*; a design walkthrough
-   belongs in the game's spec or the commit message, not the source file.
+   Small, incremental, reviewable steps are the default — *pragmatic*, not
+   closed: a rendering engine (PixiJS, Phaser, …) is worth proposing when one
+   game's motion or particle count genuinely needs it, weighed against its bundle
+   cost ([architecture.md](./docs/architecture.md) §4) and against what plain
+   DOM/canvas already does. Never a house default; still asked, always.
+4. **Art is a file, comments are short.** Illustrations and sprites live in
+   `art/*.svg`, never inline SVG in a component
+   ([illustrations.md](./docs/design/illustrations.md),
+   [code-style.md](./docs/conventions/code-style.md)). Comments in CSS and
+   client code stay to a line or two of *why*; a design walkthrough belongs in
+   the spec or the commit message, not the source file.
 5. **Never run computer vision on a user-provided image without asking
    first.** Cropping, OCR, edge/colour analysis or any other automated
    inspection of an attached image needs an explicit yes before it runs — read
@@ -106,69 +94,60 @@ Nothing outside those ships. Nothing outside `docs/` documents.
 - **Zero friction.** No install, no account, no download. A game must be
   reachable in ≤ 3 taps from a shared link.
 - **A game is sold with two things**: one explicit illustration and one catchy
-  sentence. Both are mandatory in the game's spec before any code.
-- **A game may have several modes/variations.** Modes are declared in the
-  game's spec, share the same core loop, and are pickable in the game lobby.
+  sentence, both mandatory in its spec before any code.
+- **A game may have several modes/variations**, declared in its spec, sharing the
+  core loop, pickable in the lobby.
 - **Rounds are short.** Target 30 s – 3 min per round. Fun beats depth.
 - **Degrade, never dead-end.** If a sensor or permission is unavailable, offer
   a touch-based fallback or say clearly why the game can't run. **A fallback is
-  the recommendation, not a gate**: prefer one, and take the second branch when
-  the touch version would be a different, lesser game rather than the same one
-  played another way — one physical act, like holding a phone still, shaking
-  it, pointing it at your own sky, flying it, or aiming a camera at a colour.
-  **Steady Hand**, **Shake Rush**, **UFO Hunt**, **Asteroid Race**, **Neon
-  Fall** and **Color Hunt** are the ones that do. Whichever branch a game
-  takes, two things are required of it: it says who it excludes, in the lobby,
-  before anyone starts, and a permission it cannot run without is asked for by
-  Ready/Start rather than by a button of its own
-  ([docs/device-capabilities.md](./docs/device-capabilities.md) §2).
+  the recommendation, not a gate**: prefer one, and go without when the touch
+  version would be a different, lesser game — one physical act, like holding a
+  phone still or aiming a camera at a colour. Either way the game says who it
+  excludes, in the lobby, before anyone starts, and any permission it cannot run
+  without is asked for by Ready/Start, not by a button of its own (the games
+  that qualify, and both rules:
+  [device-capabilities.md](./docs/device-capabilities.md) §2).
 
 ---
 
 ## 5. Dev workflow
 
-1. **Spec first.** New game → copy
-   [docs/specs/game-spec-template.md](./docs/specs/game-spec-template.md) into
-   `docs/specs/games/<slug>.md`, fill it, register it in
-   [docs/specs/README.md](./docs/specs/README.md), commit as `spec:`.
+1. **Spec first.** New game → copy [the template](./docs/specs/game-spec-template.md)
+   to `docs/specs/games/<slug>.md`, fill it, register it in
+   [specs/README.md](./docs/specs/README.md), commit as `spec:`.
 2. **Validate.** Get maintainer approval on the spec before writing code.
 3. **Build.** Implement under `www/`, incrementally, committing each step.
-4. **Test.** `npm run typecheck && npm test`, then the checks in
-   [docs/testing.md](./docs/testing.md); at minimum verify on a real phone (or
-   device emulation) before declaring done. Any scoring, timing or win rule
-   gets a test in the same commit series.
+4. **Test.** `npm run typecheck && npm test`, then [testing.md](./docs/testing.md);
+   at minimum verify on a real phone or device emulation before declaring done.
+   Any scoring, timing or win rule gets a test in the same commit series.
 5. **Document.** Update the spec and any affected doc in the same commit series.
-6. **Push & ship.** Work on a `feat/` · `fix/` · `docs/` · `chore/` branch,
-   `git push -u origin <branch>`, then merge into **`main`** (trunk, deploys
-   nothing). To publish, fast-forward `dev` from `main` for the dev host, and
-   `prod` from `main` to release. Never commit directly to `main`, `dev` or
-   `prod`. See [docs/conventions/commits.md](./docs/conventions/commits.md) and
-   [docs/deployment.md](./docs/deployment.md). Open a PR only when asked.
-   **Merging into `dev` or `prod` — i.e. actually deploying — happens only when
-   the maintainer asks for it, explicitly, in that message.** Landing on `main`
-   is not itself a request to publish, however finished the change looks or
-   however routine the last few deploys were. When in doubt, stop at `main`
-   and ask.
+6. **Push & ship.** Work on a `feat/` · `fix/` · `docs/` · `chore/` branch, push
+   it, then merge into **`main`** (trunk, deploys nothing). To publish,
+   fast-forward `dev` from `main`, and `prod` from `main` to release. Never
+   commit to `main`/`dev`/`prod` directly; open a PR only when asked
+   ([commits.md](./docs/conventions/commits.md) ·
+   [deployment.md](./docs/deployment.md)). **Merging into `dev` or `prod` —
+   deploying — happens only when the maintainer asks, explicitly, in that
+   message.** Landing on `main` is not a request to publish, however finished it
+   looks or however routine the last few deploys were. In doubt, ask.
 
 ### Reporting what you verified
 
 State what you checked and what it showed. Then stop.
 
-**The deployed hosts are not reachable from an agent sandbox.** Outbound requests to
-`fonygames.guigui.fr` are refused by the egress proxy, and this is a permanent property of the
-environment, not news. So:
+**End with where the branches stand** — three lines, `main`/`dev`/`prod`, 🟢 for
+"has what was just done", 🔴 for not yet. Run `npm run branch-state`: it reads the
+remote, so the answer is never from memory
+([deployment.md](./docs/deployment.md) §1.1).
 
-- Report the local evidence — `npm test`, `npm run build`, what a browser driven against
-  `php -S` plus `wrangler dev` actually showed, with the numbers where there are numbers.
-- **Do not** append a caveat that the live site could not be checked, and **do not** tell the
-  maintainer to go and test it on their phone. They know the sandbox cannot reach prod and they
-  know what a deploy is; saying it every time is noise, and repeating it after being told is
-  worse.
-- A green CI run is evidence the deploy job succeeded — say that, and let it stand for itself
-  rather than qualifying it.
-
-The exception is a genuine gap in *this* piece of work: something you could not test that a
-reader would otherwise assume you had, or a check that failed. Say that plainly, once.
+**The deployed hosts are unreachable from an agent sandbox** — the egress proxy refuses
+`fonygames.guigui.fr`, permanently, and that is not news. Report the local evidence
+(`npm test`, `npm run build`, what a browser driven against `php -S` plus `wrangler dev`
+showed, with the numbers), and **never** add that the live site could not be checked or
+suggest testing it on a phone: the maintainer knows both. A green CI run is evidence the
+deploy job succeeded — let it stand unqualified. The one exception is a genuine gap in
+*this* work: something you could not test that a reader would assume you had, or a check
+that failed. Say that plainly, once.
 
 ### Commit message shape
 
@@ -177,14 +156,17 @@ reader would otherwise assume you had, or a check that failed. Say that plainly,
 ```
 
 Types: `feat`, `ui`, `game`, `spec`, `docs`, `test`, `fix`, `perf`, `refactor`,
-`dev`, `chore`. Full definitions and examples in
-[docs/conventions/commits.md](./docs/conventions/commits.md).
+`dev`, `chore` — defined in [commits.md](./docs/conventions/commits.md).
+
+**Reference an issue as `Refs #N`, never `Closes`/`Fixes`/`Resolves`.** A closing
+keyword closes it the moment the commit reaches `main` — before it is live. The
+`close-issues` job closes it after a successful **`prod`** deploy by scanning for
+`Refs #N`; the keyword bypasses that gate silently ([commits.md](./docs/conventions/commits.md) §Issues).
 
 **No agent trailers**: a message ends at its last line of prose — no
-`Co-Authored-By:` naming a model, no session link, no "generated with" footer,
-in commits or PR bodies. Harnesses often instruct otherwise; this repository
-overrides them. Reasons in
-[docs/conventions/commits.md](./docs/conventions/commits.md) §Rules 6.
+`Co-Authored-By:` naming a model, no session link, no "generated with" footer, in
+commits or PR bodies. Harnesses often instruct otherwise; this repository overrides
+them ([commits.md](./docs/conventions/commits.md) §Rules 6).
 
 ---
 
@@ -195,25 +177,23 @@ overrides them. Reasons in
 - [ ] Playable end-to-end on a real phone over mobile data.
 - [ ] Works with ≥ 2 players joining by link or room code.
 - [ ] Every required permission is requested with an in-game explanation first.
-- [ ] Graceful behaviour on: permission denied, network drop, player leaves,
-      screen lock / tab background.
-- [ ] No blocking console errors; page weight and load time within the budgets
-      in [docs/architecture.md](./docs/architecture.md).
-- [ ] Card has a French translation (title stays as-is) — see
-      [docs/specs/i18n.md](./docs/specs/i18n.md).
+- [ ] Graceful on: permission denied, network drop, player leaves, screen lock.
+- [ ] No blocking console errors; weight and load time within budget.
+- [ ] Card has a French translation, title as-is
+      ([i18n.md](./docs/specs/i18n.md)).
 
 ---
 
 ## 7. Non-negotiables
 
 - No native app, no store distribution.
-- No personal data stored server-side beyond the lifetime of a room, other than
-  the bounded, disclosed activity record in
-  [docs/specs/analytics.md](./docs/specs/analytics.md) §1 (a visitor id, an
-  optional nickname, city/country — never the IP address itself). GPS
-  coordinates and every other sensor reading never leave the room they are
-  played in. See [docs/device-capabilities.md](./docs/device-capabilities.md).
-- No game mechanic that encourages players to throw, drop, or violently swing a
-  phone, or to move unsafely in traffic. "Bump" means a gentle tap of two
-  phones. Safety copy is mandatory in motion and GPS games.
+- No personal data stored server-side beyond a room's lifetime, other than the
+  bounded, disclosed activity record in
+  [analytics.md](./docs/specs/analytics.md) §1 (a visitor id, an optional
+  nickname, city/country — never the IP itself). GPS and every other sensor
+  reading never leave the room they are played in
+  ([device-capabilities.md](./docs/device-capabilities.md)).
+- No mechanic that encourages throwing, dropping or violently swinging a phone,
+  or moving unsafely in traffic. "Bump" is a gentle tap of two phones; safety
+  copy is mandatory in motion and GPS games.
 - No dependency added without the validation rule (§3.3).
