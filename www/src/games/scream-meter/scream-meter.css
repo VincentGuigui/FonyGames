@@ -1,0 +1,111 @@
+/*
+ * Scream Meter. Spec: docs/specs/games/scream-meter.md §4
+ * Shared chrome (StatusBar, lobby) is styled by core; this file owns the
+ * prompt, the meter with its peak-hold line, and the room's row of avatars.
+ */
+
+.scream {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  height: 100dvh;
+  padding: 0 var(--space-3) var(--space-3);
+  background: var(--color-bg);
+}
+
+/* The biggest thing on screen during the countdown: the room has to read it
+   before the window opens (spec §2). */
+.scream__prompt {
+  margin: var(--space-2) 0 0;
+  text-align: center;
+  font-size: clamp(1.75rem, 9vw, 3rem);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-text);
+}
+
+/* One object, filling most of the viewport. */
+.scream__meter {
+  position: relative;
+  flex: 1 1 auto;
+  width: min(60%, 15rem);
+  min-height: 0;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  overflow: hidden;
+}
+
+.scream__fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, var(--game-accent, var(--color-accent)), #FFD166);
+  transform-origin: bottom center;
+  /* Written by rAF, not transitioned — a transition would fight the loop. */
+  transform: scaleY(0);
+}
+
+/* Stays where the best moment was: a bar with no memory gives you nothing to
+   beat (spec §4). */
+.scream__peak {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--color-text);
+  box-shadow: 0 0 8px rgb(0 0 0 / 0.6);
+}
+
+.scream__readout {
+  margin: 0;
+  text-align: center;
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Presence, not numbers: an avatar lights up as that phone reports in. */
+.scream__room {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scream__player {
+  font-size: 1.5rem;
+  line-height: 1;
+  opacity: 0.35;
+}
+
+.scream__player--in {
+  opacity: 1;
+}
+
+.scream__countdown {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-size: clamp(5rem, 34vw, 11rem);
+  font-weight: 700;
+  color: var(--color-text);
+  background: rgb(11 9 16 / 0.55);
+  pointer-events: none;
+}
+
+/* Mandatory, and on screen during the round rather than only in the primer —
+   this is the game where the copy matters (spec §9). */
+.scream__safety {
+  margin: 0;
+  text-align: center;
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
