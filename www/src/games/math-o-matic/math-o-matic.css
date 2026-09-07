@@ -1,0 +1,213 @@
+/*
+ * Math-o-matic. Spec: docs/specs/games/math-o-matic.md §4
+ * Shared chrome (StatusBar, WideScoreboard, lobby) is styled by core; this file
+ * owns the sum, the timer bar, the four answer buttons and the lobby's options
+ * panel.
+ */
+
+.math {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: 100dvh;
+  padding: 0 var(--space-3) var(--space-3);
+  background: var(--color-bg);
+}
+
+/* The sum is the one thing on screen worth looking at, so it gets the room and
+   the largest type (spec §4, §11). */
+.math__question {
+  flex: 0 0 auto;
+  padding: var(--space-4) var(--space-3) var(--space-3);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+}
+
+.math__sum {
+  margin: 0 0 var(--space-3);
+  text-align: center;
+  font-size: clamp(2rem, 11vw, 3.5rem);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-text);
+  /* Tabular figures so `111` and `999` are the same width — a sum that
+     reflows as it is read is harder to read (spec §11). */
+  font-variant-numeric: tabular-nums;
+  /* A long three-operator sum at five digits will not fit one line on a narrow
+     phone, and wrapping it is much better than shrinking it to nothing. */
+  overflow-wrap: break-word;
+}
+
+/* The window as a draining bar rather than a number: a number is one more
+   thing to read while reading a sum. */
+.math__timer {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+.math__timer-fill {
+  height: 100%;
+  background: var(--game-accent, var(--color-accent));
+  transform-origin: left center;
+  /* Written by rAF, not transitioned — a transition would fight the loop. */
+  transform: scaleX(1);
+}
+
+.math__prompt {
+  /* Groups with the buttons at the bottom rather than sitting under the sum:
+     it describes what to do with them, and one gap reads better than two. */
+  margin: auto 0 0;
+  min-height: 1.6em;
+  text-align: center;
+  font-size: var(--font-title);
+  font-weight: 600;
+  color: var(--color-text-dim);
+}
+
+/* 2×2 in the thumb's half of the screen. Equal sizes, because a bigger button
+   is a hint (spec §4).
+   The ROW height is capped rather than the grid: capping the grid and pushing it
+   down with `margin-top: auto` left a screen-height void between the sum and
+   the buttons, and letting the rows stretch freely made four near-empty panels
+   with the top row out of comfortable thumb reach. `align-content: end` settles
+   the pair of rows against the scoreboard — and works here because this is a
+   grid, unlike the single-line flex column it sits in
+   (docs/conventions/code-style.md). */
+.math__answers {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: minmax(4.5rem, 9rem);
+  align-content: end;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+.math__answer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: var(--tap-target);
+  padding: var(--space-2);
+  font: inherit;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+}
+
+.math__value {
+  font-size: clamp(1.5rem, 7vw, 2.25rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.math__answer--mine {
+  border-color: var(--game-accent, var(--color-accent));
+}
+
+.math__answer--right {
+  background: var(--game-accent, var(--color-accent));
+  border-color: var(--game-accent, var(--color-accent));
+  color: var(--color-on-accent);
+}
+
+.math__answer--wrong {
+  color: var(--color-text-dim);
+  background: var(--color-surface);
+  border-color: var(--color-border);
+}
+
+/* The tick or cross, so the reveal is never a colour code (spec §11). */
+.math__mark {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+/* Who fell for what. Public on purpose — it is most of the fun and costs
+   nothing to send (spec §4). */
+.math__who {
+  font-size: 1.1rem;
+  line-height: 1;
+  letter-spacing: -0.1em;
+}
+
+.math__answer:disabled {
+  cursor: default;
+}
+
+/* An answered-but-not-yet-revealed button stays legible rather than being
+   dimmed to nothing: the player wants to see what they picked. */
+.math__answer:disabled:not(.math__answer--wrong):not(.math__answer--right) {
+  opacity: 0.75;
+}
+
+/* ---------------------------------------------------------------- */
+/* The lobby's options panel (spec §3)                              */
+/* ---------------------------------------------------------------- */
+
+.math-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.math-options__group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.math-options__group:disabled {
+  opacity: 0.7;
+}
+
+.math-options__legend {
+  padding: 0 0 var(--space-1);
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.math-options__ops,
+.math-options__range {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.math-options__op,
+.math-options__stop {
+  flex: 1 1 0;
+  min-height: 2.75rem;
+  font: inherit;
+  font-size: var(--font-title);
+  font-weight: 700;
+  color: var(--color-text-dim);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.math-options__op--on,
+.math-options__stop--on {
+  color: var(--color-on-accent);
+  background: var(--game-accent, var(--color-accent));
+  border-color: var(--game-accent, var(--color-accent));
+}
+
+.math-options__op:disabled,
+.math-options__stop:disabled {
+  cursor: default;
+}
+
+.math-options__readout {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
