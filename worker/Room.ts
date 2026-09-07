@@ -140,6 +140,16 @@ import {
   type Ctx as MatchCtx,
 } from './colorMatch';
 import {
+  nextDeadline as mathDeadline,
+  onMathAnswer,
+  onPlayerGone as mathPlayerGone,
+  startMathOMatic,
+  tick as mathTick,
+  toState as mathToState,
+  type MathOMatic,
+  type Ctx as MathCtx,
+} from './mathOMatic';
+import {
   nextDeadline as huntColorDeadline,
   onHuntFind,
   onPlayerGone as huntColorPlayerGone,
@@ -418,7 +428,7 @@ export class Room extends DurableObject<Env> {
         });
         return;
       case 'start':
-        await this.#onStart(ws, msg.d.mode, msg.d.drag, msg.d.roles, msg.d.symbols, msg.d.solo === true);
+        await this.#onStart(ws, msg.d.mode, msg.d.drag, msg.d.roles, msg.d.symbols, msg.d.math, msg.d.solo === true);
         return;
       case 'tap':
         await this.#onTap(ws, msg.d);
@@ -510,6 +520,11 @@ export class Room extends DurableObject<Env> {
       case 'color-pick': {
         const id = this.#idOf(ws);
         if (id) await onColorPick(this.#matchCtx(), id, msg.d.roundId, msg.d.level, msg.d.rgb, msg.d.lum, msg.d.at);
+        return;
+      }
+      case 'math-answer': {
+        const id = this.#idOf(ws);
+        if (id) await onMathAnswer(this.#mathCtx(), id, msg.d.roundId, msg.d.index, msg.d.choice);
         return;
       }
       case 'hunt-find': {
@@ -733,6 +748,12 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const summing = await this.#math();
+    if (summing && summing.phase !== 'done' && Date.now() >= mathDeadline(summing)) {
+      await mathTick(this.#mathCtx());
+      await this.#rearm();
+      return;
+    }
     const hunting = await this.#colorHunt();
     if (hunting && hunting.phase === 'hunt' && Date.now() >= huntColorDeadline(hunting)) {
       await huntColorTick(this.#huntColorCtx());
@@ -813,6 +834,13 @@ export class Room extends DurableObject<Env> {
     roles?: { glider: PlayerId; protector: PlayerId },
     symbols?: { x: PlayerId; o: PlayerId; chooser: PlayerId },
     /**
+     * Math-o-matic's calculus toggles. Passed straight through and sanitised by
+     * the referee (`normaliseOptions`) rather than validated here — it decides
+     * difficulty, not fairness, so it needs to be survivable rather than
+     * trusted (math-o-matic.md §3).
+     */
+    math?: unknown,
+    /**
      * Solo test mode. Relaxes the minimum player count and the "last one standing"
      * end condition, and nothing else — `enoughToStart` in shared/players.ts lists
      * both and says why it is not a permission.
@@ -863,6 +891,8 @@ export class Room extends DurableObject<Env> {
     if (racing && racing.phase !== 'done') return;
     const matching = await this.#colorMatch();
     if (matching && matching.phase !== 'done') return;
+    const summing = await this.#math();
+    if (summing && summing.phase !== 'done') return;
     const colorHunting = await this.#colorHunt();
     if (colorHunting && colorHunting.phase !== 'done') return;
     const tttt = await this.#tttt();
@@ -895,6 +925,7 @@ export class Room extends DurableObject<Env> {
       mode === 'asteroid' ||
       mode === 'color-match' ||
       mode === 'color-hunt' ||
+      mode === 'math' ||
       mode === 'tttt'
       || mode === 'fighter'
     ) {
@@ -920,6 +951,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'gravity') started = await startGravityShooter(this.#gravityCtx(), roundId, ids, solo);
       else if (mode === 'asteroid') started = await startAsteroidRace(this.#asteroidCtx(), roundId, ids, solo);
       else if (mode === 'color-match') started = await startColorMatch(this.#matchCtx(), roundId, ids, solo);
+      else if (mode === 'math') started = await startMathOMatic(this.#mathCtx(), roundId, ids, math, solo);
       else if (mode === 'color-hunt') started = await startColorHunt(this.#huntColorCtx(), roundId, ids, solo);
       else if (mode === 'tttt') started = await startTttt(this.#ttttCtx(), roundId, ids, symbols, solo);
       else if (mode === 'fighter') started = await startTapFighter(this.#fighterCtx(), roundId, ids, solo);
@@ -994,7 +1026,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'tttt', 'fighter', 'roundId', 'scores']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tttt', 'fighter', 'roundId', 'scores']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -1328,6 +1360,22 @@ export class Room extends DurableObject<Env> {
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#colorMatch(),
       save: (s) => this.ctx.storage.put('color-match', s),
+      setAlarm: () => this.#rearm(),
+      random: () => Math.random(),
+    };
+  }
+
+  async #math(): Promise<MathOMatic | null> {
+    return (await this.ctx.storage.get<MathOMatic>('math')) ?? null;
+  }
+
+  #mathCtx(): MathCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#math(),
+      save: (s) => this.ctx.storage.put('math', s),
       setAlarm: () => this.#rearm(),
       random: () => Math.random(),
     };
@@ -1737,6 +1785,14 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'color-hunt', s: this.#nextSeq(), d: huntColorToState(hunting) });
     }
 
+    /* Math-o-matic: the question in flight, its deadline, and the lives — but
+       `toState` withholds the correct index and everyone's taps while it is
+       still open, so arriving mid-question tells you nothing (spec §8). */
+    const summing = await this.#math();
+    if (summing && summing.phase !== 'done') {
+      this.#send(ws, { t: 'math', s: this.#nextSeq(), d: mathToState(summing) });
+    }
+
     await this.#broadcastPresence(ws);
   }
 
@@ -1824,6 +1880,7 @@ export class Room extends DurableObject<Env> {
     // rewrite a scoreboard other people are still comparing themselves to.
     await matchPlayerGone(this.#matchCtx(), id);
     await huntColorPlayerGone(this.#huntColorCtx(), id);
+    await mathPlayerGone(this.#mathCtx(), id);
     // Neon Fall is the same shape as Grid Attack: two fixed seats, and a phone
     // leaving means one of the roles is simply gone — there is no game left.
     await neonPlayerGone(this.#neonCtx(), id);
@@ -1942,6 +1999,9 @@ export class Room extends DurableObject<Env> {
 
     const hunting = await this.#colorHunt();
     if (hunting?.phase === 'hunt') return huntColorDeadline(hunting);
+
+    const summing = await this.#math();
+    if (summing && summing.phase !== 'done') return mathDeadline(summing);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);

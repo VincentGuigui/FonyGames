@@ -116,6 +116,13 @@ export type ClientMessage =
         /** Tic-Tac-Tic-Tac-Toe's fixed symbol assignment and first chooser. */
         symbols?: { x: PlayerId; o: PlayerId; chooser: PlayerId };
         /**
+         * Math-o-matic's calculus toggles — which operations, how wide the
+         * operands, how many operators. Host settings rather than a mode, the
+         * same reasoning as `drag` above (math-o-matic.md §3), and sanitised by
+         * `normaliseOptions` in shared/mathQuestion.ts rather than trusted.
+         */
+        math?: { ops?: string[]; digits?: [number, number]; operators?: [number, number] };
+        /**
          * Solo test mode — start with one player, for looking at a game rather than
          * playing it. Set by a browser that has signed into the admin centre; the
          * two rules it relaxes are listed on `enoughToStart` in shared/players.ts.
@@ -279,6 +286,14 @@ export type ClientMessage =
    * because a claimed score is the one thing a payload must never carry.
    */
   | { t: 'color-pick'; d: { roundId: number; level: number; rgb: [number, number, number]; lum: number; at: number } }
+  /**
+   * Math-o-matic: which of the four buttons this phone tapped.
+   *
+   * An **index**, never a value, so a client cannot answer a question it was
+   * not shown, and the first tap for a question is the answer — a second one
+   * is ignored rather than replacing it (math-o-matic.md §8).
+   */
+  | { t: 'math-answer'; d: { roundId: number; index: number; choice: number } }
   /**
    * Color Hunt: what this phone's magnifier last read (spec §6). Three
    * integers — **no pixel is ever on the wire**, which is the whole of that
@@ -709,6 +724,45 @@ export type ColorMatchState = {
 };
 
 /**
+ * Math-o-matic, as every phone needs it. Spec: docs/specs/games/math-o-matic.md §6
+ *
+ * One frame per question and one per reveal, and the difference between them is
+ * the whole anti-cheat story: during `ask` there is nothing on the wire that
+ * marks which of the four answers is right (§8). `correct` appears only once
+ * the question has closed.
+ */
+export type MathState = {
+  roundId: number;
+  /** 0-based question number within the round. Rises to `MATH_QUESTION_CAP`. */
+  index: number;
+  /** The expression as the player reads it, e.g. `12 + 3 × 4`. */
+  text: string;
+  /** The four answers, in the order to draw them. */
+  answers: number[];
+  phase: 'ask' | 'reveal' | 'done';
+  /** Absolute server times: when answers close, and when the next question comes. */
+  closesAt: number;
+  nextAt: number;
+  /** Lives left, every player who started the round. Zero means out. */
+  lives: Record<PlayerId, number>;
+  /** Correct answers so far — the brag, and the tie-break (§2). */
+  scores: Record<PlayerId, number>;
+  /**
+   * Which answer each player tapped. **Empty during `ask`**: a phone that could
+   * read the room's taps could read the answer off whichever button the good
+   * player picked.
+   */
+  taps: Record<PlayerId, number>;
+  /** Index into `answers`. Null during `ask`, filled at the reveal. */
+  correct: number | null;
+  /** Players who lost their last life on THIS question, for the reveal. */
+  out: PlayerId[];
+  winner: PlayerId | null;
+  /** A round that ended level at the top, so nobody takes it (§2). */
+  draw: boolean;
+};
+
+/**
  * Color Hunt: one round of the hunt (spec §6).
  *
  * Shorter than Color Match's by one phase — there is no reveal, by design
@@ -1089,6 +1143,7 @@ export type ServerMessage =
   | { t: 'asteroid'; s: number; d: AsteroidRaceState }
   /** Color Match: the level in flight, and what the last one was worth. */
   | { t: 'color-match'; s: number; d: ColorMatchState }
+  | { t: 'math'; s: number; d: MathState }
   /** Color Hunt: the target in flight, and what the last one was worth. */
   | { t: 'color-hunt'; s: number; d: ColorHuntState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
@@ -1829,6 +1884,7 @@ const CLIENT_TYPES = new Set([
   'asteroid-report',
   'color-pick',
   'hunt-find',
+  'math-answer',
   'switch-game',
 ]);
 
@@ -2777,3 +2833,47 @@ export const COLOR_HUNT_CAP_MS = 600_000;
 
 export const COLOR_HUNT_MIN_PLAYERS = PLAYERS['color-hunt'][0];
 export const COLOR_HUNT_MAX_PLAYERS = PLAYERS['color-hunt'][1];
+
+/* ------------------------------------------------------------------ */
+/* Math-o-matic (docs/specs/games/math-o-matic.md)                     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How long a question stays open, and how it grows with the sum.
+ *
+ * Spec §12 Q4 asks how generous this should be and answers "8 s at one
+ * operator, scaling with the operator count" — this is that, as a base plus a
+ * per-extra-operator step. It is a **reading-speed** budget, not an arithmetic
+ * one: too short and the game tests how fast you parse `4821 ÷ 3 + 917`, which
+ * is not the game anybody signed up for.
+ */
+export const MATH_ANSWER_BASE_MS = 8_000;
+export const MATH_ANSWER_PER_OPERATOR_MS = 4_000;
+
+/** The reveal: long enough to see who fell for what, short enough that a room
+ *  of eight is not waiting. */
+export const MATH_REVEAL_MS = 3_000;
+
+/** Lives each. Three, per the issue; `sudden-death` would be one. */
+export const MATH_LIVES = 3;
+
+/** A tap this far past the close still counts — the same grace Color Match
+ *  gives a pick, for the same reason: a phone 300 ms away should lose its own
+ *  lag, not its life (spec §6). */
+export const MATH_TAP_GRACE_MS = 400;
+
+/** The backstop for a room that never gets one wrong (spec §7). At the fastest
+ *  question that is about seven minutes. */
+export const MATH_QUESTION_CAP = 40;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const MATH_MIN_PLAYERS = PLAYERS['math-o-matic'][0];
+export const MATH_MAX_PLAYERS = PLAYERS['math-o-matic'][1];
+
+/** How long this question's answers stay open, from its operator count. */
+export function mathAnswerMs(text: string): number {
+  // U+2212, not the hyphen — `symbol()` in shared/mathQuestion.ts is what
+  // prints it, and this has to match the same character.
+  const operators = (text.match(/[+\u2212×÷]/g) ?? []).length;
+  return MATH_ANSWER_BASE_MS + Math.max(0, operators - 1) * MATH_ANSWER_PER_OPERATOR_MS;
+}
