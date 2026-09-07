@@ -9,7 +9,7 @@
 | **Round length** | ~100 s |
 | **Inputs** | orientation + touch |
 | **Accent colour** | `#E4572E` |
-| **Status** | 📝 draft — awaiting approval ([#14](https://github.com/VincentGuigui/FonyGames/issues/14)) |
+| **Status** | 🎮 beta — built; the skid, the turn rate and the circuit's own length untested on real phones ([#14](https://github.com/VincentGuigui/FonyGames/issues/14)) |
 
 ## 1. Pitch
 
@@ -143,7 +143,10 @@ case something else was meant.
 - **Car wedged against a rail at zero speed**: reverse exists precisely for
   this, and the spool restarts from 0 when it is released.
 - **Nobody finishes** before `TILT_RUN_CAP_MS`: placings by progress.
-- **Solo**: a time trial. Supported.
+- **Solo (1 player)**: the card promises 2–8, and the referee enforces the
+  card (AGENTS.md §4), so a lone player cannot start a public race. Nothing
+  about a one-car race is broken though, and solo testing (`shared/players.ts`)
+  opens it as a time trial for exactly that reason.
 
 ## 8. Anti-cheat
 
@@ -185,17 +188,48 @@ stored. Raw orientation readings never leave the phone.
 
 ## 12. Open questions
 
-1. **"Every 0.25 ms"** (§6) — confirmed as 250 ms?
-2. **What the speed numbers mean.** 0–100–120 is given without units; this
-   spec treats them as arbitrary game units and derives the actual world speed
-   from a target lap time (~100 s), the way Gravity Shooter derives launch
-   speed from a target flight duration rather than picking a number.
-3. **`TILT_SKID_TAU`** — the single number that decides whether the top of the
-   speed range is exciting or infuriating.
-4. **Does the reverse button really need to move?** It is a lovely detail and a
-   genuine accessibility cost; an option to pin it is proposed above, but the
-   default needs deciding.
-5. **Track generation**: a closed circuit that never self-intersects, at a
-   width the skid can survive, is the real work here. Worth deciding up front
-   whether it is generated from a spline or assembled from pre-made tiles —
-   the tile version is far easier to guarantee and far easier to draw.
+Five were open when this spec was written. Building it settled four, and
+turned up two the spec had not thought to ask.
+
+1. ~~**"Every 0.25 ms"** (§6).~~ **Settled as 250 ms** (`TILT_REPORT_MS`), the
+   rate every other continuous game here uses. Still worth a word from the
+   maintainer if something else was meant.
+2. ~~**What the speed numbers mean.**~~ **Settled**: the issue's 100 and 120 are
+   `TILT_CRUISE_SPEED` and `TILT_TOP_SPEED` in world units per second, where a
+   grid tile is 100 units — and the circuit's *length* is then derived from a
+   ~100 s target lap rather than the speed being derived from a guess.
+   `shared/tiltTrack.test.ts` measures the median lap at 105 s across 120
+   rolled circuits.
+3. ~~**`TILT_SKID_TAU_MS`.**~~ **Settled at 110 ms, and it cannot be chosen
+   alone.** A constant turn rate against a first-order lag settles at
+   `rate × tau` radians of slide, so the skid and the turn rate multiply. At the
+   320 ms first written here the car slid 84° sideways at full tilt, which is a
+   spin rather than a skid; 110 ms puts the worst case at 29°. The test asserts
+   the *product*, so changing either constant alone fails.
+4. **Does the reverse button really need to move?** Still open, and still a
+   lovely detail with a real accessibility cost. It is built as the issue asks
+   — it follows gravity round the screen's edge and freezes while held — and
+   `gravityButton.test.ts` pins every pose. The pin-it-in-place option in §11
+   is **not** built.
+5. ~~**Track generation**: spline or tiles?~~ **Settled, and stronger than
+   either.** The circuit is the **boundary of a polyomino**: grow a blob of grid
+   cells, and its outline is the centreline. Closed for free, non-self-crossing
+   provided the blob has no hole and no diagonal pinch (both tested before a
+   cell is accepted), and the rails cannot meet because two sides of a
+   one-cell arm are a whole tile apart. 200 rolled circuits are checked segment
+   pair by segment pair.
+
+Two the build raised:
+
+6. **The turn rate is set by the tightest corner, and it is fast.** A snaking
+   circuit contains corners of radius `TILE / 3`, and following one at top
+   speed needs 3.6 rad/s — so `TILT_TURN_RATE` is 4.6, which is 260°/s of world
+   rotation at full tilt. That is a lot of screen movement, and it is the first
+   thing to feel wrong on a real phone. The alternative is a slower car or a
+   looser roller, and both change the lap time.
+7. **The circuit reads as a maze rather than a race track.** Getting a 100 s lap
+   out of an 11×15 grid means corridors packed one tile apart, so a lot of road
+   is visible that cannot be reached from where the car is. It is correct — the
+   rails are real — but a wider grid with a shorter blob would look more like a
+   circuit, at the cost of the lap length. `endurance` mode (three laps) would
+   let the circuit itself be a third of the size, which may be the real answer.
