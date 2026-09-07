@@ -150,6 +150,17 @@ import {
   type Ctx as MathCtx,
 } from './mathOMatic';
 import {
+  nextDeadline as tiltDeadline,
+  onFinish as onTiltFinish,
+  onMove as onTiltMove,
+  onPlayerGone as tiltPlayerGone,
+  startTiltRace,
+  tick as tiltTick,
+  toState as tiltToState,
+  type TiltRace,
+  type Ctx as TiltCtx,
+} from './tiltRace';
+import {
   nextDeadline as huntColorDeadline,
   onHuntFind,
   onPlayerGone as huntColorPlayerGone,
@@ -522,6 +533,16 @@ export class Room extends DurableObject<Env> {
         if (id) await onColorPick(this.#matchCtx(), id, msg.d.roundId, msg.d.level, msg.d.rgb, msg.d.lum, msg.d.at);
         return;
       }
+      case 'tilt-move': {
+        const id = this.#idOf(ws);
+        if (id) await onTiltMove(this.#tiltCtx(), id, msg.d.roundId, msg.d.s, msg.d.lap);
+        return;
+      }
+      case 'tilt-finish': {
+        const id = this.#idOf(ws);
+        if (id) await onTiltFinish(this.#tiltCtx(), id, msg.d.roundId);
+        return;
+      }
       case 'math-answer': {
         const id = this.#idOf(ws);
         if (id) await onMathAnswer(this.#mathCtx(), id, msg.d.roundId, msg.d.index, msg.d.choice);
@@ -754,6 +775,12 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const tilting = await this.#tilt();
+    if (tilting && tilting.phase !== 'done' && Date.now() >= tiltDeadline(tilting)) {
+      await tiltTick(this.#tiltCtx());
+      await this.#rearm();
+      return;
+    }
     const hunting = await this.#colorHunt();
     if (hunting && hunting.phase === 'hunt' && Date.now() >= huntColorDeadline(hunting)) {
       await huntColorTick(this.#huntColorCtx());
@@ -893,6 +920,8 @@ export class Room extends DurableObject<Env> {
     if (matching && matching.phase !== 'done') return;
     const summing = await this.#math();
     if (summing && summing.phase !== 'done') return;
+    const tilting = await this.#tilt();
+    if (tilting && tilting.phase !== 'done') return;
     const colorHunting = await this.#colorHunt();
     if (colorHunting && colorHunting.phase !== 'done') return;
     const tttt = await this.#tttt();
@@ -926,6 +955,7 @@ export class Room extends DurableObject<Env> {
       mode === 'color-match' ||
       mode === 'color-hunt' ||
       mode === 'math' ||
+      mode === 'tilt' ||
       mode === 'tttt'
       || mode === 'fighter'
     ) {
@@ -952,6 +982,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'asteroid') started = await startAsteroidRace(this.#asteroidCtx(), roundId, ids, solo);
       else if (mode === 'color-match') started = await startColorMatch(this.#matchCtx(), roundId, ids, solo);
       else if (mode === 'math') started = await startMathOMatic(this.#mathCtx(), roundId, ids, math, solo);
+      else if (mode === 'tilt') started = await startTiltRace(this.#tiltCtx(), roundId, ids, solo);
       else if (mode === 'color-hunt') started = await startColorHunt(this.#huntColorCtx(), roundId, ids, solo);
       else if (mode === 'tttt') started = await startTttt(this.#ttttCtx(), roundId, ids, symbols, solo);
       else if (mode === 'fighter') started = await startTapFighter(this.#fighterCtx(), roundId, ids, solo);
@@ -1026,7 +1057,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tttt', 'fighter', 'roundId', 'scores']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'tttt', 'fighter', 'roundId', 'scores']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -1376,6 +1407,22 @@ export class Room extends DurableObject<Env> {
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#math(),
       save: (s) => this.ctx.storage.put('math', s),
+      setAlarm: () => this.#rearm(),
+      random: () => Math.random(),
+    };
+  }
+
+  async #tilt(): Promise<TiltRace | null> {
+    return (await this.ctx.storage.get<TiltRace>('tilt')) ?? null;
+  }
+
+  #tiltCtx(): TiltCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#tilt(),
+      save: (s) => this.ctx.storage.put('tilt', s),
       setAlarm: () => this.#rearm(),
       random: () => Math.random(),
     };
@@ -1793,6 +1840,13 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'math', s: this.#nextSeq(), d: mathToState(summing) });
     }
 
+    /* Tilt Race: the whole circuit plus the field, so a phone that reconnects
+       mid-race gets the track back without a second message type (spec §6). */
+    const tilting = await this.#tilt();
+    if (tilting && tilting.phase !== 'done') {
+      this.#send(ws, { t: 'tilt', s: this.#nextSeq(), d: tiltToState(tilting) });
+    }
+
     await this.#broadcastPresence(ws);
   }
 
@@ -1881,6 +1935,7 @@ export class Room extends DurableObject<Env> {
     await matchPlayerGone(this.#matchCtx(), id);
     await huntColorPlayerGone(this.#huntColorCtx(), id);
     await mathPlayerGone(this.#mathCtx(), id);
+    await tiltPlayerGone(this.#tiltCtx(), id);
     // Neon Fall is the same shape as Grid Attack: two fixed seats, and a phone
     // leaving means one of the roles is simply gone — there is no game left.
     await neonPlayerGone(this.#neonCtx(), id);
@@ -2002,6 +2057,9 @@ export class Room extends DurableObject<Env> {
 
     const summing = await this.#math();
     if (summing && summing.phase !== 'done') return mathDeadline(summing);
+
+    const tilting = await this.#tilt();
+    if (tilting && tilting.phase !== 'done') return tiltDeadline(tilting);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);

@@ -295,6 +295,16 @@ export type ClientMessage =
    */
   | { t: 'math-answer'; d: { roundId: number; index: number; choice: number } }
   /**
+   * Tilt Race: how far round the circuit this phone has got.
+   *
+   * An **arc length**, not a position (spec §6): a rival's exact `(x, y, heading)`
+   * is of no use to anybody, because nobody collides with anybody. One number is
+   * what the progress rail needs and a fraction of the bytes.
+   */
+  | { t: 'tilt-move'; d: { roundId: number; s: number; lap: number; at: number } }
+  /** Tilt Race: crossed the finish line. */
+  | { t: 'tilt-finish'; d: { roundId: number; at: number } }
+  /**
    * Color Hunt: what this phone's magnifier last read (spec §6). Three
    * integers — **no pixel is ever on the wire**, which is the whole of that
    * game's privacy claim (spec §10).
@@ -763,6 +773,37 @@ export type MathState = {
 };
 
 /**
+ * Tilt Race, as every phone needs it. Spec: docs/specs/games/tilt-race.md §6
+ *
+ * The **circuit is on the wire once**, at start, as the referee's own seed plus
+ * the rolled centreline. Every phone then drives it locally at 60 fps and
+ * reports one arc length four times a second — so a continuous game stays
+ * inside the cheap profile in docs/multiplayer.md.
+ */
+export type TiltState = {
+  roundId: number;
+  /** The seed the circuit was rolled from. Sent for the record; the points are
+   *  sent too, so a phone never has to reproduce the roller exactly. */
+  seed: number;
+  /** The centreline, in world units. Closed: the last point joins the first. */
+  track: { x: number; y: number }[];
+  /** One lap, in world units — what a reported `s` is measured against. */
+  lapLength: number;
+  /** The grid cells the circuit was grown from, for drawing the ground. */
+  cells: { x: number; y: number }[];
+  phase: 'countdown' | 'running' | 'done';
+  /** Absolute server times: when the lights go green, and the run cap. */
+  startsAt: number;
+  endsAt: number;
+  laps: number;
+  /** Everyone's progress: arc length round the current lap, and laps done. */
+  field: Record<PlayerId, { s: number; lap: number; finished: boolean; left: boolean }>;
+  /** Finishing order, filled as phones cross the line. */
+  order: PlayerId[];
+  winner: PlayerId | null;
+};
+
+/**
  * Color Hunt: one round of the hunt (spec §6).
  *
  * Shorter than Color Match's by one phase — there is no reveal, by design
@@ -1144,6 +1185,7 @@ export type ServerMessage =
   /** Color Match: the level in flight, and what the last one was worth. */
   | { t: 'color-match'; s: number; d: ColorMatchState }
   | { t: 'math'; s: number; d: MathState }
+  | { t: 'tilt'; s: number; d: TiltState }
   /** Color Hunt: the target in flight, and what the last one was worth. */
   | { t: 'color-hunt'; s: number; d: ColorHuntState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
@@ -1885,6 +1927,8 @@ const CLIENT_TYPES = new Set([
   'color-pick',
   'hunt-find',
   'math-answer',
+  'tilt-move',
+  'tilt-finish',
   'switch-game',
 ]);
 
@@ -2876,4 +2920,121 @@ export function mathAnswerMs(text: string): number {
   // prints it, and this has to match the same character.
   const operators = (text.match(/[+\u2212×÷]/g) ?? []).length;
   return MATH_ANSWER_BASE_MS + Math.max(0, operators - 1) * MATH_ANSWER_PER_OPERATOR_MS;
+}
+
+/* ------------------------------------------------------------------ */
+/* Tilt Race (docs/specs/games/tilt-race.md)                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The speed curve, in world units per second (`TILE` is 100 of them).
+ *
+ * The issue gives 0 → 100 in 3 s, then 100 → 120 in another 3 s, without
+ * units — spec §12 Q2 treats those as game units and derives the real world
+ * speed from a target lap time, exactly as Gravity Shooter derives its launch
+ * speed from a target flight duration rather than picking a number.
+ *
+ * So: the issue's "100" is `TILT_CRUISE_SPEED`, its "120" is
+ * `TILT_TOP_SPEED`, and both are sized so a rolled circuit takes about
+ * `TILT_TARGET_LAP_MS` at the top of the range. `shared/tiltTrack.test.ts`
+ * asserts the circuit roller actually lands there.
+ */
+export const TILT_CRUISE_SPEED = 100;
+export const TILT_TOP_SPEED = 120;
+
+/** How long each half of the spool takes: 0 → cruise, then cruise → top. */
+export const TILT_SPOOL_MS = 3_000;
+
+/** What the lap length is chosen against (spec §1: ~100 s a round). */
+export const TILT_TARGET_LAP_MS = 100_000;
+
+/**
+ * Above `TILT_CRUISE_SPEED` the car skids: its heading lags the tilt, and the
+ * velocity keeps pointing where the car used to face (spec §2.2). This is the
+ * lag's time constant — the single number that decides whether the top of the
+ * speed range is exciting or infuriating (§12 Q3).
+ *
+ * **It cannot be chosen apart from `TILT_TURN_RATE`.** Holding a constant turn
+ * rate `w` against a first-order lag of time constant `t` settles at a steady
+ * skid of `w × t` radians, so the two multiply: at the 320 ms this started as,
+ * raising the turn rate to 4.6 gave a steady-state skid of 1.47 rad — the car
+ * sliding 84° sideways at full tilt, which is not a skid, it is a spin.
+ *
+ * 110 ms puts the worst case at 0.5 rad, about 29°: enough to push a careless
+ * driver into the outside rail on a corner, not enough to lose the car
+ * altogether. `drive.test.ts` asserts the product rather than the constant, so
+ * changing either one alone fails there.
+ */
+export const TILT_SKID_TAU_MS = 110;
+
+/**
+ * How fast the world rotates at full tilt, in radians per second.
+ *
+ * **Derived from the tightest corner, not chosen by feel.** A snaking circuit
+ * contains corners of radius `TILE / 3` ≈ 33 world units (`TIGHTEST_CORNER` in
+ * shared/tiltTrack.ts), and following a corner of radius `r` at speed `v` needs
+ * `v / r` rad/s. At `TILT_TOP_SPEED` that is 3.6 rad/s — so at the 2.2 this
+ * started as, the car was *physically unable* to take a corner even at cruise,
+ * and an autopilot driving the circuit hit a rail on 98% of its frames. Found
+ * by making `drive.test.ts` drive a whole lap rather than by playing it.
+ *
+ * 4.6 leaves about 25% of margin over the worst case, which the road's own
+ * width adds to — a driver may cut a corner as well as follow it.
+ */
+export const TILT_TURN_RATE = 4.6;
+
+/** Reverse is slow and deliberate — it is a way out of a mistake, not a
+ *  driving mode. */
+export const TILT_REVERSE_SPEED = 45;
+
+/** A head-on hit resets speed to zero; a graze scrubs it by this much
+ *  (the issue's "friction constant"). */
+export const TILT_SCRAPE_FRICTION = 0.55;
+
+/** How square a hit has to be, as |cos| between the car's heading and the
+ *  rail, before it counts as head-on rather than a graze. */
+export const TILT_HEAD_ON = 0.55;
+
+/** How often a phone reports its own progress. The issue says "every 0.25ms",
+ *  which is 4000 messages a second and certainly a slip for 250 ms — the rate
+ *  every other continuous game here uses (spec §6, §12 Q1). */
+export const TILT_REPORT_MS = 250;
+
+/** Laps in the baseline mode. `endurance` would be three (spec §3). */
+export const TILT_LAPS = 1;
+
+/** Nobody races forever: past this the placings are decided on progress. */
+export const TILT_RUN_CAP_MS = 240_000;
+
+/** The countdown before a race, so eight phones start together. */
+export const TILT_COUNTDOWN_MS = 3_000;
+
+/**
+ * How much progress a phone may claim between two reports, as a multiple of
+ * what the speed curve could actually have covered.
+ *
+ * Slack rather than an exact bound: a phone that stalled for a frame reports a
+ * gap, and the honest reading of a late report is that the time passed
+ * (spec §8). Asteroid Race makes the same trade with `ASTEROID_CLAIM_SLACK`.
+ */
+export const TILT_CLAIM_SLACK = 1.5;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const TILT_MIN_PLAYERS = PLAYERS['tilt-race'][0];
+export const TILT_MAX_PLAYERS = PLAYERS['tilt-race'][1];
+
+/**
+ * The speed the car should be at, `ms` into a run, ignoring collisions.
+ *
+ * The issue's two-stage spool, as one function so the referee's claim bound
+ * and the phone's own simulation cannot disagree about it.
+ */
+export function tiltSpeedAt(ms: number): number {
+  if (ms <= 0) return 0;
+  if (ms < TILT_SPOOL_MS) return (TILT_CRUISE_SPEED * ms) / TILT_SPOOL_MS;
+  if (ms < TILT_SPOOL_MS * 2) {
+    const t = (ms - TILT_SPOOL_MS) / TILT_SPOOL_MS;
+    return TILT_CRUISE_SPEED + (TILT_TOP_SPEED - TILT_CRUISE_SPEED) * t;
+  }
+  return TILT_TOP_SPEED;
 }
