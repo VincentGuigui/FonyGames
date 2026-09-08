@@ -90,23 +90,26 @@ function turningRightRound(): void {
 }
 
 function calibration(): void {
-  console.log('\nzero is wherever the phone was when the round started');
+  console.log('\nzero is upright, not wherever the round happened to start');
 
   const t = rollTracker();
   t.calibrate();
-  // Started with the phone already tipped: that pose is the zero, not upright.
+  // Started with the phone already tipped: the total reflects that tilt from
+  // upright, not a fresh zero — there is no "wherever you're holding it" any
+  // more (roll.ts's own top comment; the report this replaced).
   const held = upright(35);
   t.sample(held.gamma, held.beta);
-  check('the first reading after calibrating is zero', t.read() === 0, t.read());
+  check('the first reading after calibrating is the angle from upright', Math.abs(t.read() * DEG - 35) < 0.5, t.read() * DEG);
 
   const moved = upright(65);
   t.sample(moved.gamma, moved.beta);
-  check('and thirty degrees further is thirty degrees', Math.abs(t.read() * DEG - 30) < 0.5, t.read() * DEG);
+  check('and thirty degrees further reads sixty-five from upright', Math.abs(t.read() * DEG - 65) < 0.5, t.read() * DEG);
 
-  // Recalibrating mid-run re-zeroes on the next reading, whatever it is.
+  // Recalibrating mid-run re-syncs to whatever the next reading says, rather
+  // than trusting a `delta` against a `last` that might be stale.
   t.calibrate();
   t.sample(moved.gamma, moved.beta);
-  check('recalibrating puts it back to zero', t.read() === 0);
+  check('recalibrating re-syncs to the next reading', Math.abs(t.read() * DEG - 65) < 0.5, t.read() * DEG);
 
   const flat = rollTracker();
   flat.calibrate();
@@ -114,7 +117,7 @@ function calibration(): void {
   check('a flat phone leaves the tracker at zero rather than at noise', flat.read() === 0);
   const after = upright(40);
   flat.sample(after.gamma, after.beta);
-  check('and the first usable reading is what it zeroes on', flat.read() === 0);
+  check('and the first usable reading is what it seeds on', Math.abs(flat.read() * DEG - 40) < 0.5, flat.read() * DEG);
 }
 
 function steadiness(): void {
@@ -123,20 +126,24 @@ function steadiness(): void {
   const t = rollTracker();
   t.calibrate();
   const pose = upright(25);
+  const start = rollAngle(pose.gamma, pose.beta) ?? 0;
   for (let i = 0; i < 600; i++) t.sample(pose.gamma, pose.beta);
-  check('six hundred identical readings move it not at all', t.read() === 0, t.read());
+  check('six hundred identical readings move it not at all from where it seeded', Math.abs(t.read() - start) < 1e-9, t.read());
 
   // A hand tremor is a wobble about a pose, not a walk away from it: the
-  // tracker is an accumulator, so what matters is that it comes back.
+  // tracker is an accumulator, so what matters is that it comes back to
+  // wherever it seeded, not to zero.
   const wobble = rollTracker();
   wobble.calibrate();
+  const seeded = upright(25 + Math.sin(0 / 3) * 1.5);
+  const wobbleStart = rollAngle(seeded.gamma, seeded.beta) ?? 0;
   for (let i = 0; i < 400; i++) {
     const p = upright(25 + Math.sin(i / 3) * 1.5);
     wobble.sample(p.gamma, p.beta);
   }
   const end = upright(25 + Math.sin(399 / 3) * 1.5);
   wobble.sample(end.gamma, end.beta);
-  check('and a tremor comes back to where it started', Math.abs(wobble.read() * DEG) < 2, wobble.read() * DEG);
+  check('and a tremor comes back to where it started', Math.abs((wobble.read() - wobbleStart) * DEG) < 2, (wobble.read() - wobbleStart) * DEG);
 }
 
 theAngle();

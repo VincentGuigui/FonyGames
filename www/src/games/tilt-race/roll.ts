@@ -1,7 +1,8 @@
 import { downVector } from './gravityButton';
 
 /**
- * How far the phone has been rotated in its own plane. Spec: docs/specs/games/tilt-race.md §2.1, §5
+ * How far the phone has been rotated in its own plane, measured from upright.
+ * Spec: docs/specs/games/tilt-race.md §2.1, §5
  *
  * **This is the steering wheel, and it is 1:1**: turn the phone through a
  * quarter, a half or a whole circle and the car's heading turns by exactly the
@@ -9,6 +10,17 @@ import { downVector } from './gravityButton';
  * is a car rotating inside a track that stays put — which is why the mapping
  * can be absolute at all. A rate-based steer (tilt harder, turn faster) was the
  * first design and it is what the "1:1" here replaces.
+ *
+ * **Measured from upright, not from wherever the round happened to start.**
+ * The earlier version zeroed on the first reading after a round began — "hold
+ * it however you like" — so a car's heading at the green light matched
+ * whatever direction the TRACK happened to start facing, not the phone.
+ * Holding the phone upright could still show the car pointing sideways, and
+ * every correction the player made was measured against that arbitrary
+ * baseline rather than against upright — which read as the car turning
+ * further than the wrist did. `drive.ts`'s `TILT_UPRIGHT_HEADING` is the
+ * other half of the fix: `rollAngle` below is 0 at upright, always, and nothing
+ * in this file shifts that zero any more.
  *
  * ## Why `gamma` cannot be the instrument
  *
@@ -61,9 +73,12 @@ function delta(a: number, b: number): number {
 export type RollTracker = {
   /** Feed one `deviceorientation` reading. */
   sample: (gamma: number | null, beta: number | null) => void;
-  /** Take the current pose as zero — the round's own "hold it how you like". */
+  /** Discard the running total and re-sync to whatever the very next reading
+   *  says, rather than trusting a `delta` against a possibly stale `last` —
+   *  for a reused tracker; a freshly created one does not need it. */
   calibrate: () => void;
-  /** Total rotation since `calibrate`, in radians. Unbounded, and continuous
+  /** Total rotation from upright, in radians, 0 there and growing the same
+   *  clockwise-positive way `rollAngle` does. Unbounded, and continuous
    *  through as many whole turns as the player cares to make. */
   read: () => number;
 };
@@ -91,11 +106,10 @@ export function rollTracker(): RollTracker {
       const now = rollAngle(gamma, beta);
       if (now === null) return;
       if (pendingCalibrate || last === null) {
-        // The first real reading is the zero, whenever it arrives: a tracker is
-        // always created and calibrated in the same tick as the round starts,
-        // which is before the browser's first async event can fire.
+        // Seeded with the reading itself, not zeroed: `total` IS the angle
+        // from upright, and the first sample already says what that is.
         last = now;
-        total = 0;
+        total = now;
         pendingCalibrate = false;
         return;
       }

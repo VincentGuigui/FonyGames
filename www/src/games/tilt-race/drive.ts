@@ -43,13 +43,29 @@ export type DriveInput = {
 
 export type Bump = 'none' | 'graze' | 'head-on';
 
+/**
+ * The heading the car shows when the phone's own roll is zero, i.e. held
+ * upright (`roll.ts`'s own "0 is upright"). World heading 0 is +x and grows
+ * the same clockwise-on-screen way `TrackCanvas`'s own `heading + PI/2`
+ * render does, so `atan2(-1, 0)` — straight up the fixed, north-up map — is
+ * `-PI/2`. A **fixed constant, not the track's own starting tangent**: the
+ * control is a promise about the PHONE (upright means up, 1:1 from there),
+ * and tying it to whatever direction a given track happens to start in broke
+ * that promise — the car started pointing along the road instead of wherever
+ * the phone said it should, which read as a wrong turn already banked in
+ * before the player had touched anything.
+ */
+export const TILT_UPRIGHT_HEADING = -Math.PI / 2;
+
 export type Drive = {
   /** Position in track space, world units. */
   at: Point;
   /** Where the car points, radians. 0 is +x. */
   heading: number;
-  /** Where it pointed when the phone's roll was zero. `heading` is always
-   *  `base + roll`, which is what makes the control 1:1 (spec §2.1). */
+  /** `TILT_UPRIGHT_HEADING`, always. `heading` is always `base + roll`, which
+   *  is what makes the control 1:1 (spec §2.1) — kept as its own field rather
+   *  than inlining the constant because that is the one line `step` and the
+   *  tests both read to know what "roll" is even measured from. */
   base: number;
   /** How fast it is going along `heading`, world units per second. */
   speed: number;
@@ -69,16 +85,20 @@ export type Drive = {
   bump: Bump;
 };
 
-/** Put a car on the start line, pointing along the track. */
+/**
+ * Put a car on the start line. Its heading starts at `TILT_UPRIGHT_HEADING`
+ * — up the fixed map, matching a phone held upright — regardless of which
+ * way this particular track happens to point there; the very next real
+ * sensor reading takes over from `step` (spec §2.1).
+ */
 export function startDrive(track: Track, startS = 0): Drive {
-  const { at, tangent } = atArc(track, startS);
-  const heading = Math.atan2(tangent.y, tangent.x);
+  const { at } = atArc(track, startS);
   return {
     at: { x: at.x, y: at.y },
-    heading,
-    base: heading,
+    heading: TILT_UPRIGHT_HEADING,
+    base: TILT_UPRIGHT_HEADING,
     speed: 0,
-    drift: heading,
+    drift: TILT_UPRIGHT_HEADING,
     runMs: 0,
     s: startS,
     lap: 0,
@@ -128,9 +148,10 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
   }
 
   /*
-   * The heading IS the phone's rotation, offset by wherever the car started
-   * (spec §2.1). No gain, no rate, no integration — turn the wrist through a
-   * half circle and the car points the other way.
+   * The heading IS the phone's rotation, offset by `TILT_UPRIGHT_HEADING`
+   * rather than by wherever the track happens to start (spec §2.1). No gain,
+   * no rate, no integration — turn the wrist through a half circle and the
+   * car points the other way.
    *
    * Nothing here limits how fast that can happen, and it does not need to: the
    * skid below is the physics of a car that cannot change direction instantly,
