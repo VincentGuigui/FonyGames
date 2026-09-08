@@ -3,28 +3,32 @@
 | | |
 | --- | --- |
 | **Slug** | `scream-meter` |
-| **Catchy sentence** | *Ten seconds. Loudest wins. Mind the neighbours* |
+| **Catchy sentence** | *Ten rounds. Loudest total wins. Mind the neighbours* |
 | **Illustration** | `www/src/games/scream-meter/art/card.svg` — a wide-open mouth with a meter arcing out of it, needle buried in the red |
 | **Players** | 2–8 |
-| **Round length** | 30 s |
+| **Match length** | 2–3 min — ten rounds, each a 3 s countdown + 10 s window + 3 s reveal |
 | **Inputs** | mic |
 | **Accent colour** | `#FB4D3D` |
 | **Status** | 🎮 beta — built; the catalogue's first mic game, and the sustain window and per-round floor are untested in a real room ([#15](https://github.com/VincentGuigui/FonyGames/issues/15)) |
 
 ## 1. Pitch
 
-Everybody screams at once for ten seconds, and the phone that heard the most
-noise wins. The room tells you *what* to scream — a vowel, a high note, a low
-note — not because the phone checks (it does not, and cannot fairly across
-languages and accents) but because being told to scream "OOO" in a low voice is
-funnier than being told to scream.
+Everybody screams at once for ten seconds, ten times over, and the phone that
+heard the most noise across the whole match wins. Each round the room is told
+*what* to scream — a vowel, a high note, a low note — not because the phone
+checks (it does not, and cannot fairly across languages and accents) but
+because being told to scream "OOO" in a low voice is funnier than being told
+to scream.
 
-The shortest game in the catalogue and the loudest. It is the party opener.
+The loudest game in the catalogue, in short bursts. It is the party opener.
 
 ## 2. Core loop
 
-One shared ten-second window. Everybody screams into their own phone at the
-same time; each phone measures its own loudness and reports one number.
+A match is **`SCREAM_ROUNDS` (10) rounds** back to back, no lobby and no tap
+between them. Each round is its own shared ten-second window — everybody
+screams into their own phone at the same time, each phone measures its own
+loudness and reports one number — and every round's score adds to a running
+**total** that decides the match, not any single round.
 
 1. Lobby. The mic permission is asked for by **Ready**, not by a button of its
    own ([../device-capabilities.md](../device-capabilities.md) §2).
@@ -33,13 +37,18 @@ same time; each phone measures its own loudness and reports one number.
 3. `SCREAM_COUNTDOWN_MS` (3 s) of "get ready", so eight people start together
    rather than trickling in. The prompt is the biggest thing on screen.
 4. **Ten seconds** (`SCREAM_WINDOW_MS`). Every phone samples its own mic and
-   draws its own live meter. Nothing goes on the wire during the window except
-   a coarse heartbeat (§6).
+   draws its own live meter. Nothing scored goes on the wire during the
+   window — only a coarse heartbeat and a purely visual level (§6).
 5. The window closes on an absolute timestamp. Each phone reports its **score**
-   — one number, see below — and the referee ranks them.
-6. Results: the ranking, each player's own meter trace, and the winner.
+   — one number, see below — and the referee folds it into that player's total.
+6. **Reveal** (`SCREAM_REVEAL_MS`, 3 s): this round's score and the new running
+   total, held on screen long enough to read before the next round's countdown
+   opens automatically.
+7. After the tenth round's reveal, the match ends: the ranking by total, and
+   the winner.
 
-**Win condition:** the highest score.
+**Win condition (per round):** the highest score, added to the total.
+**Win condition (match):** the highest total after all ten rounds.
 **Scoring:** **the mean of the loudest `SCREAM_SUSTAIN_MS` (3 s) of the
 window**, in dBFS mapped onto 0–100. Not the peak, and not the mean of the
 whole window:
@@ -50,7 +59,10 @@ whole window:
 - **the loudest three seconds** rewards a real scream with a proper lungful
   behind it, and lets you take a breath first.
 
-Ties are broken by peak loudness, then declared a draw.
+A round tie has no separate consequence — it is just two equal scores added to
+two totals. The **match** tie is broken by the best peak either player ever
+hit across all ten rounds, then declared a draw; "everybody at zero" is a
+draw too, not an error (§7).
 
 ## 3. Modes / variations
 
@@ -76,15 +88,32 @@ spec says so out loud so nobody later "improves" it into a check.
 
 Standard flow, with the primer carrying the mic explanation (§5).
 
-The round screen is one object: **your own meter**, filling most of the
-portrait viewport, with the prompt above it and the clock below. The meter is a
-vertical bar with a **peak-hold line** that stays where your best moment was,
-because a bar with no memory gives you nothing to beat.
+The round screen's centrepiece is **your own meter**, a vertical bar with a
+**peak-hold line** that stays where your best moment was — a bar with no
+memory gives you nothing to beat. Above it, the **prompt** is set in a serif
+face rather than the UI's own sans: it is a placard being read out loud, not a
+control, and the one place in the catalogue that earns reading like something
+printed rather than chrome.
 
-Other players are **not** live on screen during the window. Eight live meters
-would be unreadable at this size and would put eight streams on the wire for a
-ten-second round; the reveal is the payoff instead. What is shown is a row of
-avatars, each lighting up as that phone reports in.
+**Everyone else in the room is live too, narrow and dimmed.** A thin band
+either side of the main meter — one per other connected player, stretched to
+the same height as your own meter, at half opacity — fills from a `0..1`
+level each phone samples and broadcasts every `SCREAM_LEVEL_MS` (250 ms) while
+the window is open. This is purely ambient presence, never a second
+scoreboard: no number is attached, it never scores anything, and it goes
+blank the moment the window closes (§6, §10) — it exists so a room screaming
+together *feels* like a room screaming together, not eight people staring at
+their own phone in silence. A row of avatars along the bottom still lights up
+as each phone reports in, which is the one thing that is presence rather than
+performance.
+
+**Reveal (`SCREAM_REVEAL_MS`, 3 s), between every round.** The readout below
+the meter swaps to this round's score and the running total, held on screen
+long enough to read before the next round's countdown opens on its own — no
+lobby, no tap to continue. The status bar names the round out of ten and
+which of the three phases is showing (get ready / scream / result). The final
+reveal, after round ten, is what leads into the match's own results screen —
+ranked by total, not by any single round.
 
 ## 5. Inputs & sensors
 
@@ -113,29 +142,43 @@ screen.
 
 ## 6. Networking
 
-Profile A. Ten seconds of sampling produce **one number**.
+Profile A, ten rounds deep: each window still produces one score, but the
+referee now broadcasts a single state frame (`ScreamState`, the same shape
+Color Match's ladder uses) rather than separate round/result messages, so
+`round`, the reveal phase and the running `totals` are always in sync on the
+wire.
 
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
-| `scream-round` | server → all | `{ roundId, prompt, startsAt, endsAt }` | The prompt and the two absolute timestamps |
-| `scream-alive` | client → server | `{ roundId, at }` | A heartbeat, twice a second — "still here, still sampling" |
-| `scream-score` | client → server | `{ roundId, score, peak, floor }` | This phone's own result, sent once at the close |
-| `scream-result` | server → all | `{ roundId, scores: {id: {score, peak}}, winner }` | The ranking |
+| `scream` | server → all | `ScreamState { roundId, round, rounds, prompt, phase, startsAt, endsAt, reported, levels, scores, totals, winner, draw }` | The whole round/match state, sent on every phase change and every live level |
+| `scream-alive` | client → server | `{ roundId, round, at }` | A heartbeat, twice a second — "still here, still sampling" |
+| `scream-score` | client → server | `{ roundId, round, score, peak, floor, partial }` | This phone's own result for the round in flight, sent once at the close |
+| `scream-level` | client → server | `{ roundId, round, level }` | This phone's live 0..1 loudness, every `SCREAM_LEVEL_MS` (250 ms) while the window is open — purely visual, for the other players' side meters (§4), never scored |
 
-**Who is authoritative:** the referee owns the clock, the prompt and the
-ranking. It does **not** own the loudness — it cannot, the audio never leaves
-the phone (§10). That is a deliberate trade, and §8 is where it is paid for.
+**Who is authoritative:** the referee owns the clock, the prompt, the round
+count and the ranking. It does **not** own the loudness — it cannot, the
+audio never leaves the phone (§10). That is a deliberate trade, and §8 is
+where it is paid for.
+
+**`round` guards every message.** `scream-alive`, `scream-score` and
+`scream-level` all carry the round they belong to, and the referee drops
+anything whose `round` does not match the round in flight — a straggler from
+the round that just closed cannot count toward the next one's heartbeats,
+score or total.
 
 **Latency:** the window is defined by absolute timestamps, so 300 ms of lag
 costs a phone 300 ms of its own ten seconds and nothing else. A `scream-score`
 is accepted up to `SCREAM_REPORT_GRACE_MS` (2 s) after the close; a phone that
-misses that deadline scores 0 and the results say "no answer" rather than
-pretending.
+misses that deadline scores 0 for the round and the reveal says "no answer"
+rather than pretending, and the total simply does not move.
 
 ## 7. Failure & edge cases
 
-- **Player leaves mid-window**: no score, listed as left. The round does not
-  wait for them.
+- **Player leaves mid-window**: no score for that round, listed as left. The
+  round does not wait for them, and their total simply stops moving.
+  **Everybody leaving ends the match outright**, not just the round in
+  flight — no point idling through the rest of the ten rounds with nobody
+  there to play them.
 - **Host leaves**: the round runs to its own timestamps; the referee owns them.
 - **Permission denied**: that phone cannot play (§5). It stays in the room as a
   spectator and sees the results.
@@ -143,8 +186,9 @@ pretending.
   dead. A phone that was backgrounded during the window reports what it managed
   and flags `partial`; the results mark it rather than ranking it as a loss.
   §12 Q3 asks whether a partial should score at all.
-- **Everyone silent**: all zeros, and the round is a draw with nobody winning.
-  A draw is a legitimate outcome, not an error.
+- **Everyone silent**: all totals stay at zero, the match still runs its full
+  ten rounds, and it ends a draw with nobody winning. A draw is a legitimate
+  outcome, not an error.
 - **A phone with no working mic** (some desktops): treated as denied.
 
 ## 8. Anti-cheat
@@ -250,3 +294,21 @@ Two the build raised:
    party game in one room where everybody can hear everybody and the social
    check is the real one. Raising it would start punishing a phone with a bad
    connection instead.
+
+One the maintainer reversed outright, on purpose:
+
+8. **Ten rounds, and live side meters, replacing the original one-round shape.**
+   The original build (§4, as written) was one ten-second window and a
+   deliberate choice **not** to show other players live: "eight live meters
+   would be unreadable at this size and would put eight streams on the wire
+   for a ten-second round; the reveal is the payoff instead." The maintainer
+   asked for the opposite — `SCREAM_ROUNDS` (10) rounds per match, and a live,
+   narrow, dimmed band per other player either side of the main meter, sampled
+   and broadcast every `SCREAM_LEVEL_MS` (250 ms). The original reasoning was
+   not wrong about a *single* ten-second round; it just weighed the ambient
+   feeling of a room screaming together, over ten rounds, as worth eight small
+   streams that never carry a score. Whether that holds up at the full 2–8
+   players this game allows, not just the two or three it has been tried with,
+   is the open half of this reversal — the levels are visual-only and never
+   scored, so the worst case is a wire that is busier than it needs to be, not
+   a broken game.

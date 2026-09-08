@@ -4,6 +4,8 @@ import {
   SCREAM_MIN_ALIVE,
   SCREAM_MIN_PLAYERS,
   SCREAM_REPORT_GRACE_MS,
+  SCREAM_REVEAL_MS,
+  SCREAM_ROUNDS,
   SCREAM_WINDOW_MS,
   type PlayerId,
   type ScreamState,
@@ -15,23 +17,31 @@ import { enoughToStart } from '../shared/players';
 /**
  * Scream Meter. Spec: docs/specs/games/scream-meter.md
  *
- * The shortest game in the catalogue and the simplest referee: it owns the
- * prompt, the clock and the ranking, and it does **not** own the loudness — it
- * cannot, because the audio never leaves the phone (§10).
- *
- * That is a deliberate trade and §8 is where it is paid for. There is no way to
- * verify a claimed score without sending audio, so what this file does instead
- * is make the *cheap* cheats not work:
+ * The referee owns the prompt, the clock and the ranking, and it does **not**
+ * own the loudness — it cannot, because the audio never leaves the phone
+ * (§10). That is a deliberate trade and §8 is where it is paid for. There is
+ * no way to verify a claimed score without sending audio, so what this file
+ * does instead is make the *cheap* cheats not work:
  *
  * - a score is clamped to the range a real microphone can report;
- * - a score that arrives without heartbeats through the window is not counted,
- *   because it cannot have been measured;
- * - `floor` and `peak` are kept beside `score`, so an implausible combination —
- *   a huge score with a silent floor and no peak — is visible.
+ * - a score that arrives without heartbeats through the window is not
+ *   counted, because it cannot have been measured;
+ * - `floor` and `peak` are kept beside `score`, so an implausible combination
+ *   — a huge score with a silent floor and no peak — is visible.
  *
- * Beyond that this is a party game played in one room where everybody can hear
- * everybody, and the social check is stronger than any server check. Worth
- * writing down rather than pretending otherwise.
+ * Beyond that this is a party game played in one room where everybody can
+ * hear everybody, and the social check is stronger than any server check.
+ * Worth writing down rather than pretending otherwise.
+ *
+ * ## A match is ten rounds, not one
+ *
+ * `SCREAM_ROUNDS` prompts, back to back, each its own countdown and window,
+ * each adding a score to a running `totals`. Between one round's close and
+ * the next round's countdown sits `'reveal'` — long enough to read that
+ * round's numbers — and the shape is deliberately the one Color Match's
+ * ladder already uses: `armRound` for "deal the next one", `finishRound` for
+ * "score this one and hold the reveal", `finishMatch` only once, at the very
+ * end, for the total that actually decides the winner.
  */
 
 export type ScreamReport = {
@@ -44,17 +54,32 @@ export type ScreamReport = {
 
 export type ScreamMeter = {
   roundId: number;
+  /** 1-based, current round of `SCREAM_ROUNDS`. */
+  round: number;
   prompt: string;
-  phase: 'countdown' | 'window' | 'done';
+  phase: 'countdown' | 'window' | 'reveal' | 'done';
   startsAt: number;
   endsAt: number;
-  /** Everyone in the round. A player is here from the start, at no score. */
+  /** When the 'reveal' phase ends and either the next round is armed or the
+   *  match finishes. Meaningless outside 'reveal'. */
+  revealEndsAt: number;
+  /** Everyone in the match. A player is here from the start, at no score. */
   entrants: PlayerId[];
-  /** Heartbeats seen per player, the whole reason `scream-alive` exists. */
+  /** Heartbeats seen per player THIS ROUND, the whole reason `scream-alive` exists. */
   alive: Record<PlayerId, number>;
   reports: Record<PlayerId, ScreamReport>;
+  /** This round's live 0..1 levels, purely visual — never scored, never kept
+   *  once the round closes (spec §4, §10). */
+  levels: Record<PlayerId, number>;
+  /** Running sum of every completed round's score, per player. */
+  totals: Record<PlayerId, number>;
+  /** The best peak seen from each player across the whole match — the match's
+   *  own tie-break, generalising the single-round rule (spec §2). Server-only:
+   *  a phone has no use for anyone else's peak mid-match. */
+  bestPeak: Record<PlayerId, number>;
   left: PlayerId[];
   solo: boolean;
+  /** The MATCH winner, set only once by `finishMatch`. */
   winner: PlayerId | null;
   draw: boolean;
 };
@@ -70,15 +95,33 @@ export type Ctx = {
 };
 
 /**
- * The next thing this game needs waking for: the start of the screaming, then
- * the close plus the reporting grace.
+ * The next thing this game needs waking for: the start of the screaming, the
+ * close plus the reporting grace, or the end of the reveal.
  *
  * The grace is on the alarm rather than being waited out separately, because a
  * phone 300 ms away should lose its own lag and not its score (spec §6).
  */
 export function nextDeadline(s: ScreamMeter): number {
   if (s.phase === 'done') return Infinity;
-  return s.phase === 'countdown' ? s.startsAt : s.endsAt + SCREAM_REPORT_GRACE_MS;
+  if (s.phase === 'countdown') return s.startsAt;
+  if (s.phase === 'window') return s.endsAt + SCREAM_REPORT_GRACE_MS;
+  return s.revealEndsAt;
+}
+
+/** Deal a fresh prompt and open the next round's countdown. Mutates `s`. */
+function armRound(ctx: Ctx, s: ScreamMeter, round: number): void {
+  const now = ctx.now();
+  const alive: Record<PlayerId, number> = {};
+  for (const id of s.entrants) alive[id] = 0;
+
+  s.round = round;
+  s.prompt = dealPrompt(ctx.random);
+  s.phase = 'countdown';
+  s.startsAt = now + SCREAM_COUNTDOWN_MS;
+  s.endsAt = s.startsAt + SCREAM_WINDOW_MS;
+  s.alive = alive;
+  s.reports = {};
+  s.levels = {};
 }
 
 /** Host pressed start. Returns false when the room is not eligible. */
@@ -90,24 +133,33 @@ export async function startScreamMeter(
 ): Promise<boolean> {
   if (!enoughToStart(connected.length, [SCREAM_MIN_PLAYERS, SCREAM_MAX_PLAYERS], solo)) return false;
 
-  const now = ctx.now();
-  const alive: Record<PlayerId, number> = {};
-  for (const id of connected) alive[id] = 0;
+  const totals: Record<PlayerId, number> = {};
+  const bestPeak: Record<PlayerId, number> = {};
+  for (const id of connected) {
+    totals[id] = 0;
+    bestPeak[id] = SCREAM_DB_FLOOR;
+  }
 
   const s: ScreamMeter = {
     roundId,
-    prompt: dealPrompt(ctx.random),
+    round: 0,
+    prompt: '',
     phase: 'countdown',
-    startsAt: now + SCREAM_COUNTDOWN_MS,
-    endsAt: now + SCREAM_COUNTDOWN_MS + SCREAM_WINDOW_MS,
+    startsAt: 0,
+    endsAt: 0,
+    revealEndsAt: 0,
     entrants: [...connected],
-    alive,
+    alive: {},
     reports: {},
+    levels: {},
+    totals,
+    bestPeak,
     left: [],
     solo: solo || connected.length <= 1,
     winner: null,
     draw: false,
   };
+  armRound(ctx, s, 1);
 
   await ctx.save(s);
   broadcast(ctx, s);
@@ -119,7 +171,9 @@ export async function startScreamMeter(
  * "Still here, still sampling."
  *
  * Counted, not stored: the count is the only thing §8 needs, and a list of
- * timestamps would be a list of when somebody was in a room.
+ * timestamps would be a list of when somebody was in a room. `round` has to
+ * match the round in flight, or a straggler from the round that just closed
+ * could count toward the next one's minimum.
  *
  * **Accepted on the same deadline as a score**, close plus the reporting
  * grace, and for the same reason: a phone sampling right up to the close sends
@@ -128,9 +182,9 @@ export async function startScreamMeter(
  * rather than catch a client that never sampled — which is the one thing it
  * exists to do (spec §6, §8).
  */
-export async function onAlive(ctx: Ctx, playerId: PlayerId, roundId: number): Promise<void> {
+export async function onAlive(ctx: Ctx, playerId: PlayerId, roundId: number, round: number): Promise<void> {
   const s = await ctx.load();
-  if (!s || s.roundId !== roundId || s.phase !== 'window') return;
+  if (!s || s.roundId !== roundId || s.round !== round || s.phase !== 'window') return;
   if (!s.entrants.includes(playerId)) return;
   if (ctx.now() > s.endsAt + SCREAM_REPORT_GRACE_MS) return;
   s.alive[playerId] = (s.alive[playerId] ?? 0) + 1;
@@ -138,24 +192,54 @@ export async function onAlive(ctx: Ctx, playerId: PlayerId, roundId: number): Pr
 }
 
 /**
- * One phone's result (spec §6).
+ * "This is roughly how loud I am right now" — purely visual, for the OTHER
+ * players' side meters (spec §4). Unlike a heartbeat, this one IS broadcast:
+ * the entire point is that the room sees it, at whatever cadence a phone
+ * chooses to send it — `SCREAM_LEVEL_MS` is a client-side convention, not
+ * something this handler enforces.
  *
- * Accepted up to `SCREAM_REPORT_GRACE_MS` past the close, and only once — a
- * second report is ignored rather than replacing the first, so a phone cannot
- * send a modest score and then improve on it.
+ * Same window-and-round guard as `onAlive`: a level from a round that already
+ * closed would paint a stale bar over the reveal it has no business near, and
+ * `levels` is reset to empty every `armRound` so a silent phone reads as
+ * silent rather than as whatever it last managed.
+ */
+export async function onLevel(
+  ctx: Ctx,
+  playerId: PlayerId,
+  roundId: number,
+  round: number,
+  rawLevel: unknown,
+): Promise<void> {
+  const s = await ctx.load();
+  if (!s || s.roundId !== roundId || s.round !== round || s.phase !== 'window') return;
+  if (!s.entrants.includes(playerId)) return;
+  if (typeof rawLevel !== 'number' || !Number.isFinite(rawLevel)) return;
+  s.levels[playerId] = Math.max(0, Math.min(1, rawLevel));
+  await ctx.save(s);
+  broadcast(ctx, s);
+}
+
+/**
+ * One phone's result for ONE round (spec §6).
+ *
+ * Accepted up to `SCREAM_REPORT_GRACE_MS` past the close, and only once per
+ * round — a second report for the same round is ignored rather than
+ * replacing the first, so a phone cannot send a modest score and then improve
+ * on it.
  */
 export async function onScore(
   ctx: Ctx,
   playerId: PlayerId,
   roundId: number,
+  round: number,
   rawScore: unknown,
   rawPeak: unknown,
   rawFloor: unknown,
   rawPartial: unknown,
 ): Promise<void> {
   const s = await ctx.load();
-  if (!s || s.roundId !== roundId) return;
-  if (s.phase === 'countdown' || s.phase === 'done') return;
+  if (!s || s.roundId !== roundId || s.round !== round) return;
+  if (s.phase === 'countdown' || s.phase === 'reveal' || s.phase === 'done') return;
   if (!s.entrants.includes(playerId) || playerId in s.reports) return;
   if (ctx.now() > s.endsAt + SCREAM_REPORT_GRACE_MS) return;
 
@@ -180,9 +264,10 @@ export async function onScore(
   await ctx.save(s);
   broadcast(ctx, s);
 
-  // Everybody in: rank now rather than making a room of two wait out the grace.
+  // Everybody in: close the round now rather than making a room of two wait
+  // out the grace.
   const stillOut = s.entrants.filter((id) => !(id in s.reports) && !s.left.includes(id));
-  if (stillOut.length === 0) await finish(ctx, s);
+  if (stillOut.length === 0) await finishRound(ctx, s);
 }
 
 function clampDb(raw: unknown): number {
@@ -191,10 +276,11 @@ function clampDb(raw: unknown): number {
 }
 
 /**
- * The clock. Two things happen on it: the screaming starts, and the window
- * closes and gets ranked.
+ * The clock. Three things can happen on it: the screaming starts, the window
+ * closes and gets scored into a reveal, or the reveal ends and either the
+ * next round begins or the match is over.
  *
- * Returns true when the round is over.
+ * Returns true when the whole match is over.
  */
 export async function tick(ctx: Ctx): Promise<boolean> {
   const s = await ctx.load();
@@ -209,13 +295,30 @@ export async function tick(ctx: Ctx): Promise<boolean> {
     return false;
   }
 
-  await finish(ctx, s);
-  return true;
+  if (s.phase === 'window') {
+    await finishRound(ctx, s);
+    return false;
+  }
+
+  // The reveal is over. Either this was the last round, or the next one is
+  // dealt and the whole thing goes round again — no lobby, no tap to continue.
+  if (s.round >= SCREAM_ROUNDS) {
+    await finishMatch(ctx, s);
+    return true;
+  }
+  armRound(ctx, s, s.round + 1);
+  await ctx.save(s);
+  broadcast(ctx, s);
+  await ctx.setAlarm(nextDeadline(s));
+  return false;
 }
 
 /**
- * A player vanished mid-window: no score, listed as left, and the round does
- * not wait for them (spec §7).
+ * A player vanished mid-window: no score for this round, listed as left, and
+ * the round does not wait for them (spec §7).
+ *
+ * Everybody gone ends the match outright rather than idling through however
+ * many rounds are left with nobody there to play them.
  */
 export async function onPlayerGone(ctx: Ctx, playerId: PlayerId): Promise<void> {
   const s = await ctx.load();
@@ -223,9 +326,14 @@ export async function onPlayerGone(ctx: Ctx, playerId: PlayerId): Promise<void> 
   if (!s.entrants.includes(playerId) || s.left.includes(playerId)) return;
   s.left.push(playerId);
 
+  if (s.left.length >= s.entrants.length) {
+    await finishMatch(ctx, s);
+    return;
+  }
+
   const stillOut = s.entrants.filter((id) => !(id in s.reports) && !s.left.includes(id));
   if (stillOut.length === 0 && s.phase === 'window') {
-    await finish(ctx, s);
+    await finishRound(ctx, s);
     return;
   }
   await ctx.save(s);
@@ -233,27 +341,52 @@ export async function onPlayerGone(ctx: Ctx, playerId: PlayerId): Promise<void> 
 }
 
 /**
- * Rank the room.
+ * Close out one round: fold its scores into the running totals and the
+ * match's own peak tie-break, then hold the reveal for `SCREAM_REVEAL_MS`.
  *
- * Highest score wins; a tie is broken by peak loudness, and a tie on both is a
- * draw that says so. **Everybody silent is a draw too**, not an error — it is a
- * legitimate outcome of a game where the room might just be too polite (spec
- * §7).
+ * Deliberately never decides the match itself, even on the final round —
+ * `tick` does that once the reveal has actually been shown, the same reason
+ * Color Match reveals the level that ends a run before declaring it over
+ * rather than jumping straight to the results screen.
  */
-async function finish(ctx: Ctx, s: ScreamMeter): Promise<void> {
+async function finishRound(ctx: Ctx, s: ScreamMeter): Promise<void> {
+  for (const id of s.entrants) {
+    const report = s.reports[id];
+    if (!report) continue;
+    s.totals[id] = (s.totals[id] ?? 0) + report.score;
+    s.bestPeak[id] = Math.max(s.bestPeak[id] ?? SCREAM_DB_FLOOR, report.peak);
+  }
+  s.phase = 'reveal';
+  s.revealEndsAt = ctx.now() + SCREAM_REVEAL_MS;
+  await ctx.save(s);
+  broadcast(ctx, s);
+  await ctx.setAlarm(nextDeadline(s));
+}
+
+/**
+ * Rank the match by total across every round played.
+ *
+ * Highest total wins; a tie is broken by the best peak either of them ever
+ * hit, across the whole match — the single-round tie-break, generalised the
+ * same way the score itself was. Both tied is a draw that says so.
+ * **Everybody at zero is a draw too**, not an error — a legitimate outcome of
+ * a game where the room might just be too polite (spec §7).
+ */
+async function finishMatch(ctx: Ctx, s: ScreamMeter): Promise<void> {
   let winner: PlayerId | null = null;
-  let best = { score: -1, peak: -Infinity };
+  let best = { total: -1, peak: -Infinity };
   let tie = false;
 
   if (!s.solo) {
     for (const id of s.entrants) {
-      const report = s.reports[id];
-      if (!report || report.score <= 0) continue;
-      if (report.score > best.score || (report.score === best.score && report.peak > best.peak)) {
-        best = { score: report.score, peak: report.peak };
+      const total = s.totals[id] ?? 0;
+      if (total <= 0) continue;
+      const peak = s.bestPeak[id] ?? SCREAM_DB_FLOOR;
+      if (total > best.total || (total === best.total && peak > best.peak)) {
+        best = { total, peak };
         winner = id;
         tie = false;
-      } else if (report.score === best.score && report.peak === best.peak) {
+      } else if (total === best.total && peak === best.peak) {
         tie = true;
       }
     }
@@ -261,8 +394,6 @@ async function finish(ctx: Ctx, s: ScreamMeter): Promise<void> {
 
   s.phase = 'done';
   s.winner = tie ? null : winner;
-  // A draw covers both shapes: nobody scored at all, and a genuine tie at the
-  // top after the peak tie-break.
   s.draw = tie || (!s.solo && winner === null);
   await ctx.save(s);
   broadcast(ctx, s);
@@ -270,11 +401,11 @@ async function finish(ctx: Ctx, s: ScreamMeter): Promise<void> {
 
 /** The round as every phone needs it. */
 export function toState(s: ScreamMeter): ScreamState {
-  const open = s.phase !== 'done';
+  const open = s.phase === 'countdown' || s.phase === 'window';
   const scores: ScreamState['scores'] = {};
-  // Nothing numeric goes out until the close: eight live meters would be
-  // unreadable at this size and would put eight streams on the wire for a
-  // ten-second round (spec §4). The reveal is the payoff instead.
+  // Nothing numeric goes out until a round closes: a live score bar would be
+  // the whole game handed to a modified client, and the reveal is the payoff
+  // (spec §4).
   if (!open) {
     for (const [id, report] of Object.entries(s.reports)) {
       scores[id] = { score: report.score, peak: report.peak, partial: report.partial };
@@ -282,13 +413,19 @@ export function toState(s: ScreamMeter): ScreamState {
   }
   return {
     roundId: s.roundId,
+    round: s.round,
+    rounds: SCREAM_ROUNDS,
     prompt: s.prompt,
     phase: s.phase,
     startsAt: s.startsAt,
     endsAt: s.endsAt,
     // Presence only, which is what the row of avatars lighting up needs.
     reported: Object.keys(s.reports),
+    // Purely visual, and only while it means anything: the side meters exist
+    // for the ten seconds a room is actually screaming (spec §4).
+    levels: s.phase === 'window' ? { ...s.levels } : {},
     scores,
+    totals: { ...s.totals },
     winner: s.winner,
     draw: s.draw,
   };

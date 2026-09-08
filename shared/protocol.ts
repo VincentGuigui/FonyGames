@@ -308,17 +308,29 @@ export type ClientMessage =
    * Scream Meter: a heartbeat, twice a second — "still here, still sampling".
    *
    * Its only job is anti-cheat: a score that arrives with no heartbeats through
-   * the window was not measured (scream-meter.md §8).
+   * the window was not measured (scream-meter.md §8). `round` is which of the
+   * ten this heartbeat belongs to, so a straggler from a round that already
+   * closed cannot count toward the next one's total.
    */
-  | { t: 'scream-alive'; d: { roundId: number; at: number } }
+  | { t: 'scream-alive'; d: { roundId: number; round: number; at: number } }
   /**
-   * Scream Meter: this phone's own result, once, at the close.
+   * Scream Meter: this phone's own result for ONE round, sent once at its close.
    *
    * Three numbers and a flag, and **no audio** — nothing else ever leaves the
    * phone (§10). `floor` and `peak` travel beside `score` so an implausible
-   * combination is visible rather than merely unlikely (§8).
+   * combination is visible rather than merely unlikely (§8). Ten of these make
+   * a match; `round` says which.
    */
-  | { t: 'scream-score'; d: { roundId: number; score: number; peak: number; floor: number; partial: boolean } }
+  | { t: 'scream-score'; d: { roundId: number; round: number; score: number; peak: number; floor: number; partial: boolean } }
+  /**
+   * Scream Meter: this phone's live level, purely for the other players' side
+   * meters (spec §4) — **never scored**, unlike `scream-score` above.
+   *
+   * Sent every `SCREAM_LEVEL_MS` through the window, already normalised 0..1
+   * against this phone's own floor: the referee relays a shape, not a raw
+   * dBFS a room's own noise makes meaningless out of context (spec §5).
+   */
+  | { t: 'scream-level'; d: { roundId: number; round: number; level: number } }
   /**
    * Together in the Dark: the current player's one action for their turn.
    *
@@ -830,27 +842,50 @@ export type TiltState = {
 /**
  * Scream Meter, as every phone needs it. Spec: docs/specs/games/scream-meter.md §6
  *
- * The lightest state in the catalogue: a prompt, two timestamps, and one number
- * per player at the end. Ten seconds of sampling produce a single frame up.
+ * A match is `SCREAM_ROUNDS` of these ten-second windows back to back, each its
+ * own prompt, each adding to a running `totals`. `winner`/`draw` describe the
+ * whole match, not the round in flight — they are null/false until `phase`
+ * reaches `'done'` on the tenth round, the same shape Color Match's ladder uses
+ * for its own `totals` versus its per-level `picks`.
  */
 export type ScreamState = {
   roundId: number;
-  /** Which vowel or pitch the room was told to scream. Never scored (§3). */
+  /** 1-based. `rounds` travels alongside it so the phone never has to know
+   *  `SCREAM_ROUNDS` on its own — the same reason Tilt Race sends `laps`. */
+  round: number;
+  rounds: number;
+  /** Which vowel or pitch the room was told to scream this round. Never scored (§3). */
   prompt: string;
-  phase: 'countdown' | 'window' | 'done';
-  /** Absolute server times: when the screaming starts, and when it closes. */
+  /** `'reveal'` sits between one round's close and the next round's countdown —
+   *  long enough to read that round's scores before the prompt changes. */
+  phase: 'countdown' | 'window' | 'reveal' | 'done';
+  /** Absolute server times: when THIS round's screaming starts, and when it closes. */
   startsAt: number;
   endsAt: number;
   /**
-   * Who has reported in. During the window this is the row of avatars lighting
-   * up — presence only, no numbers, because a live leaderboard mid-scream is
-   * eight streams on the wire for a ten-second round (§4).
+   * Who has reported in, this round. During the window this is the row of
+   * avatars lighting up — presence only, no numbers, which is what it is
+   * still for even now that a live level exists (`levels` below): a phone
+   * having REPORTED is a different fact from how loud it currently is.
    */
   reported: PlayerId[];
-  /** Filled at the close: each phone's own result. Empty during the window. */
+  /**
+   * Every connected player's live loudness this round, 0..1, already relative
+   * to their own floor — purely visual, sampled and relayed every
+   * `SCREAM_LEVEL_MS` while `phase` is `'window'`, and empty otherwise. This is
+   * the one number in the whole message that is never scored and never kept
+   * past the round it was drawn for (spec §4, §10).
+   */
+  levels: Record<PlayerId, number>;
+  /** Filled once this round's window closes: each phone's own result. Empty
+   *  during `'countdown'`/`'window'`. */
   scores: Record<PlayerId, { score: number; peak: number; partial: boolean }>;
+  /** Running sum of `scores.score` across every round completed so far,
+   *  including this one once it is in `scores`. */
+  totals: Record<PlayerId, number>;
+  /** The MATCH winner — null until the tenth round's `'done'`. */
   winner: PlayerId | null;
-  /** Everybody silent, or a tie at the top: a legitimate outcome (§7). */
+  /** Everybody tied on total, or nobody ever scored: a legitimate outcome (§7). */
   draw: boolean;
 };
 
@@ -2038,6 +2073,7 @@ const CLIENT_TYPES = new Set([
   'tilt-finish',
   'scream-alive',
   'scream-score',
+  'scream-level',
   'dark-act',
   'switch-game',
 ]);
@@ -3197,9 +3233,30 @@ export const SCREAM_SAMPLE_MS = 33;
 /** How often a phone says it is still there. Twice a second (spec §6). */
 export const SCREAM_ALIVE_MS = 500;
 
+/**
+ * How often a phone reports its own live level for the OTHER players' side
+ * meters (spec §4). Four times a second — noticeably alive without being a
+ * second stream of the anti-cheat heartbeat's own cadence, and it is purely
+ * visual, so nothing downstream needs it any denser than a room can see.
+ */
+export const SCREAM_LEVEL_MS = 250;
+
 /** A score is accepted this long after the close; past it the phone scores 0
  *  and the results say "no answer" rather than pretending (spec §6). */
 export const SCREAM_REPORT_GRACE_MS = 2_000;
+
+/**
+ * How many rounds make a match (spec §2). Ten screams, one prompt each, is
+ * long enough for a running total to mean something and short enough to stay
+ * a party opener rather than the whole party — about two and a half minutes
+ * at the window and countdown alone, before anyone actually screams for long.
+ */
+export const SCREAM_ROUNDS = 10;
+
+/** How long a round's own scores sit on screen before the next prompt — long
+ *  enough to read names and the running total, short enough that ten of them
+ *  do not turn into a wait (spec §2). */
+export const SCREAM_REVEAL_MS = 3_000;
 
 /**
  * How few heartbeats make a score untrustworthy.

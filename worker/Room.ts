@@ -163,6 +163,7 @@ import {
 import {
   nextDeadline as screamDeadline,
   onAlive as onScreamAlive,
+  onLevel as onScreamLevel,
   onPlayerGone as screamPlayerGone,
   onScore as onScreamScore,
   startScreamMeter,
@@ -561,12 +562,17 @@ export class Room extends DurableObject<Env> {
       }
       case 'scream-alive': {
         const id = this.#idOf(ws);
-        if (id) await onScreamAlive(this.#screamCtx(), id, msg.d.roundId);
+        if (id) await onScreamAlive(this.#screamCtx(), id, msg.d.roundId, msg.d.round);
         return;
       }
       case 'scream-score': {
         const id = this.#idOf(ws);
-        if (id) await onScreamScore(this.#screamCtx(), id, msg.d.roundId, msg.d.score, msg.d.peak, msg.d.floor, msg.d.partial);
+        if (id) await onScreamScore(this.#screamCtx(), id, msg.d.roundId, msg.d.round, msg.d.score, msg.d.peak, msg.d.floor, msg.d.partial);
+        return;
+      }
+      case 'scream-level': {
+        const id = this.#idOf(ws);
+        if (id) await onScreamLevel(this.#screamCtx(), id, msg.d.roundId, msg.d.round, msg.d.level);
         return;
       }
       case 'tilt-move': {
