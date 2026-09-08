@@ -259,7 +259,7 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         />
 
         <div class="tilt__board">
-          <TrackCanvas track={track} car={() => carRef.current ?? startDrive(track)} rivals={rivals} accent={card.accent} onFrame={onFrame} />
+          <TrackCanvas track={track} car={() => carRef.current ?? startDrive(track)} rivals={rivals} onFrame={onFrame} />
 
           {/* The speed readout, small, top-left (spec §4). Coloured once past
               cruise, because that is where the skid starts and the player has
