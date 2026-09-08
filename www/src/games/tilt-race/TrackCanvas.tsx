@@ -3,6 +3,8 @@ import type { JSX } from 'preact';
 import { TILT_CRUISE_SPEED } from '../../../../shared/protocol';
 import { TRACK_HALF_WIDTH, atArc, type Track } from '../../../../shared/tiltTrack';
 import type { Drive } from './drive';
+import carSprite from './art/car.png?url&no-inline';
+import roadTexture from './art/road.jpg?url&no-inline';
 
 /**
  * Tilt Race's board. Spec: docs/specs/games/tilt-race.md §2.1, §4
@@ -43,7 +45,6 @@ type Props = {
   car: () => Drive;
   /** Other players' arc lengths, for the ghosts on the road ahead. */
   rivals: () => { s: number; lap: number; avatar: string }[];
-  accent: string;
   /**
    * How many world units fit across the screen. Smaller is more zoomed in.
    *
@@ -58,26 +59,36 @@ type Props = {
   onFrame: (dtMs: number) => void;
 };
 
-/** Ground, rails and the car, in literal hexes — a canvas cannot read CSS. */
+/** Ground, rails and the road's own loading fallback, in literal hexes — a canvas
+ *  cannot read CSS. The car and the road surface are `car.png`/`road.jpg`. */
 const GRASS = '#16281c';
 const ROAD = '#2b2f38';
 const RAIL = '#e8eaf0';
 const KERB = '#c0392b';
-const CAR_GLASS = '#0f1420';
 
-export function TrackCanvas({ track, car, rivals, accent, span = 460, onFrame }: Props): JSX.Element {
+export function TrackCanvas({ track, car, rivals, span = 460, onFrame }: Props): JSX.Element {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const latest = useRef({ track, car, rivals, accent, span, onFrame });
-  latest.current = { track, car, rivals, accent, span, onFrame };
+  const latest = useRef({ track, car, rivals, span, onFrame });
+  latest.current = { track, car, rivals, span, onFrame };
 
   useEffect(() => {
     const element = canvas.current;
     if (!element) return;
+    // Raw PNG/JPG, drawn directly rather than through `core/art/sprites.ts` — that
+    // module rasterises a scalable SVG to size; these are already pixels, the same
+    // reasoning `tap-fighter/FightCanvas.tsx`'s two sprite sheets use.
+    const carImg = new Image();
+    carImg.src = carSprite;
+    const roadImg = new Image();
+    roadImg.src = roadTexture;
+    // Built once the texture has loaded, not every frame — `createPattern` on a
+    // still-loading `<img>` would cache a blank pattern forever.
+    let roadPattern: CanvasPattern | null = null;
     let frame = 0;
     let last = performance.now();
 
     const draw = (): void => {
-      const { track, car, rivals, accent, span, onFrame } = latest.current;
+      const { track, car, rivals, span, onFrame } = latest.current;
       const now = performance.now();
       // Clamped: a backgrounded tab returns with a gap of seconds, and
       // stepping that in one go would teleport the car through a rail.
@@ -129,7 +140,13 @@ export function TrackCanvas({ track, car, rivals, accent, span = 460, onFrame }:
       ctx.strokeStyle = KERB;
       ctx.lineWidth = TRACK_HALF_WIDTH * 2 + 10;
       ctx.stroke();
-      ctx.strokeStyle = ROAD;
+      // The road surface: `road.jpg`, tiled. Its own 1024 px are drawn 1:1 against
+      // world units — no extra scale on the pattern — which lands one tile at about
+      // a screen's height, the size it was made to be looked at.
+      if (!roadPattern && roadImg.complete && roadImg.naturalWidth > 0) {
+        roadPattern = ctx.createPattern(roadImg, 'repeat');
+      }
+      ctx.strokeStyle = roadPattern ?? ROAD;
       ctx.lineWidth = TRACK_HALF_WIDTH * 2;
       ctx.stroke();
 
@@ -172,27 +189,22 @@ export function TrackCanvas({ track, car, rivals, accent, span = 460, onFrame }:
        * heading. Drawn after `restore()` so it is sized in pixels rather than
        * world units — a car that scaled with the zoom would vanish at 460 span.
        *
-       * The art points up (nose at -y) and a heading of 0 is +x, so the sprite
-       * is turned by `heading + PI/2` to point where the car is going.
+       * `car.png` is authored nose-up (225×512, tall) and a heading of 0 is +x,
+       * so the sprite is turned by `heading + PI/2` to point where the car goes
+       * — the same convention the wedge it replaced already used.
        */
       const carLength = Math.max(26, 44 * scale * 1.6);
-      const carWidth = carLength * 0.55;
+      const carAspect = carImg.naturalWidth > 0 ? carImg.naturalWidth / carImg.naturalHeight : 0.55;
+      const carWidth = carLength * carAspect;
       ctx.save();
       ctx.translate(width / 2, height / 2);
       ctx.rotate(state.heading + Math.PI / 2);
-      ctx.fillStyle = accent;
-      ctx.beginPath();
-      // A blunt wedge: nose up, so "which way is forward" needs no explaining.
-      ctx.moveTo(0, -carLength / 2);
-      ctx.lineTo(carWidth / 2, carLength / 2);
-      ctx.lineTo(0, carLength / 2 - carWidth * 0.25);
-      ctx.lineTo(-carWidth / 2, carLength / 2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = CAR_GLASS;
-      ctx.beginPath();
-      ctx.ellipse(0, -carLength * 0.05, carWidth * 0.26, carLength * 0.2, 0, 0, Math.PI * 2);
-      ctx.fill();
+      // Skipped while the sprite is still loading rather than drawn as a
+      // placeholder shape — a gap of one or two frames on a local file, never
+      // visible in practice (AGENTS.md §4).
+      if (carImg.complete && carImg.naturalWidth > 0) {
+        ctx.drawImage(carImg, -carWidth / 2, -carLength / 2, carWidth, carLength);
+      }
 
       /*
        * The skid, as a wedge trailing where the momentum actually goes rather
