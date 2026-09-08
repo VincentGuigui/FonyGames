@@ -3,7 +3,7 @@ import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
 import { GRID_MAX_PLAYERS, GRID_MIN_PLAYERS, type ServerMessage } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { goFullscreen, useLandscapeRound } from '../../core/screen';
+import { requestGameScreen, useGameOrientation } from '../../core/screen';
 import { useGameRoom } from '../../core/room/useRoom';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
@@ -21,10 +21,17 @@ import { GridBoard } from './GridBoard';
  *
  * 1. The lobby is portrait like every other, because it is the shared template.
  * 2. When the round starts, each phone gets a **loading screen with one button**. Tapping
- *    it asks for fullscreen — which every browser refuses outside a gesture, and iPhone
- *    Safari refuses entirely — and tells the referee this phone is looking at the board.
+ *    it calls `requestGameScreen(card.screen)` — fullscreen, then the landscape lock now
+ *    that fullscreen has actually taken hold — which every browser refuses outside a
+ *    gesture, and iPhone Safari refuses entirely, and tells the referee this phone is
+ *    looking at the board either way.
  * 3. The round does not begin until both have. Being attacked for two seconds while
  *    reading a "go fullscreen" prompt is not a game.
+ *
+ * `card.screen` (`core/types.ts`) is the same field every game's `GameLobby` Start/Ready
+ * tap reads (device-capabilities.md §5b) — Grid Attack just reads it from a second,
+ * game-specific tap too, because the moment that actually matters here is this one, not
+ * the "Start the game" tap that precedes it.
  */
 export function GridRoom(props: { game: GameCard }): JSX.Element {
   return (
@@ -61,18 +68,21 @@ function GridRoomInner({ game: card, code }: { game: GameCard; code: string }): 
    * rotated 90°, and the "turn your phone upright" notice fired on top of it. Landscape
    * ends when the player leaves the game, not when the round does.
    */
-  useLandscapeRound(state !== null);
+  useGameOrientation(card.screen?.orientation, state !== null);
 
   const clock = useCallback(() => client?.now() ?? Date.now(), [client]);
 
   async function ready(): Promise<void> {
     // Straight out of the tap, and before anything is awaited: a fullscreen request that
     // has been through an `await` is no longer "during a gesture" as far as the browser is
-    // concerned, which is the same trap iOS sets for motion permission.
-    const full = goFullscreen(document.documentElement);
+    // concerned, which is the same trap iOS sets for motion permission. `requestGameScreen`
+    // is what tries the landscape lock too, now that fullscreen is actually in effect by
+    // the time it does — see the card's own `screen` field for why both matter here.
+    const full = requestGameScreen(card.screen);
     client?.send({ t: 'grid-ready', d: { roundId: state?.roundId ?? 0 } });
-    // Deliberately unread: fullscreen is a nicety and the board plays without it. Awaited
-    // only so a rejection is handled rather than becoming an unhandled promise.
+    // Deliberately unread: fullscreen and the lock are both a nicety and the board plays
+    // without either. Awaited only to keep this function's own shape honest about the fact
+    // that something async is still in flight when it returns.
     await full;
   }
 
@@ -118,6 +128,7 @@ function GridRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         title={card.title}
         concept={card.concept}
         rules={card.rules}
+        screen={card.screen}
         status=""
         rows={ranked.map((p) => {
           const left = livesOf(state, p.id);

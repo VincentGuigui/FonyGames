@@ -175,6 +175,57 @@ not, which is a distinction `orientation: landscape` alone does not make.
 The notice **covers, it does not pause**: the round is still running underneath and the
 socket is still open. Nothing is lost by the two seconds it takes to turn the phone back.
 
+### Fullscreen, and a real lock (opt-in per game)
+
+The portrait lock above is asked for on every game page whether or not it ever succeeds —
+it costs nothing to try. A handful of games need the API to actually WORK, not just be
+tried, because a stray rotation would do more than show a notice: it would reflow a camera
+overlay, a landscape board, or a car steered by rotating the phone in the exact plane the OS
+watches for. Those games opt in with a `screen` field on their `GameCard`
+(`core/types.ts`):
+
+```ts
+screen: { orientation: 'portrait' | 'landscape' | 'free', fullscreen: boolean }
+```
+
+Omitted is `{ orientation: 'free', fullscreen: false }` — ask for nothing, behave exactly as
+every game did before this existed. `fullscreen` is what turns the orientation half from a
+request into an enforceable lock: `screen.orientation.lock()` is refused outside fullscreen
+on the one browser that honours it at all (Android Chrome), so a game that wants the lock to
+actually hold has to want fullscreen too.
+
+Two calls, `core/screen.ts`, and neither is per-game wiring — a game states its wish on the
+card and the shared chrome reads it:
+
+- **`requestGameScreen(card.screen)`** — fullscreen, awaited, then the orientation lock.
+  Fired from the ONE moment either API can fire from at all: straight out of the Ready/Start
+  tap, before any `await` — the same gesture rule motion and camera permissions already
+  follow (§2). `GameLobby`'s Start button, `ReadyButton`, and `GameOverScreen`'s Play
+  again/Ready all call it unconditionally, keyed on the card a game already passes them —
+  so setting the field is the entire integration for every game except Grid Attack (below).
+  Best effort and never gates the tap, unlike a sensor permission: a refused fullscreen
+  prompt is not a reason to stop someone playing.
+- **`useGameOrientation(orientation, on)`** — the round-scoped half, for a game that needs
+  the lock held (and `data-landscape` set) for as long as a board is on screen and handed
+  back on the way out. Only `'landscape'` does anything here; `'portrait'` is already the
+  ambient lock every game page holds from the moment it opens, so nothing round-scoped is
+  needed for the five portrait games below — the tap alone is the whole story for them.
+
+| Game | `screen` | Why the lock has to actually hold |
+| --- | --- | --- |
+| Tilt Race | portrait | Steering IS rolling the phone in its own plane — the exact motion the OS's own auto-rotate watches for |
+| Shake Rush | portrait | Shaken as hard as a wrist can, which is the kind of violent, tumbling motion that can trip auto-rotate mid-race |
+| Ghost Hunt | portrait | Held up and turned on the spot; a tip past the OS's own landscape threshold would reflow the camera radar |
+| Color Hunt | portrait | Pointed at a room at every angle; a stray auto-rotate would reflow the camera viewport under the player |
+| UFO Hunt | portrait | Held up sweeping the sky; the same reflow risk as the other two camera games |
+| Grid Attack | **landscape** | The one sideways board in the catalogue (docs/specs/games/grid-attack.md §3) — its own per-phone loading tap, not the lobby's, is where the round genuinely cannot start without it |
+
+Grid Attack is the one caller of `useGameOrientation` and the one game whose fullscreen
+request does not live in the shared Start/Ready tap: its round cannot begin on a phone still
+reading portrait, so it asks from a game-specific "loading screen" tap instead
+(docs/specs/games/grid-attack.md §3). `GameLobby`'s own Start tap still fires
+`requestGameScreen(card.screen)` for it too, as a harmless head start for the host.
+
 ## 6. Privacy
 
 - Coordinates, motion samples and mic levels are **relayed, never stored**. They

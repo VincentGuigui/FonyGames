@@ -38,6 +38,15 @@ export const CARD: GameCard = {
   players: PLAYERS['tilt-race'],
   duration: '~100 s',
   inputs: ['orientation', 'touch'],
+  /*
+   * Fullscreen + a real portrait lock on Ready/Start (device-capabilities.md §5b). The
+   * steering IS rolling the phone in its own plane (`roll.ts`) — exactly the motion a
+   * phone's own auto-rotate watches for — so without an enforced lock, a hard turn mid
+   * corner can flip the OS into landscape and reflow the whole board under the player's
+   * thumbs. The CSS "turn it back" notice cannot catch this: the phone never leaves
+   * portrait, the layout does.
+   */
+  screen: { orientation: 'portrait', fullscreen: true },
   tags: ['arcade', 'party', 'intense'],
   modes: [],
   status: 'live',

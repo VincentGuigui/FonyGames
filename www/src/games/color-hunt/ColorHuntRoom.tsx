@@ -222,6 +222,7 @@ function ColorHuntRoomInner({ game: card, code }: { game: GameCard; code: string
         readyBlocked={readyBlocked}
         onReadySetup={() => void enableCamera()}
         onBeforeReady={ensureCamera}
+        screen={card.screen}
         slug={card.slug}
         accent={card.accent}
         title={card.title}

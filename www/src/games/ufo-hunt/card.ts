@@ -37,6 +37,13 @@ export const CARD: GameCard = {
   players: PLAYERS['ufo-hunt'],
   duration: '2 min',
   inputs: ['orientation', 'camera', 'touch'],
+  /*
+   * Fullscreen + a real portrait lock on Ready/Start (device-capabilities.md §5b). This
+   * is played holding the phone up and sweeping the sky for the saucer, and a stray
+   * auto-rotate mid-round would reflow the camera view and its crosshair off centre
+   * screen rather than merely misjudge a tilt.
+   */
+  screen: { orientation: 'portrait', fullscreen: true },
   tags: ['arcade', 'augmented-reality'],
   modes: [],
   status: 'live',

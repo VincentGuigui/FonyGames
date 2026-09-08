@@ -37,6 +37,13 @@ export const CARD: GameCard = {
   players: PLAYERS['shake-rush'],
   duration: '1 min',
   inputs: ['motion'],
+  /*
+   * Fullscreen + a real portrait lock on Ready/Start (device-capabilities.md §5b). This
+   * is played by shaking a phone as hard as a wrist can — exactly the kind of violent,
+   * tumbling motion that can trip a phone's own auto-rotate mid-race — and the browser
+   * chrome it would otherwise keep is real length off a track that is read edge to edge.
+   */
+  screen: { orientation: 'portrait', fullscreen: true },
   tags: ['physical'],
   modes: [],
   status: 'live',

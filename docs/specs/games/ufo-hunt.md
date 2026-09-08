@@ -217,6 +217,12 @@ layer on top of a touch-first game. Ghost Hunt itself proves the fallback is
 buildable — it is this game's own direct ancestor — so the absence here is
 a choice, stated plainly rather than left implicit.
 
+**Fullscreen + a real portrait lock on the same tap**
+(`GameCard.screen`, [../../device-capabilities.md](../../device-capabilities.md) §5b):
+this is played holding the phone up and sweeping the sky for the saucer, and a
+stray auto-rotate mid-round would reflow the camera view and its crosshair off
+centre screen rather than merely misjudge a tilt.
+
 ## 6. Networking
 
 | Message | Direction | Payload | Meaning |

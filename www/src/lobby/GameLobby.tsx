@@ -14,6 +14,7 @@ import { hasAdminSession, setSoloTesting } from '../core/solo';
 import { useSoloTesting } from '../core/useSolo';
 import { guestsReady } from '../../../shared/readiness';
 import { ReadyButton } from '../core/ui/ReadyButton';
+import { requestGameScreen } from '../core/screen';
 import { GameSwitcher } from './GameSwitcher';
 
 /**
@@ -239,6 +240,10 @@ export function GameLobby({
                 track('game_start', card.slug);
                 onStart();
               };
+              // Fullscreen and the orientation lock, straight out of this tap — the
+              // only place either API can fire from (device-capabilities.md §5b).
+              // Best effort and never gates `go`, unlike `onBeforeReady` below.
+              void requestGameScreen(card.screen);
               // Not tracked until the setup actually clears: a start that stopped at
               // a refused permission never became a round.
               if (!onBeforeReady) return go();
@@ -248,7 +253,7 @@ export function GameLobby({
             {startLabel}
           </button>
         )}
-        {!room.isHost && <ReadyButton room={room} blocked={readyBlocked} onBeforeReady={onBeforeReady} />}
+        {!room.isHost && <ReadyButton room={room} blocked={readyBlocked} onBeforeReady={onBeforeReady} screen={card.screen} />}
         {readyBlocked && <p class="lobby__ready-note">{t.lobby.finishSetup}</p>}
         {room.isHost && canStart && !everybodyReady && (
           <p class="lobby__ready-note" role="status">

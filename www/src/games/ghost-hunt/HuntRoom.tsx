@@ -456,6 +456,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         room={room}
         readyBlocked={route === 'camera' && !orientationOn}
         onReadySetup={() => void enableCameraRoute()}
+        screen={card.screen}
       />
     );
   }

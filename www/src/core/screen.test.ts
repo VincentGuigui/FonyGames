@@ -1,4 +1,4 @@
-import { keepAwake, lockUpright, type Visibility, type WakeLockish } from './screen';
+import { goFullscreen, keepAwake, lockUpright, requestGameScreen, type Fullscreenish, type Visibility, type WakeLockish } from './screen';
 
 /**
  * Keeping the screen awake, and giving it back.
@@ -202,6 +202,75 @@ console.log('\nasking for portrait');
   await settle();
   check('a rejected lock is caught', true);
   rejects();
+}
+
+console.log('\ngoing fullscreen');
+
+{
+  const calls: string[] = [];
+  const el: Fullscreenish = { requestFullscreen: async () => { calls.push('request'); } };
+  check('a working element reports success', await goFullscreen(el));
+  check('and was actually asked', calls.length === 1);
+
+  // iPhone Safari: no element fullscreen at all.
+  check('an element without the API reports failure, not a throw', (await goFullscreen({})) === false);
+
+  // Every other browser, refusing outside a gesture or because the player said no.
+  const refused: Fullscreenish = { requestFullscreen: () => Promise.reject(new Error('denied')) };
+  check('a rejected request reports failure rather than throwing', (await goFullscreen(refused)) === false);
+}
+
+console.log('\nasking a card\'s screen for what it wants (§5b)');
+
+{
+  const calls: string[] = [];
+  const el: Fullscreenish = { requestFullscreen: async () => { calls.push('fullscreen'); } };
+  const scr = {
+    orientation: {
+      lock: async (o: 'portrait' | 'landscape') => { calls.push(`lock:${o}`); },
+      unlock: () => { calls.push('unlock'); },
+    },
+  };
+
+  await requestGameScreen(undefined, el, scr);
+  check('a game that asks for nothing gets nothing', calls.length === 0, calls);
+
+  await requestGameScreen({}, el, scr);
+  check('an empty request is the same as none', calls.length === 0, calls);
+
+  calls.length = 0;
+  await requestGameScreen({ orientation: 'free' }, el, scr);
+  check('"free" locks nothing, even when named explicitly', calls.length === 0, calls);
+
+  calls.length = 0;
+  await requestGameScreen({ fullscreen: true }, el, scr);
+  check('fullscreen alone asks for fullscreen and nothing else', calls.join(',') === 'fullscreen', calls);
+
+  calls.length = 0;
+  await requestGameScreen({ orientation: 'portrait' }, el, scr);
+  check('portrait alone locks portrait and asks for no fullscreen', calls.join(',') === 'lock:portrait', calls);
+
+  calls.length = 0;
+  await requestGameScreen({ orientation: 'landscape', fullscreen: true }, el, scr);
+  check('both together ask for fullscreen BEFORE the lock', calls.join(',') === 'fullscreen,lock:landscape', calls);
+
+  // The one browser that actually enforces the lock refuses it outside fullscreen, so
+  // asking before fullscreen has taken hold would race the case this exists for.
+  const slow: Fullscreenish = {
+    requestFullscreen: () => new Promise((resolve) => setTimeout(() => { calls.push('fullscreen'); resolve(); }, 5)),
+  };
+  calls.length = 0;
+  await requestGameScreen({ orientation: 'landscape', fullscreen: true }, slow, scr);
+  check('the lock still waits for a slow fullscreen to actually resolve', calls.join(',') === 'fullscreen,lock:landscape', calls);
+
+  calls.length = 0;
+  await requestGameScreen({ orientation: 'landscape', fullscreen: false }, el, scr);
+  check('a lock with no fullscreen still tries — some browsers allow it installed', calls.join(',') === 'lock:landscape', calls);
+
+  // Never gates: a refused fullscreen and an unsupported lock are not thrown either.
+  const refused: Fullscreenish = { requestFullscreen: () => Promise.reject(new Error('denied')) };
+  await requestGameScreen({ orientation: 'portrait', fullscreen: true }, refused, {});
+  check('a refused fullscreen and a bare orientation object are not errors', true);
 }
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);

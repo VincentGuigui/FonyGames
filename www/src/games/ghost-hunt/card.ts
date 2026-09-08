@@ -42,6 +42,13 @@ export const CARD: GameCard = {
   players: PLAYERS['ghost-hunt'],
   duration: '100 s',
   inputs: ['orientation', 'camera', 'touch'],
+  /*
+   * Fullscreen + a real portrait lock on Ready/Start (device-capabilities.md §5b). This
+   * is played holding the phone up and turning on the spot — the aim reads orientation
+   * at every angle, and a phone tipped past the OS's own landscape threshold mid-sweep
+   * would reflow the camera radar under the player rather than merely misread a tilt.
+   */
+  screen: { orientation: 'portrait', fullscreen: true },
   tags: ['augmented-reality'],
   modes: [],
   status: 'live',

@@ -1,9 +1,11 @@
 import type { JSX } from 'preact';
 import type { Room } from '../room/useRoom';
+import type { GameScreen } from '../types';
+import { requestGameScreen } from '../screen';
 import { useT } from '../i18n/strings';
 
 /** The guest's one reusable ready toggle, used before the first and later rounds. */
-export function ReadyButton({ room, blocked = false, onBeforeReady }: {
+export function ReadyButton({ room, blocked = false, onBeforeReady, screen }: {
   room: Room;
   blocked?: boolean;
   /**
@@ -14,6 +16,9 @@ export function ReadyButton({ room, blocked = false, onBeforeReady }: {
    * discarded the gesture by the time it is asked.
    */
   onBeforeReady?: (() => Promise<boolean>) | undefined;
+  /** A game's fullscreen/orientation wishes (device-capabilities.md §5b). Requested
+   *  from this same tap, best effort, and never gates it — unlike `onBeforeReady`. */
+  screen?: GameScreen | undefined;
 }): JSX.Element | null {
   const t = useT();
   if (room.isHost) return null;
@@ -28,7 +33,9 @@ export function ReadyButton({ room, blocked = false, onBeforeReady }: {
       disabled={blocked || room.status !== 'open' || !room.me?.connected}
       onClick={() => {
         // Standing down never asks for anything: the setup belongs to saying yes.
-        if (ready || !onBeforeReady) return send(!ready);
+        if (ready) return send(false);
+        void requestGameScreen(screen);
+        if (!onBeforeReady) return send(true);
         void onBeforeReady().then((go) => { if (go) send(true); });
       }}
     >

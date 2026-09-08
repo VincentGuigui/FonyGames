@@ -132,6 +132,11 @@ motion access **spectates**, and the track is worth watching.
 | Motion denied / unavailable | Spectator, with the reason said plainly in the lobby before the round |
 | Tab backgrounded | Counting stops, the lane shows `away`, the runner freezes |
 
+**Fullscreen + a real portrait lock on Ready/Start**
+(`GameCard.screen`, [../../device-capabilities.md](../../device-capabilities.md) §5b):
+this is played by shaking a phone as hard as a wrist can, which is exactly the kind
+of violent, tumbling motion that can trip a phone's own auto-rotate mid-race.
+
 ## 5b. The tune — one note per shake
 
 Every counted shake plays a note, and the notes are a melody rather than a

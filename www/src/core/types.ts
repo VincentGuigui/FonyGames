@@ -62,6 +62,27 @@ export type GameMode = {
   blurb: string;
 };
 
+/** 'portrait' locks upright, 'landscape' locks the other way, 'free' — the default —
+ *  asks the browser for nothing. */
+export type ScreenOrientation = 'portrait' | 'landscape' | 'free';
+
+/**
+ * What Ready/Start should do to the browser chrome around a round, both best effort
+ * (docs/device-capabilities.md §5b). A game with a sideways board or a camera overlay
+ * that a stray rotation would break wants both; most games want neither, which is why
+ * an omitted `screen` is `{ orientation: 'free', fullscreen: false }` — ask for
+ * nothing, behave exactly as every game did before this existed.
+ *
+ * Fullscreen is what turns `orientation` from a request into an enforceable lock:
+ * `screen.orientation.lock()` rejects outside fullscreen on Android Chrome, and iOS
+ * Safari has neither call — every game keeps the CSS "turn your phone" notice as the
+ * fallback regardless (`core/screen.ts`).
+ */
+export type GameScreen = {
+  orientation?: ScreenOrientation;
+  fullscreen?: boolean;
+};
+
 /**
  * Everything the hub needs to sell a game, and nothing else — the hub must not
  * know how a game works. See docs/architecture.md §3.
@@ -120,6 +141,12 @@ export type GameCard = {
    */
   showInputs?: boolean;
   inputs: GameInput[];
+  /**
+   * Fullscreen + orientation on Ready/Start (see `GameScreen`). Not shown on the card —
+   * it is chrome, not a promise about how the game is played, and it degrades to
+   * nothing everywhere it is refused.
+   */
+  screen?: GameScreen;
   /** 1–3 of `GameTag`. See that type's own comment. */
   tags: GameTag[];
   modes: GameMode[];

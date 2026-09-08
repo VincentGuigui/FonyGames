@@ -336,6 +336,7 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
         readyBlocked={readyBlocked}
         onReadySetup={() => void enableRequired()}
         onBeforeReady={ensureRequired}
+        screen={card.screen}
         slug={card.slug}
         accent={card.accent}
         title={card.title}

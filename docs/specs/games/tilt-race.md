@@ -179,6 +179,12 @@ is no direction to read and the tracker holds still rather than following noise.
 touch-steered version is a different one — the same call AGENTS.md §4 allows
 for Asteroid Race and Neon Fall. Disclosed in the lobby before anyone starts.
 
+**Fullscreen + a real portrait lock on Ready/Start**
+(`GameCard.screen`, [../../device-capabilities.md](../../device-capabilities.md) §5b):
+the steering IS rolling the phone in its own plane, which is exactly the motion a
+phone's own auto-rotate watches for, so a hard turn mid-corner could otherwise flip
+the OS into landscape and reflow the board under the player's thumbs mid-race.
+
 ## 6. Networking
 
 Profile A-ish: continuous play, but almost nothing on the wire.

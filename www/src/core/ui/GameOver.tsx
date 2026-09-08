@@ -6,6 +6,8 @@ import type { Me } from './Scoreboard';
 import { track } from '../analytics';
 import { useT } from '../i18n/strings';
 import type { Room } from '../room/useRoom';
+import type { GameScreen } from '../types';
+import { requestGameScreen } from '../screen';
 import { guestsReady } from '../../../../shared/readiness';
 import { ReadyButton } from './ReadyButton';
 import { playOutcomeSound, type OutcomeSounds } from '../audio/outcome';
@@ -126,6 +128,7 @@ export function GameOver({
   readyBlocked = false,
   onReadySetup,
   onBeforeReady,
+  screen,
   sounds,
 }: {
   /**
@@ -171,6 +174,10 @@ export function GameOver({
    * of its own, and the round after the first has to ask the same way.
    */
   onBeforeReady?: (() => Promise<boolean>) | undefined;
+  /** A game's fullscreen/orientation wishes, carried onto this screen the same way
+   *  `onBeforeReady` is — Play again and the round after the first ask for it too
+   *  (device-capabilities.md §5b). */
+  screen?: GameScreen | undefined;
   /** Optional per-game replacements for the shared win/lose cues. */
   sounds?: OutcomeSounds | undefined;
 }): JSX.Element {
@@ -201,6 +208,8 @@ export function GameOver({
       track('game_start', slug);
       go();
     };
+    // Same as the lobby's Start tap: best effort, never gates `run`.
+    void requestGameScreen(screen);
     if (!onBeforeReady) return run();
     void onBeforeReady().then((ok) => { if (ok) run(); });
   };
@@ -326,7 +335,7 @@ export function GameOver({
                   {t.lobby.setUpControls}
                 </button>
               )}
-              {!room.me?.ready && <ReadyButton room={room} blocked={readyBlocked} onBeforeReady={onBeforeReady} />}
+              {!room.me?.ready && <ReadyButton room={room} blocked={readyBlocked} onBeforeReady={onBeforeReady} screen={screen} />}
               <a class="btn btn--big gameover__leave" href="/">
                 {t.common.leaveGame}
               </a>

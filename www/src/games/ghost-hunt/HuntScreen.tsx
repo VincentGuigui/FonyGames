@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX, RefObject } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
 import { RADAR_FOV_DEG } from '../../../../shared/protocol';
+import type { GameScreen } from '../../core/types';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import type { Room } from '../../core/room/useRoom';
@@ -289,6 +290,7 @@ export function HuntResults({
   room,
   readyBlocked,
   onReadySetup,
+  screen,
 }: {
   state: HuntView;
   players: Player[];
@@ -305,6 +307,8 @@ export function HuntResults({
   room: Room;
   readyBlocked: boolean;
   onReadySetup: () => void;
+  /** Threaded through to `GameOverScreen` — see its own comment. */
+  screen?: GameScreen | undefined;
 }): JSX.Element {
   const text = useGameText();
   const byId = new Map(players.map((p) => [p.id, p]));
@@ -315,6 +319,7 @@ export function HuntResults({
       room={room}
       readyBlocked={readyBlocked}
       onReadySetup={onReadySetup}
+      screen={screen}
       slug={slug}
       accent={accent}
       title={title}

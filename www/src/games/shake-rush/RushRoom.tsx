@@ -214,6 +214,7 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         onSound={setSound}
         room={room}
         onBeforeReady={ensureMotion}
+        screen={card.screen}
       />
     );
   }

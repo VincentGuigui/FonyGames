@@ -150,6 +150,12 @@ for by **Ready** (or **Start** for the host) rather than by a button of its own
 — the shape [../../device-capabilities.md](../../device-capabilities.md) §2
 rule 3 lays down and the five sensor-only games already follow.
 
+**Fullscreen + a real portrait lock on Ready/Start**
+(`GameCard.screen`, [../../device-capabilities.md](../../device-capabilities.md) §5b):
+this is played pointing the phone at furniture and walls at every angle a room
+offers, and a stray auto-rotate mid-hunt would reflow the camera viewport and its
+ring magnifier under the player's thumb rather than merely misjudge a tilt.
+
 ### 5b Constants
 
 | Constant | Value | Why |

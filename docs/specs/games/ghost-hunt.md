@@ -396,6 +396,12 @@ Every outcome has a landing place, and none of them is "you cannot play":
 | Orientation only | The same hunt, radar on a plain dark ground instead of the feed. Loses the atmosphere, keeps the game |
 | Neither | The virtual room, which needs nothing |
 
+**Fullscreen + a real portrait lock on Ready/Start**
+(`GameCard.screen`, [../../device-capabilities.md](../../device-capabilities.md) §5b):
+this is played holding the phone up and turning on the spot, and a tip past the OS's
+own landscape threshold mid-sweep would reflow the camera radar under the player
+rather than merely misread a tilt.
+
 **The PLACE cannot be changed once the round is running** — camera or virtual room is
 settled in the lobby. There used to be a "Sweep instead" button on the round screen, and
 it is gone for the same reason as Re-centre (§3): a round screen is a phone held up in a

@@ -41,6 +41,14 @@ export const CARD: GameCard = {
   players: PLAYERS['grid-attack'],
   duration: '1–2 min',
   inputs: ['touch'],
+  /*
+   * Fullscreen + a real landscape lock, requested per phone from the sideways loading
+   * screen rather than from this Ready/Start tap (`GridRoom.tsx`'s own comment — the
+   * round does not begin until both players have gone fullscreen). Set here anyway so
+   * the whole mechanism reads off the card, and so the host's very first "Start the
+   * game" tap gets a head start on fullscreen too (device-capabilities.md §5b).
+   */
+  screen: { orientation: 'landscape', fullscreen: true },
   tags: ['duel', 'intense'],
   modes: [],
   status: 'live',

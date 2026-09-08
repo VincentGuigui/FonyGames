@@ -225,6 +225,7 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         readyBlocked={readyBlocked}
         onReadySetup={() => void enableTilt()}
         onBeforeReady={ensureTilt}
+        screen={card.screen}
         slug={card.slug}
         accent={card.accent}
         title={card.title}

@@ -37,6 +37,13 @@ export const CARD: GameCard = {
   players: PLAYERS['color-hunt'],
   duration: '3–6 min',
   inputs: ['camera'],
+  /*
+   * Fullscreen + a real portrait lock on Ready/Start (device-capabilities.md §5b). This
+   * is played pointing the phone at furniture and walls at every angle a room offers, and
+   * a stray auto-rotate mid-hunt would reflow the camera viewport and its ring magnifier
+   * under the player's thumb rather than merely misjudge a tilt.
+   */
+  screen: { orientation: 'portrait', fullscreen: true },
   tags: ['augmented-reality', 'party', 'physical'],
   modes: [],
   status: 'live',

@@ -59,13 +59,17 @@ losing is running out of lives, never running out of board.
 ## 3. The board is sideways
 
 The only landscape board in the catalogue, because two 4×4 grids side by side do not fit
-in a portrait phone at a size a thumb can hit.
+in a portrait phone at a size a thumb can hit. It is also the game the shared
+fullscreen/orientation mechanism (`GameCard.screen`, core/screen.ts, docs/device-capabilities.md
+§5b) was generalised FROM — this section describes the first, still-special caller of it.
 
 - The **lobby is portrait** like every other, because it is the shared template
   ([../../design/game-chrome.md](../../design/game-chrome.md) §1).
-- The round opens on a **loading screen with one button**. Tapping it asks for fullscreen —
-  which every browser refuses outside a user gesture, and iPhone Safari has no element
-  fullscreen at all — and tells the referee this phone is looking at a board.
+- The round opens on a **loading screen with one button**. Tapping it calls
+  `requestGameScreen(card.screen)` — fullscreen, then the landscape lock now that
+  fullscreen has actually taken hold — which every browser refuses outside a user gesture,
+  and iPhone Safari has no element fullscreen at all — and tells the referee this phone is
+  looking at a board either way.
 - **The round does not start until both have tapped it.** Two seconds of being attacked
   while reading a "go fullscreen" prompt is two seconds nobody played. `GRID_READY_WAIT_MS`
   (30 s) is the backstop: a phone left face down cannot strand the other player.
@@ -73,10 +77,16 @@ in a portrait phone at a size a thumb can hit.
   that refused to start because it could not go fullscreen would be broken on every iPhone
   in the room.
 
-While a board is mounted, `useLandscapeRound` (core/screen.ts) puts `data-landscape` on the
-root element. That flips the shared orientation notice: "turn your phone upright" stays out
-of the way, and its mirror image — *turn your phone sideways* — takes over
-([../../design/game-chrome.md](../../design/game-chrome.md) §7).
+This is the one game in the catalogue where the shared mechanism fires from a game-specific
+tap rather than from the lobby's own Start/Ready — `card.screen` is still `{ orientation:
+'landscape', fullscreen: true }`, and `GameLobby`'s "Start the game" tap requests it too (a
+head start for the host), but the tap that actually matters is this per-phone loading
+screen, because the round genuinely cannot start on a phone still reading portrait.
+
+While a board is mounted, `useGameOrientation(card.screen?.orientation, on)` (core/screen.ts)
+puts `data-landscape` on the root element. That flips the shared orientation notice: "turn
+your phone upright" stays out of the way, and its mirror image — *turn your phone sideways*
+— takes over ([../../design/game-chrome.md](../../design/game-chrome.md) §7).
 
 ## 4. Screens
 

@@ -1,22 +1,31 @@
 import { useEffect } from 'preact/hooks';
+import type { GameScreen, ScreenOrientation } from './types';
 
 /**
- * Two things a phone does mid-game that a phone game does not want.
- * Rules: docs/device-capabilities.md §5
+ * What a phone does around a game that a game does not always want.
+ * Rules: docs/device-capabilities.md §5, §5b
  *
  * **It dims and locks.** Every game in the catalogue is played with the phone in a hand and
  * the thumbs busy elsewhere — turning on the spot in Ghost Hunt, holding still in Steady
  * Hand, watching a bomb in somebody else's hands. None of that is "user activity" as far as
- * an idle timer is concerned, so the screen goes dark in the middle of a round.
+ * an idle timer is concerned, so the screen goes dark in the middle of a round. `useHeldPhone`
+ * fixes this for every game, unconditionally, from `RoomGate`.
  *
- * **It rotates.** These are portrait layouts: a full-bleed PASS IT, a radar sized against
- * the screen's width, a track of lanes. Turning a phone sideways during a game is almost
- * always the phone deciding, not the player, and landscape is a layout none of them was
- * drawn for.
+ * **It rotates, and most games would rather it did not.** Most boards here are portrait —
+ * a full-bleed PASS IT, a radar sized against the screen's width, a track of lanes — and
+ * turning the phone sideways mid-round is almost always the phone deciding, not the player.
+ * `useHeldPhone` locks portrait for that reason too, best effort.
  *
- * Both are handled here rather than in each game, and both are **best effort by design**:
- * the answer to "this browser will not do it" is to carry on, because a round that refuses
- * to start over a wake lock would be a far worse bug than a screen that dims.
+ * **A few games want the opposite, or want it enforced rather than merely asked for.** Grid
+ * Attack's board is sideways by design; a camera overlay or a sensor aim that a stray
+ * rotation would visibly break wants the lock to actually hold rather than fall back to a
+ * CSS notice. `GameScreen` on a game's card, `requestGameScreen` and `useGameOrientation`
+ * below are that: fullscreen makes the orientation lock an enforceable one on the one
+ * browser that honours it at all, and both are opt-in per game.
+ *
+ * Every mechanism here is **best effort by design**: the answer to "this browser will not do
+ * it" is to carry on, because a round that refuses to start over a wake lock or a rejected
+ * fullscreen prompt would be a far worse bug than a screen that dims or rotates.
  */
 
 /**
@@ -124,6 +133,12 @@ export function lockUpright(scr: Orientationish, way: 'portrait' | 'landscape' =
   };
 }
 
+/** What `goFullscreen` needs from an element, narrowed by hand like `WakeLockish` and
+ *  `Orientationish` above so a fake without a real DOM can stand in for it in a test. */
+export type Fullscreenish = {
+  requestFullscreen?: () => Promise<void>;
+};
+
 /**
  * Ask for fullscreen, and say whether it happened.
  *
@@ -133,11 +148,10 @@ export function lockUpright(scr: Orientationish, way: 'portrait' | 'landscape' =
  * way: a game that refused to start because it could not go fullscreen would be broken on
  * every iPhone in the room.
  */
-export async function goFullscreen(el: Element): Promise<boolean> {
-  const request = (el as Element & { requestFullscreen?: () => Promise<void> }).requestFullscreen;
-  if (typeof request !== 'function') return false;
+export async function goFullscreen(el: Fullscreenish): Promise<boolean> {
+  if (typeof el.requestFullscreen !== 'function') return false;
   try {
-    await request.call(el);
+    await el.requestFullscreen();
     return true;
   } catch {
     return false;
@@ -145,7 +159,43 @@ export async function goFullscreen(el: Element): Promise<boolean> {
 }
 
 /**
- * A landscape round, for as long as this component is mounted.
+ * Fullscreen and an orientation lock, both best effort, from ONE call meant to sit
+ * straight inside a Ready/Start tap — the only place either API can fire from
+ * (`goFullscreen`'s and `lockUpright`'s own comments above). Spec: docs/device-capabilities.md §5b
+ *
+ * `wanted` is a game's own `GameScreen`, so a game that asks for nothing (the default)
+ * makes this a no-op — every game behaves exactly as it did before this existed unless
+ * its card says otherwise.
+ *
+ * **Fullscreen is awaited before the lock is attempted, not fired alongside it.** Android
+ * Chrome refuses `orientation.lock()` outside fullscreen, so asking for the lock before
+ * fullscreen has actually taken hold would race the one browser that ever honours it.
+ *
+ * Never gates anything downstream: a refused fullscreen or an unsupported lock is not a
+ * reason to stop someone playing, the same shrug every function in this file already
+ * gives on its own — callers fire this and move on rather than awaiting a verdict.
+ */
+export async function requestGameScreen(
+  wanted: GameScreen | undefined,
+  el: Fullscreenish = typeof document === 'undefined' ? {} : document.documentElement,
+  scr: Orientationish = typeof screen === 'undefined' ? {} : screen,
+): Promise<void> {
+  if (!wanted) return;
+  if (wanted.fullscreen) await goFullscreen(el);
+  if (wanted.orientation && wanted.orientation !== 'free') {
+    lockUpright(scr, wanted.orientation);
+  }
+}
+
+/**
+ * A non-default orientation, for as long as this component is mounted — the round-scoped
+ * half of `GameScreen`; `requestGameScreen` above is the tap-scoped half.
+ *
+ * Only `'landscape'` does anything here. `'portrait'` is already the ambient lock
+ * `useHeldPhone` holds for every game page, lobby included, and `'free'` asks for
+ * nothing — so a game that wants either needs no round-scoped hook at all, only the
+ * `screen` field on its card. Grid Attack, the one game with a sideways board, is the
+ * one caller this matters to.
  *
  * Two things, both best effort and both undone on the way out:
  *
@@ -158,9 +208,9 @@ export async function goFullscreen(el: Element): Promise<boolean> {
  *   rendered by a component that knows nothing about the game inside it, and CSS is the
  *   only thing that sees both.
  */
-export function useLandscapeRound(on: boolean): void {
+export function useGameOrientation(orientation: ScreenOrientation | undefined, on: boolean): void {
   useEffect(() => {
-    if (!on || typeof document === 'undefined') return;
+    if (!on || orientation !== 'landscape' || typeof document === 'undefined') return;
     const root = document.documentElement;
     root.dataset['landscape'] = 'on';
     const release = lockUpright(screen as Orientationish, 'landscape');
@@ -170,7 +220,7 @@ export function useLandscapeRound(on: boolean): void {
       // Back to the lobby's portrait, which is what the page had before this mounted.
       lockUpright(screen as Orientationish, 'portrait');
     };
-  }, [on]);
+  }, [on, orientation]);
 }
 
 /**

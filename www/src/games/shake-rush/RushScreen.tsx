@@ -1,5 +1,6 @@
 import type { JSX } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
+import type { GameScreen } from '../../core/types';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { Scoreboard } from '../../core/ui/Scoreboard';
@@ -49,6 +50,7 @@ export function RushScreen({
   onSound,
   room,
   onBeforeReady,
+  screen,
 }: {
   state: RushView;
   players: Player[];
@@ -75,6 +77,8 @@ export function RushScreen({
   onSound: (on: boolean) => void;
   room: Room;
   onBeforeReady: () => Promise<boolean>;
+  /** Threaded through to `GameOverScreen` — see its own comment. */
+  screen?: GameScreen | undefined;
 }): JSX.Element {
   const home = HOME_WORDS[useLocale().locale];
   const text = useGameText();
@@ -101,6 +105,7 @@ export function RushScreen({
       <GameOverScreen
         room={room}
         onBeforeReady={onBeforeReady}
+        screen={screen}
         slug={slug}
         accent={accent}
         title={title}
