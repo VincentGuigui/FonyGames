@@ -1,4 +1,4 @@
-import { progress, railKeep, spoolFor, startDrive, step, type Drive, type DriveInput } from './drive';
+import { TILT_UPRIGHT_HEADING, progress, railKeep, spoolFor, startDrive, step, type Drive, type DriveInput } from './drive';
 import {
   TILT_CORNER_RATE,
   TILT_CRUISE_SPEED,
@@ -138,7 +138,7 @@ function spooling(): void {
   const car = startDrive(CIRCLE);
   check('a car starts stopped', car.speed === 0);
   check('on the start line', car.s === 0 && car.lap === 0);
-  check('pointing along the track', Math.abs(car.heading - car.drift) < 1e-9);
+  check('pointing up the fixed map, as if the phone were upright', Math.abs(car.heading - car.drift) < 1e-9);
 
   const spooled = drive(car, STRAIGHT, TILT_SPOOL_MS, CIRCLE);
   check(`after ${TILT_SPOOL_MS} ms it is about at cruise (${spooled.speed.toFixed(0)})`, Math.abs(spooled.speed - TILT_CRUISE_SPEED) < TILT_CRUISE_SPEED * 0.15, spooled.speed);
@@ -156,7 +156,7 @@ function steering(): void {
   console.log('\nthe heading is the phone\'s own rotation, 1:1 (§2.1)');
 
   const car = startDrive(CIRCLE);
-  check('a car starts pointing along the track, with the roll at zero', car.base === car.heading);
+  check('a car starts at TILT_UPRIGHT_HEADING, with the roll at zero', car.base === car.heading && car.base === TILT_UPRIGHT_HEADING);
 
   const quarter = Math.PI / 2;
   check('a quarter turn of the wrist is a quarter turn of the car',

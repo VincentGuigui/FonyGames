@@ -116,8 +116,9 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const phase = state?.phase;
   const roundId = state?.roundId;
 
-  // A fresh car per round, and a fresh tilt tracker with it — calibrated now,
-  // which is the "hold the phone how you like" moment (device-capabilities.md §4).
+  // A fresh car per round, and a fresh tilt tracker with it. `calibrate()` is
+  // a no-op on a tracker this new (`roll.ts`) — kept for symmetry with the
+  // reused-tracker case rather than because this instance needs it.
   useEffect(() => {
     if (!track || phase === undefined || phase === 'done') return;
     carRef.current = startDrive(track);

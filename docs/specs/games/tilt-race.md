@@ -58,8 +58,15 @@ the car is pointing.
 **The steering is the phone's own rotation, and it is 1:1.** Turn the phone
 through a quarter, a half or a whole circle in its own plane and the car's
 heading turns by exactly that. No gain, no rate, no integration: `heading` is
-`base + roll`, where `base` is where the car pointed when the round started and
-`roll` comes straight from `roll.ts`.
+`base + roll`, where `roll` comes straight from `roll.ts` — 0 when the phone is
+upright, growing clockwise — and `base` is `TILT_UPRIGHT_HEADING`, a fixed
+constant (up the map), not the track's own starting direction. **Upright means
+up, always**: an earlier version set `base` to wherever the track happened to
+start and zeroed `roll` on the round's first reading — "hold it however you
+like" — which meant the car could start pointing sideways even with the phone
+held bolt upright, and every correction from there was measured against that
+arbitrary baseline rather than against upright, which read as the car turning
+further than the wrist did. There is no per-round calibration any more.
 
 The two halves are one decision, not two. It was the other way round first —
 the car pinned upright with the world turning under it, steered by a tilt-to-
@@ -155,9 +162,9 @@ The round screen:
 **`deviceorientation`**, read once and used twice, through `roll.ts` — not the
 shared `core/sensors/steer.ts` filter, which this game no longer uses.
 
-- **The phone's in-plane rotation steers** it, 1:1 (§2.1), calibrated at Ready
-  ([../device-capabilities.md](../device-capabilities.md) §2) so "hold it how
-  you like" is the zero.
+- **The phone's in-plane rotation steers** it, 1:1 (§2.1), permission asked
+  for at Ready ([../device-capabilities.md](../device-capabilities.md) §2).
+  Upright is the zero, always — no per-round calibration.
 - **Gravity's own direction** places the reverse button, from the same event.
 - **Touch** for the reverse button only.
 
@@ -313,3 +320,19 @@ Two the build raised:
    rails are real — but a wider grid with a shorter blob would look more like a
    circuit, at the cost of the lap length. `endurance` mode (three laps) would
    let the circuit itself be a third of the size, which may be the real answer.
+
+One a real phone raised, reversing a piece of §2.1/§5 as built:
+
+8. **`base` is a fixed constant now, not a per-round calibration.** The first
+   build zeroed `roll.ts` on the round's first reading and set `base` to
+   wherever the track happened to start — "hold it however you like" — which
+   read, on a real phone, as the car turning further than the wrist did:
+   holding the phone bolt upright at the green light could still show it
+   pointing sideways, since the baseline was the track's own arbitrary start
+   direction rather than upright, and correcting that mismatch by hand looked
+   exactly like an over-eager control. Upright now always means "up the map"
+   (`TILT_UPRIGHT_HEADING`, `drive.ts`), and there is no calibration step left
+   to remove. The cost, not yet weighed against a real circuit: the car can
+   start pointing away from the road it is standing on, if a given track's own
+   first stretch does not happen to run north — untested against whether that
+   reads as confusing at the green light the way the old mismatch did.
