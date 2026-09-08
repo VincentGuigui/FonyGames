@@ -42,6 +42,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
 /** Bump when the composition changes, so the card regenerates even if no input did. */
@@ -122,7 +123,13 @@ const inputs = [
   // gravity-shooter/generate-card.mjs makes, and for the same reason: a
   // hand-listed set of inputs is easy to leave incomplete when the
   // composition moves, and nothing fails when it does.
-  readFileSync(new URL(import.meta.url)),
+  //
+  // Normalised to LF: read as text and rejoined rather than hashed as raw
+  // bytes, because git checks this file out as CRLF on Windows
+  // (core.autocrlf) and LF on the Linux CI runner that deploys `dev`/`prod`
+  // — hashing the bytes made the very commit that generated the manifest
+  // read as stale the moment CI checked it out.
+  Buffer.from(readFileSync(fileURLToPath(import.meta.url), 'utf8').replace(/\r\n?/g, '\n')),
   readFileSync(SHEET),
 ];
 const hash = sha(inputs);
