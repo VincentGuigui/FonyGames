@@ -42,7 +42,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import sharp from 'sharp';
 
 /** Bump when the composition changes, so the card regenerates even if no input did. */
@@ -210,6 +210,12 @@ function place(sprite, cx, cy, w, { rotate = 0, flip = false } = {}) {
 /* ── Staleness ───────────────────────────────────────────────────────────── */
 
 const SPRITE_FILES = ['ship-a.png', 'ship-b.png', 'planet-a.png', 'planet-b.png', 'planet-c.png', 'missile.png'];
+// Normalised to LF: git checks these three text files out as CRLF on Windows
+// (core.autocrlf) and LF on the Linux CI runner that deploys `dev`/`prod`, so
+// hashing the raw bytes made the very same commit "current" on the machine
+// that generated it and "stale" the moment CI checked it out — `og.mjs`'s
+// `innerArt()` already carries this fix for the same reason.
+const text = (path) => readFileSync(path, 'utf8').replace(/\r\n?/g, '\n');
 const inputs = [
   Buffer.from(String(GENERATOR)),
   // This script's own source, which covers the posed board, the shot, the
@@ -218,11 +224,11 @@ const inputs = [
   // GENERATOR when the composition moves; the first change made here proved
   // how easy that is to forget — a new framing constant left the card
   // "already current" and unchanged.
-  readFileSync(new URL(import.meta.url)),
+  Buffer.from(text(fileURLToPath(import.meta.url))),
   // The physics itself: a retuned G or launch speed is a different curve, and
   // the card has to know that without anybody remembering to say so.
-  readFileSync(join(GAME, 'game.ts')),
-  readFileSync(join(ROOT, 'shared/protocol.ts')),
+  Buffer.from(text(join(GAME, 'game.ts'))),
+  Buffer.from(text(join(ROOT, 'shared/protocol.ts'))),
 ];
 for (const file of SPRITE_FILES) inputs.push(readFileSync(join(ART, file)));
 const hash = sha(inputs);
