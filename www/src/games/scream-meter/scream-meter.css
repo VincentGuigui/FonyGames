@@ -1,7 +1,8 @@
 /*
  * Scream Meter. Spec: docs/specs/games/scream-meter.md §4
  * Shared chrome (StatusBar, lobby) is styled by core; this file owns the
- * prompt, the meter with its peak-hold line, and the room's row of avatars.
+ * prompt, the meter with its peak-hold line, the narrow side bands for the
+ * rest of the room, and the row of avatars.
  */
 
 .scream {
@@ -15,17 +16,32 @@
 }
 
 /* The biggest thing on screen during the countdown: the room has to read it
-   before the window opens (spec §2). */
+   before the window opens (spec §2). Serif rather than the UI's own sans:
+   this is a placard being read out, not a control, and the one place in the
+   catalogue that earns reading like something printed rather than chrome. */
 .scream__prompt {
   margin: var(--space-2) 0 0;
   text-align: center;
+  font-family: var(--font-serif);
   font-size: clamp(1.75rem, 9vw, 3rem);
   font-weight: 700;
   line-height: 1.1;
   color: var(--color-text);
 }
 
-/* One object, filling most of the viewport. */
+/* The meter and its two flanking bands, stretched to one height together —
+   "same height" is `align-items: stretch`, not a number copied three times. */
+.scream__stage {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  align-items: stretch;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+/* Your own object, still the dominant shape on screen. */
 .scream__meter {
   position: relative;
   flex: 1 1 auto;
@@ -35,6 +51,37 @@
   background: var(--color-surface);
   border: 2px solid var(--color-border);
   overflow: hidden;
+}
+
+/* One side's worth of other players — narrow bands either side of the main
+   meter, purely visual (spec §4). Never more than a handful even at eight
+   players (four a side), so a fixed gap is enough. */
+.scream__side {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  flex: 0 1 auto;
+}
+
+.scream__side-meter {
+  position: relative;
+  align-self: stretch;
+  width: clamp(0.4rem, 2.2vw, 0.85rem);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  /* Dimmed: this is ambient presence, not a second scoreboard to read
+     against your own bar. */
+  opacity: 0.5;
+}
+
+.scream__side-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--game-accent, var(--color-accent));
+  transform-origin: bottom center;
+  transform: scaleY(0);
 }
 
 .scream__fill {

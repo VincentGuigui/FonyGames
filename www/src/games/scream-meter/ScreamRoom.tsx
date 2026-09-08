@@ -4,6 +4,7 @@ import type { GameCard } from '../../core/types';
 import {
   SCREAM_ALIVE_MS,
   SCREAM_FLOOR_MS,
+  SCREAM_LEVEL_MS,
   SCREAM_MAX_PLAYERS,
   SCREAM_MIN_PLAYERS,
   SCREAM_SAMPLE_MS,
@@ -29,16 +30,23 @@ import './scream-meter.css';
 /**
  * Scream Meter's room screen. Spec: docs/specs/games/scream-meter.md §4
  *
- * The round screen is one object — your own meter, filling most of the
- * viewport, with the prompt above it and the clock below. Other players are
- * deliberately **not** live on it: eight meters would be unreadable at this
- * size and would put eight streams on the wire for a ten-second round. What is
- * shown is a row of avatars lighting up as each phone reports in, and the
- * reveal is the payoff.
+ * A match is ten rounds of the same shape: countdown, ten seconds of
+ * screaming, then a brief reveal of that round's score and the running total
+ * before the next prompt. `state.round`/`state.rounds` say where the room is;
+ * `state.phase` says which of the three it is in.
+ *
+ * Your own meter is still the biggest thing on screen, but it is no longer
+ * alone: a narrow, dimmed band for every other connected player flanks it,
+ * fed by `state.levels` — purely visual, never scored, sampled and relayed
+ * every `SCREAM_LEVEL_MS` while the window is open. The row of avatars
+ * lighting up as each phone REPORTS is a different fact from how loud they
+ * currently are, and both stay on screen together.
  *
  * The meter is written straight into the DOM by one `requestAnimationFrame`
- * loop, so Preact never re-renders at frame rate — the same split Color Match's
- * draining pie uses.
+ * loop, so Preact never re-renders at frame rate — the same split Color
+ * Match's draining pie uses. The side bands are driven by ordinary state
+ * instead: they update at the server's own ~4 Hz broadcast rate, which is
+ * slow enough that a re-render costs nothing.
  */
 export function ScreamRoom(props: { game: GameCard }): JSX.Element {
   return <RoomGate game={props.game}>{(code, card) => <ScreamRoomInner game={card} code={code} />}</RoomGate>;
@@ -95,6 +103,7 @@ function ScreamRoomInner({ game: card, code }: { game: GameCard; code: string })
 
   const phase = state?.phase;
   const roundId = state?.roundId;
+  const round = state?.round;
   const startsAt = state?.startsAt;
   const endsAt = state?.endsAt;
 
@@ -116,7 +125,7 @@ function ScreamRoomInner({ game: card, code }: { game: GameCard; code: string })
    */
   useEffect(() => {
     const mic = micRef.current;
-    if (!mic || roundId === undefined || startsAt === undefined || endsAt === undefined) return;
+    if (!mic || roundId === undefined || round === undefined || startsAt === undefined || endsAt === undefined) return;
     if (phase !== 'countdown' && phase !== 'window') return;
 
     sentRef.current = false;
@@ -127,6 +136,7 @@ function ScreamRoomInner({ game: card, code }: { game: GameCard; code: string })
     let frame = 0;
     let calibrated = false;
     let alive = 0;
+    let levelSent = 0;
     let windowStarted = false;
 
     const loop = (): void => {
@@ -166,7 +176,15 @@ function ScreamRoomInner({ game: card, code }: { game: GameCard; code: string })
 
         if (now - alive >= SCREAM_ALIVE_MS) {
           alive = now;
-          clientRef.current?.send({ t: 'scream-alive', d: { roundId, at: now } });
+          clientRef.current?.send({ t: 'scream-alive', d: { roundId, round, at: now } });
+        }
+
+        // Purely visual, for the OTHER players' side meters (spec §4): the
+        // same `filled` fraction this phone draws for its own bar, so the
+        // room reads as one shape rather than everyone's own private curve.
+        if (now - levelSent >= SCREAM_LEVEL_MS) {
+          levelSent = now;
+          clientRef.current?.send({ t: 'scream-level', d: { roundId, round, level: filled } });
         }
       }
 
@@ -185,6 +203,7 @@ function ScreamRoomInner({ game: card, code }: { game: GameCard; code: string })
           t: 'scream-score',
           d: {
             roundId,
+            round,
             score: screamScore(loudest, floorRef.current),
             peak: peakOf(samples),
             floor: floorRef.current,
@@ -200,7 +219,7 @@ function ScreamRoomInner({ game: card, code }: { game: GameCard; code: string })
 
     frame = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(frame);
-  }, [roundId, phase, startsAt, endsAt, micOn]);
+  }, [roundId, round, phase, startsAt, endsAt, micOn]);
 
   const players = room.room?.players ?? [];
   const nameOf = (id: string): string => players.find((p) => p.id === id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' });
@@ -225,7 +244,7 @@ function ScreamRoomInner({ game: card, code }: { game: GameCard; code: string })
   const readyBlocked = support === 'unsupported' || (micAsked && !micOn);
 
   if (state && state.phase === 'done') {
-    const ranked = Object.entries(state.scores).sort(([, a], [, b]) => b.score - a.score || b.peak - a.peak);
+    const ranked = Object.entries(state.totals).sort(([, a], [, b]) => b - a);
     return (
       <GameOverScreen
         room={room}
@@ -240,16 +259,14 @@ function ScreamRoomInner({ game: card, code }: { game: GameCard; code: string })
         note={
           state.draw
             ? text({ en: 'Nobody takes it — either a tie or a very polite room.', fr: 'Personne ne l’emporte — égalité, ou une salle très polie.' })
-            : text({ en: `The room was told: ${promptText(state.prompt)}.`, fr: `La consigne était : ${promptText(state.prompt)}.` })
+            : text({ en: `${state.rounds} rounds screamed. Highest total wins.`, fr: `${state.rounds} manches criées. Le plus gros total gagne.` })
         }
-        rows={ranked.map(([id, entry]) => ({
+        rows={ranked.map(([id, total]) => ({
           id,
           avatar: avatarOf(id),
           name: nameOf(id),
-          value: entry.partial
-            ? text({ en: `${entry.score} (part)`, fr: `${entry.score} (part.)` })
-            : entry.score,
-          unit: text({ en: 'loudness', fr: 'volume' }),
+          value: total,
+          unit: text({ en: 'total', fr: 'total' }),
         }))}
         me={myId}
         winner={state.winner}
@@ -263,11 +280,29 @@ function ScreamRoomInner({ game: card, code }: { game: GameCard; code: string })
     const now = clientRef.current?.now() ?? Date.now();
     const countdown = Math.max(0, Math.ceil((state.startsAt - now) / 1000));
     const screaming = state.phase === 'window';
+    const revealing = state.phase === 'reveal';
+    const mine = myId ? state.scores[myId] : undefined;
+    const myTotal = myId ? state.totals[myId] ?? 0 : 0;
+
+    // Every OTHER connected player, split either side of the main meter —
+    // "the room around you" rather than a leaderboard (spec §4).
+    const others = players.filter((p) => p.connected && p.id !== myId);
+    const half = Math.ceil(others.length / 2);
+    const leftOthers = others.slice(0, half);
+    const rightOthers = others.slice(half);
+    const sideMeter = (p: { id: string }): JSX.Element => (
+      <div key={p.id} class="scream__side-meter">
+        <div class="scream__side-fill" style={{ transform: `scaleY(${(state.levels[p.id] ?? 0).toFixed(3)})` }} />
+      </div>
+    );
 
     return (
       <div class="scream" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
         <StatusBar
-          status={screaming ? text({ en: 'Scream', fr: 'Criez' }) : text({ en: 'Get ready', fr: 'Préparez-vous' })}
+          status={text({
+            en: `Round ${state.round}/${state.rounds} · ${screaming ? 'Scream' : revealing ? 'Result' : 'Get ready'}`,
+            fr: `Manche ${state.round}/${state.rounds} · ${screaming ? 'Criez' : revealing ? 'Résultat' : 'Préparez-vous'}`,
+          })}
           title={card.title}
           concept={card.concept}
           rules={card.rules}
@@ -275,19 +310,32 @@ function ScreamRoomInner({ game: card, code }: { game: GameCard; code: string })
 
         <p class="scream__prompt" aria-live="polite">{promptText(state.prompt)}</p>
 
-        <div class="scream__meter" aria-hidden="true">
-          <div ref={meterRef} class="scream__fill" />
-          {/* The peak-hold line: a bar with no memory gives you nothing to
-              beat (spec §4). */}
-          <div ref={peakRef} class="scream__peak" />
+        <div class="scream__stage">
+          <div class="scream__side" aria-hidden="true">{leftOthers.map(sideMeter)}</div>
+
+          <div class="scream__meter" aria-hidden="true">
+            <div ref={meterRef} class="scream__fill" />
+            {/* The peak-hold line: a bar with no memory gives you nothing to
+                beat (spec §4). */}
+            <div ref={peakRef} class="scream__peak" />
+          </div>
+
+          <div class="scream__side" aria-hidden="true">{rightOthers.map(sideMeter)}</div>
         </div>
 
-        {/* The meter is not the only feedback: the numeric level is text and
-            announced, and so is the peak (spec §11). */}
+        {/* The meter is not the only feedback: the numeric level is text, and
+            so is this round's result once it closes (spec §11). */}
         <p class="scream__readout" aria-live="off">
-          {sentRef.current
-            ? text({ en: `Best three seconds: ${level.toFixed(0)} dB, peak ${peakHold.toFixed(0)}`, fr: `Meilleures trois secondes : ${level.toFixed(0)} dB, pic ${peakHold.toFixed(0)}` })
-            : text({ en: 'The loudest three seconds is what counts', fr: 'Ce sont les trois secondes les plus fortes qui comptent' })}
+          {revealing
+            ? (mine
+                ? text({
+                    en: `This round: ${mine.score}${mine.partial ? ' (part.)' : ''}. Total: ${myTotal}.`,
+                    fr: `Cette manche : ${mine.score}${mine.partial ? ' (part.)' : ''}. Total : ${myTotal}.`,
+                  })
+                : text({ en: `No answer this round. Total: ${myTotal}.`, fr: `Aucune réponse cette manche. Total : ${myTotal}.` }))
+            : sentRef.current
+              ? text({ en: `Best three seconds: ${level.toFixed(0)} dB, peak ${peakHold.toFixed(0)}`, fr: `Meilleures trois secondes : ${level.toFixed(0)} dB, pic ${peakHold.toFixed(0)}` })
+              : text({ en: 'The loudest three seconds is what counts', fr: 'Ce sont les trois secondes les plus fortes qui comptent' })}
         </p>
 
         {/* Who has reported in — presence, not numbers (spec §4). */}
