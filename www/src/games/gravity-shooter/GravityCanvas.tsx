@@ -421,7 +421,13 @@ function drawShip(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidt
     // The art faces one way; the opponent's own ship is drawn dome-down by
     // flipping the y axis rather than keeping a second, mirrored sprite.
     if (!domeUp) ctx.scale(1, -1);
-    ctx.drawImage(sprite.source, -sprite.w / 2, domeUp ? -sprite.h : 0, sprite.w, sprite.h);
+    // Always the same corner, `-sprite.h`: the base (the flat edge, opposite
+    // the dome) sits at the anchor either way, and the `scale` above is what
+    // turns "dome above" into "dome below" — conditioning this on `domeUp`
+    // too flipped both, which anchored the DOME instead of the base for the
+    // opponent and drew their ship a whole sprite height above its own
+    // hitbox (`shipPosition`'s doc comment; `GRAVITY_HIT_RADIUS`, game.ts).
+    ctx.drawImage(sprite.source, -sprite.w / 2, -sprite.h, sprite.w, sprite.h);
     ctx.restore();
     return;
   }
