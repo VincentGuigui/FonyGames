@@ -552,7 +552,7 @@ export class Room extends DurableObject<Env> {
       }
       case 'color-pick': {
         const id = this.#idOf(ws);
-        if (id) await onColorPick(this.#matchCtx(), id, msg.d.roundId, msg.d.level, msg.d.rgb, msg.d.lum, msg.d.at);
+        if (id) await onColorPick(this.#matchCtx(), id, msg.d.roundId, msg.d.level, msg.d.rgb, msg.d.at);
         return;
       }
       case 'dark-act': {

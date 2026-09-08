@@ -1,3 +1,5 @@
+import { COLOR_SECTOR_MAX } from './protocol';
+
 /**
  * Colour distance, the difficulty ladder, and the palettes they generate.
  * Specs: docs/specs/games/color-match.md §2.3, §2.4 · docs/specs/games/color-hunt.md §2.2
@@ -10,7 +12,9 @@
  * No DOM, no clock, no randomness that is not passed in: everything below is a
  * pure function of its arguments, so `color.test.ts` can walk the whole ladder
  * without a browser and the referee can deal a target from its own seeded
- * source.
+ * source. The one import, `COLOR_SECTOR_MAX` from `./protocol`, is one
+ * direction only — `protocol.ts` imports nothing from here — so this stays a
+ * leaf for everything except that one constant.
  */
 
 export type Rgb = readonly [number, number, number];
@@ -80,20 +84,24 @@ export function isExtreme(rgb: Rgb): boolean {
 /* ------------------------ the three axes of a colour ---------------------- */
 
 /**
- * The wheel says hue and saturation, the slider says value (color-match.md
- * §2.3) — and those three axes are now the *only* way a colour is built, in
- * the palette as much as on screen. The old model randomised RGB components on
- * a grid, which could produce a dark green the wheel had no way to reach: the
- * disc is drawn at full value, so `hsv(hue, sat, 1)` was all a thumb could ever
- * point at (issue: a level 17 target the wheel did not offer).
+ * Hue, saturation and value are the only three axes a colour is built from,
+ * in the palette as much as on screen (color-match.md §2.3) — and, since
+ * issue #40, **all three are rings on the wheel**. The old model put value on
+ * a separate slider; the disc could only ever show `hsv(hue, sat, 1)`, and
+ * the slider dimmed it afterwards. That needed two controls to set one
+ * colour, and it read, on a real phone, as a slider bolted onto the side of
+ * the actual game. Value is now a second radial axis, laid out around the
+ * *same* fully-saturated ring saturation already had one side of: light rings
+ * inward (pale, tending white), the plain hue in the middle, dark rings
+ * outward (dimmed, tending black) — see `shadeSteps` below.
  *
  * Stated as the min/max a component may take, which is what the eye reads:
  *
  * - `max(r, g, b) = 255 x value` — **value is how dark it is allowed to get**,
  *   and a rung with one value step has no dark colours at all.
  * - `min(r, g, b) = 255 x value x (1 - sat)` — **saturation is how pale it is
- *   allowed to get**, and a rung with one saturation step is the outer ring
- *   alone: no light colours at all.
+ *   allowed to get**, and a rung with one saturation step has no light
+ *   colours at all.
  */
 
 /** The palest a quantised saturation ever goes. Below it a colour has no
@@ -104,17 +112,9 @@ export const COLOR_SAT_MIN = 0.25;
 
 /** The dimmest a quantised value ever goes. Zero would make a whole ring of the
  *  wheel the same black. 0.4 rather than 0.25 so the dimmest step still clears
- *  `COLOR_VALUE_FLOOR`: 255 x 0.25 is 64, which `isExtreme` bans, and a slider
- *  whose bottom notch is unreachable is worse than a shorter slider. */
+ *  `COLOR_VALUE_FLOOR`: 255 x 0.25 is 64, which `isExtreme` bans, and a ring
+ *  nobody can pick without landing on black is worse than one fewer ring. */
 export const COLOR_LUM_MIN = 0.4;
-
-/** Apply a 0..1 value as a multiplier (color-match.md §2.3). Scaling all three
- *  components scales HSV's value and leaves hue and saturation alone, which is
- *  exactly why the slider can be a separate control from the disc. */
-export function withLuminance(base: Rgb, lum: number): Rgb {
-  const k = Math.min(1, Math.max(0, lum));
-  return [Math.round(base[0] * k), Math.round(base[1] * k), Math.round(base[2] * k)];
-}
 
 /** The hues a rung offers, in degrees, starting at red. Evenly spaced, so a
  *  rung with twice as many hues contains every hue of the one before it and
@@ -126,8 +126,8 @@ export function hueSteps(hues: number): number[] {
   return out;
 }
 
-/** The saturations a rung offers, palest first. **One step is the outer ring
- *  alone** — fully saturated, no light colours anywhere on the wheel. */
+/** The saturations a rung's LIGHT side offers, palest first, ending at fully
+ *  saturated. **One step is fully saturated alone** — no light colours. */
 export function saturationSteps(sats: number): number[] {
   const n = Math.max(1, Math.floor(sats));
   if (n === 1) return [1];
@@ -136,8 +136,8 @@ export function saturationSteps(sats: number): number[] {
   return out;
 }
 
-/** The values a rung offers, dimmest first — the notches on the brightness
- *  slider. **One step is full value alone**: no dark colours, and no slider. */
+/** The values a rung's DARK side offers, dimmest first, ending at full value.
+ *  **One step is full value alone** — no dark colours. */
 export function valueSteps(values: number): number[] {
   const n = Math.max(1, Math.floor(values));
   if (n === 1) return [1];
@@ -163,6 +163,11 @@ export function satOf(c: Rgb): number {
   return hi === 0 ? 0 : (hi - Math.min(c[0], c[1], c[2])) / hi;
 }
 
+/** 0..1 — `max(r, g, b) / 255`, the HSV value a colour was drawn at. */
+export function valueOf(c: Rgb): number {
+  return Math.max(c[0], c[1], c[2]) / 255;
+}
+
 /** The shorter way round the circle between two hues, in degrees. */
 export function hueGap(a: number, b: number): number {
   const d = (((a - b) % 360) + 360) % 360;
@@ -175,26 +180,49 @@ export function hueGap(a: number, b: number): number {
  * One rung of the difficulty ladder (color-match.md §2.3).
  *
  * Three counts, one per axis, and **every one of them is a count of steps, not
- * of intervals**: `sats: 1` is the outer ring alone, `values: 1` is full value
- * alone. That is the whole point of the shape — a rung says exactly what the
+ * of intervals**: `sats: 1` means no light colours, `values: 1` means no dark
+ * ones. That is the whole point of the shape — a rung says exactly what the
  * wheel offers, so the randomiser cannot ask for a colour the wheel cannot
- * reach. `www/src/games/color-match/wheel.ts` lays out hue around and
- * saturation outward from these same three numbers.
+ * reach. `shadeSteps` below turns these two counts into the wheel's own rings;
+ * `www/src/games/color-match/wheel.ts` lays hue around them.
  */
 export type Rung = {
   /** How many hues around the disc, evenly spaced from red. */
   readonly hues: number;
-  /** How many saturation rings, palest first. 1 means no light colours. */
+  /** How many saturation steps the light side offers, palest to plain. 1
+   *  means no light colours — the plain ring is the innermost thing there is. */
   readonly sats: number;
-  /** How many notches on the brightness slider. 1 means no dark colours, and
-   *  no slider at all. */
+  /** How many value steps the dark side offers, plain to dimmest. 1 means no
+   *  dark colours — the plain ring is the outermost thing there is. */
   readonly values: number;
 };
 
-/** Is the brightness slider live on this rung? Derived rather than declared, so
- *  a rung cannot claim a slider it has no values for. */
-export function hasLuminance(rung: Rung): boolean {
-  return rung.values > 1;
+/**
+ * The wheel's own rings, hub to rim, as `{s, v}` pairs ready for `hsvToRgb`.
+ * **Issue #40**: value used to be a slider's job, applied to a disc colour
+ * after the fact; it is now a second radial axis, laid out around the one
+ * ring saturation already had at full value.
+ *
+ * `sats - 1` light rings first — palest at the hub, working out to (but not
+ * including) fully saturated — then the one **plain** ring both axes agree
+ * on (`s: 1, v: 1`, the "the colour, at full strength" every rung has always
+ * had), then `values - 1` dark rings, working out from (but not including)
+ * full value to the dimmest. Total length `sats + values - 1`: the plain ring
+ * is counted once, not twice, which is what `paletteSize` reads off directly
+ * rather than restating.
+ *
+ * `sats: 1, values: 1` — the ladder's first five rungs — collapses to a
+ * single entry: the plain ring alone, exactly the pure-hue wheel levels 1–21
+ * always drew.
+ */
+export function shadeSteps(rung: Rung): { s: number; v: number }[] {
+  const sats = saturationSteps(rung.sats);
+  const values = valueSteps(rung.values);
+  const out: { s: number; v: number }[] = [];
+  for (let i = 0; i < sats.length - 1; i++) out.push({ s: sats[i] ?? 1, v: 1 });
+  out.push({ s: 1, v: 1 });
+  for (let i = values.length - 2; i >= 0; i--) out.push({ s: 1, v: values[i] ?? 1 });
+  return out;
 }
 
 /**
@@ -202,10 +230,11 @@ export function hasLuminance(rung: Rung): boolean {
  *
  * The progression is one axis at a time, which is what makes it teachable:
  * **hue resolution first, then light, then dark.** Up to level 21 the wheel is
- * the outer ring and nothing else — every target is a pure, fully-saturated
- * hue, and getting better means telling 10 degrees of hue apart. Rung 6 adds a
- * pale ring inside it. Rung 7 adds the brightness slider, and only then can a
- * target be dark.
+ * one ring and nothing else — every target is a pure, fully-saturated hue,
+ * and getting better means telling 10 degrees of hue apart. Rung 6 adds a
+ * pale ring inside it. Rung 7 adds a dark ring outside it, and only then can a
+ * target be dark — no separate control, just the wheel growing a second way
+ * (issue #40; `shadeSteps` above).
  *
  * **A rung may not outlast the colours it adds** — cumulatively, not just what
  * its own palette holds, because of the "never ask twice in a session" rule
@@ -268,17 +297,25 @@ export function rungAt(level: number): Rung {
  * The action window, by level (color-match.md §2.2).
  *
  * Two tiers, and the step is **derived from the ladder** rather than written as
- * a round number, so shortening a rung moves it automatically: **3 s** while
- * the answer is one tap on the wheel, **10 s** from the rung that adds the
- * luminance slider, where a level needs two controls set rather than one.
+ * a round number, so shortening a rung moves it automatically: **3 s** while a
+ * wedge can be tapped exactly, **10 s** once the wheel goes continuous and the
+ * answer is a precise drag rather than a tap (§4.2).
  *
  * Three seconds is short on purpose (issue #38). The whole point of the run is
- * pace, and every level up to the slider is a single tap — the old 5 s and 10 s
- * left the pie draining with nothing left to do. The reaction bonus below is
- * what makes that window worth beating rather than merely surviving.
+ * pace, and every level with an exact wedge to tap is fast by nature — the old
+ * 5 s and 10 s left the pie draining with nothing left to do. The reaction
+ * bonus below is what makes that window worth beating rather than merely
+ * surviving.
+ *
+ * **Since issue #40** this is no longer about a second control: there has
+ * never been more than one, the wheel. The tier now follows the same count
+ * that decides which of the wheel's two presentations is on screen —
+ * `paletteSize(rung) <= COLOR_SECTOR_MAX` — because free-hand precision, not
+ * a second thing to set, is what actually costs a player time past that
+ * point.
  */
 export const COLOR_ACTION_TIERS: readonly { readonly upTo: number; readonly ms: number }[] = [
-  { upTo: RUNG_ENDS[LADDER.findIndex((row) => hasLuminance(row.rung)) - 1] ?? 26, ms: 3_000 },
+  { upTo: RUNG_ENDS[LADDER.findIndex((row) => paletteSize(row.rung) > COLOR_SECTOR_MAX) - 1] ?? 21, ms: 3_000 },
   { upTo: Infinity, ms: 10_000 },
 ];
 
@@ -327,20 +364,23 @@ export function colorPoints(accuracy: number, reactionMs: number, actionMs: numb
 }
 
 /**
- * Every colour a rung's **disc** can produce, at full value, in the order the
- * wheel lays them out: palest ring first, and hue by hue around each ring.
+ * Every colour a rung's **disc** can produce, in the order the wheel lays
+ * them out: the innermost ring first (light before plain before dark — see
+ * `shadeSteps`), and hue by hue around each ring.
  *
- * The order is load-bearing rather than cosmetic — `wheel.ts` maps index `i` to
- * ring `floor(i / hues)` and slot `i % hues`, so a palette in any other order
- * would put the colours somewhere other than where the hit test looks for them.
+ * The order is load-bearing rather than cosmetic — `wheel.ts` maps index `i`
+ * to ring `floor(i / hues)` and slot `i % hues`, so a palette in any other
+ * order would put the colours somewhere other than where the hit test looks
+ * for them.
  *
- * Brightness is not in here: it is the slider's axis, and a dealt target is a
- * palette entry under one of `valueSteps(rung.values)` (`dealTarget`).
+ * **Since issue #40, brightness is in here.** It used to be a slider's own
+ * multiplier applied to a disc colour after the fact; every ring `shadeSteps`
+ * lays out is now a real, distinct colour a tap or a drag can land on.
  */
 export function palette(rung: Rung): Rgb[] {
   const out: Rgb[] = [];
-  for (const s of saturationSteps(rung.sats)) {
-    for (const h of hueSteps(rung.hues)) out.push(hsvToRgb(h, s, 1));
+  for (const shade of shadeSteps(rung)) {
+    for (const h of hueSteps(rung.hues)) out.push(hsvToRgb(h, shade.s, shade.v));
   }
   return out;
 }
@@ -348,9 +388,12 @@ export function palette(rung: Rung): Rgb[] {
 /** How big `palette(rung)` is, without building it. Exact, not a bound: the
  *  grid has no duplicates to remove and no extremes to filter, because
  *  `COLOR_SAT_MIN` and `COLOR_LUM_MIN` are chosen so nothing on it can be
- *  either (asserted in `color.test.ts`). */
+ *  either (asserted in `color.test.ts`). `sats + values - 1`, not `sats x
+ *  values`: the plain ring is one entry both axes agree on, not two. */
 export function paletteSize(rung: Rung): number {
-  return Math.max(1, Math.floor(rung.hues)) * Math.max(1, Math.floor(rung.sats));
+  const sats = Math.max(1, Math.floor(rung.sats));
+  const values = Math.max(1, Math.floor(rung.values));
+  return Math.max(1, Math.floor(rung.hues)) * (sats + values - 1);
 }
 
 /** A colour as a map key, for the "never twice in one session" rule. */
@@ -368,10 +411,11 @@ const ENUMERABLE = 50_000;
  * `Math.random` read here, so the referee owns the randomness and a test can
  * pin a level to an exact colour.
  *
- * **Every target is a colour the wheel offers**, by construction rather than by
- * check: it is one of `palette(rung)` under one of `valueSteps(rung.values)`,
- * which is exactly the set a thumb can reach (issue: a dark green dealt at
- * level 17 while the disc showed only light and bright colours).
+ * **Every target is a colour the wheel offers**, by construction rather than
+ * by check: it is one of `palette(rung)`, which is exactly the set a thumb
+ * can reach (issue: a dark green dealt at level 17 while the disc showed only
+ * light and bright colours). Since issue #40 that is a single grid — hue by
+ * ring — rather than a base colour times a separate slider notch.
  *
  * `used` is every colour this session has already asked for (`colorKey`).
  * **A session never asks twice for the same colour** — except when a rung has
@@ -383,61 +427,65 @@ export function dealTarget(
   level: number,
   rand: () => number,
   used: ReadonlySet<string> = new Set(),
-): { rgb: Rgb; base: Rgb; lum: number; repeat: boolean } {
+): { rgb: Rgb; repeat: boolean } {
   const rung = rungAt(level);
   const hues = hueSteps(rung.hues);
-  const sats = saturationSteps(rung.sats);
-  const lums = valueSteps(rung.values);
+  const shades = shadeSteps(rung);
   // Clamped rather than rejected, so a degenerate `rand` — one a test pins to a
   // constant — picks a colour instead of spinning.
   const draw = (n: number): number => Math.min(n - 1, Math.max(0, Math.floor(rand() * n)));
 
-  if (hues.length * sats.length * lums.length <= ENUMERABLE) {
-    const all: { base: Rgb; lum: number }[] = [];
-    const fresh: { base: Rgb; lum: number }[] = [];
-    for (const s of sats) {
+  if (hues.length * shades.length <= ENUMERABLE) {
+    const all: Rgb[] = [];
+    const fresh: Rgb[] = [];
+    for (const shade of shades) {
       for (const h of hues) {
-        const base = hsvToRgb(h, s, 1);
-        for (const lum of lums) {
-          const one = { base, lum };
-          all.push(one);
-          if (!used.has(colorKey(withLuminance(base, lum)))) fresh.push(one);
-        }
+        const rgb = hsvToRgb(h, shade.s, shade.v);
+        all.push(rgb);
+        if (!used.has(colorKey(rgb))) fresh.push(rgb);
       }
     }
     const pool = fresh.length > 0 ? fresh : all;
-    const one = pool[draw(pool.length)] ?? { base: [255, 0, 0] as Rgb, lum: 1 };
-    return { rgb: withLuminance(one.base, one.lum), base: one.base, lum: one.lum, repeat: fresh.length === 0 };
+    const rgb = pool[draw(pool.length)] ?? ([255, 0, 0] as Rgb);
+    return { rgb, repeat: fresh.length === 0 };
   }
 
   // Too many to list. One draw per axis; a repeat is reported rather than
   // avoided, which at this size is a coincidence rather than a pattern.
-  const base = hsvToRgb(hues[draw(hues.length)] ?? 0, sats[draw(sats.length)] ?? 1, 1);
-  const lum = lums[draw(lums.length)] ?? 1;
-  const rgb = withLuminance(base, lum);
-  return { rgb, base, lum, repeat: used.has(colorKey(rgb)) };
+  const h = hues[draw(hues.length)] ?? 0;
+  const shade = shades[draw(shades.length)] ?? { s: 1, v: 1 };
+  const rgb = hsvToRgb(h, shade.s, shade.v);
+  return { rgb, repeat: used.has(colorKey(rgb)) };
 }
 
 /**
  * Snap a freely-dragged colour onto the rung's own grid — what the continuous
  * disc does (color-match.md §4.2).
  *
- * Quantised in HSV, on the two axes the disc actually has, and returned at full
- * value: brightness is the slider's, and a disc that returned a dimmed colour
- * would be answering for a control the player has not touched. Hue is snapped
- * the short way round the circle, so 350 degrees lands on red rather than on
- * the last step before it.
+ * Quantised in HSV, on all three axes since issue #40: nearest hue the short
+ * way round the circle, and nearest `{s, v}` pair among `shadeSteps(rung)` by
+ * plain Euclidean distance in that plane — good enough for a grid whose
+ * neighbours are never far apart, and it is only ever asked to settle a point
+ * already close to a ring, not to classify an arbitrary colour.
  */
 export function snapToRung(rgb: Rgb, rung: Rung): Rgb {
   const hues = hueSteps(rung.hues);
-  const sats = saturationSteps(rung.sats);
+  const shades = shadeSteps(rung);
   const h = Math.max(0, hueOf(rgb));
   const s = satOf(rgb);
+  const v = valueOf(rgb);
   let bestH = hues[0] ?? 0;
   for (const c of hues) if (hueGap(c, h) < hueGap(bestH, h)) bestH = c;
-  let bestS = sats[0] ?? 1;
-  for (const c of sats) if (Math.abs(c - s) < Math.abs(bestS - s)) bestS = c;
-  return hsvToRgb(bestH, bestS, 1);
+  let best = shades[0] ?? { s: 1, v: 1 };
+  let bestD = Infinity;
+  for (const shade of shades) {
+    const d = (shade.s - s) ** 2 + (shade.v - v) ** 2;
+    if (d < bestD) {
+      bestD = d;
+      best = shade;
+    }
+  }
+  return hsvToRgb(bestH, best.s, best.v);
 }
 
 /* -------------------------- Color Hunt's own targets ---------------------- */

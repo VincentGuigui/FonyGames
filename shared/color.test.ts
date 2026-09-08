@@ -31,7 +31,6 @@ import {
   colorKey,
   colorScore,
   dealTarget,
-  hasLuminance,
   hsvToRgb,
   hueSteps,
   huntColor,
@@ -42,9 +41,10 @@ import {
   rungAt,
   satOf,
   saturationSteps,
+  shadeSteps,
   snapToRung,
+  valueOf,
   valueSteps,
-  withLuminance,
   type Rgb,
 } from './color';
 
@@ -138,8 +138,14 @@ function ladder(): void {
   check('level 17 — the level the report was about — is pure hue, 36 of them', rungAt(17).hues === 36 && rungAt(17).sats === 1 && rungAt(17).values === 1, rungAt(17));
   check('the next rung adds light, and only light', rungAt(at(4) + 1).sats === 2 && rungAt(at(4) + 1).values === 1, rungAt(at(4) + 1));
   check('the rung after it adds dark', rungAt(at(5) + 1).values === 2 && rungAt(at(5) + 1).sats === 2, rungAt(at(5) + 1));
-  check('so the brightness slider stays off until then', !hasLuminance(rungAt(at(5))) && hasLuminance(rungAt(at(5) + 1)));
-  check('and no rung ever claims a slider it has no notches for', [1, 9, 21, 26, 31, 41, 60, 500].every((lv) => hasLuminance(rungAt(lv)) === (rungAt(lv).values > 1)));
+  // Issue #40: dark is a ring, not a slider, so the ring count is what stays
+  // flat until the rung that adds it — one ring right up to and including the
+  // one that has only just added light.
+  check('so there is no dark ring until then', shadeSteps(rungAt(at(5))).length === 2 && shadeSteps(rungAt(at(5) + 1)).length === 3);
+  check('and shadeSteps is always sats + values - 1, never more or fewer', [1, 9, 21, 26, 31, 41, 60, 500].every((lv) => {
+    const r = rungAt(lv);
+    return shadeSteps(r).length === r.sats + r.values - 1;
+  }));
 
   // Past the table it is a formula: double the hues every five levels, and add
   // a step to each of the other two.
@@ -179,12 +185,9 @@ function palettes(): void {
   check('laid out ring by ring, palest ring first', Math.abs(satOf(wide[0] as Rgb) - COLOR_SAT_MIN) < 0.02 && satOf(wide[wide.length - 1] as Rgb) === 1, [wide[0], wide[wide.length - 1]]);
   check('and hue by hue within a ring, starting at red', JSON.stringify(wide[36]) === JSON.stringify([255, 0, 0]), wide[36]);
 
-  check('no rung ever offers black or white', [1, 4, 9, 14, 19, 24, 29, 34, 41, 60].every((lv) => palette(rungAt(lv)).every((c) => !isExtreme(c))));
-  check('nor does any of them once dimmed to the bottom notch', [26, 31, 41, 60].every((lv) => {
-    const rung = rungAt(lv);
-    const dimmest = valueSteps(rung.values)[0] ?? 1;
-    return palette(rung).every((c) => !isExtreme(withLuminance(c, dimmest)));
-  }));
+  // Every ring is in `palette()` now, dark ones included (issue #40), so this
+  // one check covers what used to need a second pass with `withLuminance`.
+  check('no rung ever offers black or white, on any ring, light or dark', [1, 4, 9, 14, 19, 24, 29, 34, 41, 60].every((lv) => palette(rungAt(lv)).every((c) => !isExtreme(c))));
   check('the palette grows down the ladder', palette(rungAt(4)).length > palette(rungAt(1)).length);
   check('every entry is a real colour', palette(rungAt(19)).every((c) => c.every((v) => Number.isInteger(v) && v >= 0 && v <= 255)));
 }
@@ -206,10 +209,11 @@ function extremes(): void {
   check('the value floor is where black stops', isExtreme([COLOR_VALUE_FLOOR - 1, 0, 0]) && !isExtreme([COLOR_VALUE_FLOOR, 0, 0]));
   check('and the white floor where white starts', !isExtreme([COLOR_WHITE_FLOOR, COLOR_WHITE_FLOOR, COLOR_WHITE_FLOOR]) && isExtreme([COLOR_WHITE_FLOOR + 1, COLOR_WHITE_FLOOR + 1, COLOR_WHITE_FLOOR + 1]));
 
-  // The dimmest luminance step must not drag a colour under the floor, or the
-  // bottom notch of the slider would be unpickable.
+  // The dimmest dark ring must not drag a colour under the floor, or the
+  // outermost ring would be unpickable.
   const dimmest = valueSteps(4)[0] ?? 1;
-  check('the dimmest slider step still clears the floor', !isExtreme(withLuminance([255, 0, 0], dimmest)), withLuminance([255, 0, 0], dimmest));
+  const dimmedRed = hsvToRgb(0, 1, dimmest);
+  check('the dimmest dark ring still clears the floor', !isExtreme(dimmedRed), dimmedRed);
 
   // And a rung too big to enumerate cannot deal one either: the deal nudges a
   // dark or pale draw back onto its own grid rather than rejecting in a loop.
@@ -233,12 +237,10 @@ function spansFitTheirColours(): void {
   for (let i = 0; i < RUNG_ENDS.length; i++) {
     const span = (RUNG_ENDS[i] ?? 0) - (i === 0 ? 0 : RUNG_ENDS[i - 1] ?? 0);
     const rung = rungAt((RUNG_ENDS[i] ?? 1) - span + 1);
-    // What the rung can actually DEAL, not what its base palette holds: once
-    // the slider is live every base is several colours. The rung that adds
-    // dark keeps the palette it had and multiplies it by its notches, so
-    // counting bases alone would call it broken when it doubles the targets.
-    const lums = valueSteps(rung.values);
-    const mine = palette(rung).flatMap((c) => lums.map((l) => colorKey(withLuminance(c, l))));
+    // What the rung can actually DEAL is `palette(rung)` directly since issue
+    // #40 — dark rings are colours in the palette now, not a slider notch
+    // multiplied on afterwards, so there is no second axis left to cross in.
+    const mine = palette(rung).map((c) => colorKey(c));
     const fresh = new Set(mine.filter((k) => !offered.has(k))).size;
     for (const k of mine) offered.add(k);
     report.push(`rung ${i + 1}: ${span} levels, ${fresh} new`);
@@ -285,33 +287,42 @@ function noRepeats(): void {
   check('the first rung fits its three colours in its three levels', rung1.size === 3 && repeats === 0, { size: rung1.size, repeats });
 }
 
-function brightness(): void {
-  console.log('\nbrightness is a multiplier, not a fourth component (§2.3)');
-
-  check('full brightness leaves a colour alone', JSON.stringify(withLuminance([200, 100, 50], 1)) === JSON.stringify([200, 100, 50]));
-  check('half of it halves every channel', JSON.stringify(withLuminance([200, 100, 50], 0.5)) === JSON.stringify([100, 50, 25]));
-  check('it clamps rather than overflowing', JSON.stringify(withLuminance([200, 100, 50], 9)) === JSON.stringify([200, 100, 50]));
-  // Which is exactly why the slider can be a control of its own: scaling all
-  // three channels moves value and leaves hue and saturation where they were.
-  check('and it moves value without touching hue or saturation', (() => {
-    const base: Rgb = [255, 128, 0];
-    const dim = withLuminance(base, 0.6);
-    return Math.abs(satOf(dim) - satOf(base)) < 0.01 && Math.max(...dim) === Math.round(255 * 0.6);
-  })());
+/** Issue #40: brightness is a ring on the wheel, not a slider's multiplier. */
+function shades(): void {
+  console.log('\nlight, plain and dark are one ordered list of rings (issue #40)');
 
   const steps = valueSteps(4);
-  check('a four-notch rung offers four steps', steps.length === 4, steps);
+  check('a four-notch dark side offers four steps', steps.length === 4, steps);
   check('the dimmest is not black', (steps[0] ?? 0) === COLOR_LUM_MIN && COLOR_LUM_MIN > 0);
   check('the brightest is full', Math.abs((steps[steps.length - 1] ?? 0) - 1) < 1e-9);
   check('and they climb', steps.every((v, i, a) => i === 0 || v > (a[i - 1] ?? -1)));
-  check('one notch is no slider at all', JSON.stringify(valueSteps(1)) === '[1]');
+  check('one notch is no dark ring at all', JSON.stringify(valueSteps(1)) === '[1]');
+
+  check('sats: 1, values: 1 is the plain ring alone', JSON.stringify(shadeSteps({ hues: 3, sats: 1, values: 1 })) === '[{"s":1,"v":1}]');
+
+  // The heart of the fix: light rings inward, the plain ring once in the
+  // middle, dark rings outward — never the plain ring twice, never a step
+  // out of order.
+  const wide = shadeSteps({ hues: 3, sats: 3, values: 3 });
+  check('length is sats + values - 1, the plain ring shared rather than doubled', wide.length === 5, wide);
+  check('it opens on the palest light ring', wide[0]?.s === COLOR_SAT_MIN && wide[0]?.v === 1, wide[0]);
+  check('climbs saturation toward the plain ring', (wide[0]?.s ?? 0) < (wide[1]?.s ?? 0) && wide[1]?.v === 1, wide[1]);
+  check('the plain ring sits in the middle, full strength both ways', wide[2]?.s === 1 && wide[2]?.v === 1, wide[2]);
+  check('then value falls toward the dimmest, saturation pinned at full', wide[3]?.s === 1 && (wide[3]?.v ?? 0) < 1 && (wide[3]?.v ?? 0) > (wide[4]?.v ?? 1), wide[3]);
+  check('and it closes on the dimmest dark ring', wide[4]?.s === 1 && wide[4]?.v === COLOR_LUM_MIN, wide[4]);
+
+  // Only one side present is the ladder's own early and mid rungs.
+  const lightOnly = shadeSteps({ hues: 3, sats: 3, values: 1 });
+  check('light with no dark side yet is just the light side plus plain', lightOnly.length === 3 && lightOnly.every((s) => s.v === 1), lightOnly);
+  const darkOnly = shadeSteps({ hues: 3, sats: 1, values: 3 });
+  check('dark with no light side yet is just plain plus the dark side', darkOnly.length === 3 && darkOnly.every((s) => s.s === 1), darkOnly);
 }
 
 function dealing(): void {
   console.log('\ndealing a target');
 
-  // The last level before the brightness slider, read off the ladder rather
-  // than written down, so shortening a rung moves it.
+  // The last level before the ladder's own first dark ring, read off the
+  // ladder rather than written down, so shortening a rung moves it.
   const lastFlat = RUNG_ENDS[5] ?? 26;
 
   check('a level-1 target is one of that rung\'s three', (() => {
@@ -321,34 +332,33 @@ function dealing(): void {
   })());
 
   /*
-   * The rule the whole rewrite exists for: a dealt target is a palette colour
-   * under one of the rung's own brightness notches, and nothing else. The old
-   * randomiser built colours on an RGB grid and could hand out a dark green at
-   * level 17 that the wheel — drawn at full value — had no way to show.
+   * The rule the whole rewrite exists for: a dealt target is a palette
+   * colour, and nothing else. The old randomiser built colours on an RGB
+   * grid and could hand out a dark green at level 17 that the wheel — drawn
+   * at full value — had no way to show. Since issue #40 there is no second
+   * axis to cross a base against any more: `palette(rung)` already is every
+   * shade the wheel offers.
    */
-  check('every target is a palette colour under a slider notch, at every level', (() => {
+  check('every target is a colour the rung\'s own palette offers, at every level', (() => {
     for (const lv of [1, 3, 8, 14, 17, 21, 24, 29, 33, 40, 45, 60]) {
       const rung = rungAt(lv);
-      const bases = new Set(palette(rung).map((c) => c.join(',')));
-      const lums = valueSteps(rung.values);
+      const grid = new Set(palette(rung).map((c) => c.join(',')));
       for (let s2 = 1; s2 < 25; s2++) {
         const t = dealTarget(lv, seeded(s2 + lv));
-        if (!bases.has(t.base.join(','))) return false;
-        if (!lums.some((l) => Math.abs(l - t.lum) < 1e-9)) return false;
-        if (JSON.stringify(t.rgb) !== JSON.stringify(withLuminance(t.base, t.lum))) return false;
+        if (!grid.has(t.rgb.join(','))) return false;
       }
     }
     return true;
   })());
 
-  check('and it never carries a brightness before the slider rung', (() => {
+  check('and it never lands on a dark ring before the rung that adds one', (() => {
     for (const lv of [1, 9, 17, lastFlat]) {
-      for (let s2 = 1; s2 < 40; s2++) if (dealTarget(lv, seeded(s2)).lum !== 1) return false;
+      for (let s2 = 1; s2 < 40; s2++) if (valueOf(dealTarget(lv, seeded(s2)).rgb) !== 1) return false;
     }
     return true;
   })());
-  check('from that rung it does', (() => {
-    for (let s2 = 1; s2 < 40; s2++) if (dealTarget(lastFlat + 1, seeded(s2)).lum !== 1) return true;
+  check('from that rung a dark pick is reachable', (() => {
+    for (let s2 = 1; s2 < 60; s2++) if (valueOf(dealTarget(lastFlat + 1, seeded(s2)).rgb) < 1) return true;
     return false;
   })());
 
@@ -504,7 +514,7 @@ spansFitTheirColours();
 noRepeats();
 ladder();
 palettes();
-brightness();
+shades();
 dealing();
 hunt();
 reaction();

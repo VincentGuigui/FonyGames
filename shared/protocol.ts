@@ -281,11 +281,12 @@ export type ClientMessage =
    *  `GRAVITY_MAX_FLIGHT_MS`, so claiming a long flight buys no extra time. */
   | { t: 'gravity-shot'; d: { roundId: number; angle: number; strength: number; hit: boolean; flightMs: number } }
   /**
-   * Color Match: this phone's pick for the level in flight (spec §6). A colour
-   * and a luminance, never a score — the referee computes what it is worth,
-   * because a claimed score is the one thing a payload must never carry.
+   * Color Match: this phone's pick for the level in flight (spec §6). A
+   * colour, never a score — the referee computes what it is worth, because a
+   * claimed score is the one thing a payload must never carry. Since issue
+   * #40 brightness is a ring on the wheel, not a second field alongside it.
    */
-  | { t: 'color-pick'; d: { roundId: number; level: number; rgb: [number, number, number]; lum: number; at: number } }
+  | { t: 'color-pick'; d: { roundId: number; level: number; rgb: [number, number, number]; at: number } }
   /**
    * Math-o-matic: which of the four buttons this phone tapped.
    *
@@ -741,11 +742,8 @@ export type ColorMatchState = {
   roundId: number;
   /** 1-based, and unbounded: the ladder's last rung is a formula (spec §2.3). */
   level: number;
-  /** The colour to match, already carrying its luminance. */
+  /** The colour to match. */
   target: [number, number, number];
-  /** Is the luminance slider live on this rung? Derived from the level, sent
-   *  anyway so the phone never has to agree with the referee about the ladder. */
-  luminance: boolean;
   phase: 'pick' | 'reveal' | 'done';
   /** When picks close, when the reveal starts, when the level ends. */
   picksDueAt: number;
