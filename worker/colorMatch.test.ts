@@ -10,7 +10,8 @@ import {
   type Ctx,
 } from './colorMatch';
 import { COLOR_SCORE_HOLD_MS, type PlayerId, type ServerMessage } from '../shared/protocol';
-import { COLOR_ACTION_TIERS, COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, RUNG_ENDS, colorActionMs, hasLuminance, rungAt, colorKey, isExtreme } from '../shared/color';
+import { COLOR_ACTION_TIERS, COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, RUNG_ENDS, colorActionMs, paletteSize, rungAt, colorKey, isExtreme } from '../shared/color';
+import { COLOR_SECTOR_MAX } from '../shared/protocol';
 
 /**
  * Color Match's referee.
@@ -108,7 +109,6 @@ async function starting(): Promise<void> {
   const target = h.state.target;
   check('and it is a rung-1 colour', target.filter((v) => v === 255).length === 1 && target.every((v) => v === 0 || v === 255), target);
   check('never black or white', !isExtreme(target), target);
-  check('with no luminance yet', !h.state.luminance);
 
   // Color Match's minimum really is 1 (spec §7): the ladder is a perfectly
   // good solo score attack, so a lone player needs no solo-testing flag.
@@ -126,10 +126,10 @@ async function scoring(): Promise<void> {
   const target = h.state.target;
 
   // A picks it exactly, early; B picks the far side of the wheel, late.
-  await onColorPick(h.ctx, A, 1, 1, [...target], 1, 0);
+  await onColorPick(h.ctx, A, 1, 1, [...target], 0);
   h.advance(colorActionMs(1) - 100);
   const miss = target.map((v) => 255 - v);
-  await onColorPick(h.ctx, B, 1, 1, miss, 1, 0);
+  await onColorPick(h.ctx, B, 1, 1, miss, 0);
 
   check('nothing is scored while the window is open', h.state.phase === 'pick' && (h.state.picks[A]?.score ?? 0) === 0);
   check('and nobody\'s pick is on the wire yet', Object.keys(toState(h.state).picks).length === 0);
@@ -154,8 +154,8 @@ async function replacing(): Promise<void> {
   await startColorMatch(h.ctx, 1, [A, B]);
   const target = h.state.target;
 
-  await onColorPick(h.ctx, A, 1, 1, [...target], 1, 0);
-  await onColorPick(h.ctx, A, 1, 1, target.map((v) => 255 - v), 1, 0);
+  await onColorPick(h.ctx, A, 1, 1, [...target], 0);
+  await onColorPick(h.ctx, A, 1, 1, target.map((v) => 255 - v), 0);
   await h.step();
   check('the last one before the deadline is the one that counts', h.state.totals[A] === 0, h.state.totals);
 
@@ -165,7 +165,7 @@ async function replacing(): Promise<void> {
   await startColorMatch(g.ctx, 1, [A, B]);
   const t2 = g.state.target;
   g.advance(colorActionMs(1) + COLOR_PICK_GRACE_MS - 50);
-  await onColorPick(g.ctx, A, 1, 1, [...t2], 1, 0);
+  await onColorPick(g.ctx, A, 1, 1, [...t2], 0);
   await g.step();
   // Dead on the deadline: the last reaction slice, so the accuracy is halved.
   check('a pick inside the grace still counts', g.state.totals[A] === 50, g.state.totals);
@@ -174,7 +174,7 @@ async function replacing(): Promise<void> {
   await startColorMatch(l.ctx, 1, [A, B]);
   const t3 = l.state.target;
   l.advance(colorActionMs(1) + COLOR_PICK_GRACE_MS + 50);
-  await onColorPick(l.ctx, A, 1, 1, [...t3], 1, 0);
+  await onColorPick(l.ctx, A, 1, 1, [...t3], 0);
   await l.step();
   check('one past it does not', l.state.totals[A] === 0, l.state.totals);
 }
@@ -184,7 +184,7 @@ async function chaining(): Promise<void> {
 
   const h = harness();
   await startColorMatch(h.ctx, 1, [A, B]);
-  await onColorPick(h.ctx, A, 1, 1, [...h.state.target], 1, 0);
+  await onColorPick(h.ctx, A, 1, 1, [...h.state.target], 0);
   await h.step();
   check('reveal', h.state.phase === 'reveal');
   check('and the alarm is set for the end of it', h.alarm === h.state.levelEndsAt, { alarm: h.alarm, end: h.state.levelEndsAt });
@@ -194,14 +194,14 @@ async function chaining(): Promise<void> {
   check('with a fresh picks board', Object.keys(h.state.picks).length === 0);
   check('and the totals carried over', h.state.totals[A] === 150, h.state.totals);
 
-  // Walk far enough up the ladder to cross the luminance rung.
+  // Walk far enough up the ladder to cross the rung that adds a dark ring.
   for (let n = 2; n <= 36; n++) {
-    await onColorPick(h.ctx, A, 1, n, [...h.state.target], 1, 0);
+    await onColorPick(h.ctx, A, 1, n, [...h.state.target], 0);
     await h.step();
     await h.step();
   }
   check('the ladder reaches level 37 by playing it', h.state.level === 37, h.state.level);
-  check('and the luminance slider is live by then', h.state.luminance);
+  check('and its rung really does have a dark ring by then', rungAt(37).values > 1, rungAt(37));
 }
 
 async function barren(): Promise<void> {
@@ -231,7 +231,7 @@ async function barren(): Promise<void> {
   await k.step();
   await k.step();
   check('two blanks do not end it', k.state.phase !== 'done' && k.state.barren === 2, k.state.barren);
-  await onColorPick(k.ctx, A, 1, k.state.level, [...k.state.target], 1, 0);
+  await onColorPick(k.ctx, A, 1, k.state.level, [...k.state.target], 0);
   await k.step();
   check('and one player scoring resets the streak for everyone', k.state.barren === 0);
 }
@@ -241,7 +241,7 @@ async function winning(): Promise<void> {
 
   const h = harness();
   await startColorMatch(h.ctx, 1, [A, B]);
-  await onColorPick(h.ctx, A, 1, 1, [...h.state.target], 1, 0);
+  await onColorPick(h.ctx, A, 1, 1, [...h.state.target], 0);
   await h.step();
   await h.step();
   // Now let it die out.
@@ -255,8 +255,8 @@ async function winning(): Promise<void> {
 
   const t = harness();
   await startColorMatch(t.ctx, 1, [A, B]);
-  await onColorPick(t.ctx, A, 1, 1, [...t.state.target], 1, 0);
-  await onColorPick(t.ctx, B, 1, 1, [...t.state.target], 1, 0);
+  await onColorPick(t.ctx, A, 1, 1, [...t.state.target], 0);
+  await onColorPick(t.ctx, B, 1, 1, [...t.state.target], 0);
   await t.step();
   await t.step();
   for (let n = 0; n < COLOR_BARREN_ROUNDS; n++) {
@@ -274,18 +274,18 @@ async function cheating(): Promise<void> {
   await startColorMatch(h.ctx, 1, [A, B]);
   const target = h.state.target;
 
-  await onColorPick(h.ctx, A, 2, 1, [...target], 1, 0);
+  await onColorPick(h.ctx, A, 2, 1, [...target], 0);
   check('a pick for the wrong round is dropped', h.state.picks[A] === undefined);
-  await onColorPick(h.ctx, A, 1, 9, [...target], 1, 0);
+  await onColorPick(h.ctx, A, 1, 9, [...target], 0);
   check('a pick for a level not in flight is dropped', h.state.picks[A] === undefined);
-  await onColorPick(h.ctx, 'nobody' as PlayerId, 1, 1, [...target], 1, 0);
+  await onColorPick(h.ctx, 'nobody' as PlayerId, 1, 1, [...target], 0);
   check('a pick from somebody not in the room is dropped', h.state.picks['nobody' as PlayerId] === undefined);
-  await onColorPick(h.ctx, A, 1, 1, 'crimson', 1, 0);
+  await onColorPick(h.ctx, A, 1, 1, 'crimson', 0);
   check('a pick that is not a colour is dropped', h.state.picks[A] === undefined);
-  await onColorPick(h.ctx, A, 1, 1, [1, 2], 1, 0);
+  await onColorPick(h.ctx, A, 1, 1, [1, 2], 0);
   check('and neither is a two-component one', h.state.picks[A] === undefined);
 
-  await onColorPick(h.ctx, A, 1, 1, [999, -20, 40], 1, 0);
+  await onColorPick(h.ctx, A, 1, 1, [999, -20, 40], 0);
   check('an out-of-range colour is clamped, not rejected', JSON.stringify(h.state.picks[A]?.rgb) === '[255,0,40]', h.state.picks[A]);
 
   // The wire carries a colour and never a score — the payload has no field for
@@ -299,7 +299,7 @@ async function leaving(): Promise<void> {
 
   const h = harness();
   await startColorMatch(h.ctx, 1, [A, B]);
-  await onColorPick(h.ctx, A, 1, 1, [...h.state.target], 1, 0);
+  await onColorPick(h.ctx, A, 1, 1, [...h.state.target], 0);
   await h.step();
   await h.step();
 
@@ -334,12 +334,14 @@ async function timing(): Promise<void> {
   // The boundaries are derived from the ladder, so this asserts the RUNGS the
   // steps sit on rather than the numbers they currently work out to — those
   // move the moment a rung's length does, and did when the first was shortened.
-  const lastBeforeSlider = RUNG_ENDS[5] ?? 0;
-  check('3 s while the answer is one tap on the wheel',
-    colorActionMs(1) === 3000 && colorActionMs(lastBeforeSlider) === 3000, colorActionMs(1));
-  check('10 s from the rung that adds the slider',
-    colorActionMs(lastBeforeSlider + 1) === 10000 && colorActionMs(400) === 10000, colorActionMs(lastBeforeSlider + 1));
-  check('and that rung really is the first with a slider', hasLuminance(rungAt(lastBeforeSlider + 1)) && !hasLuminance(rungAt(lastBeforeSlider)));
+  // Since issue #40 the boundary is the rung before the wheel goes continuous
+  // (`COLOR_SECTOR_MAX`), not the rung that used to add a slider.
+  const lastSector = RUNG_ENDS[4] ?? 0;
+  check('3 s while a wedge can be tapped exactly',
+    colorActionMs(1) === 3000 && colorActionMs(lastSector) === 3000, colorActionMs(1));
+  check('10 s from the rung that goes continuous',
+    colorActionMs(lastSector + 1) === 10000 && colorActionMs(400) === 10000, colorActionMs(lastSector + 1));
+  check('and that rung really is the first past the sector cap', paletteSize(rungAt(lastSector + 1)) > COLOR_SECTOR_MAX && paletteSize(rungAt(lastSector)) <= COLOR_SECTOR_MAX);
   check('the tiers only ever get longer', COLOR_ACTION_TIERS.every((t, i, a) => i === 0 || t.ms > (a[i - 1]?.ms ?? 0)));
   check('and the last one catches every level', COLOR_ACTION_TIERS[COLOR_ACTION_TIERS.length - 1]?.upTo === Infinity);
   check('a whole level is its own window plus a fixed tail', levelMs(1) === colorActionMs(1) + 4000 && levelMs(40) === colorActionMs(40) + 4000);

@@ -6,7 +6,8 @@ import {
   palette,
   paletteSize,
   satOf,
-  saturationSteps,
+  shadeSteps,
+  valueOf,
   type Rgb,
   type Rung,
 } from '../../../../shared/color';
@@ -21,14 +22,19 @@ export { hueOf, satOf } from '../../../../shared/color';
  * the same split `asteroid-race/pose.ts` and `pass-the-bomb/shockwave.ts` make.
  * `ColorWheel.tsx` draws what these return and owns every pixel.
  *
- * **One geometry, two presentations.** Hue runs around the disc and saturation
- * outward, always: ring `i` is `saturationSteps(rung.sats)[i]`, wedge `j` is
+ * **One geometry, two presentations.** Hue runs around the disc and shade
+ * outward, always: ring `i` is `shadeSteps(rung)[i]`, wedge `j` is
  * `hueSteps(rung.hues)[j]`, and both presentations read the same two grids.
  * While the palette is small enough the wedges are drawn one per colour and a
  * tap picks one exactly; past that the disc is drawn as a smooth sweep and the
  * same hit test quantises what the thumb lands on. Either way **the only
  * colours the wheel can return are the colours the rung offers**, which is what
  * makes the randomiser's targets reachable by construction rather than by luck.
+ *
+ * **Since issue #40, "outward" runs light-plain-dark, not just pale-to-full.**
+ * `shadeSteps` already lays that out as one ordered list; this file only ever
+ * asks it "how many rings" and "what shade is ring `i`", so it does not care
+ * that the middle of that list is special — it reads the same either side.
  */
 
 export type Sector = {
@@ -53,18 +59,19 @@ export const WHEEL_HUB = 0.28;
 
 const TWO_PI = Math.PI * 2;
 
-/** The radius band ring `i` of `sats` occupies, out from the hub. */
-export function ringBand(sats: number, ring: number): { r0: number; r1: number } {
-  const n = Math.max(1, Math.floor(sats));
+/** The radius band ring `i` of `rings` total occupies, out from the hub. */
+export function ringBand(rings: number, ring: number): { r0: number; r1: number } {
+  const n = Math.max(1, Math.floor(rings));
   const band = (1 - WHEEL_HUB) / n;
   return { r0: WHEEL_HUB + ring * band, r1: WHEEL_HUB + (ring + 1) * band };
 }
 
-/** Which ring a radius falls in. Everything inside the hub belongs to the
- *  innermost ring rather than to nothing — a thumb that slips onto the preview
- *  disc should not silently pick a colour from the far side of the wheel. */
-export function ringAt(r: number, sats: number): number {
-  const n = Math.max(1, Math.floor(sats));
+/** Which ring a radius falls in, of `rings` total. Everything inside the hub
+ *  belongs to the innermost ring rather than to nothing — a thumb that slips
+ *  onto the preview disc should not silently pick a colour from the far side
+ *  of the wheel. */
+export function ringAt(r: number, rings: number): number {
+  const n = Math.max(1, Math.floor(rings));
   const t = (r - WHEEL_HUB) / (1 - WHEEL_HUB);
   return Math.min(n - 1, Math.max(0, Math.floor(t * n)));
 }
@@ -81,11 +88,12 @@ export function hueIndexAt(a: number, hues: number): number {
 export function sectorsFor(rung: Rung, sectorMax: number): Sector[] {
   if (paletteSize(rung) > sectorMax) return [];
   const hues = Math.max(1, Math.floor(rung.hues));
+  const rings = shadeSteps(rung).length;
   const step = TWO_PI / hues;
   return palette(rung).map((rgb, i) => {
     const ring = Math.floor(i / hues);
     const slot = i % hues;
-    const { r0, r1 } = ringBand(rung.sats, ring);
+    const { r0, r1 } = ringBand(rings, ring);
     return { rgb, ring, r0, r1, a0: (slot - 0.5) * step, a1: (slot + 0.5) * step };
   });
 }
@@ -118,9 +126,9 @@ export function sectorAt(sectors: readonly Sector[], nx: number, ny: number): Se
 }
 
 /**
- * What a pointer is pointing at on the continuous disc: hue around, saturation
- * outward, full value — brightness is the slider's job, not the wheel's
- * (spec §2.3) — quantised onto the rung's own two grids.
+ * What a pointer is pointing at on the continuous disc: hue around, shade
+ * outward — light rings in, dark rings out (`shadeSteps`) — quantised onto
+ * the rung's own two grids.
  *
  * Returns the *quantised* colour, because that is what will be scored: showing
  * the free colour and submitting a different one is the kind of gap a player
@@ -131,30 +139,40 @@ export function continuousAt(rung: Rung, nx: number, ny: number): Rgb | null {
   if (r > 1) return null;
   const a = (Math.atan2(nx, -ny) + TWO_PI) % TWO_PI;
   const hues = hueSteps(rung.hues);
-  const sats = saturationSteps(rung.sats);
-  return hsvToRgb(hues[hueIndexAt(a, rung.hues)] ?? 0, sats[ringAt(r, rung.sats)] ?? 1, 1);
+  const shades = shadeSteps(rung);
+  const shade = shades[ringAt(r, shades.length)] ?? { s: 1, v: 1 };
+  return hsvToRgb(hues[hueIndexAt(a, rung.hues)] ?? 0, shade.s, shade.v);
 }
 
 /**
  * Where a colour sits on the disc, so the cursor can be drawn on top of the
  * pick rather than wherever the thumb last was.
  *
- * Hue and saturation only — a dimmed target is at its hue's own angle, not off
- * the wheel — and null for a colour that has no hue at all: the neutral grey a
- * level opens on, most of all, because a cursor parked on a colour nobody chose
- * reads as a choice.
+ * Hue and shade only — a target off the plain ring is still at its hue's own
+ * angle, not off the wheel — and null for a colour that has no hue at all:
+ * the neutral grey a level opens on, most of all, because a cursor parked on
+ * a colour nobody chose reads as a choice.
  */
 export function positionOf(rgb: Rgb, rung: Rung): { nx: number; ny: number } | null {
   const h = hueOf(rgb);
   if (h < 0) return null;
   const hues = hueSteps(rung.hues);
-  const sats = saturationSteps(rung.sats);
+  const shades = shadeSteps(rung);
   const s = satOf(rgb);
+  const v = valueOf(rgb);
   let hi = 0;
   for (let i = 1; i < hues.length; i++) if (hueGap(hues[i] ?? 0, h) < hueGap(hues[hi] ?? 0, h)) hi = i;
   let si = 0;
-  for (let i = 1; i < sats.length; i++) if (Math.abs((sats[i] ?? 1) - s) < Math.abs((sats[si] ?? 1) - s)) si = i;
-  const { r0, r1 } = ringBand(rung.sats, si);
+  let bestD = Infinity;
+  for (let i = 0; i < shades.length; i++) {
+    const shade = shades[i] ?? { s: 1, v: 1 };
+    const d = (shade.s - s) ** 2 + (shade.v - v) ** 2;
+    if (d < bestD) {
+      bestD = d;
+      si = i;
+    }
+  }
+  const { r0, r1 } = ringBand(shades.length, si);
   const a = (hi / hues.length) * TWO_PI;
   const r = (r0 + r1) / 2;
   return { nx: Math.sin(a) * r, ny: -Math.cos(a) * r };

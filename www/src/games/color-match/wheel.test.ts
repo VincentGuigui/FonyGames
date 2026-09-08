@@ -11,7 +11,7 @@
  * a dark green dealt at level 17 was.
  */
 import { COLOR_SECTOR_MAX } from '../../../../shared/protocol';
-import { dealTarget, palette, paletteSize, rungAt, snapToRung, valueSteps, type Rgb } from '../../../../shared/color';
+import { dealTarget, palette, paletteSize, rungAt, shadeSteps, snapToRung, valueOf, type Rgb } from '../../../../shared/color';
 import {
   WHEEL_HUB,
   continuousAt,
@@ -19,6 +19,7 @@ import {
   isSectorRung,
   neutralFor,
   positionOf,
+  ringBand,
   sectorAt,
   sectorsFor,
 } from './wheel';
@@ -67,7 +68,7 @@ function which(): void {
 function layout(): void {
   console.log('\nlaying the wedges out');
 
-  for (const level of [1, 6, 11, 17, 22]) {
+  for (const level of [1, 6, 11, 17, 22, 27]) {
     const rung = rungAt(level);
     const colors = palette(rung);
     const sectors = sectorsFor(rung, COLOR_SECTOR_MAX);
@@ -80,7 +81,7 @@ function layout(): void {
     check('  and no colour is drawn twice', new Set(sectors.map((s) => s.rgb.join(','))).size === sectors.length);
     check('  every wedge is inside the disc', sectors.every((s) => s.r0 >= WHEEL_HUB - 1e-9 && s.r1 <= 1 + 1e-9));
     check('  and has real width', sectors.every((s) => s.a1 > s.a0 && s.r1 > s.r0));
-    check('  there are exactly as many rings as the rung has saturations', new Set(sectors.map((s) => s.ring)).size === rung.sats);
+    check('  there are exactly as many rings as shadeSteps has entries', new Set(sectors.map((s) => s.ring)).size === shadeSteps(rung).length);
 
     // Each ring closes the circle exactly: no gap that reads as a missing
     // colour, and no overlap that makes a tap ambiguous.
@@ -100,6 +101,15 @@ function layout(): void {
   // the wheel but the outer ring, so no wedge is light and none is dark.
   check('up to level 21 no wedge is light or dark', [1, 6, 11, 17, 21].every((lv) => sectorsFor(rungAt(lv), COLOR_SECTOR_MAX)
     .every((s) => Math.min(...s.rgb) === 0 && Math.max(...s.rgb) === 255)));
+
+  // Issue #40: a dark wedge is really on the wheel — not behind a separate
+  // slider the wheel knows nothing about. The shipped ladder never shows this
+  // in sector mode (by the level dark arrives, the palette has already gone
+  // continuous), so this is a small rung built to have both a light and a
+  // dark ring while still fitting `COLOR_SECTOR_MAX`.
+  const withDark = sectorsFor({ hues: 4, sats: 2, values: 2 }, COLOR_SECTOR_MAX);
+  check('a rung with a dark side really draws a dark wedge', withDark.some((s) => valueOf(s.rgb) < 1));
+  check('and some are still the plain, full-strength colour', withDark.some((s) => valueOf(s.rgb) === 1 && Math.min(...s.rgb) === 0));
 }
 
 function tapping(): void {
@@ -133,9 +143,10 @@ function ordering(): void {
 
   const rung = rungAt(26);
   const colors = palette(rung);
-  check('a palette is one ring after another, hue by hue', colors.length === rung.hues * rung.sats);
+  const rings = shadeSteps(rung).length;
+  check('a palette is one ring after another, hue by hue', colors.length === rung.hues * rings);
   check('hue climbs within a ring and restarts at the next', (() => {
-    for (let ring = 0; ring < rung.sats; ring++) {
+    for (let ring = 0; ring < rings; ring++) {
       let last = -1;
       for (let i = 0; i < rung.hues; i++) {
         const h = hueOf(colors[ring * rung.hues + i] as Rgb);
@@ -186,13 +197,20 @@ function continuous(): void {
   const rung = rungAt(31);
   check('outside the disc is not a pick', continuousAt(rung, 0, -1.3) === null);
   check('the centre is a pick, unlike the sector wheel', continuousAt(rung, 0, 0) !== null);
-  check('the centre is the palest ring', (() => {
+  check('the centre is the palest light ring', (() => {
     const c = continuousAt(rung, 0, 0);
     return !!c && Math.min(...c) > 150;
   })(), continuousAt(rung, 0, 0));
-  check('the rim is the saturated one', (() => {
-    const c = continuousAt(rung, 0, -0.99);
+  // Issue #40: the rim used to be the fully saturated ring, full stop. Now it
+  // is the darkest ring — dimmed, not merely saturated — with the plain,
+  // full-strength colour somewhere in the middle of the disc instead.
+  check('the middle of the disc is the plain, full-strength colour', (() => {
+    const c = continuousAt(rung, 0, -0.64);
     return !!c && Math.min(...c) === 0 && Math.max(...c) === 255;
+  })(), continuousAt(rung, 0, -0.64));
+  check('the rim is the dimmest ring, not merely a saturated one', (() => {
+    const c = continuousAt(rung, 0, -0.99);
+    return !!c && Math.min(...c) === 0 && Math.max(...c) < 255;
   })(), continuousAt(rung, 0, -0.99));
 }
 
@@ -201,11 +219,11 @@ function reachable(): void {
 
   /*
    * The rule the whole rewrite exists for, checked end to end and at every
-   * level: deal a target, take the base the wheel is responsible for, and find
-   * the thumb position that returns it. Both presentations, because the bug
-   * was in one of them: the disc could only ever produce a full-value colour,
-   * while the randomiser was building targets on an RGB grid that had plenty
-   * of others.
+   * level: deal a target and find the thumb position that returns it. Both
+   * presentations, because the bug was in one of them: the disc could only
+   * ever produce a full-value colour, while the randomiser was building
+   * targets on an RGB grid that had plenty of others. Since issue #40 there
+   * is only one colour to check, not a base plus a separate brightness.
    */
   let bad: unknown = null;
   for (const level of [1, 3, 8, 14, 17, 21, 22, 26, 27, 31, 36, 41, 50, 80, 200]) {
@@ -213,7 +231,7 @@ function reachable(): void {
     const sectors = sectorsFor(rung, COLOR_SECTOR_MAX);
     for (let s = 1; s <= 12 && bad === null; s++) {
       const t = dealTarget(level, seeded(s * 13 + level));
-      const at = positionOf(t.base, rung);
+      const at = positionOf(t.rgb, rung);
       if (!at) {
         bad = { level, why: 'no position', target: t };
         break;
@@ -221,9 +239,7 @@ function reachable(): void {
       const back = sectors.length > 0
         ? sectorAt(sectors, at.nx, at.ny)?.rgb ?? null
         : continuousAt(rung, at.nx, at.ny);
-      if (!back || back.join(',') !== t.base.join(',')) bad = { level, why: 'not reachable', target: t, back };
-      // And the brightness the target carries is one the slider can be set to.
-      if (!valueSteps(rung.values).some((v) => Math.abs(v - t.lum) < 1e-9)) bad = { level, why: 'brightness off the slider', target: t };
+      if (!back || back.join(',') !== t.rgb.join(',')) bad = { level, why: 'not reachable', target: t, back };
     }
   }
   check('every dealt target is reachable, at every level, in both presentations', bad === null, bad);
@@ -233,9 +249,14 @@ function cursor(): void {
   console.log('\nwhere the cursor is drawn');
 
   const wide = rungAt(31);
-  check('a saturated colour sits on the outermost ring', (() => {
+  const rings = shadeSteps(wide).length;
+  const plainRing = wide.sats - 1;
+  // Issue #40: a plain, full-strength colour is no longer the outermost ring
+  // — it is the one ring both the light and dark sides share, in the middle.
+  check('a plain colour sits on the shared middle ring', (() => {
     const p = positionOf([255, 0, 0], wide);
-    return !!p && Math.abs(Math.hypot(p.nx, p.ny) - (1 - (1 - WHEEL_HUB) / (2 * wide.sats))) < 1e-9;
+    const { r0, r1 } = ringBand(rings, plainRing);
+    return !!p && Math.abs(Math.hypot(p.nx, p.ny) - (r0 + r1) / 2) < 1e-9;
   })(), positionOf([255, 0, 0], wide));
   check('red sits at twelve o\'clock', (() => {
     const p = positionOf([255, 0, 0], wide);
@@ -243,13 +264,13 @@ function cursor(): void {
   })());
   check('a grey is nowhere on the wheel, so no cursor is drawn', positionOf([120, 120, 120], wide) === null);
 
-  // The disc carries hue and saturation only — brightness is the slider's job
-  // (spec §2.3) — so a dimmed target still points at its own hue.
-  check('a dimmed target is drawn at its own hue, not off the wheel', (() => {
+  // The disc carries hue and shade both, since issue #40 — so a genuinely
+  // dark target points at its own dark ring, not back at full value.
+  check('a dimmed target is drawn at its own hue, on its own dark ring', (() => {
     const p = positionOf([0, 96, 0], wide);
     if (!p) return false;
     const back = continuousAt(wide, p.nx, p.ny);
-    return !!back && hueOf(back) === 120 && Math.max(...back) === 255;
+    return !!back && hueOf(back) === 120 && Math.max(...back) < 150;
   })(), (() => { const p = positionOf([0, 96, 0], wide); return p ? continuousAt(wide, p.nx, p.ny) : null; })());
 }
 

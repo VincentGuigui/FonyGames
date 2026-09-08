@@ -1,28 +1,32 @@
 # Color Match
 
 > Status: **built, beta** ([issue #26](https://github.com/VincentGuigui/FonyGames/issues/26)).
-> Approved as written on 2026-09-06, which settled §12 Q1: the miss threshold,
-> the wheel's geometry and the multiplicative luminance model are the shipped
-> design. The ladder is transcribed from the issue and turned into a table a
-> machine can read; every number in §2.4 and §5b is still a proposal rather
-> than a measurement, and Q2–Q6 are still open.
+> Approved as written on 2026-09-06, which settled §12 Q1: the miss threshold
+> and the wheel's geometry were the shipped design. **[Issue #40](https://github.com/VincentGuigui/FonyGames/issues/40)
+> reversed the other half of that approval**: brightness is a ring on the
+> wheel now, light inward and dark outward around the one plain ring both
+> sides share, and the separate multiplicative luminance slider is gone —
+> see §2.3, §4.2 and §12 item 7. The ladder is transcribed from the issue and
+> turned into a table a machine can read; every number in §2.4 and §5b is
+> still a proposal rather than a measurement, and Q2–Q6 are still open.
 
 | | |
 | --- | --- |
 | **Slug** | `color-match` |
 | **Catchy sentence** | *Match the colour. Three seconds. No second guesses* |
-| **Illustration** | `www/src/games/color-match/art/card.svg` — a quartered colour wheel with a cursor sitting just off a bright magenta target swatch, a luminance slider down one side, and a pie timer nearly run out |
+| **Illustration** | `www/src/games/color-match/art/card.svg` — a colour wheel banded light, plain and dark, with a cursor sitting just off a bright magenta target swatch, and a pie timer nearly run out |
 | **Players** | 1–8 |
-| **Round length** | 9–19 s per level, by difficulty (§2.2) — a run ends when the ladder outruns the room |
+| **Round length** | 7–14 s per level, by difficulty (§2.2) — a run ends when the ladder outruns the room |
 | **Inputs** | touch |
 | **Accent colour** | `#F472B6` |
 | **Status** | built, beta — every number in §5b is still a guess |
 
 ## 1. Pitch
 
-A colour appears. You have three seconds to find it on a wheel with your thumb,
-and a luminance slider once the ladder gets serious. Then everyone's cursor
-slides to where the answer actually was, and you find out how close you were.
+A colour appears. You have three seconds to find it on a wheel with your
+thumb — light rings in, dark rings out, once the ladder gets serious. Then
+everyone's cursor slides to where the answer actually was, and you find out
+how close you were.
 
 It is the one game here that gets *harder every single level* rather than
 faster: the palette starts at four colours a toddler could name and ends
@@ -38,12 +42,12 @@ how close they got. Then a harder one.
 1. The referee picks a target colour for level *n* from that level's own
    palette (§2.3) and sends it to the room.
 2. The target is displayed, big. A pie circle beside it drains over that
-   level's own window — 3 seconds, or 10 once the brightness slider is live
-   (§2.2). Answering early is worth more (§2.4).
-3. Each player drags a cursor on the colour wheel — and, from rung 7 (level
-   27), a second cursor on the brightness slider. The pick is whatever the cursors read
-   when the pie empties. Not tapping is a pick of wherever the cursor already
-   sat.
+   level's own window — 3 seconds while a wedge can still be tapped exactly,
+   10 once the wheel goes continuous (§2.2). Answering early is worth more
+   (§2.4).
+3. Each player drags a cursor on the colour wheel. The pick is whatever the
+   cursor reads when the pie empties. Not tapping is a pick of wherever the
+   cursor already sat.
 4. When the timer expires, the referee scores every pick against the target
    (§2.4) and reveals: the score won holds for `COLOR_SCORE_HOLD_MS`, then every
    cursor animates to the correct solution over `COLOR_SOLVE_MS`, then it holds
@@ -80,23 +84,33 @@ The action window is tiered — `colorActionMs` — and the steps are where the
 
 | Levels | Window | Why there |
 | --- | --- | --- |
-| 1–26 | **3 s** | Rungs 1–6: the answer is one tap on the wheel |
-| 27+ | **10 s** | Rung 7 adds the brightness slider — a second control to work |
+| 1–21 | **3 s** | An exact wedge can still be tapped |
+| 22+ | **10 s** | The palette exceeds `COLOR_SECTOR_MAX` and the wheel goes continuous (§4.2) — a precise drag, not a tap |
 
-Three seconds is short on purpose (issue #38). Every level up to the slider is
-a single tap, and the old 5 s / 10 s / 15 s left the pie draining with nothing
-left to do; the reaction bonus in §2.4 is what makes a short window worth
-*beating* rather than merely surviving. Ten seconds from rung 7 because two
-controls have to be set, not one.
+Three seconds is short on purpose (issue #38). Every level with an exact wedge
+to tap is fast by nature, and the old 5 s / 10 s / 15 s left the pie draining
+with nothing left to do; the reaction bonus in §2.4 is what makes a short
+window worth *beating* rather than merely surviving. Ten seconds once the
+wheel goes continuous, because landing a precise drag takes longer than
+landing a tap.
 
-The boundary is **the level before the first rung with a slider**, not the number
-in that first column: it is computed from the ladder, so a rung changing length
-moves the tier with it. `colorActionMs` lives in `shared/color.ts` beside the
-ladder for the same reason.
+**Since issue #40** this boundary is no longer about a second control — there
+has only ever been the one, the wheel. The rung that used to add the
+brightness slider is what the boundary tracked before; now it tracks
+`paletteSize(rung) > COLOR_SECTOR_MAX`, the same count that decides which of
+the wheel's two presentations is on screen, because free-hand precision is
+what actually costs a player time past that point. It happens to move the
+boundary earlier, from level 26 to level 21 — the wheel goes continuous at
+level 22 regardless of when a dark ring shows up.
+
+The boundary is **the rung before the wheel goes continuous**, not the number
+in that first column: it is computed from the ladder, so a rung changing
+length moves the tier with it. `colorActionMs` lives in `shared/color.ts`
+beside the ladder for the same reason.
 
 Plus a fixed 4 s tail on every level: `COLOR_SCORE_HOLD_MS` (2 s) +
-`COLOR_SOLVE_MS` (1 s) + `COLOR_REVEAL_HOLD_MS` (1 s). So a level is 9 s at the
-bottom of the ladder and 19 s at the top.
+`COLOR_SOLVE_MS` (1 s) + `COLOR_REVEAL_HOLD_MS` (1 s). So a level is 7 s at the
+bottom of the ladder and 14 s at the top.
 
 Every phase boundary is a server timestamp sent with the level, not a local
 timer, so a phone that stutters catches up rather than drifting a level behind
@@ -107,52 +121,60 @@ disagree with the deadline being enforced.
 ### 2.3 The difficulty ladder
 
 A rung is **three counts, one per axis of a colour**: how many hues around the
-wheel, how many saturation rings, how many notches on the brightness slider.
-Nothing else. Every count is a count of *steps*, so `sats: 1` is the outer ring
-alone and `values: 1` is full brightness alone.
+wheel, how many light steps and how many dark steps around it. Nothing else.
+Every count is a count of *steps*, so `sats: 1` is no light colours and
+`values: 1` is no dark ones — the plain ring, at full strength, is what a rung
+of `sats: 1, values: 1` offers and nothing more.
 
 That shape is the fix for a real bug, and the reason it is stated first: the
 rung used to be an RGB component grid (`components`/`splits`/`restSplits`),
-which could produce a colour the wheel had no way to show. The disc is drawn at
-full value, so `hsv(hue, sat, 1)` is everything a thumb can reach — and at
-level 17 the randomiser dealt a dark green. **A rung now describes the wheel,
-and the randomiser draws from the rung**, so the two cannot disagree.
+which could produce a colour the wheel had no way to show — and at level 17
+the randomiser dealt a dark green the disc, drawn at full value only, had no
+way to offer. **A rung now describes the wheel, and the randomiser draws from
+the rung**, so the two cannot disagree. **Since issue #40** that is doubly
+true: value used to be the one axis the rung described but the disc did not
+draw, applied afterwards by a slider. `shadeSteps` (`shared/color.ts`) now
+turns `sats` and `values` into the wheel's own rings directly — see below.
 
 Read as the min and max a component may take, which is how an eye reads it:
 
-- `max(r, g, b) = 255 × value` — **value is how dark it may get.** One notch
+- `max(r, g, b) = 255 × value` — **value is how dark it may get.** One step
   means max is always 255: no dark colours.
 - `min(r, g, b) = 255 × value × (1 − sat)` — **saturation is how pale it may
-  get.** One ring means min is always 0: no light colours.
+  get.** One step means min is always 0: no light colours.
 
 Each rung declares **how many levels it lasts** rather than all being a flat
 five, because two of them cannot be (§2.3c):
 
-| Rung | Levels | Hues | Rings (sat) | Notches (value) | Slider |
+| Rung | Levels | Hues | Light steps (sat) | Dark steps (value) | Rings on the wheel |
 | --- | --- | --- | --- | --- | --- |
-| 1 | 1–3 | 3 | 1 | 1 | — |
-| 2 | 4–6 | 6 | 1 | 1 | — |
-| 3 | 7–11 | 12 | 1 | 1 | — |
-| 4 | 12–16 | 24 | 1 | 1 | — |
-| 5 | 17–21 | 36 | 1 | 1 | — |
-| 6 | 22–26 | 36 | **2** | 1 | — |
-| 7 | 27–31 | 36 | 2 | **2** | **yes** |
-| 8 | 32–36 | 48 | 3 | 3 | yes |
-| 9 | 37–41 | 60 | 4 | 4 | yes |
+| 1 | 1–3 | 3 | 1 | 1 | 1 |
+| 2 | 4–6 | 6 | 1 | 1 | 1 |
+| 3 | 7–11 | 12 | 1 | 1 | 1 |
+| 4 | 12–16 | 24 | 1 | 1 | 1 |
+| 5 | 17–21 | 36 | 1 | 1 | 1 |
+| 6 | 22–26 | 36 | **2** | 1 | 2 |
+| 7 | 27–31 | 36 | 2 | **2** | **3** |
+| 8 | 32–36 | 48 | 3 | 3 | 5 |
+| 9 | 37–41 | 60 | 4 | 4 | 7 |
 
-**One axis at a time, and in that order.** Up to level 21 the wheel is the
-outer ring and nothing else: every target is a pure, fully saturated hue, and
+The last column is `shadeSteps(rung).length`, i.e. `sats + values - 1`: the
+plain ring is one entry both sides share, not two.
+
+**One axis at a time, and in that order.** Up to level 21 the wheel is one
+ring and nothing else: every target is a pure, fully saturated hue, and
 getting better means telling 10° of hue apart. Rung 6 adds a pale ring inside
-it — the first light colours. Rung 7 adds the slider, and only then can a
-target be dark. Doubling the hue count keeps every hue of the rung before it,
-so the ladder never takes a colour away.
+it — the first light colours. Rung 7 adds a dark ring outside it, and only
+then can a target be dark — no second control, just the wheel growing a
+second way. Doubling the hue count keeps every hue of the rung before it, so
+the ladder never takes a colour away.
 
 The two floors are what keep the grid honest against §2.3d: `COLOR_SAT_MIN`
 (0.25) is the palest ring, because `min` at value 1 crosses
-`COLOR_WHITE_FLOOR` at s = 0.216; `COLOR_LUM_MIN` (0.4) is the dimmest notch,
+`COLOR_WHITE_FLOOR` at s = 0.216; `COLOR_LUM_MIN` (0.4) is the dimmest ring,
 because 255 × 0.25 is 64 and the value floor is 72. **No colour on any rung's
 grid is extreme**, so `palette()` filters nothing and `paletteSize()` is
-exactly `hues × sats`.
+exactly `hues × (sats + values − 1)`.
 
 `RUNG_ENDS` is derived from those spans rather than written down, so a rung's
 length and its boundary cannot disagree — and §2.2's timing tiers read it, so
@@ -200,10 +222,10 @@ makes the table 41 levels rather than 45.
 
 `color.test.ts` asserts the *rule* — a rung's span is at most the number of
 colours it adds that earlier rungs did not offer — rather than these figures,
-so a rung later widened or shortened cannot quietly bring a repeat back. The
-check counts what a rung can **deal**, not what its base palette holds: rung 7
-keeps rung 6's palette and adds only a second brightness notch, so counting
-bases alone would call it broken when it doubles the reachable colours.
+so a rung later widened or shortened cannot quietly bring a repeat back. Since
+issue #40 what a rung can **deal** is `palette(rung)` directly: rung 7 keeps
+rung 6's light and plain rings unchanged and adds one dark ring, thirty-six
+new colours over five levels, comfortably enough.
 
 `dealTarget` keeps its `repeat` flag for a caller that asks a rung for more
 levels than it can serve. Nothing in the shipped ladder does.
@@ -225,20 +247,26 @@ enough colour left to tell from white). A mid grey, a dark navy and a proper
 dark red all survive; black, white, (32, 32, 32) and a washed-out (224, 224,
 224) do not.
 
-It is judged on the colour **after** its luminance, not on the base: dimming is
-what pushes a mid colour under the floor. `COLOR_LUM_MIN` moved from 0.25 to
-0.4 for the same reason — 255 × 0.25 is 64, which the floor bans, and a slider
-whose bottom notch is unpickable is worse than a shorter slider.
+It is judged on the colour a rung's own ring actually draws, dark rings
+included: a ring under `COLOR_VALUE_FLOOR` would be a target nobody can win,
+the same failure a slider dimming below the floor used to risk. `COLOR_LUM_MIN`
+moved from 0.25 to 0.4 for the same reason — 255 × 0.25 is 64, which the floor
+bans, and a ring nobody can pick without landing on black is worse than one
+fewer ring.
 
-**Brightness** is a separate multiplier, not a fourth component: the target is
-`base × lum`, where `base` is one of `palette(rung)` — a disc colour, at full
-value — and `lum` is 1.0 until rung 7 and one of `valueSteps(rung.values)`
-after it. Scaling all three channels moves HSV's value and leaves hue and
-saturation alone, which is exactly what lets the disc own two axes and the
-slider own the third — the pair a thumb can actually separate.
+**Since issue #40, brightness is a ring, not a separate multiplier.**
+`shadeSteps(rung)` (`shared/color.ts`) is every ring the wheel offers, hub to
+rim, as `{s, v}` pairs: `sats - 1` light rings first (palest at the hub,
+working out to but not including fully saturated), then the one **plain**
+ring both axes agree on (`s: 1, v: 1`), then `values - 1` dark rings, working
+out from full value to the dimmest. A rung's `palette()` is `hsvToRgb(h, s, v)`
+for every ring and every hue directly — there is no `base × lum` step left,
+because there is no longer a value the wheel does not itself draw. This
+reverses the multiplicative model this spec's own §12 Q1 approved on
+2026-09-06; §12 item 7 is where that reversal is written down.
 
 **The wheel shows exactly what the rung can produce, and nothing else.** At
-level 1 that is three big sectors; at level 41 it is 60 hues on 4 rings and a
+level 1 that is three big sectors; at level 41 it is 60 hues on 7 rings and a
 sector grid is meaningless. So the wheel has two presentations and switches
 between them on a count, not on a level — see §4.2, and §12 Q2 for the part of
 this that is genuinely unresolved. Either way `wheel.ts` reads the same two
@@ -339,11 +367,9 @@ than a number, so it reads without being looked at.
 Middle, the **wheel**: a disc filling the board's width, thumb-reachable at the
 bottom of its own reach (AGENTS.md §4). The player's cursor is a ring, not a
 dot — a dot in the colour you picked is invisible against the colour you picked.
-
-Right edge, the **brightness slider**, hidden entirely until rung 7 (level 27)
-rather than shown disabled: a control that does nothing for 26 levels teaches
-the player to ignore it exactly when it starts to matter. It has one notch per
-`rung.values`, so it can never offer a brightness the randomiser will not use.
+**Since issue #40 the wheel is the only control on this screen** — brightness
+is a ring on it, light inward and dark outward, rather than a second thing to
+drag on the side (§4.2).
 
 Bottom, the **scores**: everyone's running total in the shared
 `WideScoreboard`, full width, four players to a line. Not the corner panel the
@@ -365,33 +391,42 @@ way is most of this game's table talk, and it costs one extra field on the wire.
 
 ### 4.2 The wheel's two presentations
 
-**One geometry, two ways of drawing it.** Hue runs around the disc and
-saturation outward, always: ring `i` is `saturationSteps(rung.sats)[i]`, wedge
-`j` is `hueSteps(rung.hues)[j]`, and each hue is *centred* on its own angle, so
-red sits at twelve o'clock rather than starting there. Both presentations read
+**One geometry, two ways of drawing it.** Hue runs around the disc and shade
+outward, always: ring `i` is `shadeSteps(rung)[i]`, wedge `j` is
+`hueSteps(rung.hues)[j]`, and each hue is *centred* on its own angle, so red
+sits at twelve o'clock rather than starting there. Both presentations read
 those two grids, which is what makes a dealt target reachable by construction
 rather than by luck.
+
+**Since issue #40, "shade outward" runs light → plain → dark**, not just pale
+→ full: `shadeSteps` lays the light side's rings inward from the hub, the one
+plain ring both the light and dark side share, then the dark side's rings
+outward to the rim. A rung with only a light side (or only a dark side) still
+reads correctly — the ring that would have been on the missing side is simply
+absent.
 
 - **Sectors**, while `paletteSize(rung)` is at most `COLOR_SECTOR_MAX`: one
   wedge per colour, laid out ring by ring. Tapping a wedge picks that colour
   exactly, so an early level cannot be lost to a shaky thumb. On the shipped
-  ladder this covers levels 1–21 — every pure-hue rung.
-- **Continuous**, past that: the same disc drawn as a smooth hue sweep with one
-  white band per saturation step over it (white at opacity `1 − s` over a pure
-  hue *is* `hsv(h, s, 1)`, so a band paints exactly the saturation the hit test
-  returns there). The cursor moves freely; what comes back is already on the
-  grid, so what is shown is what is submitted.
+  ladder this covers levels 1–21 — every pure-hue rung; every rung with a
+  second ring already exceeds `COLOR_SECTOR_MAX` (§2.2).
+- **Continuous**, past that: the same disc drawn as a smooth hue sweep, with
+  one **tinted** band per shade step over it — white for a light ring, black
+  for a dark one. White at opacity `1 − s` over a pure hue *is* `hsv(h, s, 1)`;
+  black at opacity `1 − v` over it *is* `hsv(h, 1, v)`, the same arithmetic
+  either way. Each band paints exactly the shade the hit test returns there.
+  The cursor moves freely; what comes back is already on the grid, so what is
+  shown is what is submitted.
 
-A rung with a single saturation step gets no bands at all — which is the outer
-ring and nothing else, and is why levels 1–21 can show neither a light colour
-nor a dark one.
+A rung with `sats: 1, values: 1` gets no bands at all — the plain ring alone,
+which is why levels 1–21 show neither a light colour nor a dark one.
 
 §12 Q2 is whether the switch reads as one control or as two.
 
 ## 5. Inputs & sensors
 
-Touch only. One drag on the wheel, one on the slider, both plain pointer events
-— no sensor, no permission, nothing from
+Touch only. One drag on the wheel, a plain pointer event — no sensor, no
+permission, nothing from
 [../../device-capabilities.md](../../device-capabilities.md) to request.
 
 **Fallbacks:** not applicable, and that is worth stating rather than omitting.
@@ -404,7 +439,7 @@ Every one of these is a proposal. ⚖ marks the ones §12 expects to move.
 
 | Constant | Value | Why |
 | --- | --- | --- |
-| `COLOR_ACTION_TIERS` | 3000 / 10000 | ⚖ The action window, by rung (§2.2). Was 5/10/15 until issue #38 |
+| `COLOR_ACTION_TIERS` | 3000 / 10000 | ⚖ The action window, by rung (§2.2). Was 5/10/15 until issue #38; the boundary moved with issue #40 |
 | `COLOR_REACTION_MULTIPLIERS` | 1.5 / 1.2 / 1 / 0.75 / 0.5 | ⚖ One per fifth of the window (§2.4, issue #38) |
 | `COLOR_SCORE_HOLD_MS` | 2000 | The issue's own two seconds of score |
 | `COLOR_SOLVE_MS` | 1000 | The issue's own one-second cursor animation |
@@ -412,10 +447,10 @@ Every one of these is a proposal. ⚖ marks the ones §12 expects to move.
 | `COLOR_BARREN_LEVELS` | 3 | The issue's own rule: three scoreless levels ends the run |
 | `COLOR_MISS` | 0.35 | ⚖ Normalised distance beyond which a pick is worth nothing. A complete guess |
 | `COLOR_D_MAX` | 765 | Redmean's own maximum (§2.4). Not tunable — it is arithmetic |
-| `COLOR_LUM_MIN` | 0.4 | The dimmest notch. Was 0.25, which put a single-channel colour under the black floor (§2.3d) |
-| `COLOR_SAT_MIN` | 0.25 | The palest ring. `min(r,g,b)` at value 1 crosses the white floor at 0.216 (§2.3) |
+| `COLOR_LUM_MIN` | 0.4 | The dimmest dark ring. Was 0.25, which put a single-channel colour under the black floor (§2.3d) |
+| `COLOR_SAT_MIN` | 0.25 | The palest light ring. `min(r,g,b)` at value 1 crosses the white floor at 0.216 (§2.3) |
 | `COLOR_MAX_HUES` | 360 | One hue per degree — where the circle runs out, not a ceiling |
-| `COLOR_MAX_STEPS` | 16 | ⚖ The cap on rings and notches, which is where a thumb runs out |
+| `COLOR_MAX_STEPS` | 16 | ⚖ The cap on light and dark steps each, which is where a thumb runs out |
 | `COLOR_VALUE_FLOOR` | 72 | ⚖ Below this `max(r,g,b)`, a colour reads as black and is never a target |
 | `COLOR_WHITE_FLOOR` | 200 | ⚖ Above this `min(r,g,b)`, it reads as white and is never a target |
 | `COLOR_SECTOR_MAX` | 64 | ⚖ Above this many reachable colours the wheel goes continuous (§4.2) |
@@ -431,9 +466,8 @@ per player per level, and no per-frame traffic at all.
 
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
-| `color-level` | server → all | `{ roundId, level, target: [r,g,b], lum, palette, phase, picksDueAt, revealAt, endsAt }` | A new level, and every phase boundary as a server timestamp |
-| `color-pick` | client → server | `{ roundId, level, rgb: [r,g,b], lum, at }` | This phone's pick. Last one before `picksDueAt` wins; later ones are dropped |
-| `color-scores` | server → all | `{ roundId, level, solution, picks: {id: {rgb, lum, accuracy, reactionMs, score}}, totals, barren }` | What everybody picked, how close and how fast it was, what it was worth, and the running totals |
+| `color-match` | server → all | `ColorMatchState { roundId, level, target: [r,g,b], phase, picksDueAt, revealAt, endsAt, totals, picks, barren, winner }` | The whole level's state, sent on every phase change. `picks` is empty during `pick` — nobody's guess goes out while the window is still open — and filled once it closes |
+| `color-pick` | client → server | `{ roundId, level, rgb: [r,g,b], at }` | This phone's pick. Last one before `picksDueAt` wins; later ones are dropped. **Since issue #40** this is the whole colour — no separate `lum` field, because there is no separate control left to carry one |
 
 **Latency:** the phase boundaries are absolute server times rendered through
 `client.now()`, so 100–300 ms of lag costs a player a sliver of their three
@@ -491,8 +525,8 @@ on equal terms, and it says so before anybody joins.
 
 ## 10. Data & privacy
 
-Three integers and a float per player per level — a colour and a luminance —
-relayed within the room and dropped when the room ends. Nothing is stored. No
+Three integers per player per level — a colour, nothing else — relayed within
+the room and dropped when the room ends. Nothing is stored. No
 sensor is read at all, so [../../device-capabilities.md](../../device-capabilities.md)'s
 "sensor readings never leave the room" rule has nothing to bite on here.
 
@@ -524,11 +558,13 @@ nickname, city/country. No colour ever appears in it.
 Everything here needs a maintainer answer, and Q1 blocks the build.
 
 1. ~~**Is the whole shape right?**~~ **Answered on 2026-09-06**: approved as
-   written, so the flat threshold, the two-presentation wheel and the
-   multiplicative luminance are the design rather than a proposal. Q2–Q6 below
-   are untouched by that and still want a real thumb.
+   written, so the flat threshold and the two-presentation wheel are the
+   design rather than a proposal. **The multiplicative luminance half of that
+   answer was reversed by issue #40** — item 7 below — so only the threshold
+   and the wheel's own two presentations still stand from this approval.
+   Q2–Q6 are untouched by either and still want a real thumb.
 2. **Does the wheel's sector→continuous switch read as one control?** Levels
-   1–30 are tap-a-wedge and 31+ are drag-and-snap. That may be a graceful
+   1–21 are tap-a-wedge and 22+ are drag-and-snap. That may be a graceful
    ramp or it may feel like the game swapped its input out from under you at
    the exact moment it got hard. The alternative is continuous from level 1,
    which makes the four-colour rungs feel silly. Untestable on paper.
@@ -549,6 +585,29 @@ Everything here needs a maintainer answer, and Q1 blocks the build.
    score attack and costs nothing to allow, but the issue said "1 to 8" about a
    game whose fun is arguing about a colour with other people.
 
+One the maintainer reversed outright, on purpose:
+
+7. **Brightness is a ring, not a slider — the multiplicative model item 1
+   approved is gone.** The original build put value on a separate control:
+   the disc drew `hsv(hue, sat, 1)` only, and a slider hidden until rung 7
+   dimmed it afterwards, `base × lum`. Issue #40 asked for the wheel's own
+   pattern instead — an inner ring for light colours, the plain ring in the
+   middle, an outer ring for dark ones — and to drop the slider entirely.
+   `shadeSteps` (`shared/color.ts`) is the result: `sats - 1` light rings in,
+   the shared plain ring, `values - 1` dark rings out. The trade, not yet
+   played against a real room: the old model was **multiplicative** —
+   `sats x values` distinct (light, dark) combinations per hue, so a rung
+   could offer a muted, dark, dusty colour that is both desaturated and dim.
+   The new one is **additive** — `sats + values - 1` rings on one radial
+   axis — which cannot: a colour is light, plain, or dark, never two of them
+   at once. `paletteSize` shrinks at every rung with both a light and a dark
+   side: 144 → 108 at rung 7, 432 → 240 at rung 8, 960 → 420 at rung 9 (rung 6,
+   light only so far, is unaffected — 72 either way). That very likely makes
+   the ladder's late rungs easier than they were tuned to be, since the same
+   `sats`/`values` counts now reach fewer distinct colours. Whether that is
+   worth retuning is untested; the ladder's own numbers were not changed by
+   this reversal, only what they build.
+
 ## 13. What was built, and what the tests pin
 
 `shared/color.ts` holds the distance, the ladder and the palettes, because the
@@ -558,15 +617,17 @@ file (its §2.2).
 - **`shared/color.test.ts`** (`npm run test:color`). The three axes, read both
   ways: one saturation step *is* `min(r,g,b) = 0`, one value step *is*
   `max(r,g,b) = 255`, so a rung with one of each can be neither light nor dark.
-  The order light and dark arrive in, which is the report's own request. That
-  every dealt target is a palette colour under one of the rung's own brightness
-  notches — the rule the rewrite exists for. The past-41 formula and its two
-  caps. That no grid colour is extreme, dimmed or not, so `palette()` needs no
+  **Since issue #40**, `shadeSteps` gets its own section: light rings inward,
+  the one plain ring shared, dark rings outward, never doubled and never out
+  of order. That every dealt target is a colour the rung's own palette offers
+  — the rule the original rewrite existed for, now simpler with no separate
+  brightness notch to cross a base against. The past-41 formula and its two
+  caps. That no grid colour is extreme, on any ring, so `palette()` needs no
   filter. And that a degenerate random source still deals rather than spinning:
   every draw is a clamped index, never a retry. It also holds the rung-span
   rule of §2.3c — asserted as a rule rather than as the numbers it currently
   produces, which is what caught rung 2 after rung 1 had already been fixed.
-- **`worker/colorMatch.test.ts`, 69 checks** (`npm run test:color-match`).
+- **`worker/colorMatch.test.ts`, 68 checks** (`npm run test:color-match`).
   Everybody is scored at the same instant, so being early buys nothing; a later
   pick replaces an earlier one; the grace window admits a late pick and the
   millisecond past it does not; levels chain themselves with no lobby; the
@@ -576,13 +637,14 @@ file (its §2.2).
 - **`www/src/games/color-match/wheel.test.ts`** (`npm run test:color-wheel`).
   Every colour a rung offers has a wedge, no two overlap, each ring closes the
   circle exactly, tapping a wedge picks the colour drawn there, and the
-  continuous disc submits the colour it is showing. It is also the only test
-  with the randomiser and the wheel both in scope, so **the reachability rule
-  lives here**: for a spread of levels across both presentations, deal a
-  target, ask `positionOf` where its base sits, and check that the hit test at
-  that spot returns the same colour — and that the brightness it carries is a
-  notch the slider has. A target the wheel cannot show is a level nobody can
-  win, which is what a dark green at level 17 was.
+  continuous disc submits the colour it is showing — including, since issue
+  #40, that a genuinely dark pick lands on its own dark ring rather than
+  snapping back to full value. It is also the only test with the randomiser
+  and the wheel both in scope, so **the reachability rule lives here**: for a
+  spread of levels across both presentations, deal a target, ask `positionOf`
+  where it sits, and check that the hit test at that spot returns the same
+  colour. A target the wheel cannot show is a level nobody can win, which is
+  what a dark green at level 17 was.
 
 The disc found a real bug before a player could: it was first drawn
 with a linear gradient, which does not put a hue where the angle says it is, so

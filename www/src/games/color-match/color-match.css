@@ -127,31 +127,6 @@
   opacity: 0.92;
 }
 
-/* Hidden entirely until the ladder turns it on (§4.1): a control that does
-   nothing for 35 levels teaches the player to ignore it. */
-.cmatch__lum {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-1);
-  height: 70%;
-}
-
-.cmatch__lum-label {
-  font-size: 0.7rem;
-  color: var(--text-dim);
-  writing-mode: vertical-rl;
-}
-
-.cmatch__lum input {
-  flex: 1 1 auto;
-  width: var(--tap-target);
-  writing-mode: vertical-rl;
-  direction: rtl;
-  accent-color: var(--game-accent);
-}
-
 /* Said before anyone commits to a run, not after (§11). */
 .cmatch__warning {
   margin: 0;

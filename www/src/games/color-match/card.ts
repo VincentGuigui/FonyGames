@@ -22,7 +22,7 @@ export const CARD: GameCard = {
     'Closer is worth more. Way off is worth nothing.',
     'Three levels with nobody scoring ends the run.',
   ],
-  art: { src: art, alt: 'A colour wheel with a cursor just off a magenta target swatch, beside a luminance slider' },
+  art: { src: art, alt: 'A colour wheel banded light, plain and dark, with a cursor just off a magenta target swatch' },
   fr: {
     pitch: 'Trouvez la couleur. Trois secondes. Sans hésiter',
     concept: 'Une couleur apparaît, et la palette se complique à chaque niveau.',
@@ -31,7 +31,7 @@ export const CARD: GameCard = {
       'Plus c’est proche, plus ça rapporte. Trop loin, rien du tout.',
       'Trois niveaux sans le moindre point et la partie s’arrête.',
     ],
-    art: { alt: 'Une roue chromatique, un curseur à côté de la pastille magenta cible et un curseur de luminosité' },
+    art: { alt: 'Une roue chromatique en bandes claires, pures et sombres, un curseur à côté de la pastille magenta cible' },
   },
   accent: '#F472B6',
   players: PLAYERS['color-match'],

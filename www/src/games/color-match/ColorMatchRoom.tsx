@@ -8,7 +8,7 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { COLOR_LUM_MIN, colorActionMs, reactionMultiplier, rungAt, valueSteps, withLuminance, type Rgb } from '../../../../shared/color';
+import { colorActionMs, reactionMultiplier, rungAt, type Rgb } from '../../../../shared/color';
 import { useGameRoom } from '../../core/room/useRoom';
 import { useSoloTesting } from '../../core/useSolo';
 import { RoomGate } from '../../lobby/RoomGate';
@@ -64,45 +64,28 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
   const level = state?.level ?? 1;
   const rung = rungAt(level);
 
-  /** This phone's own pick, and its own luminance. Reset every level — a
-   *  cursor left on the last answer would hand out free points whenever two
-   *  levels happened to want the same colour. */
+  /** This phone's own pick. Reset every level — a cursor left on the last
+   *  answer would hand out free points whenever two levels happened to want
+   *  the same colour. */
   const [pick, setPick] = useState<Rgb>(() => neutralFor());
-  const [lum, setLum] = useState(1);
   useEffect(() => {
     setPick(neutralFor());
-    setLum(1);
   }, [level, state?.roundId]);
 
   /** Send on every change rather than once at the deadline: the referee keeps
    *  the last one that arrived before the window shut (spec §6), so a phone
    *  that dies mid-level still has its most recent answer in. */
-  const send = useCallback(
-    (rgb: Rgb, k: number) => {
+  const onPick = useCallback(
+    (rgb: Rgb) => {
+      setPick(rgb);
       const s = state;
       if (!s || s.phase !== 'pick') return;
       clientRef.current?.send({
         t: 'color-pick',
-        d: { roundId: s.roundId, level: s.level, rgb: [rgb[0], rgb[1], rgb[2]], lum: k, at: clientRef.current.now() },
+        d: { roundId: s.roundId, level: s.level, rgb: [rgb[0], rgb[1], rgb[2]], at: clientRef.current.now() },
       });
     },
     [state?.roundId, state?.level, state?.phase],
-  );
-
-  const onPick = useCallback(
-    (rgb: Rgb) => {
-      setPick(rgb);
-      send(rgb, lum);
-    },
-    [send, lum],
-  );
-
-  const onLum = useCallback(
-    (k: number) => {
-      setLum(k);
-      send(pick, k);
-    },
-    [send, pick],
   );
 
   // The pie, written straight into the DOM. One rAF loop, no re-render.
@@ -156,7 +139,6 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
   if (state) {
     const target = state.target as Rgb;
     const revealing = state.phase === 'reveal';
-    const shown = state.luminance ? withLuminance(pick, lum) : pick;
     const mine = myId ? state.picks[myId] : undefined;
     const ladder = Object.entries(state.totals).map(([id, total]) => ({ id, avatar: avatarOf(id), name: nameOf(id), value: total }));
 
@@ -234,25 +216,11 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
         <div class="cmatch__board">
           <ColorWheel
             rung={rung}
-            value={revealing ? target : shown}
+            value={revealing ? target : pick}
             onPick={onPick}
             disabled={revealing}
             label={text({ en: 'Colour wheel', fr: 'Roue chromatique' })}
           />
-          {state.luminance && (
-            <label class="cmatch__lum">
-              <span class="cmatch__lum-label">{text({ en: 'Brightness', fr: 'Luminosité' })}</span>
-              <input
-                type="range"
-                min={COLOR_LUM_MIN}
-                max={1}
-                step={(1 - COLOR_LUM_MIN) / Math.max(1, valueSteps(rung.values).length - 1)}
-                value={lum}
-                disabled={revealing}
-                onInput={(e) => onLum(Number((e.currentTarget as HTMLInputElement).value))}
-              />
-            </label>
-          )}
         </div>
 
         <WideScoreboard

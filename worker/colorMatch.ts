@@ -9,7 +9,7 @@ import {
   type PlayerId,
   type ServerMessage,
 } from '../shared/protocol';
-import { COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, asRgb, colorActionMs, colorKey, colorPoints, colorScore, dealTarget, hasLuminance, rungAt, withLuminance, type Rgb } from '../shared/color';
+import { COLOR_BARREN_ROUNDS, COLOR_PICK_GRACE_MS, asRgb, colorActionMs, colorKey, colorPoints, colorScore, dealTarget, type Rgb } from '../shared/color';
 import { enoughToStart } from '../shared/players';
 
 /**
@@ -49,7 +49,6 @@ export type ColorMatch = {
   /** The safety cap — a room that will not stop scoring (spec §2.1). */
   endsAt: number;
   target: Rgb;
-  luminance: boolean;
   phase: 'pick' | 'reveal' | 'done';
   picksDueAt: number;
   revealAt: number;
@@ -108,7 +107,6 @@ function armLevel(ctx: Ctx, s: ColorMatch, level: number): void {
   s.level = level;
   s.target = dealt.rgb;
   s.used.push(colorKey(dealt.rgb));
-  s.luminance = hasLuminance(rungAt(level));
   s.phase = 'pick';
   s.picksDueAt = now + colorActionMs(level);
   s.revealAt = s.picksDueAt + COLOR_SCORE_HOLD_MS;
@@ -138,7 +136,6 @@ export async function startColorMatch(
     startsAt: now,
     endsAt: now + COLOR_RUN_CAP_MS,
     target: [0, 0, 0],
-    luminance: false,
     phase: 'pick',
     picksDueAt: now,
     revealAt: now,
@@ -171,8 +168,7 @@ export async function onColorPick(
   playerId: PlayerId,
   roundId: number,
   level: number,
-  rgb: unknown,
-  lum: unknown,
+  rawRgb: unknown,
   _at: number,
 ): Promise<void> {
   const s = await ctx.load();
@@ -182,16 +178,15 @@ export async function onColorPick(
   // scored yet at that point, so this is the only thing keeping the window shut.
   if (ctx.now() > s.picksDueAt + COLOR_PICK_GRACE_MS) return;
 
-  const base = asRgb(rgb);
-  if (!base) return;
-  const k = typeof lum === 'number' && Number.isFinite(lum) ? Math.min(1, Math.max(0, lum)) : 1;
+  const rgb = asRgb(rawRgb);
+  if (!rgb) return;
   // A pick's score is never taken from the payload — it cannot even carry one
   // (spec §8). It arrives as a colour and leaves as a colour.
   // Measured here, from the level's own opening — a payload cannot be trusted
   // with the clock any more than with the score, and this is the clock the
   // deadline above is enforced on anyway.
   const reactionMs = Math.max(0, ctx.now() - (s.picksDueAt - colorActionMs(s.level)));
-  s.picks[playerId] = { rgb: s.luminance ? withLuminance(base, k) : base, reactionMs, accuracy: 0, score: 0 };
+  s.picks[playerId] = { rgb, reactionMs, accuracy: 0, score: 0 };
   await ctx.save(s);
 }
 
@@ -321,7 +316,6 @@ export function toState(s: ColorMatch): ColorMatchState {
     roundId: s.roundId,
     level: s.level,
     target: [s.target[0], s.target[1], s.target[2]],
-    luminance: s.luminance,
     phase: s.phase,
     picksDueAt: s.picksDueAt,
     revealAt: s.revealAt,

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { COLOR_SECTOR_MAX } from '../../../../shared/protocol';
-import { saturationSteps, type Rgb, type Rung } from '../../../../shared/color';
+import { shadeSteps, type Rgb, type Rung } from '../../../../shared/color';
 import { WHEEL_HUB, continuousAt, positionOf, ringBand, sectorAt, sectorsFor } from './wheel';
 
 /**
@@ -92,7 +92,8 @@ export function ColorWheel({ rung, value, onPick, disabled, label }: Props): JSX
      maths that decides what a tap picks — and is simply absent while the pick
      is still the neutral grey, which no rung offers. */
   const cursor = positionOf(value, rung);
-  const rings = useMemo(() => saturationSteps(rung.sats).map((s, i) => ({ s, ...ringBand(rung.sats, i) })), [rung]);
+  const shades = useMemo(() => shadeSteps(rung), [rung]);
+  const rings = useMemo(() => shades.map((shade, i) => ({ ...shade, ...ringBand(shades.length, i) })), [shades]);
 
   return (
     <svg
@@ -116,31 +117,36 @@ export function ColorWheel({ rung, value, onPick, disabled, label }: Props): JSX
         ))
       ) : (
         <>
-          {/* Hue around, saturation outward. Drawn as wedges of the SAME
-              geometry `continuousAt` reads rather than as a gradient: a linear
+          {/* Hue around, shade outward. Drawn as wedges of the SAME geometry
+              `continuousAt` reads rather than as a gradient: a linear
               gradient across a disc does not put a hue where the angle says it
               is, so the colour under the thumb would not be the colour picked.
               48 paths, rebuilt only when the rung changes. */}
           {HUE_WEDGES.map((w) => (
             <path key={w.a0} d={wedge(0, 1, w.a0, w.a1)} fill={w.fill} />
           ))}
-          {/* Saturation, as one white ring per step rather than a smooth
-              gradient. White at opacity `1 - s` over a pure hue IS
-              `hsv(h, s, 1)`, so each band paints exactly the saturation the
-              hit test will return there — and a rung with a single step gets
-              no bands at all, which is the outer ring and nothing else. */}
-          {rings.map((band) => (
-            band.s >= 1 ? null : (
+          {/* Shade, as one tinted ring per step rather than a smooth gradient
+              (issue #40). White at opacity `1 - s` over a pure hue IS
+              `hsv(h, s, 1)`; black at opacity `1 - v` over it IS `hsv(h, 1, v)`
+              — scaling a channel down and blending toward black by the same
+              fraction are the same arithmetic. So each band paints exactly the
+              shade the hit test will return there, light rings in white and
+              dark rings in black, and the plain ring (s = 1, v = 1) needs no
+              band at all — which is all levels 1–21 ever draw. */}
+          {rings.map((band, i) => {
+            if (band.s >= 1 && band.v >= 1) return null;
+            const dark = band.v < 1;
+            return (
               <circle
-                key={band.s}
+                key={i}
                 r={((band.r0 + band.r1) / 2) * R}
                 fill="none"
-                stroke="#FFFFFF"
+                stroke={dark ? '#000000' : '#FFFFFF'}
                 stroke-width={(band.r1 - band.r0) * R}
-                opacity={1 - band.s}
+                opacity={dark ? 1 - band.v : 1 - band.s}
               />
-            )
-          ))}
+            );
+          })}
         </>
       )}
 
