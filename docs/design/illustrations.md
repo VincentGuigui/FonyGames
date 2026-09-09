@@ -135,6 +135,8 @@ rasterises it to a `<canvas>` once per size bucket, and hands back something
 | sling-puck | the puck | felt, **the walls and the gap**, the band's V, the aim dashes, the arrival glow |
 | spill | the drop | the pool (two summed sines on level and tilt), the splash (age-driven) |
 | cat-and-mouse | the cat, the mouse (filled **and** hollow) | the floor and its grid, the grace ring (turns on a clock), the own-icon ring (depends who is looking) |
+| gravity-shooter | both ships, **flat-tinted per pilot's avatar** (below) | the star and planets, the missile's trail, the aim preview, the shot-clock blink |
+| tilt-race | the car, **flat-tinted to this phone's own avatar** (below) | the road surface, the rails, the start line, rivals (drawn as their own emoji, not a sprite) |
 | tap-duel | — | no canvas; the bullseye is CSS |
 
 ### A fill variant is derived, never maintained by hand
@@ -142,10 +144,32 @@ rasterises it to a `<canvas>` once per size bucket, and hands back something
 Cat and Mouse needs a mouse both filled and hollow (its §7). By the time canvas sees a
 sprite it is **pixels**, and filled-versus-hollow is a difference of *geometry*, not of
 colour — so no runtime trick produces one from the other. What canvas *can* do to a
-sprite, for reference, is `globalAlpha` (free) and a flat recolour via an offscreen
-`source-in` composite (one extra raster per colour, so it competes with `MAX_RASTERS`).
-Neither gives an outline: recolouring a solid silhouette outlines the whole blob and
-loses the ear as a separate ring.
+sprite is `globalAlpha` (free) and a flat recolour via an offscreen `source-in`
+composite (one extra raster per colour, so it competes with `MAX_RASTERS`) — the
+technique `core/art/tint.ts` actually implements, for the per-avatar ship/car tint
+below. Neither gives an outline: recolouring a solid silhouette outlines the whole blob
+and loses the ear as a separate ring.
+
+### A per-player tint is a config file, read at runtime
+
+Gravity Shooter's ships and Tilt Race's car are recoloured to the pilot's own avatar —
+`core/avatarColor.ts` fetches `/avatar-colors.json` (`www/public/`, one flat
+`{ avatar: hex }` map) once, and `colorFor(avatar)` hands back a colour or `null`.
+**A config file, not a build-time constant**: retuning which hex a fox gets is a file
+edit, not a rebuild, the same reason `flags.json` is fetched rather than imported.
+**Fails open** the same way that reader does too (`flagGate.ts`): an unreachable host,
+a non-200 or a malformed body leaves every avatar untinted rather than throwing, and
+**nothing is awaited** — `colorFor` returns `null` on the very first frame, same as a
+sprite still loading, so a render loop never blocks on the network round trip.
+
+The recolour itself is `core/art/tint.ts`'s `tinted()` (the `source-in` composite
+above), wired into `core/art/sprites.ts`'s own `at(w, dpr, tint?)` for Gravity
+Shooter's ship (already routed through that cache) and called directly, once per
+colour, by Tilt Race's `TrackCanvas.tsx` for the car (a raw `Image`, outside that
+module for the reasons its own top comment gives). Fixed for the whole match by the
+avatar a player picked before it started, not something the physics or a game clock
+ever changes — the "state-driven drawing cannot be a static sprite" rule two
+paragraphs up is about a fill that moves over *time*, which this is not.
 
 So the second file has to exist. What it must not be is hand-maintained — two copies of
 one silhouette drift the moment somebody redraws it, and **nothing fails when they

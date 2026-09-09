@@ -2,9 +2,15 @@ import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { TILT_CRUISE_SPEED } from '../../../../shared/protocol';
 import { TRACK_HALF_WIDTH, atArc, type Track } from '../../../../shared/tiltTrack';
+import { colorFor, loadAvatarColors } from '../../core/avatarColor';
+import { tinted } from '../../core/art/tint';
 import type { Drive } from './drive';
 import carSprite from './art/car.png?url&no-inline';
 import roadTexture from './art/road.jpg?url&no-inline';
+
+// Same "call at module scope" rule `core/art/sprites.ts` states for its own
+// loads — starts the moment this game's chunk executes.
+loadAvatarColors();
 
 /**
  * Tilt Race's board. Spec: docs/specs/games/tilt-race.md §2.1, §4
@@ -45,6 +51,10 @@ type Props = {
   car: () => Drive;
   /** Other players' arc lengths, for the ghosts on the road ahead. */
   rivals: () => { s: number; lap: number; avatar: string }[];
+  /** This phone's own avatar — tints the car sprite (`docs/design/illustrations.md`
+   *  §4) when `/avatar-colors.json` has an entry for it. Rivals stay their own
+   *  emoji glyph (`rivals()` above), so only ever one colour to resolve here. */
+  myAvatar: string;
   /**
    * How many world units fit across the screen. Smaller is more zoomed in.
    *
@@ -66,10 +76,10 @@ const ROAD = '#2b2f38';
 const RAIL = '#e8eaf0';
 const KERB = '#c0392b';
 
-export function TrackCanvas({ track, car, rivals, span = 460, onFrame }: Props): JSX.Element {
+export function TrackCanvas({ track, car, rivals, myAvatar, span = 460, onFrame }: Props): JSX.Element {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const latest = useRef({ track, car, rivals, span, onFrame });
-  latest.current = { track, car, rivals, span, onFrame };
+  const latest = useRef({ track, car, rivals, myAvatar, span, onFrame });
+  latest.current = { track, car, rivals, myAvatar, span, onFrame };
 
   useEffect(() => {
     const element = canvas.current;
@@ -84,11 +94,15 @@ export function TrackCanvas({ track, car, rivals, span = 460, onFrame }: Props):
     // Built once the texture has loaded, not every frame — `createPattern` on a
     // still-loading `<img>` would cache a blank pattern forever.
     let roadPattern: CanvasPattern | null = null;
+    // At most a dozen entries ever (`shared/names.ts`'s own `AVATARS`), so
+    // unlike `core/art/sprites.ts`'s general-purpose cache this one never
+    // needs an eviction rule.
+    const tintedCars = new Map<string, HTMLCanvasElement>();
     let frame = 0;
     let last = performance.now();
 
     const draw = (): void => {
-      const { track, car, rivals, span, onFrame } = latest.current;
+      const { track, car, rivals, myAvatar, span, onFrame } = latest.current;
       const now = performance.now();
       // Clamped: a backgrounded tab returns with a gap of seconds, and
       // stepping that in one go would teleport the car through a rail.
@@ -203,7 +217,21 @@ export function TrackCanvas({ track, car, rivals, span = 460, onFrame }: Props):
       // placeholder shape — a gap of one or two frames on a local file, never
       // visible in practice (AGENTS.md §4).
       if (carImg.complete && carImg.naturalWidth > 0) {
-        ctx.drawImage(carImg, -carWidth / 2, -carLength / 2, carWidth, carLength);
+        // Flat-recoloured to this phone's own avatar when the config file has
+        // an entry for it (`core/avatarColor.ts`), at the sprite's own natural
+        // size once per colour — `drawImage` below scales it down to
+        // `carWidth`/`carLength` exactly as it already did for the plain art.
+        const myColor = colorFor(myAvatar);
+        let carSource: CanvasImageSource = carImg;
+        if (myColor) {
+          let t = tintedCars.get(myColor);
+          if (!t) {
+            t = tinted(carImg, carImg.naturalWidth, carImg.naturalHeight, myColor);
+            tintedCars.set(myColor, t);
+          }
+          carSource = t;
+        }
+        ctx.drawImage(carSource, -carWidth / 2, -carLength / 2, carWidth, carLength);
       }
 
       /*
