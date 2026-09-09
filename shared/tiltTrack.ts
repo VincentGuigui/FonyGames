@@ -54,10 +54,14 @@ export const TRACK_HALF_WIDTH = TILE * 0.36;
  * snaking circuit has segments as short as one tile, and `roundCorners` caps
  * the radius at a third of the shorter leg, so the tightest corner on a real
  * track is `TILE / 3` ≈ 33 units. Following a corner of radius `r` at speed
- * `v` needs `v / r` radians per second, so at `TILT_TOP_SPEED` that is
- * 120 / 33 ≈ 3.6 rad/s, which is what `TILT_CORNER_RATE` records. The two
- * constants cannot be chosen apart, and `drive.test.ts` drives a whole lap to
- * prove the pairing works.
+ * `v` needs `v / r` radians per second, so at the original `TILT_TOP_SPEED`
+ * of 120 that was 120 / 33 ≈ 3.6 rad/s, which is what `TILT_CORNER_RATE`
+ * still records — frozen there, not recomputed, because it tunes the skid
+ * (`TILT_SKID_TAU_MS`'s own comment) rather than anything this file enforces.
+ * `TILT_TOP_SPEED` doubling since means the tightest corner taken flat out
+ * now asks for about 7.2 rad/s, past what that constant calls reasonable —
+ * an accepted cost of the extra speed, not a pairing this file still keeps.
+ * `drive.test.ts` drives a whole lap to prove the *skid* still holds up.
  */
 export const CORNER_RADIUS = TILE * 0.42;
 

@@ -30,7 +30,8 @@ of a mistake.
    down both sides — identical for every player, and broadcasts it.
 2. Everyone starts on the line together.
 3. **Speed builds by itself**: 0 → 100 over `TILT_SPOOL_MS` (3 s), then
-   100 → 120 over another 3 s. There is no throttle.
+   100 → 240 over another 3 s. There is no throttle. (Top speed was 120;
+   doubled on maintainer request — §12 Q2.)
 4. **The phone's own rotation is the heading**, one for one (§2.1, §5). Above
    100, the car **skids**: the momentum lags the heading and the car keeps some
    of its old direction through a turn.
@@ -81,9 +82,11 @@ violent flick makes it slide rather than teleport. A rate cap on top would break
 the only property the control has.
 
 `TILT_CORNER_RATE` (3.6 rad/s) is no longer enforced anywhere — it is what the
-tightest corner *demands* at top speed, kept because it is the number the skid
-has to be judged against and because it is what says the circuit is drivable at
-all. 206°/s is well inside a wrist.
+tightest corner *demanded* at the original 120 top speed, kept frozen because
+it is the number the skid has to be judged against. 206°/s is well inside a
+wrist; the same corner at the current, doubled top speed asks for about
+7.2 rad/s, which is not (§12 Q11) — an accepted cost of the extra speed, not a
+number this constant tracks any more.
 
 ### 2.3 What a guardrail costs
 
@@ -373,3 +376,13 @@ One a real phone raised, reversing a piece of §2.1/§5 as built:
     `rollAngle`, where the clockwise convention actually lives;
     `gravityButton.test.ts` now also checks `reverseSpot` end to end, not
     just `downVector`'s raw output, which is what let this one through.
+11. **Top speed doubled to 240** (maintainer request, this same round of
+    fixes). `TILT_CRUISE_SPEED` is unchanged, so the 3 s spool from 100 to top
+    is a steeper climb than before. Two costs, accepted rather than chased:
+    a lap at full speed now runs well under the ~100 s `TILT_TARGET_LAP_MS`
+    was tuned for (`shared/tiltTrack.test.ts` still passes — its band is wide
+    on purpose — but the median is now closer to 50 s than 100), and the
+    tightest corner taken flat out asks for about 7.2 rad/s of wrist, double
+    what `TILT_CORNER_RATE` called reasonable. Neither the track roller nor
+    the corner radius was retuned; whether either should be is the natural
+    next question, not answered here.
