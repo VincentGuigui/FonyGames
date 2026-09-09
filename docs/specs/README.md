@@ -50,7 +50,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Scream Meter](games/scream-meter.md) | *Ten rounds. Loudest total wins. Mind the neighbours* | mic | 2–8 | 🎮 beta — the catalogue's first mic game; the sustain window and the per-round floor untested in a real room ([#15](https://github.com/VincentGuigui/FonyGames/issues/15)) |
 | [Together in the Dark](games/together-in-the-dark.md) | *One match at a time, guide him out of the woods* | touch | 1–8 co-op | 🎮 beta — the turn timer and the terrain-memory rule untested in a real room ([#20](https://github.com/VincentGuigui/FonyGames/issues/20)) |
 | [Ball Bounce](games/ball-bounce.md) | *Bank it off two walls and through the hoop* | touch | 2 | 📝 draft — awaiting approval ([#21](https://github.com/VincentGuigui/FonyGames/issues/21)) |
-| [Crowd Race](games/crowd-race.md) | *Tilt through the crowd. First up the street wins* | orientation | 1–8 | 📝 draft — awaiting approval ([#25](https://github.com/VincentGuigui/FonyGames/issues/25)) |
+| [Crowd Race](games/crowd-race.md) | *Tilt through the crowd. First up the street wins* | orientation | 1–8 | 🎮 beta — the bounce impulse, obstacle density and course length untested on real thumbs ([#25](https://github.com/VincentGuigui/FonyGames/issues/25)) |
 
 ### Idea notes (not yet specs)
 
@@ -193,9 +193,12 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
   canvas sprites cannot change shape.
 - **Crowd Race** ([#25](https://github.com/VincentGuigui/FonyGames/issues/25))
   — walk up a crowded street, tilt to weave, and bounce off everyone who gets
-  in the way, cascading. Spec written. The obstacles are **not** on the wire:
-  every phone simulates the whole street from the referee's seed, so only the
-  players' own positions travel, at 4 Hz.
+  in the way, cascading. Built. The obstacles are **not** on the wire: every
+  phone deals the identical street from the round id alone and simulates its
+  own bounces privately, so only the players' own positions travel, at 4 Hz.
+  Movement turned out to read literally rather than via a calibrated steer:
+  the walking direction *is* gravity's own down, every frame, with no
+  Ready-time zero to make "upside down" relative to.
 
 Promote an idea by copying [game-spec-template.md](game-spec-template.md) to
 `games/<slug>.md`, filling it, and updating the row above in a `spec:` commit.

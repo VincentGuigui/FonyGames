@@ -9,7 +9,7 @@
 | **Round length** | 1–2 min |
 | **Inputs** | orientation |
 | **Accent colour** | `#3EC1A6` |
-| **Status** | 📝 draft — awaiting approval ([#25](https://github.com/VincentGuigui/FonyGames/issues/25)) |
+| **Status** | 🎮 beta — built; movement is an uncalibrated gravity read and the street is dealt privately per phone rather than broadcast, both corrected from this draft during the build (§2.2, §5); untested on real phones ([#25](https://github.com/VincentGuigui/FonyGames/issues/25)) |
 
 ## 1. Pitch
 
@@ -25,8 +25,8 @@ same crowd, and you can see them.
 
 You walk up the street automatically. Tilt to steer. Don't get bounced back.
 
-1. The referee rolls the **street** — every obstacle's spawn position, kind and
-   direction — once, at start, and broadcasts the seed and the layout (§6).
+1. Every phone deals the **street** itself — every obstacle's spawn position,
+   kind and direction — from the round's own id, with nothing broadcast (§6).
 2. Players spawn distributed along the start line at the bottom.
 3. **Forward is automatic**, at `CROWD_WALK_SPEED`, in the *phone's own*
    reference frame: up-screen is up-street, so a phone held upside down walks
@@ -62,25 +62,50 @@ mass-based version is §12 Q3.
 | **Bicycle** | stops for 2 s | you bounce |
 
 **Bounces cascade.** A bounced pedestrian that lands on another pedestrian
-bounces *that* one too, and so on, resolved in the same step. The cascade is
-the reason to play — a good clip at the right moment sends four people
-sprawling — so it is a core rule and not an optimisation to skip.
+bounces *that* one too, and so on. The cascade is the reason to play — a good
+clip at the right moment sends four people sprawling — so it is a core rule
+and not an optimisation to skip.
 
-Cascade resolution is bounded: at most `CROWD_CASCADE_DEPTH` (4) generations
-per step, so one unlucky pile-up cannot cost a frame.
+**Built as one pairwise pass a step, not a depth-limited chain.** The draft
+proposed a `CROWD_CASCADE_DEPTH` generation cap; building it, that turned out
+to be solving a cost problem this game doesn't have. Every step already runs
+one O(n²) pass over the (small, per-phone) obstacle list, checking each pair
+once — cheap at any crowd size this game deals — so a pile-up spreads
+naturally over however many frames it physically takes a shoved body to reach
+its neighbour, with no artificial chain to bound. The constant was dropped
+rather than wired to nothing.
 
 ### 2.2 The street, and where obstacles come from
 
-Obstacles are **placed at game start for the whole street**, including the
-parts nobody can see yet: three screen-heights above and three below the
-current portion. That makes the street deterministic from the seed, which is
-what lets every phone simulate it without anybody streaming positions (§6).
+**Built as one dealt course, not a streamed window.** The draft above pictured
+a scrolling window — obstacles placed "three screen-heights above and three
+below the current portion" as the player advances. The course has a known,
+fixed finish line, so there is no "current portion" that needs a window: one
+arithmetic pass deals every obstacle's spawn slot for the whole street from
+the round id, the same way Asteroid Race's field is dealt from its own seed.
+`CROWD_START_CLEAR` is the part of that pass left empty, not a moving window —
+nothing is dealt there, so nobody is bounced before their first step.
+
+**Every phone deals the identical spawn plan, then simulates it privately.**
+The plan (positions, kinds, directions) is pure arithmetic on the round id, so
+eight phones agree on it with nothing sent — but from there, each phone's own
+bounces and cascades run locally and never cross the wire (§6). A bounce is
+triggered by one player's own collision, which the referee cannot see and has
+no reason to; the alternative — keeping every phone's *post-bounce* crowd in
+sync — would need streaming every obstacle's position at 60 Hz, the exact cost
+this profile exists to avoid.
 
 - **75% of moving obstacles walk down-street**, 25% up — so the crowd mostly
   comes at you.
 - **Bicycles move at twice pedestrian speed** and are correspondingly rarer.
 - **The three screen-heights above the start line are cleared** of obstacles at
-  roll time, so nobody is bounced before they have taken a step.
+  deal time, so nobody is bounced before they have taken a step.
+- **A moving obstacle wraps back into the dealt band** (`CROWD_START_CLEAR` to
+  the finish) once it walks out the far end, rather than walking on forever.
+  Found by actually walking a round to the finish: at `CROWD_WALK_SPEED`, a
+  pedestrian covers the whole course in about the time a typical run takes, so
+  without wrapping the crowd near the player would thin out to almost nothing
+  well before anyone reached the top of the street.
 
 ## 3. Modes / variations
 
@@ -108,17 +133,29 @@ The round screen is the street, scrolling under you, portrait:
 
 ## 5. Inputs & sensors
 
-**`deviceorientation`**, via the shared steering filter in
-`www/src/core/sensors/steer.ts` — the same two-axis filter Asteroid Race uses,
-with the same calibration-at-Ready and the same dead zone
-([../device-capabilities.md](../device-capabilities.md)).
+**`deviceorientation`**, via `downVector(gamma, beta)`
+(`www/src/core/sensors/gravity.ts`) — **not** the calibrated two-axis steer
+filter this draft originally proposed.
 
-- **Two axes**: `gamma` steers across the street, `beta` along it. The
-  reference frame is the phone's own, calibrated at Ready, which is what makes
-  "upside down means downhill" true rather than a bug.
-- **A dead zone** (`STEER_DEAD_ZONE`, 10%) so a hand at rest does not drift.
-- **Tilt adds to the automatic walk** rather than replacing it: full forward
-  tilt is `CROWD_TILT_BOOST` faster, full back tilt walks you backwards.
+**Built uncalibrated, on purpose.** The issue's own wording — "upside down
+phone means going down the street" — is an absolute statement about gravity,
+not about however the phone happened to be held at Ready. Asteroid Race's
+`steer2Filter` zeroes itself to the Ready pose, which would make "upside down"
+mean something different depending on how the player was holding the phone
+when they pressed Start; that contradicts the issue directly, so this game
+reads gravity's own down instead, every frame, with no calibration step.
+
+- **The walking direction *is* gravity's own down**, continuously: held
+  upright, gravity's down points down the screen, which is *forward* here (§2
+  walks "up the street"); turn the phone upside down and it flips, so the
+  player walks backward — the issue's own example, exactly. There is no
+  separate forward throttle for tilt to add to.
+- **A magnitude floor** (`CROWD_MIN_TILT`), not a dead zone at the centre: a
+  flat phone has no reliable in-plane reading at all, so below the floor the
+  player keeps walking in whatever direction they last had, rather than
+  snapping to a default or drifting on sensor noise.
+- `CROWD_TILT_BOOST` does not exist — there is no separate throttle for it to
+  boost.
 
 **Fallbacks** (mandatory): none, and this is a game AGENTS.md §4 allows to have
 none — the tilt *is* the game, and a touch-steered version would be a
@@ -130,28 +167,37 @@ permission gets an explanation and the way back to the hub.
 **Profile B**, but only just — and the reason is worth stating: the obstacles
 are **not** on the wire.
 
-Every phone simulates the whole street from the referee's own seed and layout,
-deterministically, so eight phones agree about where the crowd is without a
-byte being spent on it. What genuinely has to travel is **where the other
-players are**, because seeing each other is a stated requirement.
+Every phone deals the whole street from the round id alone, deterministically,
+so eight phones agree about where the crowd starts out without a byte being
+spent on it (§2.2) — and each phone's own bounces and cascades stay private
+from there. What genuinely has to travel is **where the other players are**,
+because seeing each other is a stated requirement.
+
+**Built as two messages, not five.** The draft's `crowd-street` /
+`crowd-field` / `crowd-finish` / `crowd-result` each covered a slice of state
+this game turns out to need continuously and all at once — every player's
+position, the round's own clock, and the winner, moment to moment — so it is
+one server→all message carrying the whole `CrowdRaceState`, the same shape
+Asteroid Race and Math-o-matic already broadcast their own race state in,
+rather than a special-purpose message per event:
 
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
-| `crowd-street` | server → all | `{ roundId, seed, obstacles: [{x, y, kind, dir}], finishY, startsAt }` | The whole street, once |
 | `crowd-move` | client → server | `{ roundId, x, y, at }` | This phone's own position, 4×/s |
-| `crowd-field` | server → all | `{ roundId, at, players: {id: {x, y}} }` | Everyone's last known position, 4×/s |
-| `crowd-finish` | client → server | `{ roundId, at }` | Crossed the line |
-| `crowd-result` | server → all | `{ roundId, order: [id], distances: {id: y} }` | Placings |
+| `crowd` | server → all | `CrowdRaceState`: `{ roundId, startsAt, endsAt, walkers: {id: {x, y, finishedAt, away}}, winner, phase }` | Everyone's last known position and the race's own state |
+
+There is no separate `seed` field: `roundId` **is** what `dealStreet` deals
+from, so nothing else is needed to reproduce the street.
 
 **4 Hz, not 60.** Other players are scenery here, not something you collide
 with, so their positions can be stale by a quarter-second without affecting
-anyone's run. Each phone interpolates between the last two `crowd-field`
-frames. That keeps this inside the cheap profile in
+anyone's run. Each phone interpolates between the last two `crowd` frames.
+That keeps this inside the cheap profile in
 [../multiplayer.md](../multiplayer.md) despite being a continuous game.
 
-**Who is authoritative:** the referee owns the street, the clock and the
-finishing order. Each phone owns its own position — it has to, since the
-simulation runs there — which is the trade §8 pays for.
+**Who is authoritative:** the referee owns the round's clock, who is marked
+`away`, and the finishing order. Each phone owns its own position — it has to,
+since the simulation runs there — which is the trade §8 pays for.
 
 ## 7. Failure & edge cases
 
@@ -174,13 +220,18 @@ anywhere. The mitigations are the same shape as Asteroid Race's own
 `reachableBy` check:
 
 - **A reported position is bounded by what the walk could have covered** since
-  the last report — `CROWD_WALK_SPEED × elapsed`, plus the tilt boost, plus a
-  slack. A jump past that is clamped, not accepted.
+  the last report — `CROWD_WALK_SPEED × elapsed`, plus a slack
+  (`CROWD_CLAIM_SLACK`). There is no tilt boost to add in (§5's build note): a
+  jump past the bound is clamped, not accepted.
+- **The bound is dual-clamped**: also by time since the round itself started,
+  and time since the last report is itself capped at `CROWD_AWAY_MS` — so a
+  phone cannot bank silence and spend it as one giant claim.
 - **The finish is checked against the same bound**: a phone cannot report the
   finish line earlier than the walk allows.
 - **Lateral position is clamped to the street.**
-- **The street is the referee's**, so nobody can play a course with no crowd
-  on it.
+- **The street has nothing worth spoofing**: it is dealt identically by every
+  phone from the public `roundId` (§2.2, §6), so there is no referee-held
+  layout a modified client could claim to be missing.
 
 ## 9. Safety
 
@@ -213,22 +264,36 @@ position locally, and only the position travels
   never a colour code.
 - **The progress rail is the text version of the race**: positions are
   announced as "3rd of 6" rather than only shown.
-- **Sensitivity is adjustable** in the gear menu, as Asteroid Race's is, which
-  is what makes this playable for someone with limited wrist movement.
+- **Sensitivity is not adjustable.** The gear-menu setting this draft assumed
+  lives in `core/sensors/steer.ts`, the calibrated filter §5's build note
+  explains this game does not use — `downVector` has no gain to turn down.
+  Left open below (§12) rather than fixed silently.
 
 ## 12. Open questions
 
-1. **Do players collide with each other?** The issue says they can see each
-   other but does not say. This spec assumes **no** — player-to-player
-   collisions would need positions at 60 Hz and authoritative arbitration, which
-   is a different cost profile entirely. Worth a yes or no before code.
+1. ~~**Do players collide with each other?**~~ Built as **no** — rivals are
+   drawn from `crowd-move` reports but never checked against the player's own
+   hitbox. Still worth a yes or no from a playtest, since it is the easiest of
+   these to add later.
 2. **`CROWD_BOUNCE_IMPULSE` as a single constant** — the issue says so for now.
    A bicycle bouncing you as hard as a pedestrian will probably feel wrong the
-   first time it happens.
+   first time it happens. Not changed in this build.
 3. **Mass**: pedestrians all identical, or a range? A cascade through
-   identical bodies is easier to predict and probably easier to enjoy.
-4. **How long the street is.** "First to the top" needs a length; 60–90 s of
-   clean walking is the target, which the crowd will roughly double.
-5. **Whether being pushed back below the start line is possible.** §2 says the
-   viewport bottom is a wall; if the street can push you back that far, a
-   player can be pinned there by traffic.
+   identical bodies is easier to predict and probably easier to enjoy. Not
+   changed in this build.
+4. ~~**How long the street is.**~~ Built as `CROWD_COURSE_LENGTH` = 4000 units
+   = 80 s of clean walking at `CROWD_WALK_SPEED`, before the crowd's own delay.
+5. ~~**Whether being pushed back below the start line is possible.**~~ Built
+   as: no. The floor tracks `bestY - CROWD_SCREEN_HEIGHT`, one screen behind
+   the *best* the player has made, not a fixed line — so it rises with
+   progress and a player can never be knocked back to the start once they have
+   made headway.
+6. **No sensitivity setting** (§11) — this game's uncalibrated, un-gained
+   `downVector` read means the gear-menu slider that helps Asteroid Race does
+   nothing here. Worth its own adjustable floor (`CROWD_MIN_TILT`) or gain if
+   a playtest finds it too twitchy or too dead.
+7. **Obstacles recycle by wrapping `y`, in place** (§2.2) — found necessary
+   during the build, not requested by the issue. A pedestrian that wraps keeps
+   its `x`, so the same lane empties and refills rather than reshuffling.
+   Worth a playtest: does the repeating pattern read as an obviously looping
+   street once a player is paying attention to it?
