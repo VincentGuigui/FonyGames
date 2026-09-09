@@ -19,7 +19,11 @@
   <!-- The car, turned into the bend: it points where it is going, and the map
        underneath it does not move. -->
   <g transform="translate(60 35) rotate(130)">
-    <path d="M0 -13 L7 12 L0 8 L-7 12 Z" fill="#E4572E"/>
+    <path d="M0 -13 L7 12 L0 8 L-7 12 Z" fill="#C800C8"/>
+    <!-- The accent as a racing stripe, not the body — illustrations.md §3
+         still wants it present and matched against card.ts, but the body
+         itself is the game's own art colour (art/car.png), not the accent. -->
+    <path d="M0 -13 L0 8" stroke="#E4572E" stroke-width="1.6"/>
     <ellipse cx="0" cy="-2" rx="2.6" ry="4.4" fill="#0F1420"/>
   </g>
 </svg>

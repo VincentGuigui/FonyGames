@@ -2,8 +2,7 @@ import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { art } from '../../core/art/sprites';
 import { colorFor, loadAvatarColors } from '../../core/avatarColor';
-import shipArtA from './art/ship-a.png?url&no-inline';
-import shipArtB from './art/ship-b.png?url&no-inline';
+import shipArt from './art/ship.png?url&no-inline';
 import planetArtA from './art/planet-a.png?url&no-inline';
 import planetArtB from './art/planet-b.png?url&no-inline';
 import planetArtC from './art/planet-c.png?url&no-inline';
@@ -39,10 +38,16 @@ import {
  */
 
 const PLANET_ART = [planetArtA, planetArtB, planetArtC].map((url) => art(url));
-/** One art file per ship colour (spec's own two-colour brief) — `isSelf` in
- *  `drawShip` picks between them, the same shape Tap Fighter's own
- *  `fighter1.png`/`fighter2.png` pair already uses. */
-const SHIP_ART: [ReturnType<typeof art>, ReturnType<typeof art>] = [art(shipArtA), art(shipArtB)];
+/**
+ * One shared ship art, painted once in the fixed reference hue
+ * (`core/art/tint.ts`'s `ART_REFERENCE_HUE`) — self and opponent are no
+ * longer two different files, since a hue rotation can put either colour on
+ * the same sprite. `drawShip` always asks for a tint (the pilot's own
+ * avatar, or `SHIP_COLORS` as a fallback), never the art's own bare colour,
+ * so the two ships stay distinguishable even when an avatar has no entry in
+ * `/avatar-colors.json`.
+ */
+const SHIP_ART = art(shipArt);
 const missileSprite = art(missileArt);
 // Same "call at module scope" rule as `art()`'s own loads above — starts the
 // moment this game's chunk executes, well before a board mounts.
@@ -414,10 +419,11 @@ function drawStar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
 }
 
 /** A half-circle-domed ship, 256x128 art (spec's own dimensions) — the dome
- *  points toward the opponent, i.e. away from local y = 1. `tint`, when the
- *  pilot's avatar has one (`core/avatarColor.ts`), flat-recolours the sprite
- *  on top of the existing ship-a/ship-b choice (`docs/design/illustrations.md`
- *  §4) — `null` draws the art's own colours, same as before this existed. */
+ *  points toward the opponent, i.e. away from local y = 1. Hue-rotated
+ *  (`core/art/tint.ts`) to the pilot's own avatar when `/avatar-colors.json`
+ *  has an entry for it, `SHIP_COLORS` otherwise — self and opponent are
+ *  always two different colours, since there is only the one ship art now
+ *  (`docs/design/illustrations.md` §4). */
 function drawShip(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -434,7 +440,8 @@ function drawShip(
   // it (`game.ts`), so a ship drawn at some other size would be a ship whose
   // hitbox no longer matches its own image.
   const w = boardWidth * GRAVITY_SHIP_WIDTH;
-  const sprite = SHIP_ART[isSelf ? 0 : 1].at(w, dpr, tint ?? undefined);
+  const finalTint = tint ?? SHIP_COLORS[isSelf ? 0 : 1];
+  const sprite = SHIP_ART.at(w, dpr, finalTint);
   if (sprite) {
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -454,7 +461,7 @@ function drawShip(
   }
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = tint ?? SHIP_COLORS[isSelf ? 0 : 1];
+  ctx.fillStyle = finalTint;
   ctx.beginPath();
   ctx.arc(x, y, w / 2, Math.PI, 0, !domeUp);
   ctx.closePath();
