@@ -2827,10 +2827,17 @@ export const GRAVITY_PLANET_INFLUENCE_RADIUS_FACTOR = 2;
  * ship, aiming from it, simulating a shot's start/target point) and the
  * referee (issue #16's own map-fairness pre-check, `worker/gravityShooter.ts`)
  * need to agree on, so it lives here rather than with the client-only tuning
- * below. 0.08 was the original brief; issue #16 asked for the ships to sit a
- * further 20px from the edge.
+ * below.
+ *
+ * 0.08 was the original brief; issue #16 asked for a further 20px, and a
+ * later report asked to bring the ships back in by that same 20px — this IS
+ * the ship's real world position, not a cosmetic nudge layered on top of it,
+ * so moving it here is what keeps the sprite, the hitbox, the aim origin and
+ * `launchPosition` (and the referee's own fairness check) all agreeing on
+ * where the ship actually is, rather than a rendering offset drifting away
+ * from a hitbox that never moved.
  */
-export const GRAVITY_SHIP_MARGIN = 0.08 + 20 / GRAVITY_REFERENCE_BOARD_PX;
+export const GRAVITY_SHIP_MARGIN = 0.08;
 
 /**
  * A pull's own strength is normalized 0..1 client-side; the referee clamps
