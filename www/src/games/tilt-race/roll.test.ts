@@ -33,21 +33,22 @@ const DEG = 180 / Math.PI;
  * The `deviceorientation` reading for a phone held upright and then rotated
  * `turn` degrees clockwise in its own plane.
  *
- * Derived rather than tabulated: rotating an upright phone about the axis out
- * of its screen leaves `beta` and `gamma` on the circle
- * `beta = 90 - turn` while `gamma` sweeps — which is awkward to write directly,
- * so this goes the other way and states the pose by where gravity ends up.
+ * Derived rather than tabulated, but not by inverting `downVector` at a fixed
+ * `gamma` — a real spin about the screen's own normal axis is not "gamma
+ * sweeps while beta holds a curve" at all: decompose the rotation matrix for
+ * that spin and `gamma` is pinned at the gimbal value 90° throughout, with
+ * `beta = 90 + turn` doing all the work (`gamma = -90, beta = 90 - turn` is
+ * the mirror-image solution; either satisfies `downVector`). This is also why
+ * the two are not interchangeable with an *independent* pitch: see
+ * `gravityButton.test.ts`'s "both axes away from their extremes" case for the
+ * motion this file's old, wrong derivation could not have caught.
+ *
  * Screen-space gravity for a clockwise turn of `t` is `(sin t, cos t)`, and
- * `downVector` says that is `(-sin gamma, sin beta cos gamma)`.
+ * `downVector(90, 90 + t)` gives exactly that, by the angle-addition identities
+ * `cos(90 + t) = -sin(t)` and `sin(90 + t) = cos(t)`.
  */
 function upright(turnDeg: number): { gamma: number; beta: number } {
-  const t = turnDeg / DEG;
-  // -sin(gamma) = sin(t)  ->  gamma = -t, within ±90.
-  const gamma = -Math.asin(Math.max(-1, Math.min(1, Math.sin(t)))) * DEG;
-  // sin(beta) cos(gamma) = cos(t), and cos(gamma) = |cos t|.
-  const cg = Math.cos(gamma / DEG);
-  const beta = Math.asin(Math.max(-1, Math.min(1, Math.cos(t) / (cg === 0 ? 1 : cg)))) * DEG;
-  return { gamma, beta };
+  return { gamma: 90, beta: 90 + turnDeg };
 }
 
 function theAngle(): void {
