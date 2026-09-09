@@ -1,10 +1,11 @@
 import {
   CROWD_AWAY_MS,
   CROWD_CLAIM_SLACK,
-  CROWD_COURSE_LENGTH,
+  CROWD_FINISH_Y,
   CROWD_MAX_PLAYERS,
   CROWD_REPORT_MS,
   CROWD_RUN_CAP_MS,
+  CROWD_START_Y,
   CROWD_STREET_WIDTH,
   CROWD_WALK_SPEED,
   type ServerMessage,
@@ -94,7 +95,7 @@ async function starting(): Promise<void> {
 
   const s = h.state();
   check('the race is running', s?.phase === 'running');
-  check('both start on the start line', s?.players[A]?.y === 0 && s?.players[B]?.y === 0);
+  check('both start on the start line', s?.players[A]?.y === CROWD_START_Y && s?.players[B]?.y === CROWD_START_Y);
   check('centred on the street', s?.players[A]?.x === CROWD_STREET_WIDTH / 2);
   check('nobody has crossed', s?.players[A]?.finishedAt === null);
   check('nobody is away yet', s?.players[A]?.away === false);
@@ -142,19 +143,22 @@ async function clamping(): Promise<void> {
   quiet.advance(60_000);
   await claimEverything(quiet, A);
   const banked = quiet.walker(A)?.y ?? 0;
-  check('a minute of silence cannot be spent in one frame', banked <= reachableBy(CROWD_AWAY_MS) + 1e-9, banked);
-  check('which is far short of the line', banked < CROWD_COURSE_LENGTH);
+  check('a minute of silence cannot be spent in one frame', banked <= CROWD_START_Y + reachableBy(CROWD_AWAY_MS) + 1e-9, banked);
+  check('which is far short of the line', banked < CROWD_FINISH_Y);
 
-  // Honest reporting is not punished.
+  // Honest reporting is not punished. A real walker's own `y` is
+  // CROWD_START_Y plus distance covered, not distance alone (game.ts's own
+  // `startRun`), so that is what an honest report claims too.
   const honest = harness();
   await startCrowdRace(honest.ctx, 1, [A, B]);
   for (let i = 0; i < 10; i++) {
     honest.advance(CROWD_REPORT_MS);
-    await onCrowdMove(honest.ctx, A, 1, CROWD_STREET_WIDTH / 2, (CROWD_WALK_SPEED * (honest.now - 5_000_000)) / 1000, honest.now);
+    const walked = (CROWD_WALK_SPEED * (honest.now - 5_000_000)) / 1000;
+    await onCrowdMove(honest.ctx, A, 1, CROWD_STREET_WIDTH / 2, CROWD_START_Y + walked, honest.now);
   }
   const honestY = honest.walker(A)?.y ?? 0;
   const elapsed = 10 * CROWD_REPORT_MS;
-  check('a real, honestly-reported walk is not clipped short', Math.abs(honestY - (CROWD_WALK_SPEED * elapsed) / 1000) < 1, honestY);
+  check('a real, honestly-reported walk is not clipped short', Math.abs(honestY - (CROWD_START_Y + (CROWD_WALK_SPEED * elapsed) / 1000)) < 1, honestY);
 
   // Never backwards: a stale or bounced-back report cannot undo real progress
   // on the referee's own ladder.
@@ -253,12 +257,12 @@ async function goneAndAway(): Promise<void> {
   await startCrowdRace(gone.ctx, 1, [A, B]);
   await onPlayerGone(gone.ctx, A);
   check('a disconnect marks them away immediately, not just on the next tick', gone.walker(A)?.away === true);
-  check('their position is unchanged — frozen, not removed', gone.walker(A)?.y === 0);
+  check('their position is unchanged — frozen, not removed', gone.walker(A)?.y === CROWD_START_Y);
 
   const stale = harness();
   await startCrowdRace(stale.ctx, 1, [A, B]);
   await onCrowdMove(stale.ctx, A, 999, CROWD_STREET_WIDTH / 2, 10, stale.now);
-  check('a report for a stale roundId is ignored', stale.walker(A)?.y === 0);
+  check('a report for a stale roundId is ignored', stale.walker(A)?.y === CROWD_START_Y);
 }
 
 function shape(): void {

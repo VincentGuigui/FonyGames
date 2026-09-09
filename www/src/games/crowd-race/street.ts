@@ -2,8 +2,8 @@ import {
   CROWD_BICYCLE_RX,
   CROWD_BICYCLE_RY,
   CROWD_BICYCLE_SPEED,
-  CROWD_COURSE_LENGTH,
   CROWD_DOWN_STREET_SHARE,
+  CROWD_FINISH_Y,
   CROWD_OBSTACLE_SPACING,
   CROWD_PERSON_RX,
   CROWD_PERSON_RY,
@@ -17,16 +17,12 @@ import {
  * The street: every obstacle's spawn spot, kind and direction, dealt once
  * from `roundId` alone. Spec: docs/specs/games/crowd-race.md §2.2
  *
- * **Not streamed, not windowed.** The issue describes generating "3 screens
- * above and 3 below the current street portion" — a scrolling-window design.
- * This deals the WHOLE fixed course in one arithmetic pass instead, the same
- * `formationAt(roundId, index)` pattern Asteroid Race's field uses (that
- * spec's own §2.1): the course has a known finish line, so there is no
- * "current portion" to stream around, and one pass is simpler than a window
- * that has to agree with itself as the player moves. What the issue's "3
- * screens" language does become is the cleared start zone (`CROWD_START_CLEAR`,
- * §12 note): nothing is dealt there, so nobody is bounced before their first
- * step.
+ * **Fixed, not scrolling — the whole street is one screen.** One
+ * arithmetic pass deals every obstacle across the fixed band between
+ * `CROWD_START_CLEAR` and `CROWD_FINISH_Y`, the same `formationAt(roundId,
+ * index)` pattern Asteroid Race's field uses (that spec's own §2.1) — there
+ * is no camera to stream a window around, since the whole course is always
+ * on screen at once.
  *
  * **Private, not synced.** Every phone deals the identical spawn plan from
  * `roundId`, but from there each phone's own bounces and cascades are simulated
@@ -45,7 +41,9 @@ export type ObstacleSpawn = {
   /** Spawn position, world units. A tree never leaves it. */
   x: number;
   y: number;
-  /** +1 down-street, -1 up-street. 0 for a tree. */
+  /** The sign `game.ts`'s own `y += dir * speed * dt` applies: `+1` is
+   *  up-street, the same direction the player walks; `-1` is down-street,
+   *  toward the player. 0 for a tree. */
   dir: 0 | 1 | -1;
   /** World units/s. 0 for a tree. */
   speed: number;
@@ -75,7 +73,7 @@ const BICYCLE_SHARE = 0.12;
 
 /** How many slots the course holds, before any are dealt. */
 export function slotCount(): number {
-  const span = Math.max(0, CROWD_COURSE_LENGTH - CROWD_START_CLEAR);
+  const span = Math.max(0, CROWD_FINISH_Y - CROWD_START_CLEAR);
   return Math.floor(span / CROWD_OBSTACLE_SPACING);
 }
 
@@ -109,7 +107,9 @@ export function dealStreet(roundId: number): ObstacleSpawn[] {
       x = margin + hash01(roundId, i, 3) * (CROWD_STREET_WIDTH - margin * 2);
     }
 
-    const dir: 0 | 1 | -1 = kind === 'tree' ? 0 : hash01(roundId, i, 5) < CROWD_DOWN_STREET_SHARE ? 1 : -1;
+    // Majority down-street (toward the player, `-1`) so the crowd comes at
+    // you — the issue's own "most of the moving obstacles are going down".
+    const dir: 0 | 1 | -1 = kind === 'tree' ? 0 : hash01(roundId, i, 5) < CROWD_DOWN_STREET_SHARE ? -1 : 1;
     const speed = kind === 'tree' ? 0 : kind === 'bicycle' ? CROWD_BICYCLE_SPEED : CROWD_WALK_SPEED;
     const rx = kind === 'tree' ? CROWD_TREE_R : kind === 'bicycle' ? CROWD_BICYCLE_RX : CROWD_PERSON_RX;
     const ry = kind === 'tree' ? CROWD_TREE_R : kind === 'bicycle' ? CROWD_BICYCLE_RY : CROWD_PERSON_RY;

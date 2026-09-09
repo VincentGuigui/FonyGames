@@ -3,9 +3,11 @@ import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
 import {
   CROWD_COURSE_LENGTH,
+  CROWD_FINISH_Y,
   CROWD_MAX_PLAYERS,
   CROWD_MIN_PLAYERS,
   CROWD_REPORT_MS,
+  CROWD_START_Y,
   type CrowdRaceState,
   type ServerMessage,
 } from '../../../../shared/protocol';
@@ -23,6 +25,13 @@ import { useGameText } from '../../core/i18n/gameText';
 import { CrowdCanvas } from './CrowdCanvas';
 import { startRun, step, type CrowdRun } from './game';
 import './crowd-race.css';
+
+/** How far up the fixed course a walker has come, 0..1 — `y` is absolute
+ *  (world `0` is the screen's own bottom edge, not the start line), so the
+ *  start margin has to come back out before dividing by the course length. */
+function progressOf(y: number): number {
+  return Math.max(0, Math.min(1, (y - CROWD_START_Y) / CROWD_COURSE_LENGTH));
+}
 
 /**
  * Crowd Race's room screen. Spec: docs/specs/games/crowd-race.md §4
@@ -127,7 +136,7 @@ function CrowdRoomInner({ game: card, code }: { game: GameCard; code: string }):
         setHud({ y: next.y, place: ahead + 1 });
       }
 
-      if (!finishedRef.current && next.y >= CROWD_COURSE_LENGTH) {
+      if (!finishedRef.current && next.y >= CROWD_FINISH_Y) {
         finishedRef.current = true;
       }
     },
@@ -169,7 +178,7 @@ function CrowdRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const tableRows = rows.map((id) => {
       const walker = state.walkers[id];
       const done = (walker?.finishedAt ?? null) !== null;
-      const far = Math.min(1, (walker?.y ?? 0) / CROWD_COURSE_LENGTH);
+      const far = progressOf(walker?.y ?? 0);
       return {
         id,
         avatar: avatarOf(id),
@@ -204,7 +213,7 @@ function CrowdRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const now = clientRef.current?.now() ?? Date.now();
     const countdown = Math.max(0, Math.ceil((state.startsAt - now) / 1000));
     const total = Object.keys(state.walkers).length;
-    const progressPct = Math.min(100, Math.round((hud.y / CROWD_COURSE_LENGTH) * 100));
+    const progressPct = Math.round(progressOf(hud.y) * 100);
 
     return (
       <div class="crowd" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
@@ -231,7 +240,7 @@ function CrowdRoomInner({ game: card, code }: { game: GameCard; code: string }):
               <span
                 key={id}
                 class={`crowd__dot ${id === myId ? 'crowd__dot--me' : ''} ${w.away ? 'crowd__dot--away' : ''}`}
-                style={{ bottom: `${Math.min(100, (w.y / CROWD_COURSE_LENGTH) * 100)}%` }}
+                style={{ bottom: `${progressOf(w.y) * 100}%` }}
               >
                 {avatarOf(id)}
               </span>

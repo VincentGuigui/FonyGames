@@ -1,9 +1,9 @@
 import {
   CROWD_BIKE_STUN_MS,
   CROWD_BOUNCE_MS,
-  CROWD_COURSE_LENGTH,
-  CROWD_SCREEN_HEIGHT,
+  CROWD_FINISH_Y,
   CROWD_START_CLEAR,
+  CROWD_START_Y,
   CROWD_STREET_WIDTH,
   CROWD_WALK_SPEED,
 } from '../../../../shared/protocol';
@@ -43,15 +43,18 @@ function movement(): void {
 
   const start = startRun(1);
   check('starts centred on the street', Math.abs(start.x - CROWD_STREET_WIDTH / 2) < 1e-6);
-  check('starts at the bottom', start.y === 0);
+  check('starts a small margin up from the bottom', start.y === CROWD_START_Y);
 
   const upright1s = walk(start, UPRIGHT, 60);
-  check('held upright, a second of walking covers CROWD_WALK_SPEED', Math.abs(upright1s.y - CROWD_WALK_SPEED) < 1, upright1s.y);
+  check('held upright, a second of walking covers CROWD_WALK_SPEED', Math.abs((upright1s.y - start.y) - CROWD_WALK_SPEED) < 1, upright1s.y);
   check('and stays centred — no lateral drift with no roll', Math.abs(upright1s.x - start.x) < 1e-6);
 
-  const upsideDown1s = walk(start, UPSIDE_DOWN, 60);
-  check('upside down walks the other way — down the street', upsideDown1s.y < start.y, upsideDown1s.y);
-  check('by the same distance, mirrored', Math.abs(upsideDown1s.y + CROWD_WALK_SPEED) < 1, upsideDown1s.y);
+  // A short burst rather than a full second — CROWD_START_Y is small, and a
+  // full second at CROWD_WALK_SPEED would run into the fixed floor `bounds()`
+  // below tests on its own; this is testing the mirrored distance, not that.
+  const briefBack = walk(start, UPSIDE_DOWN, 20);
+  check('upside down walks the other way — down the street', briefBack.y < start.y, briefBack.y);
+  check('by the same distance, mirrored', Math.abs((briefBack.y - start.y) + CROWD_WALK_SPEED / 3) < 1, briefBack.y);
 
   // beta=90 exactly is a gimbal lock (cos(90°)=0 zeroes out any gamma), the
   // same trap Tilt Race's own `downVector` doc warns about — a realistic
@@ -65,7 +68,7 @@ function movement(): void {
 }
 
 function bounds(): void {
-  console.log('\nthe street has walls, and a floor that follows you (§2)');
+  console.log('\nthe street has walls, and a fixed floor at the very bottom of the screen (§2)');
 
   const hardLeft = walk(startRun(2), { gamma: -90, beta: 0 }, 300);
   check('the left edge is a wall', hardLeft.x >= 0 && hardLeft.x < CROWD_PERSON_RX_PLUS, hardLeft.x);
@@ -73,13 +76,17 @@ function bounds(): void {
   const hardRight = walk(startRun(3), { gamma: 90, beta: 0 }, 300);
   check('the right edge is a wall', hardRight.x <= CROWD_STREET_WIDTH && hardRight.x > CROWD_STREET_WIDTH - CROWD_PERSON_RX_PLUS, hardRight.x);
 
-  // Walk forward a good distance, then walk backward for longer than it would
-  // take to be pushed off the bottom of the CURRENT screen.
-  const ahead = walk(startRun(4), UPRIGHT, 600); // 10 s forward
+  // Walk forward a good distance (short of the finish — CROWD_COURSE_LENGTH
+  // is under 10 s of clean walking now, so a full 10 s forward would finish
+  // the race before this can test the floor at all), then walk backward for
+  // far longer than it would take to reach world y = 0 — the fixed screen's
+  // own bottom edge, not a ratchet that follows the player (there is no
+  // camera to).
+  const ahead = walk(startRun(4), UPRIGHT, 180); // 3 s forward
   const pushedBack = walk(ahead, UPSIDE_DOWN, 6000); // 100 s backward — far more than enough
   check(
-    'pushed back a long way, it stops one screen height behind the best it made',
-    Math.abs(pushedBack.y - (ahead.y - CROWD_SCREEN_HEIGHT)) < 2,
+    'pushed back a long way, it stops at the very bottom of the fixed screen',
+    Math.abs(pushedBack.y - 0) < 2,
     { best: ahead.y, floor: pushedBack.y },
   );
 }
@@ -118,7 +125,10 @@ function collisions(): void {
   const pedObstacles: LiveObstacle[] = [
     { id: 'p', kind: 'pedestrian', x: CROWD_STREET_WIDTH / 2, y: 40, dir: 1, speed: 0, rx: 14, ry: 20, bounce: null, stunUntil: 0 },
   ];
-  const pedRun = { ...startRun(11), obstacles: pedObstacles };
+  // Started at the very bottom (world y: 0) rather than the default start
+  // line — CROWD_START_Y now sits exactly on this fixture's own y, which
+  // would overlap it from frame one instead of walking into it.
+  const pedRun = { ...startRun(11), x: CROWD_STREET_WIDTH / 2, y: 0, obstacles: pedObstacles };
   let r2 = pedRun;
   for (let i = 0; i < 600; i++) {
     r2 = step(r2, UPRIGHT, FRAME);
@@ -131,7 +141,7 @@ function collisions(): void {
   const bikeObstacles: LiveObstacle[] = [
     { id: 'b', kind: 'bicycle', x: CROWD_STREET_WIDTH / 2, y: 40, dir: 1, speed: 0, rx: 15, ry: 28, bounce: null, stunUntil: 0 },
   ];
-  const bikeRun = { ...startRun(12), obstacles: bikeObstacles };
+  const bikeRun = { ...startRun(12), x: CROWD_STREET_WIDTH / 2, y: 0, obstacles: bikeObstacles };
   let r3 = bikeRun;
   for (let i = 0; i < 600; i++) {
     r3 = step(r3, UPRIGHT, FRAME);
@@ -184,7 +194,7 @@ function traffic(): void {
   // obstacles visible", where the crowd near the player thinned to nothing
   // well before the finish line.
   const loopers: LiveObstacle[] = [
-    { id: 'l', kind: 'pedestrian', x: 100, y: CROWD_COURSE_LENGTH - 0.1, dir: 1, speed: CROWD_WALK_SPEED, rx: 14, ry: 20, bounce: null, stunUntil: 0 },
+    { id: 'l', kind: 'pedestrian', x: 100, y: CROWD_FINISH_Y - 0.1, dir: 1, speed: CROWD_WALK_SPEED, rx: 14, ry: 20, bounce: null, stunUntil: 0 },
   ];
   const loopRun: CrowdRun = { ...startRun(21), obstacles: loopers };
   const afterLoop = step(loopRun, FLAT, FRAME);

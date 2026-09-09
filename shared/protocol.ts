@@ -3367,10 +3367,11 @@ export const DARK_MAX_PLAYERS = PLAYERS['together-in-the-dark'][1];
 /**
  * World units are pixels at a nominal viewport, the same convenience
  * Asteroid Race's "ship lengths" is — nothing here is a real physical unit,
- * only a scale every phone agrees on. `CROWD_SCREEN_HEIGHT` is one viewport's
- * worth, and everything else is sized against it.
+ * only a scale every phone agrees on. **The street is fixed and fits on one
+ * screen, top to bottom — there is no scroll.** `CROWD_SCREEN_HEIGHT` is that
+ * one screen's own height, and everything else is sized against it.
  */
-export const CROWD_SCREEN_HEIGHT = 500;
+export const CROWD_SCREEN_HEIGHT = 600;
 
 /** The street's fixed width. A player's own `x` is clamped to it (spec §2);
  *  the canvas scales this to whatever the real viewport is. */
@@ -3378,29 +3379,44 @@ export const CROWD_STREET_WIDTH = 300;
 
 /**
  * The player's own walking speed, world units/s — and the pedestrian
- * obstacles' too (spec §2.2 treats them as the same crowd). One screen height
- * every ten seconds.
+ * obstacles' too (spec §2.2 treats them as the same crowd). The whole fixed
+ * screen, `CROWD_SCREEN_HEIGHT`, every ten seconds.
  */
-export const CROWD_WALK_SPEED = 50;
+export const CROWD_WALK_SPEED = 60;
 
 /** Twice a pedestrian's, the issue's own ratio. */
 export const CROWD_BICYCLE_SPEED = CROWD_WALK_SPEED * 2;
 
-/**
- * The finish line, in world units up the street. ~80 s of clean walking at
- * `CROWD_WALK_SPEED` — inside AGENTS.md §4's 30 s–3 min, and short of the
- * spec's own "1–2 min" once the crowd is actually in the way.
- */
-export const CROWD_COURSE_LENGTH = CROWD_WALK_SPEED * 80;
+/** The gap kept between the start and finish lines and the fixed screen's own
+ *  bottom and top edges — "a small margin", room to read each line as
+ *  a line rather than the screen's own boundary. */
+export const CROWD_EDGE_MARGIN = 40;
+
+/** Where a walker begins: a small margin up from world `y = 0`, the fixed
+ *  screen's own bottom edge — which is also the wall a bounce can push a
+ *  player back into, and never past (spec §2). */
+export const CROWD_START_Y = CROWD_EDGE_MARGIN;
+
+/** Crossing this world `y` — a small margin down from the top of the fixed
+ *  screen — finishes the race. */
+export const CROWD_FINISH_Y = CROWD_SCREEN_HEIGHT - CROWD_EDGE_MARGIN;
 
 /**
- * How much of the street, from the start line, is rolled with no obstacles
- * at all — the issue's own "3 screen heights", read as the width of the
- * cleared zone rather than a streaming-generation window (spec §2.2: the
- * whole course is dealt at once, the same arithmetic-field pattern Asteroid
- * Race uses, so there is no "current portion" to stream around).
+ * The real distance from start to finish, once both margins are spent — what
+ * an uninterrupted walk at `CROWD_WALK_SPEED` actually covers: well under
+ * `CROWD_SCREEN_HEIGHT` / `CROWD_WALK_SPEED` = 10 s, short of AGENTS.md §4's
+ * 30 s floor on its own — the crowd, not the geometry, is what makes a round
+ * last (spec §2).
  */
-export const CROWD_START_CLEAR = CROWD_SCREEN_HEIGHT * 3;
+export const CROWD_COURSE_LENGTH = CROWD_FINISH_Y - CROWD_START_Y;
+
+/**
+ * How far up from the start line the street is rolled with no obstacles at
+ * all, so nobody is bounced before taking a single step — a small buffer now
+ * that the whole course fits one fixed screen, not the "3 screen heights" a
+ * scrolling street would have needed (spec §2.2).
+ */
+export const CROWD_START_CLEAR = CROWD_START_Y + 40;
 
 /** Roughly how far apart, along the street, one dealt obstacle is from the
  *  next — a density the eye reads as "crowded" without every gap being
@@ -3437,8 +3453,11 @@ export const CROWD_BOUNCE_MS = 350;
  *  for this long before it resumes its dealt course. */
 export const CROWD_BIKE_STUN_MS = 2000;
 
-/** Nobody walks forever: past this the placings are decided on progress. */
-export const CROWD_RUN_CAP_MS = 150_000;
+/** Nobody walks forever: past this the placings are decided on progress.
+ *  A straight, uninterrupted walk is under 10 s now that the course fits one
+ *  fixed screen (`CROWD_COURSE_LENGTH`); this leaves generous room for the
+ *  crowd to actually slow that down without letting a round run long. */
+export const CROWD_RUN_CAP_MS = 60_000;
 
 /** How often a phone reports its own position (spec §6) — 4 Hz, since another
  *  player is scenery here, not something to collide with, and a quarter

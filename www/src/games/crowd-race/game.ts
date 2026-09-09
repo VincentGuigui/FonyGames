@@ -2,12 +2,12 @@ import {
   CROWD_BIKE_STUN_MS,
   CROWD_BOUNCE_IMPULSE,
   CROWD_BOUNCE_MS,
-  CROWD_COURSE_LENGTH,
+  CROWD_FINISH_Y,
   CROWD_OBSTACLE_SPACING,
   CROWD_PERSON_RX,
   CROWD_PERSON_RY,
-  CROWD_SCREEN_HEIGHT,
   CROWD_START_CLEAR,
+  CROWD_START_Y,
   CROWD_STREET_WIDTH,
   CROWD_WALK_SPEED,
 } from '../../../../shared/protocol';
@@ -73,10 +73,6 @@ export type LiveObstacle = ObstacleSpawn & {
 export type CrowdRun = {
   x: number;
   y: number;
-  /** High-water mark of `y`. A bounce may push `y` down, but never below
-   *  `bestY - CROWD_SCREEN_HEIGHT` (spec §2: "never off the bottom of the
-   *  screen", read as one screen height of give behind the best ever made). */
-  bestY: number;
   /** Last direction actually walked, unit vector. Held through a flat phone. */
   heading: { x: number; y: number };
   bounce: BounceState | null;
@@ -87,7 +83,7 @@ export type CrowdRun = {
   /** `"idA|idB"` pairs (lexically ordered) currently overlapping each other —
    *  the same new-touch rule, for obstacle-vs-obstacle. */
   obstacleTouching: Set<string>;
-  /** Clock time this player crossed `CROWD_COURSE_LENGTH`, or null. */
+  /** Clock time this player crossed `CROWD_FINISH_Y`, or null. */
   finishedAt: number | null;
   /** Milliseconds since this run started. */
   clockMs: number;
@@ -97,8 +93,7 @@ export function startRun(roundId: number): CrowdRun {
   const obstacles = dealStreet(roundId).map((o) => ({ ...o, bounce: null, stunUntil: 0 }));
   return {
     x: CROWD_STREET_WIDTH / 2,
-    y: 0,
-    bestY: 0,
+    y: CROWD_START_Y,
     heading: { x: 0, y: 1 },
     bounce: null,
     obstacles,
@@ -124,23 +119,21 @@ function clampObstacleX(o: LiveObstacle): LiveObstacle {
 }
 
 /** The band `dealStreet` actually populates — obstacles that walk out of it
- *  wrap back in at the other end rather than thinning out forever. Without
- *  this, a pedestrian walking at `CROWD_WALK_SPEED` covers the whole
- *  `CROWD_COURSE_LENGTH` in the time a typical run takes to finish, so the
- *  crowd near the player would empty out well before the finish line — found
- *  the same way as the clamp above, by actually walking a round to the point
- *  the local obstacle count visibly dropped to near zero.
+ *  wrap back in at the other end, keeping a continuous flow of traffic on a
+ *  fixed screen that is always fully visible (spec §2, §2.2) rather than
+ *  thinning out or piling up at one edge.
  *
  *  Only wraps at the boundary a body is actually walking *toward* — a
- *  down-street mover past the finish end, or an up-street mover past the
- *  start end — rather than snapping anything outside the band back in. A
+ *  down-street mover past the start end, or an up-street mover past the
+ *  finish end — rather than snapping anything outside the band back in. A
  *  fixture parked below `CROWD_START_CLEAR` (several tests place one at
- *  `y: 40` so a round trip does not need 30 s of frames) is not "exiting" the
- *  band by being there; only actual travel past the far end counts. */
-const CROWD_OBSTACLE_BAND = CROWD_COURSE_LENGTH - CROWD_START_CLEAR;
+ *  `y: 40` so a round trip does not need many seconds of frames) is not
+ *  "exiting" the band by being there; only actual travel past the far end
+ *  counts. */
+const CROWD_OBSTACLE_BAND = CROWD_FINISH_Y - CROWD_START_CLEAR;
 
 function wrapObstacleY(y: number, dir: 1 | -1): number {
-  if (dir === 1 && y > CROWD_COURSE_LENGTH) return y - CROWD_OBSTACLE_BAND;
+  if (dir === 1 && y > CROWD_FINISH_Y) return y - CROWD_OBSTACLE_BAND;
   if (dir === -1 && y < CROWD_START_CLEAR) return y + CROWD_OBSTACLE_BAND;
   return y;
 }
@@ -254,8 +247,10 @@ export function step(run: CrowdRun, tilt: { gamma: number | null; beta: number |
     py += heading.y * CROWD_WALK_SPEED * dtS;
   }
   px = clamp(px, CROWD_PERSON_RX, CROWD_STREET_WIDTH - CROWD_PERSON_RX);
-  const bestY = Math.max(run.bestY, py);
-  py = Math.max(py, bestY - CROWD_SCREEN_HEIGHT);
+  // The fixed screen's own bottom edge is the wall (spec §2: "never off the
+  // bottom of the screen") — not a ratchet that follows the player, since
+  // there is no camera to follow them with.
+  py = Math.max(py, 0);
 
   // 3. Obstacles: bounce, or stun, or their own dealt course.
   let obstacles = run.obstacles.map((o): LiveObstacle => {
@@ -299,7 +294,7 @@ export function step(run: CrowdRun, tilt: { gamma: number | null; beta: number |
     }
   }
 
-  const finishedAt = py >= CROWD_COURSE_LENGTH ? clockMs : null;
+  const finishedAt = py >= CROWD_FINISH_Y ? clockMs : null;
 
-  return { x: px, y: py, bestY, heading, bounce, obstacles, touching, obstacleTouching, finishedAt, clockMs };
+  return { x: px, y: py, heading, bounce, obstacles, touching, obstacleTouching, finishedAt, clockMs };
 }

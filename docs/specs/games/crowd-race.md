@@ -6,10 +6,10 @@
 | **Catchy sentence** | *Tilt through the crowd. First up the street wins* |
 | **Illustration** | `www/src/games/crowd-race/art/card.svg` — a busy street from above, avatars weaving between pedestrians and a bicycle, trees down both sides |
 | **Players** | 1–8 |
-| **Round length** | 1–2 min |
+| **Round length** | ~10–45 s of walking, capped at 60 s |
 | **Inputs** | orientation |
 | **Accent colour** | `#3EC1A6` |
-| **Status** | 🎮 beta — built; movement is an uncalibrated gravity read and the street is dealt privately per phone rather than broadcast, both corrected from this draft during the build (§2.2, §5); untested on real phones ([#25](https://github.com/VincentGuigui/FonyGames/issues/25)) |
+| **Status** | 🎮 beta — built; movement is an uncalibrated gravity read and the street is dealt privately per phone rather than broadcast, both corrected from this draft during the build (§2.2, §5); the whole street is a **fixed, one-screen board, not a scrolling course**, corrected after the first build (§2, §4); untested on real phones ([#25](https://github.com/VincentGuigui/FonyGames/issues/25)) |
 
 ## 1. Pitch
 
@@ -25,15 +25,21 @@ same crowd, and you can see them.
 
 You walk up the street automatically. Tilt to steer. Don't get bounced back.
 
+**The whole street is one fixed screen, not a scrolling course**: the
+start line sits a small margin up from the very bottom of the screen, the
+finish line a small margin down from the very top, and nothing ever scrolls —
+the entire course is visible, start to finish, for the whole round.
+
 1. Every phone deals the **street** itself — every obstacle's spawn position,
    kind and direction — from the round's own id, with nothing broadcast (§6).
-2. Players spawn distributed along the start line at the bottom.
-3. **Forward is automatic**, at `CROWD_WALK_SPEED`, in the *phone's own*
-   reference frame: up-screen is up-street, so a phone held upside down walks
-   its owner down the street. Tilt moves you across and along it (§5).
+2. Players spawn on the start line, `CROWD_START_Y` up from the bottom edge.
+3. **Forward is automatic**, at `CROWD_WALK_SPEED` (one `CROWD_SCREEN_HEIGHT`
+   every 10 s), in the *phone's own* reference frame: up-screen is up-street,
+   so a phone held upside down walks its owner down the street. Tilt moves you
+   across and along it (§5).
 4. You cannot leave the screen: the street's left and right edges are walls,
-   and the bottom of the viewport is a wall too — you can be pushed back down
-   the street, but never off the bottom of it.
+   and the very bottom edge of the fixed screen (world `y = 0`) is a wall too
+   — you can be pushed back down the street, but never past it.
 5. **Collisions bounce** (§2.1): pedestrians bounce, bicycles stop dead for
    `CROWD_BIKE_STUN_MS` (2 s), trees do not move at all.
 6. First player to cross the finish line at the top wins. Everyone else keeps
@@ -96,23 +102,25 @@ sync — would need streaming every obstacle's position at 60 Hz, the exact cost
 this profile exists to avoid.
 
 - **75% of moving obstacles walk down-street**, 25% up — so the crowd mostly
-  comes at you.
+  comes at you (`game.ts`'s own `y += dir * speed * dt`: down-street is `-1`,
+  the opposite sign from the player's own forward).
 - **Bicycles move at twice pedestrian speed** and are correspondingly rarer.
-- **The three screen-heights above the start line are cleared** of obstacles at
-  deal time, so nobody is bounced before they have taken a step.
+- **A small buffer above the start line is cleared** of obstacles at deal time
+  (`CROWD_START_CLEAR`), so nobody is bounced before they have taken a step —
+  a fixed few dozen units now that the whole course fits one screen, not the
+  multiple screen-heights a scrolling street would have needed.
 - **A moving obstacle wraps back into the dealt band** (`CROWD_START_CLEAR` to
-  the finish) once it walks out the far end, rather than walking on forever.
-  Found by actually walking a round to the finish: at `CROWD_WALK_SPEED`, a
-  pedestrian covers the whole course in about the time a typical run takes, so
-  without wrapping the crowd near the player would thin out to almost nothing
-  well before anyone reached the top of the street.
+  `CROWD_FINISH_Y`) once it walks out the far end, rather than walking off the
+  fixed board for good — the crowd reads as a continuous flow past the player
+  rather than draining away, which matters more now that the whole board is
+  always on screen at once (§2, §4).
 
 ## 3. Modes / variations
 
 | Mode | Blurb (one line, shown in the lobby) | Difference from core |
 | --- | --- | --- |
 | `race` | First up the street wins | baseline |
-| `rush-hour` | Twice the crowd, half the street | Shorter course, higher obstacle density — a 45 s version |
+| `rush-hour` | Twice the crowd | Higher obstacle density on the same fixed board — not yet implemented (`card.ts`'s own `modes: []`), and worth a fresh look now that the base course is already the short, fixed board this mode used to shrink toward |
 
 ## 4. Screens
 
@@ -120,16 +128,25 @@ Standard flow. The primer explains the inverted control (a phone upside down
 walks you backwards), because it is the one thing a player will otherwise
 discover by losing.
 
-The round screen is the street, scrolling under you, portrait:
+**The round screen is the whole street, fixed, portrait — it never scrolls.**
+The start line sits a small margin up from the bottom edge, the finish line a
+small margin down from the top, and both are visible for the entire round
+alongside everything between them. The fixed `CROWD_STREET_WIDTH` ×
+`CROWD_SCREEN_HEIGHT` rectangle is scaled to fit inside whatever the phone's
+own canvas is ("contain", not "cover"), so it is never cropped — a phone whose
+own aspect ratio does not exactly match gets a thin band of pavement at the
+sides or top/bottom instead.
 
-- **Your own avatar** is the reference point, held around the lower third of
-  the viewport so there is room to see what is coming.
+- **Your own avatar** moves within that fixed frame, wherever it actually is —
+  there is no camera to hold it in place, since the whole board already fits.
 - **Other players are their avatars**, drawn at their reported positions,
   slightly transparent so a pile-up stays readable. They are real obstacles to
   look at but **not** to collide with (§12 Q1).
 - **A progress rail** down one edge: the whole street, the finish line, and
-  every player's dot on it — the only place the field's shape is legible at a
-  glance.
+  every player's dot on it — a smaller-scale echo of the fixed board itself,
+  but still worth keeping once the board is legible on its own, since it is
+  the only place a player who is not looking at the canvas gets the standings
+  at a glance.
 
 ## 5. Inputs & sensors
 
@@ -257,8 +274,9 @@ position locally, and only the position travels
 
 - **Tilt-only is an exclusion**, and it is disclosed in the lobby before anyone
   starts (§5).
-- **Reduced motion**: the street still scrolls (it is the game), but the
-  screen-shake on a bounce is suppressed and the cascade is not embellished.
+- **Reduced motion**: the street is fixed and never scrolls to begin with; a
+  bounce still displaces bodies (it is the game), but any screen-shake on
+  impact is suppressed and the cascade is not embellished.
 - **Obstacles differ in silhouette**, not just colour — a bicycle is a
   different shape from a pedestrian, so the "which of these stuns me" rule is
   never a colour code.
@@ -281,19 +299,29 @@ position locally, and only the position travels
 3. **Mass**: pedestrians all identical, or a range? A cascade through
    identical bodies is easier to predict and probably easier to enjoy. Not
    changed in this build.
-4. ~~**How long the street is.**~~ Built as `CROWD_COURSE_LENGTH` = 4000 units
-   = 80 s of clean walking at `CROWD_WALK_SPEED`, before the crowd's own delay.
+4. ~~**How long the street is.**~~ Settled twice. First built as
+   `CROWD_COURSE_LENGTH` = 4000 units on a scrolling course; rebuilt as a
+   fixed, one-screen board — `CROWD_SCREEN_HEIGHT` = 600, so
+   `CROWD_COURSE_LENGTH` (the gap between the start and finish margins) is 520
+   — under 10 s of clean walking at `CROWD_WALK_SPEED`, before the crowd's own
+   delay.
 5. ~~**Whether being pushed back below the start line is possible.**~~ Built
-   as: no. The floor tracks `bestY - CROWD_SCREEN_HEIGHT`, one screen behind
-   the *best* the player has made, not a fixed line — so it rises with
-   progress and a player can never be knocked back to the start once they have
-   made headway.
+   as: yes, a little, but never off the bottom of the fixed screen. There is
+   no longer a *ratchet* floor that rises with progress — the scrolling course
+   that needed one is gone — so the wall is simply world `y = 0`, the fixed
+   screen's own bottom edge, a small margin below the start line itself.
 6. **No sensitivity setting** (§11) — this game's uncalibrated, un-gained
    `downVector` read means the gear-menu slider that helps Asteroid Race does
    nothing here. Worth its own adjustable floor (`CROWD_MIN_TILT`) or gain if
    a playtest finds it too twitchy or too dead.
 7. **Obstacles recycle by wrapping `y`, in place** (§2.2) — found necessary
-   during the build, not requested by the issue. A pedestrian that wraps keeps
-   its `x`, so the same lane empties and refills rather than reshuffling.
-   Worth a playtest: does the repeating pattern read as an obviously looping
-   street once a player is paying attention to it?
+   during the first build, and now central to the fixed-board redesign: since
+   the whole street is always on screen, a flowing crowd depends on it. A
+   pedestrian that wraps keeps its `x`, so the same lane empties and refills
+   rather than reshuffling. Worth a playtest: does the repeating pattern read
+   as an obviously looping street once a player is paying attention to it —
+   more likely now that the wrap point can be on screen at the same time as
+   the wrapped body, rather than off in an unseen part of a long course?
+8. **`rush-hour`'s own numbers are stale** (§3) — written against a scrolling
+   course that no longer exists, and not yet implemented. Worth a fresh design
+   pass once the base game has had a real playtest.

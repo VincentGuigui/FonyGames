@@ -1,11 +1,12 @@
 import {
   CROWD_AWAY_MS,
   CROWD_CLAIM_SLACK,
-  CROWD_COURSE_LENGTH,
+  CROWD_FINISH_Y,
   CROWD_MAX_PLAYERS,
   CROWD_MIN_PLAYERS,
   CROWD_REPORT_MS,
   CROWD_RUN_CAP_MS,
+  CROWD_START_Y,
   CROWD_STREET_WIDTH,
   CROWD_WALK_SPEED,
   type CrowdRaceState,
@@ -70,7 +71,7 @@ export function nextDeadline(s: CrowdRace): number {
 }
 
 function fresh(): CrowdWalkerRecord {
-  return { x: CROWD_STREET_WIDTH / 2, y: 0, finishedAt: null, away: false, lastReportAt: 0 };
+  return { x: CROWD_STREET_WIDTH / 2, y: CROWD_START_Y, finishedAt: null, away: false, lastReportAt: 0 };
 }
 
 /**
@@ -144,7 +145,11 @@ export async function onCrowdMove(
   if (Number.isFinite(y)) {
     const sinceStart = now - s.startsAt;
     const sinceLast = Math.min(now - p.lastReportAt, CROWD_AWAY_MS);
-    const ceiling = Math.min(reachableBy(sinceStart), p.y + reachableBy(sinceLast));
+    // `reachableBy` is a pure distance; a walker starts the race already at
+    // `CROWD_START_Y`, not world `y = 0`, so the since-start ceiling needs
+    // that baseline added back in — the since-last term does not, since it
+    // is added to `p.y`, which already carries it.
+    const ceiling = Math.min(CROWD_START_Y + reachableBy(sinceStart), p.y + reachableBy(sinceLast));
     // Never backwards: a phone that reconnects resumes from the referee's own
     // number (spec §7), so a stale frame cannot undo real progress — even
     // though a bounce can genuinely push a player's own `y` down on their
@@ -155,7 +160,7 @@ export async function onCrowdMove(
   p.lastReportAt = now;
   p.away = false;
 
-  if (p.y >= CROWD_COURSE_LENGTH) {
+  if (p.y >= CROWD_FINISH_Y) {
     // The finish TIME is the phone's own stamp, clamped into the window it
     // could honestly have happened in — it is what the results screen shows.
     // The finish itself is decided by this report arriving, not by that stamp.

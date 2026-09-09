@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
-import { CROWD_COURSE_LENGTH, CROWD_STREET_WIDTH } from '../../../../shared/protocol';
+import { CROWD_FINISH_Y, CROWD_SCREEN_HEIGHT, CROWD_START_Y, CROWD_STREET_WIDTH } from '../../../../shared/protocol';
 import type { CrowdRun } from './game';
 
 /**
@@ -17,12 +17,20 @@ import type { CrowdRun } from './game';
  * hitbox" is the issue's own rule, so drawing the hitbox *is* drawing the
  * obstacle, honestly, rather than a rough stand-in for one.
  *
- * **The camera scrolls vertically only.** `CROWD_STREET_WIDTH` is a fixed
- * logical width every phone agrees on, mapped 1:1 to the canvas's own width —
- * left and right never scroll, which is what lets a lateral dodge be judged
- * against the whole lane rather than a moving window of it. The player is
- * held two-thirds of the way down the screen (the "lower third" the spec
- * asks for), so there is room above to see the crowd coming.
+ * **The street is fixed, not scrolling**: the whole course, start to
+ * finish, always fits on one screen — there is no camera to follow the
+ * player with. The fixed `CROWD_STREET_WIDTH` x `CROWD_SCREEN_HEIGHT`
+ * rectangle is scaled to fit inside the canvas (`Math.min` of the two axis
+ * scales, "contain" rather than "cover"), so it never crops on a phone whose
+ * own aspect ratio is not exactly the world's, and centred so any leftover
+ * space is split evenly rather than pinned to one edge.
+ *
+ * World `y` grows upward (start near the bottom, finish near the top,
+ * "small margins" — spec §2, §4), but canvas pixels grow downward, so every
+ * world `y` this file draws is passed through `flip()` first. That is a
+ * scalar flip of the coordinate going in, not a negative `ctx.scale` — the
+ * latter would also mirror `fillText`'s glyphs (the player's and rivals' own
+ * avatars) upside down.
  */
 
 type Props = {
@@ -42,6 +50,7 @@ const TREE = '#2f6b3c';
 const PEDESTRIAN = '#c98a4b';
 const BICYCLE = '#3b6ea5';
 const FINISH = '#d64545';
+const START = '#8a9a8f';
 
 export function CrowdCanvas({ run, myAvatar, rivals, onFrame }: Props): JSX.Element {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -82,36 +91,38 @@ export function CrowdCanvas({ run, myAvatar, rivals, onFrame }: Props): JSX.Elem
       ctx.fillStyle = PAVEMENT;
       ctx.fillRect(0, 0, width, height);
 
-      // World units to pixels: the street's fixed width fills the canvas
-      // exactly, so the same scale applies to both axes and an ellipse never
-      // stretches (spec §4).
-      const scale = width / CROWD_STREET_WIDTH;
-      const viewWorldHeight = height / scale;
-      const cameraY = state.y - viewWorldHeight * (2 / 3);
+      // "Contain" fit: the whole fixed course is always fully visible, letter-
+      // or pillar-boxed rather than cropped on an aspect ratio the world
+      // rectangle does not exactly match.
+      const scale = Math.min(width / CROWD_STREET_WIDTH, height / CROWD_SCREEN_HEIGHT);
+      const offsetX = (width - CROWD_STREET_WIDTH * scale) / 2;
+      const offsetY = (height - CROWD_SCREEN_HEIGHT * scale) / 2;
+      const flip = (worldY: number): number => CROWD_SCREEN_HEIGHT - worldY;
 
       ctx.save();
+      ctx.translate(offsetX, offsetY);
       ctx.scale(scale, scale);
-      ctx.translate(0, -cameraY);
 
       // Kerb lines down both edges — the only scenery this street has beyond
       // the obstacles themselves, and enough to read as a street rather than
       // an empty grid.
       ctx.fillStyle = CURB;
-      ctx.fillRect(0, cameraY, 6, viewWorldHeight);
-      ctx.fillRect(CROWD_STREET_WIDTH - 6, cameraY, 6, viewWorldHeight);
+      ctx.fillRect(0, 0, 6, CROWD_SCREEN_HEIGHT);
+      ctx.fillRect(CROWD_STREET_WIDTH - 6, 0, 6, CROWD_SCREEN_HEIGHT);
 
-      // The finish line, if it is anywhere near visible.
-      if (CROWD_COURSE_LENGTH > cameraY - 40 && CROWD_COURSE_LENGTH < cameraY + viewWorldHeight + 40) {
-        ctx.fillStyle = FINISH;
-        ctx.fillRect(0, CROWD_COURSE_LENGTH - 4, CROWD_STREET_WIDTH, 8);
-      }
+      // The start line, a small margin up from the bottom, and the finish
+      // line, a small margin down from the top (spec §2, §4) — both always
+      // on screen, since the whole course is.
+      ctx.fillStyle = START;
+      ctx.fillRect(0, flip(CROWD_START_Y) - 3, CROWD_STREET_WIDTH, 6);
+      ctx.fillStyle = FINISH;
+      ctx.fillRect(0, flip(CROWD_FINISH_Y) - 4, CROWD_STREET_WIDTH, 8);
 
-      // Obstacles, culled to what could possibly be on screen.
+      // Obstacles — the whole board fits on screen, so nothing is culled.
       for (const o of state.obstacles) {
-        if (o.y < cameraY - o.ry - 20 || o.y > cameraY + viewWorldHeight + o.ry + 20) continue;
         ctx.fillStyle = o.kind === 'tree' ? TREE : o.kind === 'bicycle' ? BICYCLE : PEDESTRIAN;
         ctx.beginPath();
-        ctx.ellipse(o.x, o.y, o.rx, o.ry, 0, 0, Math.PI * 2);
+        ctx.ellipse(o.x, flip(o.y), o.rx, o.ry, 0, 0, Math.PI * 2);
         ctx.fill();
       }
 
@@ -121,17 +132,16 @@ export function CrowdCanvas({ run, myAvatar, rivals, onFrame }: Props): JSX.Elem
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       for (const rival of rivals()) {
-        if (rival.y < cameraY - 40 || rival.y > cameraY + viewWorldHeight + 40) continue;
         ctx.save();
         ctx.globalAlpha = 0.75;
-        ctx.fillText(rival.avatar, rival.x, rival.y);
+        ctx.fillText(rival.avatar, rival.x, flip(rival.y));
         ctx.restore();
       }
 
       // This phone's own avatar, always drawn last so it is never hidden
       // under the crowd.
       ctx.font = `${34}px system-ui, sans-serif`;
-      ctx.fillText(myAvatar, state.x, state.y);
+      ctx.fillText(myAvatar, state.x, flip(state.y));
 
       ctx.restore();
       frame = requestAnimationFrame(draw);
