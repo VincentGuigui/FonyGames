@@ -1,0 +1,79 @@
+/*
+ * Crowd Race. Spec: docs/specs/games/crowd-race.md §4
+ * Shared chrome (StatusBar, lobby) is styled by core; this file owns the
+ * board and the progress rail.
+ */
+
+.crowd {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--color-bg);
+}
+
+/* The board takes everything below the status bar: the street IS the screen. */
+.crowd__board {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.crowd__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Steering is tilting the phone, not touching the board. */
+  touch-action: none;
+}
+
+/* The whole street as one vertical strip, with everybody's dot on it —
+   bottom is the start line, top is the finish, matching the board itself. */
+.crowd__rail {
+  position: absolute;
+  top: 12%;
+  bottom: 12%;
+  right: var(--space-3);
+  width: 4px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.28);
+  pointer-events: none;
+}
+
+.crowd__dot {
+  position: absolute;
+  right: 50%;
+  translate: 50% 50%;
+  font-size: 1.1rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.9));
+}
+
+.crowd__dot--me {
+  font-size: 1.4rem;
+}
+
+.crowd__dot--away {
+  opacity: 0.35;
+}
+
+.crowd__countdown {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  font-size: clamp(4rem, 30vw, 9rem);
+  font-weight: 700;
+  color: var(--color-text);
+  background: rgb(11 9 16 / 0.45);
+  text-shadow: 0 4px 20px rgb(0 0 0 / 0.7);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crowd__countdown {
+    text-shadow: none;
+  }
+}

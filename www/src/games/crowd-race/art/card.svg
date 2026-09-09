@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" role="img" width="120" height="90">
+  <title>Crowd Race</title>
+  <rect width="120" height="90" fill="#151A16"/>
+  <!-- The street: a pavement band with a kerb down each side. Placeholder
+       art, by request — every body on it is its own ellipse hitbox, drawn,
+       until real transparent PNGs replace them (docs/design/illustrations.md). -->
+  <rect x="14" y="0" width="92" height="90" fill="#3A3F3A"/>
+  <rect x="14" y="0" width="4" height="90" fill="#C9C2A8"/>
+  <rect x="102" y="0" width="4" height="90" fill="#C9C2A8"/>
+
+  <!-- Trees down both sides. -->
+  <g fill="#2F6B3C">
+    <ellipse cx="9" cy="10" rx="7" ry="7"/>
+    <ellipse cx="111" cy="18" rx="7" ry="7"/>
+    <ellipse cx="8" cy="34" rx="7" ry="7"/>
+    <ellipse cx="112" cy="46" rx="7" ry="7"/>
+    <ellipse cx="9" cy="60" rx="7" ry="7"/>
+    <ellipse cx="111" cy="72" rx="7" ry="7"/>
+    <ellipse cx="8" cy="82" rx="7" ry="7"/>
+  </g>
+
+  <!-- A bicycle, longer than it is wide. -->
+  <ellipse cx="78" cy="30" rx="6" ry="11" fill="#3B6EA5"/>
+
+  <!-- Two pedestrians, coming the other way. -->
+  <ellipse cx="40" cy="20" rx="5.5" ry="8" fill="#C98A4B"/>
+  <ellipse cx="66" cy="62" rx="5.5" ry="8" fill="#C98A4B"/>
+
+  <!-- The player, weaving through — the accent colour, so the card and the
+       game agree on who you are. -->
+  <ellipse cx="52" cy="48" rx="6" ry="9" fill="#3EC1A6"/>
+</svg>
