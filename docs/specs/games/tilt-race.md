@@ -112,6 +112,20 @@ rather than a free guide, and it has to beat the spool to mean anything at all
 a half of contact to stop from cruise, and an immediate recovery the moment the
 car comes off.
 
+**The momentum, after either, follows the rail's own tangent — not the
+wheel.** A hit used to leave the car's direction of travel exactly wherever the
+wheel was already pointing, and since that is usually roughly at the wall (it
+is what caused the hit), the very next frame re-squared the car into the same
+rail before any of the surviving `along` speed had covered any distance —
+reading, on a real phone, as the car stopping dead rather than sliding. The
+skid lag (§2.2) is what is supposed to keep a car's own momentum independent
+of the wheel for a moment, but it only ran above cruise, and a hit routinely
+scrubs the car below it in the same frame — so a bumped car kept the lag one
+frame too briefly, in exactly the frame it mattered. Fixed by locking the
+momentum to the rail's tangent on contact and keeping the lag alive for as
+long as the car was touching a rail last frame, regardless of speed —
+`drive.ts`'s `step`, `drive.test.ts`'s own hard-angle-hit checks.
+
 `TILT_HEAD_ON` survives as a *presentation* threshold only: it decides whether
 the renderer plays the head-on shake or the graze one. The speed is continuous
 in the angle either way.
