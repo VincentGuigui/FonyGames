@@ -356,6 +356,14 @@ export type ClientMessage =
    * to record WHEN a crossing happened, never to decide that it did.
    */
   | { t: 'asteroid-report'; d: { roundId: number; distance: number; lives: number; hits: number; at: number } }
+  /**
+   * Crowd Race: this phone's own position, ~4×/s (spec §6). Nothing about the
+   * crowd is here — every obstacle is simulated privately on each phone, the
+   * same reason Asteroid Race's field never crosses the wire (spec §2.2) — so
+   * the only thing worth reporting is where the *player* actually is, which is
+   * what lets the room draw everyone else's avatar.
+   */
+  | { t: 'crowd-move'; d: { roundId: number; x: number; y: number; at: number } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
@@ -1015,6 +1023,35 @@ export type AsteroidRaceState = {
   phase: 'running' | 'done';
 };
 
+/** Crowd Race: one player's own last-reported position on the street. */
+export type CrowdWalker = {
+  x: number;
+  /** Up the street, world units. Never decreases within a round (spec §2). */
+  y: number;
+  /** Server time they crossed `CROWD_COURSE_LENGTH`, or null. */
+  finishedAt: number | null;
+  /** No report for `CROWD_AWAY_MS`: their avatar freezes where it was until
+   *  one arrives (spec §7), the same rule Asteroid Race's own ladder uses. */
+  away: boolean;
+};
+
+/**
+ * Crowd Race: the whole race, fully public — a player's own position is
+ * exactly what "you can see each other" (spec §1) needs the room to relay.
+ * The crowd itself is never here: every obstacle, bounce and cascade is
+ * simulated privately on each phone from `roundId` alone (spec §2.2), so
+ * there is nothing about the street for this type to carry.
+ */
+export type CrowdRaceState = {
+  roundId: number;
+  startsAt: number;
+  /** The safety cap (spec §7). Reaching it hands the race to whoever is furthest. */
+  endsAt: number;
+  walkers: Record<PlayerId, CrowdWalker>;
+  winner: PlayerId | null;
+  phase: 'running' | 'done';
+};
+
 /** Gravity Shooter: one of the two planets between the ships (spec §2.1).
  *  Rolled once by the referee at round start and never touched again. */
 export type GravityPlanet = {
@@ -1326,6 +1363,9 @@ export type ServerMessage =
   | { t: 'tilt'; s: number; d: TiltState }
   | { t: 'scream'; s: number; d: ScreamState }
   | { t: 'dark'; s: number; d: DarkState }
+  /** Crowd Race: every player's own last-reported position, plus the race's
+   *  own phase and winner. The crowd is never here (spec §2.2, §6). */
+  | { t: 'crowd'; s: number; d: CrowdRaceState }
   /** Color Hunt: the target in flight, and what the last one was worth. */
   | { t: 'color-hunt'; s: number; d: ColorHuntState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
@@ -2073,6 +2113,7 @@ const CLIENT_TYPES = new Set([
   'scream-score',
   'scream-level',
   'dark-act',
+  'crowd-move',
   'switch-game',
 ]);
 
@@ -3318,3 +3359,100 @@ export const DARK_RUN_CAP_TURNS = 200;
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const DARK_MIN_PLAYERS = PLAYERS['together-in-the-dark'][0];
 export const DARK_MAX_PLAYERS = PLAYERS['together-in-the-dark'][1];
+
+/* ------------------------------------------------------------------ */
+/* Crowd Race (docs/specs/games/crowd-race.md)                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * World units are pixels at a nominal viewport, the same convenience
+ * Asteroid Race's "ship lengths" is — nothing here is a real physical unit,
+ * only a scale every phone agrees on. `CROWD_SCREEN_HEIGHT` is one viewport's
+ * worth, and everything else is sized against it.
+ */
+export const CROWD_SCREEN_HEIGHT = 500;
+
+/** The street's fixed width. A player's own `x` is clamped to it (spec §2);
+ *  the canvas scales this to whatever the real viewport is. */
+export const CROWD_STREET_WIDTH = 300;
+
+/**
+ * The player's own walking speed, world units/s — and the pedestrian
+ * obstacles' too (spec §2.2 treats them as the same crowd). One screen height
+ * every ten seconds.
+ */
+export const CROWD_WALK_SPEED = 50;
+
+/** Twice a pedestrian's, the issue's own ratio. */
+export const CROWD_BICYCLE_SPEED = CROWD_WALK_SPEED * 2;
+
+/**
+ * The finish line, in world units up the street. ~80 s of clean walking at
+ * `CROWD_WALK_SPEED` — inside AGENTS.md §4's 30 s–3 min, and short of the
+ * spec's own "1–2 min" once the crowd is actually in the way.
+ */
+export const CROWD_COURSE_LENGTH = CROWD_WALK_SPEED * 80;
+
+/**
+ * How much of the street, from the start line, is rolled with no obstacles
+ * at all — the issue's own "3 screen heights", read as the width of the
+ * cleared zone rather than a streaming-generation window (spec §2.2: the
+ * whole course is dealt at once, the same arithmetic-field pattern Asteroid
+ * Race uses, so there is no "current portion" to stream around).
+ */
+export const CROWD_START_CLEAR = CROWD_SCREEN_HEIGHT * 3;
+
+/** Roughly how far apart, along the street, one dealt obstacle is from the
+ *  next — a density the eye reads as "crowded" without every gap being
+ *  identical (the actual gap is jittered per obstacle, §13). */
+export const CROWD_OBSTACLE_SPACING = 90;
+
+/** Share of moving obstacles walking down-street (toward the player) rather
+ *  than up it — the issue's own number. */
+export const CROWD_DOWN_STREET_SHARE = 0.75;
+
+/** Ellipse hitbox half-axes, world units: `x` half-width, `y` half-height.
+ *  People (players and pedestrians) are taller than wide from above; a tree
+ *  is round; a bicycle is longer than a person but no wider (spec §2.1). */
+export const CROWD_PERSON_RX = 14;
+export const CROWD_PERSON_RY = 20;
+export const CROWD_BICYCLE_RX = 15;
+export const CROWD_BICYCLE_RY = 28;
+export const CROWD_TREE_R = 18;
+
+/**
+ * The bounce's speed, world units/s, along the line between the two bodies'
+ * centres — a predefined constant for now, the issue's own words (§12 Q2 asks
+ * whether it should vary by what was hit).
+ */
+export const CROWD_BOUNCE_IMPULSE = 90;
+
+/** How long a bounce overrides a body's own normal movement before it
+ *  resumes walking (or, for an obstacle, its dealt course) under its own
+ *  power again. Long enough to read as a shove, short enough that a single
+ *  clip does not cost the whole race. */
+export const CROWD_BOUNCE_MS = 350;
+
+/** A bicycle you hit stops dead rather than bouncing — the issue's own rule —
+ *  for this long before it resumes its dealt course. */
+export const CROWD_BIKE_STUN_MS = 2000;
+
+/** Nobody walks forever: past this the placings are decided on progress. */
+export const CROWD_RUN_CAP_MS = 150_000;
+
+/** How often a phone reports its own position (spec §6) — 4 Hz, since another
+ *  player is scenery here, not something to collide with, and a quarter
+ *  second of staleness changes nothing about anyone's own run. */
+export const CROWD_REPORT_MS = 250;
+
+/** A run freezes after this long with no report, and no report may claim
+ *  more (spec §8) — Asteroid Race's own claim window, same reasoning. */
+export const CROWD_AWAY_MS = 3000;
+
+/** Half a second of walking's worth of slack in the anti-cheat bound, so
+ *  ordinary clock jitter is never punished. */
+export const CROWD_CLAIM_SLACK = CROWD_WALK_SPEED / 2;
+
+/** Derived from players.ts, so a card and its referee cannot disagree. */
+export const CROWD_MIN_PLAYERS = PLAYERS['crowd-race'][0];
+export const CROWD_MAX_PLAYERS = PLAYERS['crowd-race'][1];
