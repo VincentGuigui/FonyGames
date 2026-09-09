@@ -329,6 +329,48 @@ function rails(): void {
   check('and the scrape beats the spool, or a wall would be a free guide', TILT_SCRAPE_DECEL > TILT_CRUISE_SPEED, TILT_SCRAPE_DECEL);
 
   check('a clean lap step reports no bump', drive(startDrive(CIRCLE), STRAIGHT, 200, CIRCLE).bump === 'none');
+
+  /*
+   * A car that hit a rail slides along it — the rail decides the momentum,
+   * not the wheel — so a wheel still aimed roughly at the wall does not walk
+   * the car straight back into it the very next frame. That was the reported
+   * bug: a car that stopped dead on contact instead of sliding, speed
+   * dropping with the angle of the hit as `railKeep` already says it should.
+   *
+   * A harder-than-shallow angle on purpose: shallow already reads as a slide
+   * without this (`scraped` above), and 45 degrees was already a genuine
+   * possible read of "square". This is well past both.
+   */
+  const hardAngle = alongAngle + 0.8;
+  const hardHit: Drive = {
+    ...fast,
+    at: { x: at.at.x + normal.x * TRACK_HALF_WIDTH * 0.9, y: at.at.y + normal.y * TRACK_HALF_WIDTH * 0.9 },
+    heading: hardAngle,
+    base: hardAngle,
+    drift: hardAngle,
+  };
+  const bumped = untilBump(hardHit);
+  check('the wheel is still aimed roughly at the wall', bumped.bump !== 'none', bumped.bump);
+  // `sin` of the gap to the tangent line is 0 when parallel to it, whichever
+  // of the two directions along it — the sign is the car's own, not asserted
+  // here, only that the rail is what set it.
+  const gapToTangent = Math.abs(Math.sin(bumped.drift - alongAngle));
+  const gapToWheel = Math.abs(Math.sin(bumped.drift - hardAngle));
+  check(`the rail sets the momentum along its own tangent (gap ${gapToTangent.toFixed(2)} rad)`, gapToTangent < 0.05, bumped.drift);
+  check('not along the wheel, which is still pointed at the wall', gapToWheel > 0.3, { drift: bumped.drift, wheel: hardAngle });
+
+  // Held for one more frame, the SAME wheel angle: the momentum only lags
+  // toward it (the skid, kept alive by `car.bump` across this frame) rather
+  // than snapping straight there — which is what let the wheel drive the car
+  // back into the wall before it had slid anywhere.
+  const heldOn = step(CIRCLE, bumped, { roll: hardAngle - bumped.base, reverse: false }, FRAME);
+  const gapToTangentAfter = Math.abs(Math.sin(heldOn.drift - alongAngle));
+  const gapToWheelAfter = Math.abs(Math.sin(heldOn.drift - hardAngle));
+  check(
+    'a frame later the momentum has only lagged toward the wheel, not snapped to it',
+    gapToWheelAfter > 0.05 && gapToTangentAfter > gapToTangent,
+    { drift: heldOn.drift, tangent: alongAngle, wheel: hardAngle },
+  );
 }
 
 function reversing(): void {

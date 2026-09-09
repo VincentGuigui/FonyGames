@@ -165,8 +165,21 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
    * where it points. Above it, the momentum is a low-passed version,
    * so the car keeps some of its old direction through a turn and the last
    * fifth of the speed range is a cost as well as a gain (spec §2.2).
+   *
+   * **Except right after a rail hit.** A bump routinely scrubs the car below
+   * cruise in the same frame it happens, and an instant, lagless snap to
+   * `next.heading` the very next frame throws away the tangent-following
+   * direction the collision below just set the car sliding along — if the
+   * phone is still aimed roughly at the wall (which it is, moments after
+   * causing the hit), the car re-squares itself into the same rail before it
+   * has slid anywhere, which reads as stopping dead rather than sliding. So a
+   * car that bumped last frame (`car.bump`, set at the bottom of the branch
+   * below) keeps the lag regardless of speed, exactly as if it were still
+   * above cruise — the same skid time constant, not a new one, because this
+   * is the same physical claim: momentum a wheel angle cannot reorient
+   * instantly.
    */
-  if (Math.abs(next.speed) <= TILT_CRUISE_SPEED) {
+  if (Math.abs(next.speed) <= TILT_CRUISE_SPEED && car.bump === 'none') {
     next.drift = next.heading;
   } else {
     const k = 1 - Math.exp(-Math.max(0, dtMs) / TILT_SKID_TAU_MS);
@@ -227,6 +240,15 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
     next.index = after.index;
     next.s = after.s;
   }
+
+  // The wall, not the wheel, decides which way the car is now actually
+  // moving: the momentum the rail did not absorb runs along its own tangent,
+  // signed the way the car was already travelling (`along`'s own sign) rather
+  // than backing up mid-corner. Left as the pre-collision heading instead,
+  // the very next frame's skid check (above) would have nothing tangent-ish
+  // to lag FROM — this is what that lag is preserving.
+  const tangentAngle = Math.atan2(found.tangent.y, found.tangent.x);
+  next.drift = along >= 0 ? tangentAngle : tangentAngle + Math.PI;
   return next;
 }
 
