@@ -135,8 +135,8 @@ rasterises it to a `<canvas>` once per size bucket, and hands back something
 | sling-puck | the puck | felt, **the walls and the gap**, the band's V, the aim dashes, the arrival glow |
 | spill | the drop | the pool (two summed sines on level and tilt), the splash (age-driven) |
 | cat-and-mouse | the cat, the mouse (filled **and** hollow) | the floor and its grid, the grace ring (turns on a clock), the own-icon ring (depends who is looking) |
-| gravity-shooter | both ships, **flat-tinted per pilot's avatar** (below) | the star and planets, the missile's trail, the aim preview, the shot-clock blink |
-| tilt-race | the car, **flat-tinted to this phone's own avatar** (below) | the road surface, the rails, the start line, rivals (drawn as their own emoji, not a sprite) |
+| gravity-shooter | the ship, **hue-rotated per pilot's avatar** (below) | the star and planets, the missile's trail, the aim preview, the shot-clock blink |
+| tilt-race | the car, **hue-rotated to this phone's own avatar** (below) | the road surface, the rails, the start line, rivals (drawn as their own emoji, not a sprite) |
 | tap-duel | — | no canvas; the bullseye is CSS |
 
 ### A fill variant is derived, never maintained by hand
@@ -144,15 +144,15 @@ rasterises it to a `<canvas>` once per size bucket, and hands back something
 Cat and Mouse needs a mouse both filled and hollow (its §7). By the time canvas sees a
 sprite it is **pixels**, and filled-versus-hollow is a difference of *geometry*, not of
 colour — so no runtime trick produces one from the other. What canvas *can* do to a
-sprite is `globalAlpha` (free) and a flat recolour via an offscreen `source-in`
-composite (one extra raster per colour, so it competes with `MAX_RASTERS`) — the
-technique `core/art/tint.ts` actually implements, for the per-avatar ship/car tint
-below. Neither gives an outline: recolouring a solid silhouette outlines the whole blob
-and loses the ear as a separate ring.
+sprite is `globalAlpha` (free) and a recolour — flat, via an offscreen `source-in`
+composite (one extra raster per colour, so it competes with `MAX_RASTERS`), or
+detail-preserving, via a per-pixel hue rotation (`core/art/tint.ts`, below, for the
+per-avatar ship/car tint). Neither gives an outline: recolouring a solid silhouette
+outlines the whole blob and loses the ear as a separate ring.
 
 ### A per-player tint is a config file, read at runtime
 
-Gravity Shooter's ships and Tilt Race's car are recoloured to the pilot's own avatar —
+Gravity Shooter's ship and Tilt Race's car are recoloured to the pilot's own avatar —
 `core/avatarColor.ts` fetches `/avatar-colors.json` (`www/public/`, one flat
 `{ avatar: hex }` map) once, and `colorFor(avatar)` hands back a colour or `null`.
 **A config file, not a build-time constant**: retuning which hex a fox gets is a file
@@ -162,11 +162,22 @@ a non-200 or a malformed body leaves every avatar untinted rather than throwing,
 **nothing is awaited** — `colorFor` returns `null` on the very first frame, same as a
 sprite still loading, so a render loop never blocks on the network round trip.
 
-The recolour itself is `core/art/tint.ts`'s `tinted()` (the `source-in` composite
-above), wired into `core/art/sprites.ts`'s own `at(w, dpr, tint?)` for Gravity
-Shooter's ship (already routed through that cache) and called directly, once per
-colour, by Tilt Race's `TrackCanvas.tsx` for the car (a raw `Image`, outside that
-module for the reasons its own top comment gives). Fixed for the whole match by the
+**The recolour is a hue rotation, not a flat fill** — chosen specifically to keep the
+art's own detail. Both `www/src/games/gravity-shooter/art/ship.png` and
+`www/src/games/tilt-race/art/car.png` are painted once in a fixed reference hue, pure
+magenta (`core/art/tint.ts`'s `ART_REFERENCE_HUE`, 300°), and `tinted()` shifts every
+opaque, non-grey pixel's hue by the same delta toward the target colour. Black, white
+and every true grey have no hue to rotate and come back bit-for-bit identical — shading,
+outlines and highlights survive untouched — and two details painted at different hues in
+the source (say the hull and a lighter accent) stay at that same relative offset after
+the shift, just both carried to a new absolute hue. `rotatedPixel` and `hexHue` are the
+DOM-free half of that file and have their own test (`tint.test.ts`); `tinted()` itself
+needs a `<canvas>` and is covered by looking at a real round, same as `sprites.ts`.
+
+Wired into `core/art/sprites.ts`'s own `at(w, dpr, tint?)` for Gravity Shooter's ship
+(already routed through that cache) and called directly, once per colour, by Tilt
+Race's `TrackCanvas.tsx` for the car (a raw `Image`, outside that module for the
+reasons its own top comment gives). Fixed for the whole match by the
 avatar a player picked before it started, not something the physics or a game clock
 ever changes — the "state-driven drawing cannot be a static sprite" rule two
 paragraphs up is about a fill that moves over *time*, which this is not.

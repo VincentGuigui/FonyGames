@@ -427,9 +427,11 @@ Only `classic` at launch.
   continuously-animated board in this catalogue (Neon Fall §13, Tiles Surfer
   §4) — not a DOM-diffing job.
 
-  **Each ship is flat-tinted to its own pilot's avatar** when
-  `/avatar-colors.json` has an entry for it, on top of the existing
-  ship-a/ship-b art choice — `core/avatarColor.ts` and `core/art/tint.ts`,
+  **Each ship is hue-rotated to its own pilot's avatar** when
+  `/avatar-colors.json` has an entry for it — one shared ship art
+  (`art/ship.png`), self and opponent always given two different colours
+  even when an avatar has no entry (`SHIP_COLORS`, the fallback) —
+  `core/avatarColor.ts` and `core/art/tint.ts`,
   [illustrations.md §4](../../design/illustrations.md).
 
   **The life pips never spoil a shot still in flight.** The referee decides
