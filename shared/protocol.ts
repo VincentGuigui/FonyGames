@@ -3091,7 +3091,11 @@ export function mathAnswerMs(text: string): number {
  * asserts the circuit roller actually lands there.
  */
 export const TILT_CRUISE_SPEED = 100;
-export const TILT_TOP_SPEED = 120;
+/** Doubled from the issue's original 120 (maintainer request): a lap at full
+ *  speed now runs faster than `TILT_TARGET_LAP_MS` was tuned for, and the
+ *  tightest corners ask for more wrist than `TILT_CORNER_RATE` was judged
+ *  against — both accepted along with the extra speed, not fixed here. */
+export const TILT_TOP_SPEED = 240;
 
 /** How long each half of the spool takes: 0 → cruise, then cruise → top. */
 export const TILT_SPOOL_MS = 3_000;
