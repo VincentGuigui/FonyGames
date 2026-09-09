@@ -336,3 +336,12 @@ One a real phone raised, reversing a piece of §2.1/§5 as built:
    start pointing away from the road it is standing on, if a given track's own
    first stretch does not happen to run north — untested against whether that
    reads as confusing at the green light the way the old mismatch did.
+9. **`downVector`'s formula was wrong off the four poses it was validated
+   against.** A real phone raised this too: a steady roll read as changing
+   direction on its own when the phone was pitched back or forth, with nobody
+   touching the steering. The formula matched the actual device-orientation
+   rotation matrix only when `beta` or `gamma` sat at the extreme that zeroes
+   the missing cosine — true at "held upright," "upside down," and the two
+   edge-down poses, false everywhere else, which is any ordinary grip.
+   Corrected in `gravityButton.ts`; `gravityButton.test.ts` now also pins a
+   pose with both axes away from their extremes.

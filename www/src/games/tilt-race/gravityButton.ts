@@ -17,16 +17,28 @@
  *
  * This was first written as an *angle*, and the signs were guessed and wrong in
  * two of the four quadrants. A vector is the honest form, because it can be
- * derived rather than guessed. Gravity in device axes (X right, Y up the
- * screen, Z out of it) is
+ * derived rather than guessed — from the actual device-orientation rotation
+ * matrix (`Rz(alpha) Rx(beta) Ry(gamma)`, the W3C's own composition order),
+ * gravity in device axes (X right, Y up the screen, Z out of it) is
  *
- *     gx = -sin(gamma)
- *     gy = -sin(beta) * cos(gamma)
+ *     gx = cos(beta) * sin(gamma)
+ *     gy = -sin(beta)
  *     gz = -cos(beta) * cos(gamma)
  *
- * and the screen's own y runs *down*, i.e. along device −Y. So in screen
- * coordinates gravity points along `(-sin(gamma), sin(beta) * cos(gamma))`,
- * which every pose then checks out against:
+ * and the screen's own y runs *down*, i.e. along device −Y, while screen x runs
+ * opposite device X here. So in screen coordinates gravity points along
+ * `(-cos(beta) * sin(gamma), sin(beta))`, which every pose then checks out
+ * against:
+ *
+ * **A previous version had `(-sin(gamma), sin(beta) * cos(gamma))`** — missing
+ * `beta`'s cosine on the gamma term and carrying a spurious one on the beta
+ * term. The two formulas agree at the four poses below, because each one holds
+ * `beta` or `gamma` at a value whose cosine is 0 or 1 — but they disagree as
+ * soon as *both* are away from those extremes at once, which is any ordinary
+ * grip on the phone. Worse than a wrong number: holding a small, steady roll
+ * and simply pitching the phone back and forth (beta sweeping through 90°)
+ * flips the sign the old formula reported for that roll, which read as the car
+ * changing direction on its own from a motion that was not steering at all.
  *
  * | Pose | `beta` | `gamma` | Screen direction |
  * | --- | --- | --- | --- |
@@ -65,7 +77,7 @@ const RAD = Math.PI / 180;
 export function downVector(gamma: number | null, beta: number | null): ScreenVector {
   const g = (gamma ?? 0) * RAD;
   const b = (beta ?? 90) * RAD;
-  return { x: -Math.sin(g), y: Math.sin(b) * Math.cos(g) };
+  return { x: -Math.cos(b) * Math.sin(g), y: Math.sin(b) };
 }
 
 /**
