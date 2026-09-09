@@ -426,6 +426,12 @@ Only `classic` at launch.
   already is one. Rendered on `<canvas>`, the same reasoning as every other
   continuously-animated board in this catalogue (Neon Fall §13, Tiles Surfer
   §4) — not a DOM-diffing job.
+
+  **Each ship is flat-tinted to its own pilot's avatar** when
+  `/avatar-colors.json` has an entry for it, on top of the existing
+  ship-a/ship-b art choice — `core/avatarColor.ts` and `core/art/tint.ts`,
+  [illustrations.md §4](../../design/illustrations.md).
+
   **The life pips never spoil a shot still in flight.** The referee decides
   a hit and broadcasts the new life count the instant a `gravity-shot`
   arrives — seconds before either phone's own missile animation finishes —

@@ -15,7 +15,15 @@
  * - **A canvas, not the `Image`, is the blit source.** `drawImage` of an SVG `<img>`
  *   re-rasterises the vector on some engines on *every* call. Copying pixels once and
  *   blitting the copy is the point of the whole module.
+ *
+ * `at()`'s optional `tint` asks for a flat-recoloured raster instead of the art's own
+ * colours (`core/art/tint.ts`) — a per-player avatar colour being the reason this
+ * exists. It is one more raster per colour actually drawn, still bounded by the same
+ * `MAX_RASTERS`: a size and a tint together are the cache key, so a colour is evicted
+ * the same way an unused size already was.
  */
+
+import { tinted } from './tint';
 
 /** A rasterised piece of art, ready to blit. */
 export type Sprite = {
@@ -27,11 +35,12 @@ export type Sprite = {
 
 export type SpriteSheet = {
   /**
-   * The art rasterised to `w` CSS pixels wide at `dpr`.
+   * The art rasterised to `w` CSS pixels wide at `dpr` — flat-recoloured to
+   * `tint` when given, the art's own colours otherwise.
    *
    * Null while loading and null forever if it failed. Never blocks, never throws.
    */
-  at(w: number, dpr: number): Sprite | null;
+  at(w: number, dpr: number, tint?: string): Sprite | null;
   /** Resolves true once decoded, false if it failed. Never rejects. */
   loaded(): Promise<boolean>;
 };
@@ -64,7 +73,7 @@ export function art(url: string): SpriteSheet {
   if (existing) return existing;
 
   let state: 'loading' | 'ok' | 'failed' = 'loading';
-  const rasters = new Map<number, HTMLCanvasElement>();
+  const rasters = new Map<string, HTMLCanvasElement>();
   let ratio = 1;
 
   const img = new Image();
@@ -93,29 +102,35 @@ export function art(url: string): SpriteSheet {
   const sheet: Sheet = {
     url,
     loaded: () => settled,
-    at(w, dpr) {
+    at(w, dpr, tint) {
       if (state !== 'ok' || !(w > 0)) return null;
 
       const px = bucket(w, dpr);
-      let raster = rasters.get(px);
+      const key = tint ? `${px}|${tint}` : `${px}`;
+      let raster = rasters.get(key);
       if (!raster) {
-        raster = document.createElement('canvas');
-        raster.width = px;
-        raster.height = Math.max(1, Math.round(px / ratio));
-        const rctx = raster.getContext('2d');
-        if (!rctx) return null;
-        rctx.drawImage(img, 0, 0, raster.width, raster.height);
+        const height = Math.max(1, Math.round(px / ratio));
+        if (tint) {
+          raster = tinted(img, px, height, tint);
+        } else {
+          raster = document.createElement('canvas');
+          raster.width = px;
+          raster.height = height;
+          const rctx = raster.getContext('2d');
+          if (!rctx) return null;
+          rctx.drawImage(img, 0, 0, raster.width, raster.height);
+        }
 
         if (rasters.size >= MAX_RASTERS) {
           // Insertion order is iteration order, so the first key is the oldest.
           const oldest = rasters.keys().next().value;
           if (oldest !== undefined) rasters.delete(oldest);
         }
-        rasters.set(px, raster);
+        rasters.set(key, raster);
       } else {
-        // Touch it, so the least recently *used* size is the one evicted.
-        rasters.delete(px);
-        rasters.set(px, raster);
+        // Touch it, so the least recently *used* size/tint is the one evicted.
+        rasters.delete(key);
+        rasters.set(key, raster);
       }
 
       // Back in CSS pixels, which is the space every render loop draws in: all of

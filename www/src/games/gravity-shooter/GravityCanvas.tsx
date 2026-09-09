@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { art } from '../../core/art/sprites';
+import { colorFor, loadAvatarColors } from '../../core/avatarColor';
 import shipArtA from './art/ship-a.png?url&no-inline';
 import shipArtB from './art/ship-b.png?url&no-inline';
 import planetArtA from './art/planet-a.png?url&no-inline';
@@ -43,6 +44,9 @@ const PLANET_ART = [planetArtA, planetArtB, planetArtC].map((url) => art(url));
  *  `fighter1.png`/`fighter2.png` pair already uses. */
 const SHIP_ART: [ReturnType<typeof art>, ReturnType<typeof art>] = [art(shipArtA), art(shipArtB)];
 const missileSprite = art(missileArt);
+// Same "call at module scope" rule as `art()`'s own loads above — starts the
+// moment this game's chunk executes, well before a board mounts.
+loadAvatarColors();
 
 const BG_TOP = '#0a0a18';
 const BG_LOW = '#161033';
@@ -81,12 +85,16 @@ type Props = {
   onFlightEnd: (end: FlightEnd) => void;
   onShoot: (payload: { roundId: number; angle: number; strength: number; hit: boolean; flightMs: number }) => void;
   dying?: DyingShip | null;
+  /** Each seat's own avatar, `state.seats` order — tints that ship's sprite
+   *  (`docs/design/illustrations.md` §4) when `/avatar-colors.json` has an
+   *  entry for it, on top of the existing ship-a/ship-b art choice. */
+  seatAvatars: [string, string];
 };
 
-export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Props): JSX.Element {
+export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null, seatAvatars }: Props): JSX.Element {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const latest = useRef({ game, onFlightEnd, onShoot, dying });
-  latest.current = { game, onFlightEnd, onShoot, dying };
+  const latest = useRef({ game, onFlightEnd, onShoot, dying, seatAvatars });
+  latest.current = { game, onFlightEnd, onShoot, dying, seatAvatars };
 
   useEffect(() => {
     const element = canvas.current;
@@ -94,7 +102,7 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
     let frame = 0;
 
     const draw = (): void => {
-      const { game, onFlightEnd, dying } = latest.current;
+      const { game, onFlightEnd, dying, seatAvatars } = latest.current;
       const width = element.clientWidth;
       const height = element.clientHeight;
       if (width === 0 || height === 0) {
@@ -161,7 +169,7 @@ export function GravityCanvas({ game, onFlightEnd, onShoot, dying = null }: Prop
             : state.phase === 'running' && seat === state.turn
               ? shotClockPulseAlpha(turnElapsedMs)
               : 1;
-          drawShip(ctx, px.x, px.y, width, isSelf, local.y > 0.5, dpr, fade);
+          drawShip(ctx, px.x, px.y, width, isSelf, local.y > 0.5, dpr, colorFor(seatAvatars[seat]), fade);
         }
 
         // A live drag can outlive its own shot clock — `canAim` catches the
@@ -406,14 +414,27 @@ function drawStar(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
 }
 
 /** A half-circle-domed ship, 256x128 art (spec's own dimensions) — the dome
- *  points toward the opponent, i.e. away from local y = 1. */
-function drawShip(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidth: number, isSelf: boolean, domeUp: boolean, dpr: number, alpha = 1): void {
+ *  points toward the opponent, i.e. away from local y = 1. `tint`, when the
+ *  pilot's avatar has one (`core/avatarColor.ts`), flat-recolours the sprite
+ *  on top of the existing ship-a/ship-b choice (`docs/design/illustrations.md`
+ *  §4) — `null` draws the art's own colours, same as before this existed. */
+function drawShip(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  boardWidth: number,
+  isSelf: boolean,
+  domeUp: boolean,
+  dpr: number,
+  tint: string | null,
+  alpha = 1,
+): void {
   if (alpha <= 0) return;
   // `GRAVITY_SHIP_WIDTH`, not a literal: the hit radius is defined as half of
   // it (`game.ts`), so a ship drawn at some other size would be a ship whose
   // hitbox no longer matches its own image.
   const w = boardWidth * GRAVITY_SHIP_WIDTH;
-  const sprite = SHIP_ART[isSelf ? 0 : 1].at(w, dpr);
+  const sprite = SHIP_ART[isSelf ? 0 : 1].at(w, dpr, tint ?? undefined);
   if (sprite) {
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -433,7 +454,7 @@ function drawShip(ctx: CanvasRenderingContext2D, x: number, y: number, boardWidt
   }
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = SHIP_COLORS[isSelf ? 0 : 1];
+  ctx.fillStyle = tint ?? SHIP_COLORS[isSelf ? 0 : 1];
   ctx.beginPath();
   ctx.arc(x, y, w / 2, Math.PI, 0, !domeUp);
   ctx.closePath();

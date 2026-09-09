@@ -245,7 +245,13 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
           {pips(opponentLives)}
         </p>
         <div class="gravity__board">
-          <GravityCanvas game={game} onFlightEnd={onFlightEnd} onShoot={onShoot} dying={dying} />
+          <GravityCanvas
+            game={game}
+            onFlightEnd={onFlightEnd}
+            onShoot={onShoot}
+            dying={dying}
+            seatAvatars={[avatarOf(state.seats[0]), avatarOf(state.seats[1])]}
+          />
           {bursts.map((b) => (
             <img
               key={b.id}

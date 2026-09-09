@@ -149,6 +149,10 @@ spend their first ten seconds turning the wrong way.
 The round screen:
 
 - **The car**, dead centre, never moving on screen and never rotating.
+  Flat-tinted to this phone's own avatar when `/avatar-colors.json` has an
+  entry for it — `core/avatarColor.ts` and `core/art/tint.ts`,
+  [illustrations.md §4](../design/illustrations.md). Rivals stay their own
+  emoji glyph (below), never a coloured car of their own.
 - **The track**, rotating and translating under it, guardrails clearly drawn —
   the one thing that must be readable at speed.
 - **A speed readout** and the spool state, small, top-left.
