@@ -57,9 +57,12 @@ export const ROLL_MIN_GRAVITY = 0.25;
 export function rollAngle(gamma: number | null, beta: number | null): number | null {
   const down = downVector(gamma, beta);
   if (Math.hypot(down.x, down.y) < ROLL_MIN_GRAVITY) return null;
-  // `down` is (0, 1) when upright, so this measures from straight down and
-  // grows as the phone turns clockwise.
-  return Math.atan2(down.x, down.y);
+  // `down` is screen-relative gravity (`gravityButton.ts`'s own docstring has
+  // the why): it swings screen-*left* when the phone turns clockwise, since
+  // that is the mirror image of the device spinning the other way. This flips
+  // it back, so `down` is (0, 1) when upright and this measures from straight
+  // down, growing as the phone turns clockwise rather than shrinking.
+  return Math.atan2(-down.x, down.y);
 }
 
 /** Shortest signed angle from `a` to `b`, in −π..π. */

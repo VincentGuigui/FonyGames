@@ -363,3 +363,13 @@ One a real phone raised, reversing a piece of §2.1/§5 as built:
    edge-down poses, false everywhere else, which is any ordinary grip.
    Corrected in `gravityButton.ts`; `gravityButton.test.ts` now also pins a
    pose with both axes away from their extremes.
+10. **The reverse button was sliding to the edge opposite the player's
+    thumb.** A second sign bug in the same vector, and the exact failure mode
+    #9's own doc warns about: `downVector`'s `x` had picked up an extra `-`
+    somewhere along the way — correct for `roll.ts`'s own "clockwise on the
+    wrist is clockwise on the road" need, backwards for the button's much
+    simpler "which edge is lowest right now." Fixed by keeping `downVector`
+    as the raw screen direction and moving the compensating `-` into
+    `rollAngle`, where the clockwise convention actually lives;
+    `gravityButton.test.ts` now also checks `reverseSpot` end to end, not
+    just `downVector`'s raw output, which is what let this one through.
