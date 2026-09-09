@@ -25,10 +25,11 @@
  *     gy = -sin(beta)
  *     gz = -cos(beta) * cos(gamma)
  *
- * and the screen's own y runs *down*, i.e. along device −Y, while screen x runs
- * opposite device X here. So in screen coordinates gravity points along
- * `(-cos(beta) * sin(gamma), sin(beta))`, which every pose then checks out
- * against:
+ * Device X and screen X point the same way — both "right", with no screen
+ * rotation in play — so `gx` carries straight over. Only Y needs flipping: the
+ * screen's own y runs *down*, i.e. along device −Y. So in screen coordinates
+ * gravity points along `(cos(beta) * sin(gamma), sin(beta))`, which every pose
+ * then checks out against:
  *
  * **A previous version had `(-sin(gamma), sin(beta) * cos(gamma))`** — missing
  * `beta`'s cosine on the gamma term and carrying a spurious one on the beta
@@ -40,16 +41,34 @@
  * flips the sign the old formula reported for that roll, which read as the car
  * changing direction on its own from a motion that was not steering at all.
  *
+ * **A later version also carried an extra `-` on `gx`**, copied over from
+ * `roll.ts`'s own need (below) without noticing the two consumers want
+ * opposite things here. It passed every test in this file because the pose
+ * table's "right"/"left" labels were guessed to match the wrong sign instead
+ * of a real phone — the button then slid to the edge opposite the player's
+ * thumb, which is this vector's own stated worst failure mode (above).
+ *
  * | Pose | `beta` | `gamma` | Screen direction |
  * | --- | --- | --- | --- |
  * | held upright | 90 | 0 | `(0, 1)` — down the screen |
  * | upside down | −90 | 0 | `(0, −1)` — up the screen |
- * | right edge down | 0 | −90 | `(1, 0)` — screen right |
- * | left edge down | 0 | 90 | `(−1, 0)` — screen left |
+ * | right edge down | 0 | 90 | `(1, 0)` — screen right |
+ * | left edge down | 0 | −90 | `(−1, 0)` — screen left |
  *
  * Note this is a statement about *gravity*, and deliberately independent of the
  * steering's own sign convention in `core/sensors/steer.ts`: the button goes
  * where down is, whichever way tilting happens to steer.
+ *
+ * ## Why `roll.ts` negates this vector's `x` and this file does not
+ *
+ * `roll.ts` wants "clockwise on the wrist is clockwise on the road" — but
+ * screen-relative gravity turns the *other* way from the device: spin the
+ * phone clockwise in your hand and, relative to its own now-rotated screen,
+ * the (externally fixed) pull of gravity swings counter-clockwise, the way a
+ * car ahead appears to curve one way when you are the one steering the other.
+ * `rollAngle` corrects for that with its own `-`. This vector stays the raw,
+ * uncorrected screen direction, because the button has no such correction to
+ * make — it only ever needs to know which edge is lowest right now.
  */
 
 /** A position on the screen's edge, as a fraction of width and height. */
@@ -77,7 +96,7 @@ const RAD = Math.PI / 180;
 export function downVector(gamma: number | null, beta: number | null): ScreenVector {
   const g = (gamma ?? 0) * RAD;
   const b = (beta ?? 90) * RAD;
-  return { x: -Math.cos(b) * Math.sin(g), y: Math.sin(b) };
+  return { x: Math.cos(b) * Math.sin(g), y: Math.sin(b) };
 }
 
 /**

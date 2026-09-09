@@ -41,16 +41,16 @@ function directions(): void {
 
   check('held upright, down is down the screen', near(downVector(0, 90), 0, 1), downVector(0, 90));
   check('upside down, down is up the screen', near(downVector(0, -90), 0, -1), downVector(0, -90));
-  check('right edge down, down is screen right', near(downVector(-90, 0), 1, 0), downVector(-90, 0));
-  check('left edge down, down is screen left', near(downVector(90, 0), -1, 0), downVector(90, 0));
+  check('right edge down, down is screen right', near(downVector(90, 0), 1, 0), downVector(90, 0));
+  check('left edge down, down is screen left', near(downVector(-90, 0), -1, 0), downVector(-90, 0));
   check('flat on a table, there is no in-plane direction', Math.hypot(downVector(0, 0).x, downVector(0, 0).y) < 1e-9);
 
   // Halfway poses land between, and the two rolls are mirror images. The pull
   // is `cos(beta)`-attenuated here rather than the full `sin(45°)` a roll
   // alone would give, because this pose is *also* pitched 45° from upright —
   // exactly the coupling whose absence is the point (see the module doc).
-  const rolledRight = downVector(-45, 45);
-  const rolledLeft = downVector(45, 45);
+  const rolledRight = downVector(45, 45);
+  const rolledLeft = downVector(-45, 45);
   check('a roll one way has a rightward pull', rolledRight.x > 0, rolledRight);
   check('and the other a leftward one', rolledLeft.x < 0, rolledLeft);
   check('and they mirror', Math.abs(rolledRight.x + rolledLeft.x) < 1e-9 && Math.abs(rolledRight.y - rolledLeft.y) < 1e-9);
@@ -63,8 +63,8 @@ function directions(): void {
   // vertical presents its rolled edge to gravity from the other side — rather
   // than freezing at whatever sign the roll alone would have given, which is
   // what the old formula did.
-  check('a roll reads through a forward pitch', near(downVector(-12, 60), 0.10395584540887969, 0.8660254037844386));
-  check('and the opposite sign through a backward one', near(downVector(-12, 120), -0.10395584540887962, 0.8660254037844387));
+  check('a roll reads through a forward pitch', near(downVector(-12, 60), -0.1039558454088797, 0.8660254037844386));
+  check('and the opposite sign through a backward one', near(downVector(-12, 120), 0.10395584540887963, 0.8660254037844387));
 
   check('a missing reading is treated as upright', near(downVector(null, null), 0, 1));
 }
@@ -121,6 +121,15 @@ function edges(): void {
 
 function freezing(): void {
   console.log('\nheld means frozen (§2)');
+
+  // The end-to-end path from a pose to the button's own edge, not just
+  // `downVector`'s raw direction: this is what would have caught the version
+  // that got `downVector`'s own sign right but the button's use of it
+  // backwards (module doc, "A later version also carried an extra `-`").
+  const rightEdge = reverseSpot(90, 0, false, null);
+  check('right edge down puts the button on the right edge', rightEdge.x > 0.8, rightEdge);
+  const leftEdge = reverseSpot(-90, 0, false, null);
+  check('left edge down puts the button on the left edge', leftEdge.x < 0.2, leftEdge);
 
   const upright = reverseSpot(0, 90, false, null);
   check('not held, it follows the phone', upright.y > 0.8);
