@@ -30,9 +30,10 @@ viewer, never two different boards.
 
 1. Host starts the round. Three planets are placed once, at random positions
    and sizes, identical on both screens (§2.1) — and never a board without a
-   shot that lands on it. Ships are fixed near their
-   own edge and never move — a 20px further margin than the original brief
-   (issue #16), so neither ship reads as sitting right on the border.
+   shot that lands on it. Ships are fixed near their own edge and never move —
+   at the original brief's own 0.08 margin (`GRAVITY_SHIP_MARGIN`); issue #16
+   had asked for a further 20px, and a later report asked for it back, so the
+   ships now sit that 20px closer to their edge again.
 2. Turns strictly alternate, host first. On your turn, touch above your own
    ship — the finger's own position relative to the ship sets your shot's
    angle and strength; the missile fires toward wherever your finger is,
@@ -601,13 +602,16 @@ readable by a screen reader like any other status bar in this catalogue.
   particular is a real wait if it happens often; worth revisiting after a
   playtest if it reads as dead air rather than a shot still worth watching.
   Worth noting how the speed changes moved these around. A straight,
-  gravity-free crossing now takes about 2.6s at full strength and about 10.2s
-  at the floor, so the 20s ONSCREEN budget still only ever governs a shot
-  gravity has bent into looping or lingering. The 7s OFFSCREEN budget,
-  however, went from unreachable back to load-bearing when the minimum
-  impulse was halved: at the old floor a sideways shot crossed the margin to
-  the outer wall in about 4s and the wall always ended it first, where now it
-  cannot get there inside 7s and the budget does the ending — which is what
+  gravity-free crossing now takes about 2.4s at full strength and about 9.5s
+  at the floor — both a touch longer again since the ships moved 20px back
+  toward their own edge, which raises the board's own height and so both ends
+  of the launch-speed range with it — so the 20s ONSCREEN budget still only
+  ever governs a shot gravity has bent into looping or lingering. The 7s
+  OFFSCREEN budget, however, went from unreachable back to load-bearing when
+  the minimum impulse was halved: at the old floor a sideways shot crossed the
+  margin to the outer wall in about 4s and the wall always ended it first,
+  where now it cannot get there inside 7s and the budget does the ending —
+  which is what
   the budget is for.
 - **The star's own size range (30–60px, §2.1)** is an untested first pick. It
   is deliberately narrower than the planets' 20–100px, because the star is

@@ -13,6 +13,7 @@ import {
   GRAVITY_SHIP_HEIGHT,
   GRAVITY_SHOT_BLINK_MAX_HZ,
   GRAVITY_SHOT_BLINK_START_MS,
+  GRAVITY_SIM_BOUNDS_MAX,
   GRAVITY_STEP_MS,
   GRAVITY_PLAYBACK_RATE,
   GRAVITY_MAX_STEPS,
@@ -267,9 +268,14 @@ function lifetime(): void {
   check('and still ends as a miss', grazing.hit === false);
   check('one offscreen budget after leaving, not a moment more',
     Math.abs(timeOffscreen - GRAVITY_OFFSCREEN_LIFETIME_MS) < GRAVITY_STEP_MS, timeOffscreen);
+  // `timeOffscreen` above already pins the budget as the actual cause; this
+  // only needs to rule out the OTHER possible ending, the outer wall itself
+  // (`GRAVITY_SIM_BOUNDS_MAX`) — which a smaller `GRAVITY_SHIP_MARGIN` brings
+  // this grazing shot noticeably closer to than it used to be, since the
+  // floor speed it launches at rises with the board's own (now taller) height.
   const last = grazing.path.at(-1);
-  check('and well inside the outer wall, so the budget ended it — not the wall',
-    !!last && last.x < 1.5 - 0.05, last);
+  check('and inside the outer wall, so the budget ended it — not the wall',
+    !!last && last.x < GRAVITY_SIM_BOUNDS_MAX, last);
 
   // A shot aimed just past the opponent, missing by more than the hit
   // radius: once it flies beyond that row, "past" always wins over
@@ -294,10 +300,14 @@ function lifetime(): void {
  * the hitbox to the ship's full width shortened both (the missile counts as
  * arrived further out), and launching from the tip rather than the hull's
  * middle (issue #37) took a hull height off the front of every flight — a
- * shorter one since that height was corrected to a world-y distance.
+ * shorter one since that height was corrected to a world-y distance. Bringing
+ * the ships 20px back in from the edge lengthened both again: the board
+ * itself (`GRAVITY_BOARD_HEIGHT`) is now taller, which raises both ends of the
+ * speed range along with it (`GRAVITY_MIN/MAX_LAUNCH_SPEED`), but a taller
+ * board to cross wins out over a faster launch.
  */
-const GRAVITY_FREE_MIN_IMPULSE_FRAMES = 549;
-const GRAVITY_FREE_MAX_IMPULSE_FRAMES = 138;
+const GRAVITY_FREE_MIN_IMPULSE_FRAMES = 570;
+const GRAVITY_FREE_MAX_IMPULSE_FRAMES = 143;
 
 function impulseRange(): void {
   console.log('\nlaunch speed is capped, floored, and shaped by launch intensity (follow-up after #16)');
@@ -321,10 +331,10 @@ function impulseRange(): void {
   const weakest = simulateShot(noPlanets, 0, 0, 0);
   const strongest = simulateShot(noPlanets, 0, 0, 1);
   check('the weakest pull still reaches the opponent', weakest.hit === true);
-  check('taking about 9.2s — the slow end of the display range',
+  check('taking about 9.5s — the slow end of the display range',
     weakest.path.length - 1 === GRAVITY_FREE_MIN_IMPULSE_FRAMES, weakest.path.length - 1);
   check('a full-strength pull also reaches the opponent', strongest.hit === true);
-  check('taking about 2.3s — the fast end of the display range',
+  check('taking about 2.4s — the fast end of the display range',
     strongest.path.length - 1 === GRAVITY_FREE_MAX_IMPULSE_FRAMES, strongest.path.length - 1);
   check('and the weakest is four times the slowest — the impulse range itself',
     Math.abs(GRAVITY_MAX_LAUNCH_SPEED / GRAVITY_MIN_LAUNCH_SPEED - 4) < 1e-9,
