@@ -1,7 +1,23 @@
-import { TILT_UPRIGHT_HEADING, progress, railKeep, spoolFor, startDrive, step, type Drive, type DriveInput } from './drive';
 import {
+  CAR_CORNER_RADIUS,
+  TILT_UPRIGHT_HEADING,
+  carContact,
+  carCorners,
+  carFits,
+  progress,
+  skidToward,
+  spoolFor,
+  startDrive,
+  step,
+  type Drive,
+  type DriveInput,
+} from './drive';
+import {
+  TILT_CAR_LENGTH,
+  TILT_CAR_WIDTH,
   TILT_CORNER_RATE,
   TILT_CRUISE_SPEED,
+  TILT_RAIL_DRIVE,
   TILT_REVERSE_SPEED,
   TILT_SCRAPE_DECEL,
   TILT_SKID_TAU_MS,
@@ -66,12 +82,17 @@ const TRACK = rollTrack(seeded(11)) as Track;
  *
  * The radius is chosen so a car going straight stays on the road for the
  * longest run any test here does: the drift off a circle of radius R after
- * distance d is about d² / 2R, and 7.5 s covers ~800 units, so R = 20000 keeps
- * that under 17 units against a half-width of 36. At 6000 — the first guess,
- * sized for a 6 s run — a 7.5 s run drifted 53 units and grazed the rail near
- * the end, so the "above cruise" fixtures were arriving already stopped.
+ * distance d is about d² / 2R, and 7.5 s covers ~1200 units.
+ *
+ * **Sized up once the car became a body rather than a point.** At R = 20000
+ * that drift is ~36 units, which a point car got away with against a
+ * half-width of 36 and a 31-wide car does not: half the body plus its corner
+ * rounding is already 18 of the 36, so the spool and skid fixtures arrived at
+ * the rail part-way through and were measuring a scrape instead of the curve
+ * they exist to measure. R = 200000 puts the drift back under 4 units and
+ * leaves the straight genuinely straight.
  */
-function circleTrack(radius = 20000, steps = 720): Track {
+function circleTrack(radius = 200000, steps = 720): Track {
   const points = [];
   for (let i = 0; i < steps; i++) {
     const a = (i / steps) * Math.PI * 2;
@@ -205,171 +226,337 @@ function skidding(): void {
   check('but it does follow, rather than sticking', Math.abs(turnedFast.drift - fast.drift) > 0);
 
   /*
-   * The lag settles rather than growing. Held at full tilt the car leaves the
-   * road in a fifth of a second and the collision drops it below cruise, which
-   * switches the skid off — so the first version of this measured a crash and
-   * read a gap of exactly zero. Pinning the car to the centreline each frame
-   * isolates the rotational state, which is all this assertion is about:
-   * `step` derives `heading` and `drift` from the input and the previous pair,
-   * never from the position.
+   * The lag settles rather than growing — measured on the filter itself
+   * (`skidToward`), not by driving.
+   *
+   * A wrist turning steadily through every angle is exactly what a body 70
+   * long cannot do on a road 72 wide: past ~0.9 rad across it the car is
+   * wedged between both rails, so a driven version of this measures the
+   * collision rather than the lag (it read a gap of 7.2 rad, the drift held
+   * on a rail while the heading span). Nothing about the lag depends on the
+   * track, so this tests it without one.
    */
-  let held = fast;
-  let turned = 0;
-  for (let i = 0; i < 120; i++) {
+  let drift = 0;
+  let heading = 0;
+  for (let i = 0; i < 300; i++) {
     // A wrist turning steadily at the rate the tightest corner demands, which
     // is the worst case the circuit can actually ask for.
-    turned += TILT_CORNER_RATE * (FRAME / 1000);
-    held = step(CIRCLE, held, { roll: turned, reverse: false }, FRAME);
-    const on = atArc(CIRCLE, held.s);
-    held = { ...held, at: { x: on.at.x, y: on.at.y } };
+    heading += TILT_CORNER_RATE * (FRAME / 1000);
+    drift = skidToward(drift, heading, FRAME);
   }
   /*
    * A constant turn rate against a first-order lag settles at `w × t` radians,
    * so this is the product of the two constants rather than a number picked by
    * eye — which is what makes it fail if either is changed alone.
    */
-  const gap = Math.abs(held.heading - held.drift);
+  const gap = Math.abs(heading - drift);
   const steady = TILT_CORNER_RATE * (TILT_SKID_TAU_MS / 1000);
   check(`the skid settles at w x t = ${steady.toFixed(2)} rad, and it did (${gap.toFixed(2)})`, Math.abs(gap - steady) < 0.05, { gap, steady });
   check(`which is a slide (${((steady * 180) / Math.PI).toFixed(0)} deg), not a spin`, steady < 0.7, steady);
-  check('and the car is still at speed, so it really was skidding', held.speed > TILT_CRUISE_SPEED, held.speed);
+  check('a still wrist lets the momentum catch all the way up', Math.abs(skidToward(0.4, 0, 10_000)) < 1e-6, skidToward(0.4, 0, 10_000));
+  check('and it only ever closes the gap, never overshoots it', (() => {
+    let d = 0;
+    for (let i = 0; i < 200; i++) {
+      const stepped = skidToward(d, 1, FRAME);
+      if (stepped < d || stepped > 1) return false;
+      d = stepped;
+    }
+    return Math.abs(d - 1) < 0.01;
+  })());
+}
+
+/** The circle's own geometry at the fixture point, for the rail tests. */
+const RAIL_AT = atArc(CIRCLE, CIRCLE.length * 0.5);
+const RAIL_NORMAL = { x: -RAIL_AT.tangent.y, y: RAIL_AT.tangent.x };
+const RAIL_ALONG = Math.atan2(RAIL_AT.tangent.y, RAIL_AT.tangent.x);
+
+/**
+ * A car up to speed, on the centreline, pointed `angle` radians off the rail's
+ * own direction — and `base` set to match, because the heading is derived from
+ * `base + roll` every frame, so a fixture that set only `heading` would be
+ * steered straight again by the next step.
+ *
+ * On the centreline rather than a hair off the rail, as the point-car fixtures
+ * used to be: a body 31 units wide placed at 0.9 of the half-width is already
+ * through the rail before the test starts. Aiming it across the road and
+ * letting it drive into the rail is the honest way to stage a hit now.
+ */
+function aimedAt(angle: number, speed?: number): Drive {
+  const fast = drive(startDrive(CIRCLE, CIRCLE.length * 0.5), STRAIGHT, TILT_SPOOL_MS * 2.5, CIRCLE);
+  const heading = RAIL_ALONG + angle;
+  return {
+    ...fast,
+    at: { x: RAIL_AT.at.x, y: RAIL_AT.at.y },
+    heading,
+    base: heading,
+    drift: heading,
+    speed: speed ?? fast.speed,
+  };
+}
+
+/**
+ * Step until the body actually touches a rail, and hand back that frame **and
+ * the one before it** — the speed a hit costs can only be read against what
+ * the car was carrying the instant before it, not against the fixture's
+ * opening speed, because it keeps spooling on the way to the wall.
+ */
+function untilBump(from: Drive, frames = 120): { hit: Drive; before: Drive } {
+  let car = from;
+  for (let i = 0; i < frames; i++) {
+    const next = step(CIRCLE, car, { roll: car.heading - car.base, reverse: false }, FRAME);
+    if (next.bump !== 'none') return { hit: next, before: car };
+    car = next;
+  }
+  return { hit: car, before: car };
+}
+
+/**
+ * The steepest angle across the road a body this long can actually be held at.
+ *
+ * Solved rather than guessed: a box of half-extents `l` and `w` turned `θ` off
+ * the road reaches `l·sinθ + w·cosθ` across it, and that plus the corner
+ * radius has to fit inside `TRACK_HALF_WIDTH`. Past it there is NO position on
+ * the road that holds the car — it is touching both rails at once.
+ */
+const WEDGE_ANGLE = (() => {
+  const l = TILT_CAR_LENGTH / 2 - CAR_CORNER_RADIUS;
+  const w = TILT_CAR_WIDTH / 2 - CAR_CORNER_RADIUS;
+  const room = TRACK_HALF_WIDTH - CAR_CORNER_RADIUS;
+  const amp = Math.hypot(l, w);
+  return Math.asin(Math.min(1, room / amp)) - Math.atan2(w, l);
+})();
+
+function theBody(): void {
+  console.log('\nthe collision box is the car, not a point at its centre (§2.3)');
+
+  const box = carCorners({ x: 0, y: 0 }, 0);
+  check('a pose has four corners', box.length === 4);
+  // Heading 0 is +x, so "along" is x and "across" is y.
+  const spanX = Math.max(...box.map((p) => p.x)) - Math.min(...box.map((p) => p.x));
+  const spanY = Math.max(...box.map((p) => p.y)) - Math.min(...box.map((p) => p.y));
+  check(
+    `the corner centres span the body less its rounding (${spanX.toFixed(1)} x ${spanY.toFixed(1)})`,
+    Math.abs(spanX - (TILT_CAR_LENGTH - 2 * CAR_CORNER_RADIUS)) < 1e-9 &&
+      Math.abs(spanY - (TILT_CAR_WIDTH - 2 * CAR_CORNER_RADIUS)) < 1e-9,
+    { spanX, spanY },
+  );
+  check(
+    `the rounding is a tenth of the short side (${CAR_CORNER_RADIUS.toFixed(2)})`,
+    Math.abs(CAR_CORNER_RADIUS - TILT_CAR_WIDTH * 0.1) < 1e-9,
+    CAR_CORNER_RADIUS,
+  );
+  check('and the box is longer than it is wide, like the sprite', TILT_CAR_LENGTH > TILT_CAR_WIDTH);
+
+  // The whole point of the change: a centre that is comfortably on the road,
+  // with a body that is not. A point car calls this pose legal.
+  const across = Math.atan2(RAIL_NORMAL.y, RAIL_NORMAL.x);
+  const offCentre = {
+    x: RAIL_AT.at.x + RAIL_NORMAL.x * (TRACK_HALF_WIDTH * 0.4),
+    y: RAIL_AT.at.y + RAIL_NORMAL.y * (TRACK_HALF_WIDTH * 0.4),
+  };
+  const centreOffset = locate(CIRCLE, offCentre).offset;
+  check(`the centre is well inside the road (${centreOffset.toFixed(1)} of ${TRACK_HALF_WIDTH})`, centreOffset < TRACK_HALF_WIDTH);
+  check('and the same pose pointed along the road fits, body and all', carFits(CIRCLE, offCentre, RAIL_ALONG));
+  check(
+    'but turned across the road that very same centre does not — which a point car could never tell',
+    !carFits(CIRCLE, offCentre, across),
+    carContact(CIRCLE, offCentre, across).clearance,
+  );
+
+  // Clearance is a real distance, and it is measured from the worst corner.
+  const middle = carContact(CIRCLE, { x: RAIL_AT.at.x, y: RAIL_AT.at.y }, RAIL_ALONG);
+  const expected = TRACK_HALF_WIDTH - CAR_CORNER_RADIUS - TILT_CAR_WIDTH / 2 + CAR_CORNER_RADIUS;
+  check(
+    `dead centre and square on, the room left is the road minus half the body (${middle.clearance.toFixed(1)})`,
+    Math.abs(middle.clearance - expected) < 0.5,
+    { clearance: middle.clearance, expected },
+  );
+  /*
+   * Which of the four corners is "worst" is a tie dead centre, so which way
+   * `inward` points is arbitrary there — what must hold either way is that it
+   * is a unit vector square across the rail, since that is the direction the
+   * car is pushed out along.
+   *
+   * Square to within a facet or two: this "circle" is a 720-sided polygon, so
+   * a corner can sit on the segment next door to the fixture's own and take
+   * its normal from there — 2π/720 ≈ 0.0087 rad out, which is what this
+   * measures. Real tracks are polylines too, which is why the normal comes
+   * from the segment rather than from an ideal curve.
+   */
+  const facet = (Math.PI * 2) / 720;
+  const inwardLen = Math.hypot(middle.inward.x, middle.inward.y);
+  const inwardAlongRail = middle.inward.x * RAIL_AT.tangent.x + middle.inward.y * RAIL_AT.tangent.y;
+  check(
+    'the way out of a rail is a unit vector square across it',
+    Math.abs(inwardLen - 1) < 1e-9 && Math.abs(inwardAlongRail) < facet * 1.5,
+    { inwardLen, inwardAlongRail, facet },
+  );
+
+  // A car turned square across the road is very nearly as wide as the road,
+  // which is the cost of a body this size and worth pinning as a number.
+  const sideways = carContact(CIRCLE, { x: RAIL_AT.at.x, y: RAIL_AT.at.y }, across);
+  check(
+    `square across the road it barely fits (${sideways.clearance.toFixed(1)} to spare)`,
+    sideways.clearance >= 0 && sideways.clearance < 5,
+    sideways.clearance,
+  );
 }
 
 function rails(): void {
-  console.log('\nguardrails cost speed (§2)');
+  console.log('\nguardrails turn the car, they do not stop it (§2)');
 
-  const at = atArc(CIRCLE, CIRCLE.length * 0.5);
-  const normal = { x: -at.tangent.y, y: at.tangent.x };
-  const fast = drive(startDrive(CIRCLE, CIRCLE.length * 0.5), STRAIGHT, TILT_SPOOL_MS * 2.5, CIRCLE);
+  const fast = aimedAt(0);
   check(`the fixture is up to speed (${fast.speed.toFixed(0)})`, fast.speed > TILT_CRUISE_SPEED, fast.speed);
-
-  /**
-   * Step until the car actually touches a rail, and hand back that frame.
-   *
-   * The first version drove a fixed 400 ms and read the last frame — by which
-   * time the car had hit, stopped, and was reporting `none` for every
-   * subsequent frame it failed to move on. The second placed it a hair inside
-   * the rail and stepped once, which at a shallow angle does not reach the
-   * rail at all. What both wanted was this.
-   */
-  const untilBump = (from: Drive, frames = 30): Drive => {
-    let car = from;
-    for (let i = 0; i < frames; i++) {
-      car = step(CIRCLE, car, STRAIGHT, FRAME);
-      if (car.bump !== 'none') return car;
-    }
-    return car;
-  };
-
-  const outward = Math.atan2(normal.y, normal.x);
-  const intoWall: Drive = {
-    ...fast,
-    at: { x: at.at.x + normal.x * TRACK_HALF_WIDTH * 0.9, y: at.at.y + normal.y * TRACK_HALF_WIDTH * 0.9 },
-    heading: outward,
-    // `base` too, not just `heading`: the heading is derived from it every
-    // frame now, so a fixture that set only the heading would be steered
-    // straight back onto the track by the next step.
-    base: outward,
-    drift: outward,
-  };
-  const hit = untilBump(intoWall);
-  check('a square-on hit is reported as head-on', hit.bump === 'head-on', hit.bump);
-  check('and leaves nothing at all', hit.speed === 0, hit.speed);
-  check('and winds the spool back to the start', hit.runMs === 0);
-  check('the car is still on the road', locate(CIRCLE, hit.at, hit.index).offset <= TRACK_HALF_WIDTH + 1e-6);
+  check('a clean step reports no bump', drive(startDrive(CIRCLE), STRAIGHT, 200, CIRCLE).bump === 'none');
 
   /*
-   * The curve itself, at the two points it was specified by: square on to the
-   * rail keeps nothing, forty-five degrees keeps half. `railKeep` takes the
-   * fraction of the momentum pointing ACROSS the track, so square-on is 1 and
-   * a 45-degree approach is cos 45.
+   * The rule, at a spread of angles: what a hit costs is what was going across
+   * the rail, and what it keeps is what was already going along it. So the
+   * speed kept should track |cos| of the approach angle — no separate impact
+   * penalty on top, which is what used to stop the car dead.
    */
-  check('square on to the rail keeps nothing', railKeep(1) === 0);
-  check('forty-five degrees keeps exactly half', Math.abs(railKeep(Math.cos(Math.PI / 4)) - 0.5) < 1e-12, railKeep(Math.cos(Math.PI / 4)));
-  check('and a pure graze keeps everything, on impact', railKeep(0) === 1);
-  check('it only ever falls as the hit squares up', (() => {
-    for (let i = 1; i <= 40; i++) if (railKeep(i / 40) > railKeep((i - 1) / 40)) return false;
-    return true;
-  })());
+  for (const angle of [0.2, 0.4, 0.6, 0.8]) {
+    const { hit, before } = untilBump(aimedAt(angle));
+    const oneFrameOfScrape = TILT_SCRAPE_DECEL * (FRAME / 1000);
+    const oneFrameOfPush = TILT_RAIL_DRIVE * (FRAME / 1000);
+    // What the projection alone keeps, give or take the frame of scrape and
+    // the frame of rear-wheel push that land in the same step.
+    const kept = Math.abs(Math.cos(angle)) * before.speed;
+    check(
+      `a ${angle.toFixed(1)} rad hit keeps about what runs along the rail (${hit.speed.toFixed(0)} of ${kept.toFixed(0)})`,
+      hit.bump !== 'none' && Math.abs(hit.speed - kept) < oneFrameOfScrape + oneFrameOfPush + 1,
+      { angle, after: hit.speed, kept, before: before.speed },
+    );
+    check(`  and it is still moving afterwards, not stopped`, hit.speed > 0, hit.speed);
+    const gapToTangent = Math.abs(Math.sin(hit.drift - RAIL_ALONG));
+    check(`  with its momentum turned along the rail (gap ${gapToTangent.toFixed(3)} rad)`, gapToTangent < 0.05, hit.drift);
+  }
 
-  // A shallow approach: mostly along the track, a little across it.
-  const alongAngle = Math.atan2(at.tangent.y, at.tangent.x);
-  const shallow = alongAngle + 0.3;
-  const grazing: Drive = {
-    ...fast,
-    at: { x: at.at.x + normal.x * TRACK_HALF_WIDTH * 0.9, y: at.at.y + normal.y * TRACK_HALF_WIDTH * 0.9 },
-    heading: shallow,
-    base: shallow,
-    drift: shallow,
-  };
-  const scraped = untilBump(grazing);
-  check(`a glancing hit is reported as a graze (${scraped.bump})`, scraped.bump === 'graze', scraped.bump);
-  // sin(0.3) of the momentum is across the rail, so the impact alone keeps
-  // 1 - sin^2 = cos^2(0.3) ≈ 91%. What actually takes the speed off a shallow
-  // hit is the scrape, one frame of which is TILT_SCRAPE_DECEL * dt.
-  const impactOnly = grazing.speed * railKeep(Math.abs(Math.sin(0.3)));
-  const oneFrameOfScrape = TILT_SCRAPE_DECEL * (FRAME / 1000);
-  check('the impact itself barely touches it', Math.abs(impactOnly - grazing.speed * 0.91) < grazing.speed * 0.02, { impactOnly, before: grazing.speed });
-  check(`and the scrape is what costs, ${oneFrameOfScrape.toFixed(0)} per frame of contact`, scraped.speed < impactOnly - oneFrameOfScrape * 0.5, { after: scraped.speed, impactOnly });
-  check('rather than stopping the car dead', scraped.speed > grazing.speed * 0.2, scraped.speed);
-  check('and it keeps its place on the track rather than sticking', locate(CIRCLE, scraped.at, scraped.index).offset <= TRACK_HALF_WIDTH + 1e-6);
+  const shallow = untilBump(aimedAt(0.3)).hit;
+  check(`a glancing hit is a graze (${shallow.bump})`, shallow.bump === 'graze', shallow.bump);
+  check('and it costs little', shallow.speed > fast.speed * 0.8, { after: shallow.speed, before: fast.speed });
+
+  const square = untilBump(aimedAt(Math.PI / 2 - 0.05)).hit;
+  check(`a square-on hit is head-on (${square.bump})`, square.bump === 'head-on', square.bump);
+  check('and that one really does take everything, since nothing was going along the rail', square.speed < fast.speed * 0.1, square.speed);
+
+  // The body ends up on the road after any hit it is geometrically able to.
+  check('the car is left on the road after a graze', carFits(CIRCLE, shallow.at, shallow.heading), carContact(CIRCLE, shallow.at, shallow.heading).clearance);
 
   /*
-   * The scrape is a rate, not a one-off — which is the whole difference between
-   * a wall you bounce off and a wall you must not ride. Held against the rail,
-   * the speed keeps falling frame after frame.
+   * The scrape is a rate, not a one-off — the whole difference between a wall
+   * you bounce off and a wall you must not ride. Held against the rail at a
+   * shallow angle, where the rear wheels ARE pushing along it, friction still
+   * has to win or wall-riding would be free.
    */
-  let riding = scraped;
+  let riding = shallow;
   const trail: number[] = [riding.speed];
-  for (let i = 0; i < 20 && riding.bump !== 'none'; i++) {
+  for (let i = 0; i < 30 && riding.bump !== 'none'; i++) {
     riding = step(CIRCLE, riding, { roll: riding.heading - riding.base, reverse: false }, FRAME);
     trail.push(riding.speed);
   }
-  check(`riding the rail keeps costing (${trail[0]?.toFixed(0)} → ${riding.speed.toFixed(0)})`, riding.speed < (trail[0] ?? 0), trail.map((v) => Math.round(v)));
+  check(
+    `riding the rail keeps costing (${trail[0]?.toFixed(0)} → ${riding.speed.toFixed(0)})`,
+    riding.speed < (trail[0] ?? 0),
+    trail.map((v) => Math.round(v)),
+  );
   check('and the scrape beats the spool, or a wall would be a free guide', TILT_SCRAPE_DECEL > TILT_CRUISE_SPEED, TILT_SCRAPE_DECEL);
+}
 
-  check('a clean lap step reports no bump', drive(startDrive(CIRCLE), STRAIGHT, 200, CIRCLE).bump === 'none');
+function rearWheelDrive(): void {
+  console.log('\nthe rear wheels keep pushing along the rail (§2)');
 
   /*
-   * A car that hit a rail slides along it — the rail decides the momentum,
-   * not the wheel — so a wheel still aimed roughly at the wall does not walk
-   * the car straight back into it the very next frame. That was the reported
-   * bug: a car that stopped dead on contact instead of sliding, speed
-   * dropping with the angle of the hit as `railKeep` already says it should.
-   *
-   * A harder-than-shallow angle on purpose: shallow already reads as a slide
-   * without this (`scraped` above), and 45 degrees was already a genuine
-   * possible read of "square". This is well past both.
+   * The reported bug (#42): a car that stops against a guardrail and stays
+   * there. The engine does not stop when the wall arrives — whatever part of
+   * its push runs along the rail still moves the car, so a car sitting
+   * against a rail at an angle crabs along it instead of sticking.
    */
-  const hardAngle = alongAngle + 0.8;
-  const hardHit: Drive = {
-    ...fast,
-    at: { x: at.at.x + normal.x * TRACK_HALF_WIDTH * 0.9, y: at.at.y + normal.y * TRACK_HALF_WIDTH * 0.9 },
-    heading: hardAngle,
-    base: hardAngle,
-    drift: hardAngle,
-  };
-  const bumped = untilBump(hardHit);
-  check('the wheel is still aimed roughly at the wall', bumped.bump !== 'none', bumped.bump);
-  // `sin` of the gap to the tangent line is 0 when parallel to it, whichever
-  // of the two directions along it — the sign is the car's own, not asserted
-  // here, only that the rail is what set it.
-  const gapToTangent = Math.abs(Math.sin(bumped.drift - alongAngle));
-  const gapToWheel = Math.abs(Math.sin(bumped.drift - hardAngle));
-  check(`the rail sets the momentum along its own tangent (gap ${gapToTangent.toFixed(2)} rad)`, gapToTangent < 0.05, bumped.drift);
-  check('not along the wheel, which is still pointed at the wall', gapToWheel > 0.3, { drift: bumped.drift, wheel: hardAngle });
+  const pinned = untilBump(aimedAt(0.8)).hit;
+  check('the fixture is against a rail', pinned.bump !== 'none', pinned.bump);
 
-  // Held for one more frame, the SAME wheel angle: the momentum only lags
-  // toward it (the skid, kept alive by `car.bump` across this frame) rather
-  // than snapping straight there — which is what let the wheel drive the car
-  // back into the wall before it had slid anywhere.
-  const heldOn = step(CIRCLE, bumped, { roll: hardAngle - bumped.base, reverse: false }, FRAME);
-  const gapToTangentAfter = Math.abs(Math.sin(heldOn.drift - alongAngle));
-  const gapToWheelAfter = Math.abs(Math.sin(heldOn.drift - hardAngle));
+  // Hold the same wheel angle — still aimed at the wall — and let it push.
+  let car = pinned;
+  const startS = car.s;
+  const speeds: number[] = [];
+  for (let i = 0; i < 60; i++) {
+    car = step(CIRCLE, car, { roll: car.heading - car.base, reverse: false }, FRAME);
+    speeds.push(car.speed);
+  }
+  const travelled = Math.abs(car.s - startS);
   check(
-    'a frame later the momentum has only lagged toward the wheel, not snapped to it',
-    gapToWheelAfter > 0.05 && gapToTangentAfter > gapToTangent,
-    { drift: heldOn.drift, tangent: alongAngle, wheel: hardAngle },
+    `held against the rail it keeps moving along it (${travelled.toFixed(0)} units in a second)`,
+    travelled > 10,
+    { travelled, speeds: speeds.map((v) => Math.round(v)) },
+  );
+  check('and it never grinds to a standstill', car.speed > 0, car.speed);
+  check(
+    `the crawl it settles to is slower than reverse, so the wall is still the wrong place (${car.speed.toFixed(0)})`,
+    car.speed < TILT_REVERSE_SPEED,
+    car.speed,
+  );
+
+  /*
+   * The car is longer than the road is wide once it is turned far enough
+   * across it, so past `WEDGE_ANGLE` there is no legal pose at all — the body
+   * is against both rails at once. It must STILL crab along rather than
+   * freezing, which is precisely the reported bug (#42).
+   */
+  check(`a body this long cannot sit across the road past ${WEDGE_ANGLE.toFixed(2)} rad`, WEDGE_ANGLE > 0.5 && WEDGE_ANGLE < Math.PI / 2, WEDGE_ANGLE);
+  check(
+    'and the geometry agrees no position on the road holds it there',
+    !carFits(CIRCLE, { x: RAIL_AT.at.x, y: RAIL_AT.at.y }, RAIL_ALONG + WEDGE_ANGLE + 0.15),
+  );
+  let wedged = untilBump(aimedAt(WEDGE_ANGLE + 0.15)).hit;
+  const wedgedFrom = wedged.s;
+  for (let i = 0; i < 60; i++) wedged = step(CIRCLE, wedged, { roll: wedged.heading - wedged.base, reverse: false }, FRAME);
+  check(
+    `a wedged car still crabs along the rail (${Math.abs(wedged.s - wedgedFrom).toFixed(0)} units in a second)`,
+    Math.abs(wedged.s - wedgedFrom) > 5,
+    { travelled: Math.abs(wedged.s - wedgedFrom), speed: wedged.speed },
+  );
+  check('rather than stopping dead in it', wedged.speed > 0, wedged.speed);
+
+  /*
+   * Nose square into the wall is the one case with nothing along the rail to
+   * give — and that is exactly what reverse is for, so it must still work.
+   */
+  let stuck = untilBump(aimedAt(Math.PI / 2 - 0.02)).hit;
+  for (let i = 0; i < 10; i++) stuck = step(CIRCLE, stuck, { roll: stuck.heading - stuck.base, reverse: false }, FRAME);
+  check('nose-on into a wall the push has nothing along the rail to give', Math.abs(stuck.speed) < 5, stuck.speed);
+  const backedOut = step(CIRCLE, stuck, { roll: stuck.heading - stuck.base, reverse: true }, FRAME);
+  check('and reverse is still the way out', backedOut.speed < 0, backedOut.speed);
+
+  /*
+   * The reported shape of #42: sliding along the guardrail worked when
+   * driving backwards and not when driving forwards. Both directions are the
+   * same projection now, so both slide — this measures them side by side
+   * rather than trusting that.
+   */
+  const slideOf = (reverse: boolean): number => {
+    let c = untilBump(aimedAt(0.5)).hit;
+    const from = c.s;
+    for (let i = 0; i < 40; i++) c = step(CIRCLE, c, { roll: c.heading - c.base, reverse }, FRAME);
+    return Math.abs(c.s - from);
+  };
+  const forwards = slideOf(false);
+  const backwards = slideOf(true);
+  check(`driving forwards into a rail slides along it (${forwards.toFixed(0)} units)`, forwards > 5, forwards);
+  check(`and driving backwards does too (${backwards.toFixed(0)} units)`, backwards > 5, backwards);
+  check('neither direction is the stuck one', Math.min(forwards, backwards) > 5, { forwards, backwards });
+
+  /*
+   * The push is the engine's, so it follows the car's own nose: pointed the
+   * other way along the same rail, the car crabs the other way.
+   */
+  const oneWay = untilBump(aimedAt(0.8)).hit;
+  const otherWay = untilBump(aimedAt(Math.PI - 0.8)).hit;
+  const alongOne = Math.cos(oneWay.drift) * RAIL_AT.tangent.x + Math.sin(oneWay.drift) * RAIL_AT.tangent.y;
+  const alongOther = Math.cos(otherWay.drift) * RAIL_AT.tangent.x + Math.sin(otherWay.drift) * RAIL_AT.tangent.y;
+  check(
+    'which way it crabs follows the nose, not the wall',
+    Math.sign(alongOne) !== Math.sign(alongOther),
+    { alongOne, alongOther },
   );
 }
 
@@ -431,7 +618,9 @@ theTrack();
 spooling();
 steering();
 skidding();
+theBody();
 rails();
+rearWheelDrive();
 reversing();
 aWholeLap();
 reversingOverTheLine();

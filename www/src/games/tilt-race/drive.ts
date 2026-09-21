@@ -1,5 +1,10 @@
 import {
+  TILT_CAR_CORNER,
+  TILT_CAR_LENGTH,
+  TILT_CAR_WIDTH,
   TILT_HEAD_ON,
+  TILT_RAIL_CRAWL,
+  TILT_RAIL_DRIVE,
   TILT_REVERSE_SPEED,
   TILT_SCRAPE_DECEL,
   TILT_SKID_TAU_MS,
@@ -7,7 +12,7 @@ import {
   TILT_CRUISE_SPEED,
   tiltSpeedAt,
 } from '../../../../shared/protocol';
-import { TRACK_HALF_WIDTH, atArc, locate, type Point, type Track } from '../../../../shared/tiltTrack';
+import { TRACK_HALF_WIDTH, atArc, locate, type OnTrack, type Point, type Track } from '../../../../shared/tiltTrack';
 
 /**
  * The car. Spec: docs/specs/games/tilt-race.md §2, §2.1, §2.2
@@ -107,12 +112,136 @@ export function startDrive(track: Track, startS = 0): Drive {
   };
 }
 
+/** The corner-arc radius of the collision box, world units — `TILT_CAR_CORNER`
+ *  of the box's short side (see that constant). */
+export const CAR_CORNER_RADIUS = TILT_CAR_WIDTH * TILT_CAR_CORNER;
+
+/** Where the centres of the four corner arcs sit, given a pose. */
+const HALF_L = TILT_CAR_LENGTH / 2 - CAR_CORNER_RADIUS;
+const HALF_W = TILT_CAR_WIDTH / 2 - CAR_CORNER_RADIUS;
+
+/**
+ * The four points a rounded-rectangle body has to be tested at: the centres of
+ * its corner arcs. The body is exactly those four discs of
+ * `CAR_CORNER_RADIUS` plus their convex hull, so "every corner disc is inside
+ * the road" is the same statement as "the body is inside the road".
+ *
+ * **Four corners is the whole test, not a sample of it.** The road's edge is
+ * straight between centreline points, and the furthest-out point of a convex
+ * body against a straight edge is always a corner — so an edge cannot be
+ * through a rail while all four corners are clear. What a curved rail can do
+ * is put two different corners against two different segments, which is why
+ * every corner is located separately rather than the deepest one being
+ * assumed.
+ */
+export function carCorners(at: Point, heading: number): Point[] {
+  const fx = Math.cos(heading);
+  const fy = Math.sin(heading);
+  // Left-hand normal of the heading: the car's own across-axis.
+  const sx = -fy;
+  const sy = fx;
+  const out: Point[] = [];
+  for (const alongSign of [1, -1]) {
+    for (const acrossSign of [1, -1]) {
+      out.push({
+        x: at.x + fx * alongSign * HALF_L + sx * acrossSign * HALF_W,
+        y: at.y + fy * alongSign * HALF_L + sy * acrossSign * HALF_W,
+      });
+    }
+  }
+  return out;
+}
+
+export type CarContact = {
+  /**
+   * How much road is left under the worst corner. Positive is clearance in
+   * world units; negative is how far the body is already through a rail.
+   */
+  clearance: number;
+  /** Unit vector from that corner back towards the road's middle. */
+  inward: Point;
+  /** The rail's own direction there — what the car slides along. */
+  tangent: Point;
+  /** Where that corner sits against the centreline. */
+  found: OnTrack;
+};
+
+/**
+ * The tightest point of the body against the rails, for a pose.
+ *
+ * Every corner is located, and the worst one wins: that is the corner that
+ * decides both whether the car fits and, when it does not, which rail it is
+ * sliding along.
+ */
+export function carContact(track: Track, at: Point, heading: number, hint?: number): CarContact {
+  let worst: CarContact | null = null;
+  for (const corner of carCorners(at, heading)) {
+    const found = locate(track, corner, hint);
+    const clearance = TRACK_HALF_WIDTH - CAR_CORNER_RADIUS - found.offset;
+    if (worst !== null && clearance >= worst.clearance) continue;
+    // Away from the centreline is out; the car is pushed back the other way.
+    const outX = corner.x - found.nearest.x;
+    const outY = corner.y - found.nearest.y;
+    const len = Math.hypot(outX, outY);
+    const inward = len > 1e-9
+      ? { x: -outX / len, y: -outY / len }
+      // Dead on the centreline there is no "out" to speak of, and no contact
+      // either; the rail's own left normal keeps the vector well-defined.
+      : { x: -found.tangent.y, y: found.tangent.x };
+    worst = { clearance, inward, tangent: found.tangent, found };
+  }
+  // A track always has at least one segment, so `carCorners` always locates.
+  return worst as CarContact;
+}
+
+/** Does the whole body fit on the road in this pose? */
+export function carFits(track: Track, at: Point, heading: number, hint?: number): boolean {
+  return carContact(track, at, heading, hint).clearance >= 0;
+}
+
+/**
+ * Push a body that is through a rail back onto the road, along the rail's own
+ * normal.
+ *
+ * Iterated rather than solved: a car wedged into a corner is against two rails
+ * at once, and clearing the worst one can expose the other. Three passes is
+ * enough for that and cheap; a body that still does not fit is left where it
+ * was for the caller to decide about.
+ */
+function settle(track: Track, at: Point, heading: number, hint?: number): Point {
+  let p = at;
+  for (let i = 0; i < 3; i++) {
+    const contact = carContact(track, p, heading, hint);
+    if (contact.clearance >= 0) return p;
+    const push = -contact.clearance + 1e-6;
+    p = { x: p.x + contact.inward.x * push, y: p.y + contact.inward.y * push };
+  }
+  return p;
+}
+
 /** Shortest signed angle from `a` to `b`, in −π..π. */
 function angleDelta(a: number, b: number): number {
   let d = (b - a) % (Math.PI * 2);
   if (d > Math.PI) d -= Math.PI * 2;
   if (d < -Math.PI) d += Math.PI * 2;
   return d;
+}
+
+/**
+ * The skid, as one frame of it: the momentum direction chasing the heading
+ * through a first-order lag.
+ *
+ * Its own function because that is the only way to test what it claims. The
+ * property worth pinning is that a wrist turning steadily at `w` settles at a
+ * lag of `w × TILT_SKID_TAU_MS`, and measuring that needs a wrist turning
+ * through every angle — which a body 70 long cannot do on a road 72 wide
+ * without scraping a rail, so driving it through `step` measures the
+ * collision instead. Nothing about the lag depends on the track, so nothing
+ * about testing it should either.
+ */
+export function skidToward(drift: number, heading: number, dtMs: number): number {
+  const k = 1 - Math.exp(-Math.max(0, dtMs) / TILT_SKID_TAU_MS);
+  return drift + angleDelta(drift, heading) * k;
 }
 
 /**
@@ -182,8 +311,7 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
   if (Math.abs(next.speed) <= TILT_CRUISE_SPEED && car.bump === 'none') {
     next.drift = next.heading;
   } else {
-    const k = 1 - Math.exp(-Math.max(0, dtMs) / TILT_SKID_TAU_MS);
-    next.drift = car.drift + angleDelta(car.drift, next.heading) * k;
+    next.drift = skidToward(car.drift, next.heading, dtMs);
   }
 
   const moved = {
@@ -191,85 +319,120 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
     y: car.at.y + Math.sin(next.drift) * next.speed * dt,
   };
 
-  const found = locate(track, moved, car.index);
-  if (found.offset <= TRACK_HALF_WIDTH) {
-    next.at = moved;
-    next.index = found.index;
-    // A lap completes when the arc length wraps from near the end to near the
-    // start — measured on the track's own arc, not on a line crossing, so a car
-    // that reverses over the line cannot count a lap twice.
-    if (car.s > track.length * 0.75 && found.s < track.length * 0.25) next.lap = car.lap + 1;
-    else if (car.s < track.length * 0.25 && found.s > track.length * 0.75 && next.lap > 0) next.lap = car.lap - 1;
-    next.s = found.s;
+  // The whole body, not the point at its centre: the car fits where its four
+  // corners fit (`carContact`).
+  const contact = carContact(track, moved, next.heading, car.index);
+  if (contact.clearance >= 0) {
+    settleAt(track, next, car, moved);
     return next;
   }
 
   /*
-   * Into a rail. The car does not move, and what it costs depends on how
-   * square the hit was — continuously, not in two buckets.
+   * Against a rail. **The car is not stopped — it is turned.**
    *
-   * "Square" is measured against the RAIL, which runs along the track, so the
-   * test is how much of the momentum was across the track rather than along
-   * it: the component along the local normal.
+   * The momentum is split against the rail: the part running across it is
+   * absorbed by the wall, and the part running along it is kept, whole. That
+   * one projection is the "based on the collision angle" rule — a graze keeps
+   * nearly all of its speed because nearly all of it was already going the
+   * rail's way, and a square hit keeps nearly none because none of it was.
+   * Nothing else is taken off it on impact.
    */
-  const normal = { x: -found.tangent.y, y: found.tangent.x };
-  const into = Math.abs(Math.cos(next.drift) * normal.x + Math.sin(next.drift) * normal.y);
-  const before = next.speed;
-  next.speed = before * railKeep(into);
-  // Then friction, for as long as the car is still against the rail. This is
-  // the part that makes riding a wall round a corner a losing line: the impact
-  // is paid once, the scrape is paid every frame of contact.
-  const scrubbed = Math.max(0, Math.abs(next.speed) - TILT_SCRAPE_DECEL * dt);
-  next.speed = Math.sign(next.speed) * scrubbed;
-  // The spool is wound back to match, so a hit is a real setback rather than a
-  // single slow frame.
-  next.runMs = spoolFor(next.speed);
+  const tangent = contact.tangent;
+  const into = Math.abs(Math.cos(next.drift) * contact.inward.x + Math.sin(next.drift) * contact.inward.y);
   next.bump = into >= TILT_HEAD_ON ? 'head-on' : 'graze';
 
-  // Slide along the rail rather than sticking to it: a car pinned to a wall at
-  // zero speed with no way out is what the reverse button exists for, but a
-  // graze should still carry you round the corner.
-  const along = Math.cos(next.drift) * found.tangent.x + Math.sin(next.drift) * found.tangent.y;
-  const slid = {
-    x: car.at.x + found.tangent.x * along * next.speed * dt,
-    y: car.at.y + found.tangent.y * along * next.speed * dt,
-  };
-  const after = locate(track, slid, car.index);
-  if (after.offset <= TRACK_HALF_WIDTH) {
-    next.at = slid;
-    next.index = after.index;
-    next.s = after.s;
-  }
+  const vx = Math.cos(next.drift) * next.speed;
+  const vy = Math.sin(next.drift) * next.speed;
+  let along = vx * tangent.x + vy * tangent.y;
 
-  // The wall, not the wheel, decides which way the car is now actually
-  // moving: the momentum the rail did not absorb runs along its own tangent,
-  // signed the way the car was already travelling (`along`'s own sign) rather
-  // than backing up mid-corner. Left as the pre-collision heading instead,
-  // the very next frame's skid check (above) would have nothing tangent-ish
-  // to lag FROM — this is what that lag is preserving.
-  const tangentAngle = Math.atan2(found.tangent.y, found.tangent.x);
-  next.drift = along >= 0 ? tangentAngle : tangentAngle + Math.PI;
+  /*
+   * Rear-wheel drive. The engine does not care that there is a wall: it keeps
+   * pushing along the car's own heading, and the rail turns whatever part of
+   * that runs along itself into motion. So a car sitting at an angle against a
+   * guardrail crabs forward and squares itself up with the rail rather than
+   * sticking where it landed — and one facing squarely into the wall gets
+   * nothing, which is exactly when reverse is the answer.
+   *
+   * The heading is the phone's, 1:1 (spec §2.1), so this moves the car along
+   * the rail; it never rotates the body out from under the player's wrist.
+   */
+  const push = input.reverse ? -TILT_RAIL_DRIVE : TILT_RAIL_DRIVE;
+  along += (Math.cos(next.heading) * tangent.x + Math.sin(next.heading) * tangent.y) * push * dt;
+
+  // Friction, for as long as contact lasts. The impact costs what the angle
+  // says; this is the part that keeps riding a wall round a corner a losing
+  // line rather than a free guide.
+  along = Math.sign(along) * Math.max(0, Math.abs(along) - TILT_SCRAPE_DECEL * dt);
+
+  /*
+   * ...but never all the way to a standstill while the wheels still have
+   * somewhere to push. Friction and drive are both accelerations, so on their
+   * own they can only ever run away from each other — one wins and the car
+   * either accelerates forever or grinds to nothing. The crawl is the
+   * equilibrium the two are missing: the speed the engine can always hold
+   * against a scraping wall, scaled by how much of the nose points along it.
+   *
+   * Nose square into the rail this is zero, and the car really does stop —
+   * correctly, since nothing the engine does is pointing anywhere useful. That
+   * is the case reverse exists for.
+   */
+  const noseAlong = Math.cos(next.heading) * tangent.x + Math.sin(next.heading) * tangent.y;
+  const crawl = Math.abs(noseAlong) * TILT_RAIL_CRAWL;
+  if (crawl > 0 && Math.abs(along) < crawl) along = Math.sign(noseAlong) * (input.reverse ? -crawl : crawl);
+
+  /*
+   * Back into the car's own terms. `speed` keeps the sign it had, so a car
+   * reversing into a rail is still reversing, and `drift` takes the rail's
+   * direction — the wall, not the wheel, decides which way the car is now
+   * actually travelling. That is also what the next frame's skid has to lag
+   * FROM, which is why `bump` keeps the lag alive through the recovery.
+   */
+  const sign = next.speed < 0 ? -1 : 1;
+  const way = along === 0 ? 0 : Math.sign(along) * sign;
+  if (way !== 0) next.drift = Math.atan2(tangent.y * way, tangent.x * way);
+  next.speed = sign * Math.abs(along);
+  // The spool follows the speed, so the car climbs back up its own curve from
+  // wherever the rail left it rather than snapping to the ceiling.
+  next.runMs = spoolFor(next.speed);
+
+  const slid = {
+    x: car.at.x + tangent.x * along * dt,
+    y: car.at.y + tangent.y * along * dt,
+  };
+  /*
+   * Slide, then lift clear of the rail — and take that position whatever it
+   * measures, rather than only when the whole body fits.
+   *
+   * **A body this size cannot always fit.** The car is 70 long on a road 72
+   * wide, so past about 53 degrees across it there is no position on the road
+   * that holds it: it is touching both rails at once, wedged. Requiring a
+   * clean fit before moving froze exactly those cars in place — the thing this
+   * change exists to stop. `settle` only ever pushes back toward the middle of
+   * the road, so accepting its answer is always the best available place, and
+   * a wedged car keeps crabbing along the rail until the player's own wrist
+   * brings the nose back round.
+   */
+  settleAt(track, next, car, settle(track, slid, next.heading, car.index));
   return next;
 }
 
 /**
- * What fraction of its speed a car keeps when it meets a rail, given `into` —
- * how much of its momentum was pointing across the track rather than along it,
- * as |cos| against the local normal.
+ * Put the car at `to` and bring its arc length, segment and lap count with it.
  *
- * **Square-on keeps nothing, forty-five degrees keeps half.** Those are the two
- * points the rule was given as, and `1 - into^2` is the curve through them:
- * at 45 degrees to the rail `into` is cos 45, so `into^2` is a half. It is also
- * the honest physical reading rather than a fitted curve — the kinetic energy
- * aimed across the rail is absorbed and the energy running along it is not,
- * which is what `1 - into^2 = along^2` says.
- *
- * A pure graze (momentum along the rail, `into` 0) therefore costs nothing on
- * impact; what it costs is `TILT_SCRAPE_DECEL`, for as long as contact lasts.
+ * Shared by the free and the scraping path, because a lap counts the same
+ * either way — a car that crosses the line while scraping down the outside of
+ * the last corner has still finished the lap.
  */
-export function railKeep(into: number): number {
-  const n = Math.min(1, Math.max(0, into));
-  return 1 - n * n;
+function settleAt(track: Track, next: Drive, car: Drive, to: Point): void {
+  const found = locate(track, to, car.index);
+  next.at = to;
+  next.index = found.index;
+  // A lap completes when the arc length wraps from near the end to near the
+  // start — measured on the track's own arc, not on a line crossing, so a car
+  // that reverses over the line cannot count a lap twice.
+  if (car.s > track.length * 0.75 && found.s < track.length * 0.25) next.lap = car.lap + 1;
+  else if (car.s < track.length * 0.25 && found.s > track.length * 0.75 && next.lap > 0) next.lap = car.lap - 1;
+  next.s = found.s;
 }
 
 /** How far into the spool a given speed is — the inverse of `tiltSpeedAt`,

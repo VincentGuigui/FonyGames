@@ -41,10 +41,12 @@ of a mistake.
    and it **locks in place** until released, then falls back to wherever down
    has become. Its icon is a straight arrow down: the car backs straight out
    the way it came, where a curved return arrow read as "turn round".
-6. **Guardrails cost speed, by the angle of the hit** (§2.3): square on to the
-   rail leaves nothing, forty-five degrees leaves half, a pure graze costs
-   nothing on impact — and then `TILT_SCRAPE_DECEL` keeps taking speed off for
-   as long as the car is against the rail.
+6. **Guardrails turn the car, they do not stop it** (§2.3). The collision box
+   is the drawn body, not a point at its centre. A hit keeps whatever of the
+   momentum was already running along the rail and loses what was running
+   across it, the rear wheels keep pushing the car along the rail, and
+   `TILT_SCRAPE_DECEL` keeps taking speed off for as long as the car is
+   against it — down to a crawl, never to a standstill.
 7. First across the finish line wins. Everyone else runs until
    `TILT_RUN_CAP_MS` so a whole room gets a placing.
 
@@ -90,46 +92,85 @@ wrist; the same corner at the current, doubled top speed asks for about
 7.2 rad/s, which is not (§12 Q11) — an accepted cost of the extra speed, not a
 number this constant tracks any more.
 
-### 2.3 What a guardrail costs
+### 2.3 The body, and what a guardrail does to it
 
-Two things, and they are different in kind.
+**The collision box is the car, not a point at its centre.** It is the drawn
+body: `TILT_CAR_LENGTH` × `TILT_CAR_WIDTH` (70 × 31 world units, the sprite's
+own 225/512 aspect), with corners rounded by `TILT_CAR_CORNER` — a tenth of
+the short side, about 3 units. `TrackCanvas` derives the pixels it draws from
+those same constants, so the box and the picture cannot drift apart: what the
+player sees touch a rail is what touched it.
 
-**The impact**, once, and continuous in the angle. Writing `into` for the
-fraction of the car's momentum pointing *across* the track — |cos| against the
-rail's local normal — the speed retained is `1 - into²`:
+It is tested as four discs at the corner-arc centres. A convex body's furthest
+point against a straight edge is always a corner, and the rails are straight
+between centreline points, so four corners is the whole test rather than a
+sample of it (`carCorners`, `carContact` in `drive.ts`).
 
-| Approach | `into` | Keeps |
-| --- | --- | --- |
-| square on to the rail | 1 | nothing |
-| forty-five degrees | cos 45 | half |
-| a pure graze, along the rail | 0 | everything |
+**Two consequences worth stating, both measured rather than guessed:**
 
-Those first two rows are the rule as it was given, and `1 - into²` is the curve
-through them. It is also the honest physical reading rather than a fitted one:
-`1 - into²` is `along²`, so what is absorbed is the kinetic energy aimed across
-the rail and what survives is the energy running along it.
+- The road is 72 units wide and the car is 70 long, so **past about 0.92 rad
+  (53°) across the road there is no position at all that holds the car** — it
+  is touching both rails at once. That is a real state a player can steer
+  into, and the physics has to keep working in it rather than freezing.
+- A car square across the road clears the rails by under a unit.
+
+**What a rail does is turn the car, not stop it.**
+
+The momentum is split against the rail: the component running *across* it is
+absorbed by the wall, the component running *along* it is kept, whole. That
+single projection is the whole impact rule — a graze keeps nearly all its
+speed because nearly all of it was already going the rail's way, and a square
+hit keeps nearly none because none of it was. Nothing further is taken off on
+contact.
+
+| Approach | Keeps |
+| --- | --- |
+| square on to the rail | nothing — there was nothing along it to keep |
+| forty-five degrees | cos 45, about 71% |
+| a pure graze, along the rail | everything |
+
+This replaced an `along²` impact multiplier, which took a second bite out of a
+car that had already lost its across-rail momentum and was the thing that read
+as stopping dead on contact.
+
+**Then the rear wheels.** The car is rear-wheel drive and the engine does not
+care that there is a wall: it keeps pushing along the car's own heading, and
+the rail turns whatever part of that runs along itself into motion
+(`TILT_RAIL_DRIVE`, 240 u/s²). So a car sitting at an angle against a
+guardrail crabs along it and works itself straight rather than sticking where
+it landed. Nose square into the wall there is nothing along the rail to give,
+and the car does stop — correctly, and that is what reverse is for.
+
+The heading itself is never touched: it is the phone's, 1:1 (§2.1), so the
+rail moves the car along itself and never rotates the body out from under the
+player's wrist.
 
 **The scrape**, every frame the car is still touching, at `TILT_SCRAPE_DECEL`
 (180 units/s²). This is what makes riding a wall round a corner a losing line
 rather than a free guide, and it has to beat the spool to mean anything at all
 — a car regains speed at about `TILT_CRUISE_SPEED` per second, so anything under
-100 would let a scraping car accelerate. The net −80 u/s² is about a second and
-a half of contact to stop from cruise, and an immediate recovery the moment the
-car comes off.
+100 would let a scraping car accelerate.
 
-**The momentum, after either, follows the rail's own tangent — not the
+**...but never to a dead stop.** Drive and scrape are both accelerations, so
+on their own one simply beats the other and the car either accelerates along
+the wall forever or grinds to nothing. Simulation showed the second: a car
+held against a rail decayed 34 → 0 and sat there, which is [#42](https://github.com/VincentGuigui/FonyGames/issues/42)
+wearing a different hat. `TILT_RAIL_CRAWL` (35 u/s at full nose-along-rail) is
+the equilibrium the pair were missing — under `TILT_REVERSE_SPEED`, so
+scraping is still the slowest way round and backing out is still worth doing,
+but a car against a wall is never stuck.
+
+**The momentum, after all of it, follows the rail's own tangent — not the
 wheel.** A hit used to leave the car's direction of travel exactly wherever the
 wheel was already pointing, and since that is usually roughly at the wall (it
 is what caused the hit), the very next frame re-squared the car into the same
-rail before any of the surviving `along` speed had covered any distance —
-reading, on a real phone, as the car stopping dead rather than sliding. The
-skid lag (§2.2) is what is supposed to keep a car's own momentum independent
-of the wheel for a moment, but it only ran above cruise, and a hit routinely
-scrubs the car below it in the same frame — so a bumped car kept the lag one
-frame too briefly, in exactly the frame it mattered. Fixed by locking the
-momentum to the rail's tangent on contact and keeping the lag alive for as
-long as the car was touching a rail last frame, regardless of speed —
-`drive.ts`'s `step`, `drive.test.ts`'s own hard-angle-hit checks.
+rail before any of the surviving `along` speed had covered any distance. The
+skid lag (§2.2) is what keeps a car's momentum independent of the wheel for a
+moment, but it only ran above cruise, and a hit routinely scrubs the car below
+it in the same frame — so a bumped car kept the lag one frame too briefly, in
+exactly the frame it mattered. Fixed by locking the momentum to the rail's
+tangent on contact and keeping the lag alive for as long as the car was
+touching a rail last frame, regardless of speed.
 
 `TILT_HEAD_ON` survives as a *presentation* threshold only: it decides whether
 the renderer plays the head-on shake or the graze one. The speed is continuous
@@ -247,8 +288,12 @@ case something else was meant.
 - **Permission denied**: cannot play (§5); spectates on the rail.
 - **Backgrounded tab**: stops simulating and reporting; on return it rejoins at
   the referee's clock, having lost the time. Dimmed on the rail while silent.
-- **Car wedged against a rail at zero speed**: reverse exists precisely for
-  this, and the spool restarts from 0 when it is released.
+- **Car wedged against a rail**: it keeps crabbing along the rail at
+  `TILT_RAIL_CRAWL` rather than stopping, so this is a slow patch rather than a
+  dead end. Turned more than ~53° across the road the body cannot fit at all
+  and is against both rails at once — still crabbing, still steerable out.
+  Only a nose square into the wall genuinely stops, and reverse exists
+  precisely for that; the spool restarts from 0 when it is released.
 - **Nobody finishes** before `TILT_RUN_CAP_MS`: placings by progress.
 - **Solo (1 player)**: the card promises 2–8, and the referee enforces the
   card (AGENTS.md §4), so a lone player cannot start a public race. Nothing

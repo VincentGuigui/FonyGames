@@ -3186,12 +3186,81 @@ export const TILT_SKID_TAU_MS = 110;
 export const TILT_REVERSE_SPEED = 45;
 
 /**
+ * The car's own footprint in world units — **the collision box is the drawn
+ * body**, not a point at its centre.
+ *
+ * `art/car.png` is 225×512 nose-up, and `TrackCanvas` draws it
+ * `TILT_CAR_LENGTH` long, so the box and the picture are the same rectangle
+ * by construction: the renderer derives its pixel size from these rather than
+ * carrying its own number, which is what stops the two drifting apart.
+ * The width is that length at the sprite's real 225/512 aspect (≈ 30.8,
+ * rounded to 31).
+ *
+ * For scale: the road is `TRACK_HALF_WIDTH * 2` = 72 units wide, so a car
+ * square across it very nearly bridges both rails, and one running straight
+ * leaves about 20 units either side.
+ */
+export const TILT_CAR_LENGTH = 70;
+export const TILT_CAR_WIDTH = 31;
+
+/**
+ * How far the box's corners are rounded, as a fraction of its **short** side —
+ * the issue's own "small rounded corner of 10% of the size". Off the short
+ * side rather than the long one so the round-off stays small on both axes
+ * (10% of 31 ≈ 3 units); taken off the length it would blunt the nose by
+ * seven, which is a different shape from the one drawn.
+ *
+ * It earns its keep at the moment of contact: a square corner catches on a
+ * rail and pins the car, where a rounded one rolls along it, which is the
+ * whole point of the slide.
+ */
+export const TILT_CAR_CORNER = 0.1;
+
+/**
+ * How hard the driven wheels keep pushing while the body is against a rail,
+ * in world units per second squared.
+ *
+ * The car is rear-wheel drive: the engine pushes along the car's own heading
+ * whatever the wall is doing, and the rail turns whatever part of that runs
+ * along it into motion. That is what walks a scraping car forward instead of
+ * pinning it — nose-on into a wall there is nothing along the rail to give
+ * (and that is what reverse is for), but at any angle short of square the car
+ * keeps crabbing along it.
+ *
+ * Sized against `TILT_SCRAPE_DECEL` (180) deliberately: at a 45° scrape the
+ * push contributes `cos 45 × 240` ≈ 170, so friction still just edges it and
+ * wall-riding stays a slow line rather than a free one — but the car is never
+ * stuck, which is the thing being fixed.
+ */
+export const TILT_RAIL_DRIVE = 240;
+
+/**
+ * The speed the driven wheels can always hold against a scraping rail, world
+ * units per second, at full nose-along-the-rail.
+ *
+ * `TILT_RAIL_DRIVE` and `TILT_SCRAPE_DECEL` are both accelerations, so on
+ * their own one simply beats the other: the car either accelerates along the
+ * wall forever or grinds to a dead stop. Simulation showed the second — a car
+ * held at 1.2 rad against a rail decayed 34 → 0 and sat there, which is the
+ * bug in #42 wearing a different hat. This is the equilibrium the pair are
+ * missing, scaled by how much of the nose points along the rail.
+ *
+ * Under `TILT_REVERSE_SPEED` (45) on purpose: scraping along a wall is the
+ * slowest way round a circuit, slower than backing out and taking the corner
+ * again, so the wall is still the thing you want to be off. It is not zero,
+ * because a car that stops dead against a rail and stays there is exactly
+ * what this is fixing.
+ */
+export const TILT_RAIL_CRAWL = 35;
+
+/**
  * How hard a rail keeps scrubbing while the car is still against it, in world
  * units per second squared.
  *
- * The impact itself is a one-off (`railKeep` in the client's `drive.ts`); this
- * is the part that runs for as long as contact lasts, which is what makes
- * riding a wall round a corner a losing line rather than a free guide.
+ * The impact itself costs only what the angle says — the across-the-rail part
+ * of the momentum, absorbed by the wall (`drive.ts`'s own slide); this is the
+ * part that runs for as long as contact lasts, which is what makes riding a
+ * wall round a corner a losing line rather than a free guide.
  *
  * **It has to beat the spool to mean anything.** A car regains speed at about
  * `TILT_CRUISE_SPEED` per second, so anything under 100 here would let a
@@ -3203,8 +3272,9 @@ export const TILT_SCRAPE_DECEL = 180;
 
 /** How square a hit has to be, as |cos| between the car's momentum and the
  *  rail's normal, before it is *called* head-on rather than a graze. The speed
- *  it costs is continuous in that angle either way (`railKeep`); this only
- *  decides which shake and which sound the renderer plays. */
+ *  it costs is continuous in that angle either way (the slide keeps whatever
+ *  was already running along the rail); this only decides which shake and
+ *  which sound the renderer plays. */
 export const TILT_HEAD_ON = 0.55;
 
 /** How often a phone reports its own progress. The issue says "every 0.25ms",

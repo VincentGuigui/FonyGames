@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
-import { TILT_CRUISE_SPEED } from '../../../../shared/protocol';
+import { TILT_CAR_LENGTH, TILT_CAR_WIDTH, TILT_CRUISE_SPEED } from '../../../../shared/protocol';
 import { TRACK_HALF_WIDTH, atArc, type Track } from '../../../../shared/tiltTrack';
 import { colorFor, loadAvatarColors } from '../../core/avatarColor';
 import { tinted } from '../../core/art/tint';
@@ -207,9 +207,14 @@ export function TrackCanvas({ track, car, rivals, myAvatar, span = 460, onFrame 
        * so the sprite is turned by `heading + PI/2` to point where the car goes
        * — the same convention the wedge it replaced already used.
        */
-      const carLength = Math.max(26, 44 * scale * 1.6);
-      const carAspect = carImg.naturalWidth > 0 ? carImg.naturalWidth / carImg.naturalHeight : 0.55;
-      const carWidth = carLength * carAspect;
+      /*
+       * The drawn size IS the collision box (`TILT_CAR_LENGTH` x
+       * `TILT_CAR_WIDTH`, world units, scaled to pixels here), rather than a
+       * render-only number of its own. That is the whole point of the box
+       * being the body: what the player sees touch a rail is what touched it.
+       */
+      const carLength = TILT_CAR_LENGTH * scale;
+      const carWidth = TILT_CAR_WIDTH * scale;
       ctx.save();
       ctx.translate(width / 2, height / 2);
       ctx.rotate(state.heading + Math.PI / 2);
