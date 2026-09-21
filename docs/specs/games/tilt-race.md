@@ -36,9 +36,11 @@ of a mistake.
    100, the car **skids**: the momentum lags the heading and the car keeps some
    of its old direction through a turn.
 5. **A reverse button** sits at the bottom of the screen — the bottom as
-   gravity sees it, so it slides around the screen's edge as the phone turns.
-   Press it and it **locks in place** until released, then falls back to
-   wherever down has become.
+   gravity sees it, so it slides around the screen's edge as the phone turns,
+   **every frame**, off the same sensor reading that steers the car. Press it
+   and it **locks in place** until released, then falls back to wherever down
+   has become. Its icon is a straight arrow down: the car backs straight out
+   the way it came, where a curved return arrow read as "turn round".
 6. **Guardrails cost speed, by the angle of the hit** (§2.3): square on to the
    rail leaves nothing, forty-five degrees leaves half, a pure graze costs
    nothing on impact — and then `TILT_SCRAPE_DECEL` keeps taking speed off for

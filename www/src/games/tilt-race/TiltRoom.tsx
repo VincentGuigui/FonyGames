@@ -110,7 +110,20 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const finishedRef = useRef(false);
 
   const [hud, setHud] = useState({ speed: 0, lap: 0, place: 1 });
-  const [spot, setSpot] = useState<EdgeSpot>({ x: 0.5, y: 0.88 });
+  /*
+   * The reverse button's place is a ref and a direct style write, NOT state.
+   *
+   * It used to ride along with the four-times-a-second HUD update, which is
+   * fine for a lap counter and far too slow for something the player is
+   * watching follow their own wrist — it arrived a visible quarter-second
+   * after the phone had turned. Gravity is sampled every frame, so the button
+   * moves every frame; going through `useState` to do that would re-render
+   * Preact sixty times a second, which is exactly what this component's own
+   * doc comment forbids. Writing the two style properties on the node is the
+   * same trick the canvas uses, for the same reason.
+   */
+  const reverseEl = useRef<HTMLButtonElement | null>(null);
+  const spotRef = useRef<EdgeSpot>({ x: 0.5, y: 0.88 });
   const frozenSpot = useRef<EdgeSpot | null>(null);
 
   const phase = state?.phase;
@@ -151,6 +164,17 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
    */
   const onFrame = useCallback(
     (dtMs: number) => {
+      // The button first, and before any of the early returns below: it
+      // follows the phone whether or not the lights have gone out, and it is
+      // the one thing here that must not wait for the next report.
+      const spot = reverseSpot(orientRef.current.gamma, orientRef.current.beta, reverseRef.current, frozenSpot.current);
+      spotRef.current = spot;
+      const el = reverseEl.current;
+      if (el) {
+        el.style.left = `${spot.x * 100}%`;
+        el.style.top = `${spot.y * 100}%`;
+      }
+
       const s = state;
       const car = carRef.current;
       if (!s || !track || !car) return;
@@ -176,7 +200,6 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
           if (car2.lap * track.length + car2.s > mine) ahead++;
         }
         setHud({ speed: Math.max(0, Math.round(next.speed)), lap: next.lap, place: ahead + 1 });
-        setSpot(reverseSpot(orientRef.current.gamma, orientRef.current.beta, reverseRef.current, frozenSpot.current));
       }
 
       if (!finishedRef.current && next.lap >= s.laps) {
@@ -303,18 +326,23 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
 
           {/*
             Reverse. It sits where gravity says down is and slides around the
-            screen's edge as the phone turns, and it FREEZES while held — a
-            button that slid out from under the thumb already on it would be
-            unusable (spec §2).
+            screen's edge as the phone turns — every frame, off the same
+            sensor reading that steers the car, so it keeps up with the wrist
+            rather than trailing it. It FREEZES while held: a button that slid
+            out from under the thumb already on it would be unusable (spec §2).
+
+            The `style` here is only the opening position; `onFrame` writes the
+            two properties directly from then on.
           */}
           <button
             type="button"
             class="tilt__reverse"
-            style={{ left: `${spot.x * 100}%`, top: `${spot.y * 100}%` }}
+            ref={reverseEl}
+            style={{ left: `${spotRef.current.x * 100}%`, top: `${spotRef.current.y * 100}%` }}
             aria-label={text({ en: 'Reverse', fr: 'Marche arrière' })}
             onPointerDown={(e) => {
               e.preventDefault();
-              frozenSpot.current = spot;
+              frozenSpot.current = spotRef.current;
               reverseRef.current = true;
             }}
             onPointerUp={() => {
@@ -330,7 +358,10 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
               frozenSpot.current = null;
             }}
           >
-            <span aria-hidden="true">↩</span>
+            {/* A straight arrow down, not a curved return one: the car backs
+                straight out the way it came, and the curve read as "turn
+                round". */}
+            <span aria-hidden="true">↓</span>
           </button>
         </div>
       </div>
