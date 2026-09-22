@@ -3263,6 +3263,20 @@ export const TILT_RAIL_DRIVE = 240;
 export const TILT_RAIL_CRAWL = 35;
 
 /**
+ * How fast the drive tucks the car's far end against a rail it is scraping,
+ * radians per second broadside (issue #42).
+ *
+ * A rear-wheel-drive car dragging its nose along a wall is rotated by the
+ * wall's reaction at the nose, not by its own steering: the tail comes in and
+ * the car ends up flush. Swinging the nose out instead — the obvious reading of
+ * "push the car off the wall" — leaves it permanently angled and never sliding.
+ *
+ * Scaled by `sin` of the misalignment, so it is strongest broadside and stops
+ * once the car runs true.
+ */
+export const TILT_REAR_TUCK = 2.4;
+
+/**
  * How hard a rail keeps scrubbing while the car is still against it, in world
  * units per second squared.
  *
@@ -3333,6 +3347,20 @@ export const TILT_ALIGN_RELAX_MS = 260;
  *  was already running along the rail); this only decides which shake and
  *  which sound the renderer plays. */
 export const TILT_HEAD_ON = 0.55;
+
+/** Puffs in the car's smoke trail, and how long each one lasts (issue #44).
+ *  Five over half a second is dense enough to read as a trail at speed and
+ *  sparse enough that the car is never hidden by its own smoke. */
+export const TILT_SMOKE_PUFFS = 5;
+/** Cells across `art/smoke.png`. */
+export const TILT_SMOKE_VARIANTS = 3;
+export const TILT_SMOKE_LIFE_MS = 500;
+
+/** How fast a puff falls behind, world units per second, and how much it
+ *  spreads over its life. Drift is backwards along the heading it was laid at,
+ *  so the car drives out of its own smoke. */
+export const TILT_SMOKE_DRIFT = 40;
+export const TILT_SMOKE_SPREAD = 0.8;
 
 /** How often a phone reports its own progress. The issue says "every 0.25ms",
  *  which is 4000 messages a second and certainly a slip for 250 ms — the rate

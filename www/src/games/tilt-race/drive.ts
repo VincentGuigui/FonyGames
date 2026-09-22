@@ -4,6 +4,7 @@ import {
   TILT_CAR_WIDTH,
   TILT_HEAD_ON,
   TILT_RAIL_CRAWL,
+  TILT_REAR_TUCK,
   TILT_RAIL_DRIVE,
   TILT_REVERSE_SPEED,
   TILT_SCRAPE_ALIGNED,
@@ -451,22 +452,31 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
     let along = vx * tangent.x + vy * tangent.y;
 
     /*
-     * Put the leading end back on the road, swinging the car about the end
-     * that is not touching. This is what squares a car up with a wall it is
-     * scraping: the nose is held out of the rail while the tail keeps coming,
-     * so the body turns to run along it. No torque constant does this any
-     * more — the geometry of two points does it on its own.
+     * Lift the touching end clear, then TUCK THE OTHER END IN (issue #42).
+     *
+     * A rear-wheel-drive car scraping its nose along a wall does not swing the
+     * nose away — the wall's reaction at the nose, with the drive pushing from
+     * behind, rotates the body the other way and brings the tail in until the
+     * car lies flush. Swinging the nose out instead left the car permanently
+     * angled off the rail, which is what still read as "not sliding".
+     *
+     * So the depenetration is a straight shift (no rotation of its own), and
+     * the rotation is a separate tuck about the touching end, toward whichever
+     * way the rail runs. Its rate comes from the drive, so a car with no
+     * thrust does not tidy itself up.
      */
-    const pushed = {
-      x: leadEnd.x + lead.inward.x * (lead.depth + 1e-6),
-      y: leadEnd.y + lead.inward.y * (lead.depth + 1e-6),
+    centre = {
+      x: centre.x + lead.inward.x * (lead.depth + 1e-6),
+      y: centre.y + lead.inward.y * (lead.depth + 1e-6),
     };
-    const pivot = leadIsFront ? carEnds(centre, next.heading)[1] : carEnds(centre, next.heading)[0];
-    const swungHeading = leadIsFront
-      ? Math.atan2(pushed.y - pivot.y, pushed.x - pivot.x)
-      : Math.atan2(pivot.y - pushed.y, pivot.x - pushed.x);
-    swingTo(next, car.base + input.roll, swungHeading);
-    centre = centreFrom(pivot, next.heading, !leadIsFront);
+    const railAngle0 = Math.atan2(tangent.y, tangent.x);
+    const aheadErr = angleDelta(next.heading, railAngle0);
+    const behindErr = angleDelta(next.heading, railAngle0 + Math.PI);
+    const tuckErr = Math.abs(aheadErr) <= Math.abs(behindErr) ? aheadErr : behindErr;
+    const tuck = Math.sign(tuckErr) * Math.min(Math.abs(tuckErr), TILT_REAR_TUCK * Math.abs(Math.sin(tuckErr)) * dt);
+    const pinned = carEnds(centre, next.heading)[leadIsFront ? 0 : 1];
+    swingTo(next, car.base + input.roll, next.heading + tuck);
+    centre = centreFrom(pinned, next.heading, leadIsFront);
 
     /*
      * Rear-wheel drive. The engine does not care that there is a wall: it
@@ -486,8 +496,7 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
      * pays `TILT_SCRAPE_ALIGNED` of that. Charging both the same is what made
      * every graze read as a crash.
      */
-    const railAngle = Math.atan2(tangent.y, tangent.x);
-    const misalign = Math.abs(Math.sin(angleDelta(next.heading, railAngle)));
+    const misalign = Math.abs(Math.sin(angleDelta(next.heading, railAngle0)));
     const scrape = TILT_SCRAPE_DECEL * (TILT_SCRAPE_ALIGNED + (1 - TILT_SCRAPE_ALIGNED) * misalign);
     along = Math.sign(along) * Math.max(0, Math.abs(along) - scrape * dt);
 

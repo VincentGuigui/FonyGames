@@ -24,7 +24,7 @@ import { useT } from '../../core/i18n/strings';
 import { useGameText } from '../../core/i18n/gameText';
 import { TrackCanvas } from './TrackCanvas';
 import { progress, startDrive, step, type Drive } from './drive';
-import { reverseSpot, type EdgeSpot } from './gravityButton';
+import { reverseSpin, reverseSpot, type EdgeSpot } from './gravityButton';
 import { rollTracker } from './roll';
 import './tilt-race.css';
 
@@ -124,6 +124,8 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
    */
   const reverseEl = useRef<HTMLButtonElement | null>(null);
   const spotRef = useRef<EdgeSpot>({ x: 0.5, y: 0.88 });
+  const spinRef = useRef(0);
+  const frozenSpin = useRef<number | null>(null);
   const frozenSpot = useRef<EdgeSpot | null>(null);
 
   const phase = state?.phase;
@@ -168,11 +170,17 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       // follows the phone whether or not the lights have gone out, and it is
       // the one thing here that must not wait for the next report.
       const spot = reverseSpot(orientRef.current.gamma, orientRef.current.beta, reverseRef.current, frozenSpot.current);
+      const spin = reverseSpin(orientRef.current.gamma, orientRef.current.beta, reverseRef.current, frozenSpin.current);
       spotRef.current = spot;
+      spinRef.current = spin;
       const el = reverseEl.current;
       if (el) {
         el.style.left = `${spot.x * 100}%`;
         el.style.top = `${spot.y * 100}%`;
+        // The face turns with gravity so the arrow points at the real floor
+        // (#43). The `rotate` property, not a transform: the stylesheet centres
+        // this button with `translate`, and the two compose.
+        el.style.rotate = `${spin}rad`;
       }
 
       const s = state;
@@ -343,19 +351,23 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
             onPointerDown={(e) => {
               e.preventDefault();
               frozenSpot.current = spotRef.current;
+              frozenSpin.current = spinRef.current;
               reverseRef.current = true;
             }}
             onPointerUp={() => {
               reverseRef.current = false;
               frozenSpot.current = null;
+              frozenSpin.current = null;
             }}
             onPointerLeave={() => {
               reverseRef.current = false;
               frozenSpot.current = null;
+              frozenSpin.current = null;
             }}
             onPointerCancel={() => {
               reverseRef.current = false;
               frozenSpot.current = null;
+              frozenSpin.current = null;
             }}
           >
             {/* A straight arrow down, not a curved return one: the car backs

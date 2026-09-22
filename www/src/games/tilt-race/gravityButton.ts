@@ -88,3 +88,30 @@ export function reverseSpot(
   if (held && frozen) return frozen;
   return edgeSpot(downVector(gamma, beta));
 }
+
+/**
+ * How far to turn the button's face so its own "up" is the real world's up,
+ * radians clockwise (issue #43).
+ *
+ * The button slides round the screen's edge to stay under the lowest thumb,
+ * but its arrow stayed pinned to the screen, so held sideways it pointed along
+ * the ground. Turning the face by gravity's own screen angle keeps the arrow
+ * pointing at the real floor whatever the phone is doing.
+ *
+ * Screen-down is `(0, 1)`, which is `PI/2` in `atan2` terms, so that is the
+ * offset taken off. Frozen while held, for the same reason the position is:
+ * nothing about the button may move under a thumb already on it.
+ */
+export function reverseSpin(
+  gamma: number | null,
+  beta: number | null,
+  held: boolean,
+  frozen: number | null,
+): number {
+  if (held && frozen !== null) return frozen;
+  const down = downVector(gamma, beta);
+  // Flat on a table there is no screen-down to point at; leave the face alone
+  // rather than snapping it a quarter turn on a reading of nothing.
+  if (Math.hypot(down.x, down.y) < 1e-6) return 0;
+  return Math.atan2(down.y, down.x) - Math.PI / 2;
+}

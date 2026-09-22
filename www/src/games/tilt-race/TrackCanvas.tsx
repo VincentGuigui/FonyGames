@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'preact/hooks';
 import type { JSX } from 'preact';
-import { TILT_CAR_LENGTH, TILT_CAR_WIDTH, TILT_CRUISE_SPEED } from '../../../../shared/protocol';
+import { TILT_CAR_LENGTH, TILT_CAR_WIDTH, TILT_CRUISE_SPEED, TILT_SMOKE_VARIANTS } from '../../../../shared/protocol';
 import { TRACK_HALF_WIDTH, atArc, type Track } from '../../../../shared/tiltTrack';
 import { colorFor, loadAvatarColors } from '../../core/avatarColor';
 import { tinted } from '../../core/art/tint';
-import type { Drive } from './drive';
+import { carEnds, type Drive } from './drive';
+import { newTrail, puffPose, stepSmoke, type Puff } from './smoke';
 import carSprite from './art/car.png?url&no-inline';
+import smokeSheet from './art/smoke.png?url&no-inline';
 import roadTexture from './art/road.jpg?url&no-inline';
 
 // Same "call at module scope" rule `core/art/sprites.ts` states for its own
@@ -89,6 +91,9 @@ export function TrackCanvas({ track, car, rivals, myAvatar, span = 460, onFrame 
     // reasoning `tap-fighter/FightCanvas.tsx`'s two sprite sheets use.
     const carImg = new Image();
     carImg.src = carSprite;
+    const smokeImg = new Image();
+    smokeImg.src = smokeSheet;
+    let trail: Puff[] = newTrail();
     const roadImg = new Image();
     roadImg.src = roadTexture;
     // Built once the texture has loaded, not every frame — `createPattern` on a
@@ -124,6 +129,11 @@ export function TrackCanvas({ track, car, rivals, myAvatar, span = 460, onFrame 
       }
 
       const state = car();
+      // Smoke comes off the back of the car, and only at the speeds the trail
+      // is there to show (spec §4).
+      const tail = carEnds(state.at, state.heading)[1];
+      trail = stepSmoke(trail, now, tail, state.heading, Math.abs(state.speed) > TILT_CRUISE_SPEED, Math.random);
+
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.fillStyle = GRASS;
       ctx.fillRect(0, 0, width, height);
@@ -180,6 +190,27 @@ export function TrackCanvas({ track, car, rivals, myAvatar, span = 460, onFrame 
       ctx.strokeStyle = RAIL;
       ctx.lineWidth = 8;
       ctx.stroke();
+
+      /*
+       * Smoke, in world space so it stays on the road the car drove over
+       * rather than sliding with the camera. Drawn before the rivals so a
+       * ghost is never lost behind a puff.
+       */
+      if (smokeImg.complete && smokeImg.naturalWidth > 0) {
+        const cell = smokeImg.naturalWidth / TILT_SMOKE_VARIANTS;
+        const size = TILT_CAR_WIDTH * 1.6;
+        for (const puff of trail) {
+          const pose = puffPose(puff, now);
+          if (!pose) continue;
+          ctx.save();
+          ctx.globalAlpha = pose.alpha * 0.7;
+          ctx.translate(pose.x, pose.y);
+          ctx.rotate(pose.heading);
+          const w = size * pose.scale;
+          ctx.drawImage(smokeImg, puff.variant * cell, 0, cell, smokeImg.naturalHeight, -w / 2, -w / 2, w, w);
+          ctx.restore();
+        }
+      }
 
       // Rivals as dots on the road. Positions rather than cars, because they
       // are scenery: nobody collides with anybody (spec §6).
@@ -239,25 +270,6 @@ export function TrackCanvas({ track, car, rivals, myAvatar, span = 460, onFrame 
         ctx.drawImage(carSource, -carWidth / 2, -carLength / 2, carWidth, carLength);
       }
 
-      /*
-       * The skid, as a wedge trailing where the momentum actually goes rather
-       * than where the nose points. The car does rotate on screen now, so this
-       * is no longer the only cue that it is sliding — but the gap between the
-       * two is exactly what a skid is, and drawing it is what makes the gap
-       * legible at speed.
-       */
-      const slip = state.drift - state.heading;
-      if (Math.abs(state.speed) > TILT_CRUISE_SPEED && Math.abs(slip) > 0.02) {
-        ctx.rotate(slip);
-        ctx.globalAlpha = Math.min(0.5, Math.abs(slip) * 1.2);
-        ctx.fillStyle = RAIL;
-        ctx.beginPath();
-        ctx.moveTo(-carWidth * 0.3, carLength * 0.45);
-        ctx.lineTo(carWidth * 0.3, carLength * 0.45);
-        ctx.lineTo(0, carLength * 1.5);
-        ctx.closePath();
-        ctx.fill();
-      }
       ctx.restore();
 
       frame = requestAnimationFrame(draw);

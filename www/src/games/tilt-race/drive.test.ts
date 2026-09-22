@@ -1,3 +1,4 @@
+import type { Point } from '../../../../shared/tiltTrack';
 import {
   CAR_END_RADIUS,
   TILT_UPRIGHT_HEADING,
@@ -118,6 +119,11 @@ function circleTrack(radius = 200000, steps = 720): Track {
 
 const CIRCLE = circleTrack();
 const STRAIGHT: DriveInput = { roll: 0, reverse: false };
+
+/** Which end leads: the nose going forwards, the tail in reverse. */
+function leadIsForward(d: Drive): boolean {
+  return d.speed >= 0;
+}
 
 /** Shortest signed angle from `a` to `b` — `drive.ts` keeps its own copy private. */
 function angleDeltaT(a: number, b: number): number {
@@ -556,6 +562,29 @@ function aligning(): void {
     `it is the rail doing it, not the wrist (align ${car.align.toFixed(2)} rad, roll fixed)`,
     Math.abs(car.align) > 0.05,
     car.align,
+  );
+
+  /*
+   * Issue #42: it must square up by bringing the TAIL to the wall, not by
+   * swinging the nose off it. Nose-out leaves the car angled away and never
+   * actually sliding, which is what the bug reported.
+   */
+  const clearOf = (end: Point): number => -endContact(CIRCLE, end).depth;
+  const [noseBefore, tailBefore] = carEnds(hit.at, hit.heading);
+  const [noseAfter, tailAfter] = carEnds(car.at, car.heading);
+  const leadBefore = leadIsForward(hit) ? noseBefore : tailBefore;
+  const leadAfter = leadIsForward(car) ? noseAfter : tailAfter;
+  const tailGapBefore = clearOf(leadIsForward(hit) ? tailBefore : noseBefore);
+  const tailGapAfter = clearOf(leadIsForward(car) ? tailAfter : noseAfter);
+  check(
+    `the trailing end comes IN to the wall (clearance ${tailGapBefore.toFixed(1)} → ${tailGapAfter.toFixed(1)})`,
+    tailGapAfter < tailGapBefore,
+    { before: tailGapBefore, after: tailGapAfter },
+  );
+  check(
+    `while the touching end stays on it (${clearOf(leadBefore).toFixed(1)} → ${clearOf(leadAfter).toFixed(1)})`,
+    clearOf(leadAfter) < tailGapBefore,
+    { lead: clearOf(leadAfter) },
   );
   check(
     `and it is bounded, so the car never leaves the player's hands (|align| ≤ ${TILT_ALIGN_MAX})`,

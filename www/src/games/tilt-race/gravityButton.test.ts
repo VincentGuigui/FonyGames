@@ -1,4 +1,6 @@
-import { EDGE_INSET, edgeSpot, reverseSpot } from './gravityButton';
+import {
+  downVector,
+  reverseSpin, EDGE_INSET, edgeSpot, reverseSpot } from './gravityButton';
 
 /**
  * Where the reverse button sits.
@@ -104,5 +106,40 @@ function freezing(): void {
 edges();
 freezing();
 
+
+function spinning(): void {
+  console.log('\nthe button turns so its arrow points at the real floor (#43)');
+
+  const deg = (r: number): number => (r * 180) / Math.PI;
+  // Upright (beta 90) gravity is already screen-down, so nothing to turn.
+  check(`upright needs no turn (${deg(reverseSpin(0, 90, false, null)).toFixed(0)}deg)`,
+    Math.abs(reverseSpin(0, 90, false, null)) < 1e-9);
+
+  // Tipped onto an edge, the face turns to match.
+  const right = reverseSpin(90, 0, false, null);
+  const left = reverseSpin(-90, 0, false, null);
+  check(`tipped one way turns a quarter (${deg(right).toFixed(0)}deg)`, Math.abs(Math.abs(deg(right)) - 90) < 1);
+  check(`and the other way, the other way (${deg(left).toFixed(0)}deg)`, Math.sign(left) === -Math.sign(right));
+
+  // The arrow always points where gravity does: turn the face by the spin and
+  // screen-down must land on the real down.
+  for (const [g, b] of [[0, 90], [45, 45], [-60, 30], [90, 0]] as const) {
+    const spin = reverseSpin(g, b, false, null);
+    const d = downVector(g, b);
+    const pointed = { x: -Math.sin(spin), y: Math.cos(spin) };
+    const len = Math.hypot(d.x, d.y) || 1;
+    const dot = (pointed.x * d.x + pointed.y * d.y) / len;
+    check(`  the arrow lands on gravity at ${g}/${b} (dot ${dot.toFixed(3)})`, dot > 0.999, dot);
+  }
+
+  // Frozen while held, exactly as the position is.
+  check('held, it does not turn under the thumb', reverseSpin(90, 0, true, 0.25) === 0.25);
+  check('and released it follows gravity again', reverseSpin(0, 90, false, 0.25) === 0);
+  check('a flat phone leaves the face alone', reverseSpin(0, 0, false, null) === 0);
+}
+
+spinning();
+
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);
 console.log(`\nall ${checks} passed`);
+
