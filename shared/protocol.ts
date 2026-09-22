@@ -3227,10 +3227,11 @@ export const TILT_CAR_CORNER = 0.1;
  * (and that is what reverse is for), but at any angle short of square the car
  * keeps crabbing along it.
  *
- * Sized against `TILT_SCRAPE_DECEL` (180) deliberately: at a 45° scrape the
- * push contributes `cos 45 × 240` ≈ 170, so friction still just edges it and
- * wall-riding stays a slow line rather than a free one — but the car is never
- * stuck, which is the thing being fixed.
+ * At a 45° scrape the push contributes `cos 45 × 240` ≈ 170 against a friction
+ * of about 70 (`TILT_SCRAPE_DECEL` scaled by the angle), so a car that hits a
+ * wall at an angle works its way along it and squares up rather than grinding
+ * to a halt. The spool ceiling is what still keeps wall-riding honest: the
+ * rail can return a car to its own speed curve, never past it.
  */
 export const TILT_RAIL_DRIVE = 240;
 
@@ -3262,13 +3263,72 @@ export const TILT_RAIL_CRAWL = 35;
  * part that runs for as long as contact lasts, which is what makes riding a
  * wall round a corner a losing line rather than a free guide.
  *
- * **It has to beat the spool to mean anything.** A car regains speed at about
- * `TILT_CRUISE_SPEED` per second, so anything under 100 here would let a
- * scraping car accelerate. 180 leaves a net loss of ~80 u/s^2: about a second
- * and a half of continuous contact to stop from cruise, and an immediate
- * recovery the moment the car comes off the wall.
+ * **This is the square-on figure, and it is now scaled by the angle** —
+ * `TILT_SCRAPE_ALIGNED` below. Halved from the 180 it was: at 180 a rail was
+ * still the dominant fact of any race that touched one, and the brief was to
+ * make the wall cost less and reward squaring up to it.
  */
-export const TILT_SCRAPE_DECEL = 180;
+export const TILT_SCRAPE_DECEL = 90;
+
+/**
+ * What is left of the scrape when the car is perfectly parallel to the rail,
+ * as a fraction of `TILT_SCRAPE_DECEL`.
+ *
+ * The full figure is for a car dragged sideways along a wall; a car running
+ * true along one is barely touching it, and charging both the same was what
+ * made a graze feel like a crash. The scrape now runs
+ * `DECEL x (ALIGNED + (1 - ALIGNED) x |sin misalignment|)`, so squaring up
+ * with the rail is worth doing and the rear wheels have something to earn
+ * (`TILT_RAIL_ALIGN`).
+ *
+ * **Not zero.** At zero a perfectly parallel car pays nothing at all and the
+ * outside wall becomes a free banking to lean on round every corner. A quarter
+ * keeps a cost on the board while leaving the aligned car far better off than
+ * the sideways one — 22.5 u/s^2 against 90.
+ */
+export const TILT_SCRAPE_ALIGNED = 0.25;
+
+/**
+ * How fast the rear wheels swing the nose onto the rail while the car is
+ * against it, radians per second at a square hit.
+ *
+ * A rear-wheel-drive car with its front pinned against a wall does not just
+ * slide: the push at the back, resisted at the front, is a torque, and the car
+ * squares itself up with the wall. That is the missing half of the slide — the
+ * car should come off a rail pointing along it rather than still crabbing at
+ * the angle it arrived.
+ *
+ * The rate is scaled by `sin` of the misalignment, so it is strongest sideways
+ * on and fades to nothing once aligned, which is the torque a contact at the
+ * nose actually produces. 1.8 rad/s squares up a 45 degree scrape in about a
+ * third of a second: fast enough to feel like the car helping, slow enough to
+ * watch happen.
+ */
+export const TILT_RAIL_ALIGN = 1.8;
+
+/**
+ * The most the rail may turn the car away from where the phone is pointing,
+ * radians.
+ *
+ * The heading is the phone's, 1:1 (spec section 2.1), and this is the one
+ * thing allowed to sit on top of it — so it is bounded, and it relaxes away
+ * the moment the car is free (`TILT_ALIGN_RELAX_MS`). 0.7 rad (40 degrees) is
+ * enough to square a car up with any wall it can realistically be pinned
+ * against, and small enough that the wrist is still obviously driving: a
+ * player who points 90 degrees into a wall gets a car 50 degrees off it, not a
+ * car that has taken itself out of their hands.
+ */
+export const TILT_ALIGN_MAX = 0.7;
+
+/**
+ * How quickly the rail's alignment offset bleeds back to zero once the car is
+ * off the wall, milliseconds.
+ *
+ * Short, because this offset is a debt against the 1:1 promise: the car has to
+ * come back under the wrist quickly enough that the player never has to think
+ * about it. 260 ms is about two thirds gone in a quarter second.
+ */
+export const TILT_ALIGN_RELAX_MS = 260;
 
 /** How square a hit has to be, as |cos| between the car's momentum and the
  *  rail's normal, before it is *called* head-on rather than a graze. The speed

@@ -13,12 +13,16 @@ import {
   type DriveInput,
 } from './drive';
 import {
+  TILT_ALIGN_MAX,
+  TILT_ALIGN_RELAX_MS,
   TILT_CAR_LENGTH,
   TILT_CAR_WIDTH,
   TILT_CORNER_RATE,
   TILT_CRUISE_SPEED,
+  TILT_RAIL_CRAWL,
   TILT_RAIL_DRIVE,
   TILT_REVERSE_SPEED,
+  TILT_SCRAPE_ALIGNED,
   TILT_SCRAPE_DECEL,
   TILT_SKID_TAU_MS,
   TILT_SPOOL_MS,
@@ -479,7 +483,90 @@ function rails(): void {
     riding.speed < (trail[0] ?? 0),
     trail.map((v) => Math.round(v)),
   );
-  check('and the scrape beats the spool, or a wall would be a free guide', TILT_SCRAPE_DECEL > TILT_CRUISE_SPEED, TILT_SCRAPE_DECEL);
+  /*
+   * What replaced "the scrape must beat the spool". The scrape is now scaled
+   * by the angle, so what has to hold is that being sideways on a wall costs
+   * real speed and being square with it costs much less — with neither end of
+   * that free. The speed cost of wall-riding is deliberately small now; what
+   * keeps it a bad line is the geometry, not the friction (spec §2.3, §12 Q13).
+   */
+  const broadside = TILT_SCRAPE_DECEL;
+  const parallel = TILT_SCRAPE_DECEL * TILT_SCRAPE_ALIGNED;
+  check(
+    `sideways on a rail costs several times what parallel does (${broadside.toFixed(0)} vs ${parallel.toFixed(0)})`,
+    broadside > parallel * 3,
+    { broadside, parallel },
+  );
+  check('and parallel is not free either', parallel > 0, parallel);
+}
+
+/**
+ * The rear wheels do not just shove the car along the rail, they TURN it onto
+ * it — the half of the slide that was missing (spec §2.3).
+ *
+ * The wrist is held at one fixed roll throughout, which is what makes `align`
+ * readable on its own: anything the heading does beyond that fixed roll is the
+ * rail's doing and nothing else's.
+ */
+function aligning(): void {
+  console.log('\nthe rear wheels square the car up with the rail (§2.3)');
+
+  const hit = untilBump(aimedAt(0.8)).hit;
+  const heldRoll = hit.heading - hit.base - hit.align;
+  check(`the fixture is against a rail at an angle (align ${hit.align.toFixed(2)})`, hit.bump !== 'none', hit.bump);
+
+  const gapAt = (car: Drive): number => Math.abs(Math.sin(car.heading - RAIL_ALONG));
+  let car = hit;
+  const opening = gapAt(car);
+  const aligns: number[] = [];
+  for (let i = 0; i < 60; i++) {
+    car = step(CIRCLE, car, { roll: heldRoll, reverse: false }, FRAME);
+    aligns.push(car.align);
+  }
+  check(
+    `a second of contact swings the nose onto the rail (gap ${opening.toFixed(2)} → ${gapAt(car).toFixed(2)})`,
+    gapAt(car) < opening,
+    { opening, closed: gapAt(car), aligns: aligns.filter((_, i) => i % 10 === 0).map((v) => Number(v.toFixed(3))) },
+  );
+  check(
+    `it is the rail doing it, not the wrist (align ${car.align.toFixed(2)} rad, roll fixed)`,
+    Math.abs(car.align) > 0.05,
+    car.align,
+  );
+  check(
+    `and it is bounded, so the car never leaves the player's hands (|align| ≤ ${TILT_ALIGN_MAX})`,
+    aligns.every((a) => Math.abs(a) <= TILT_ALIGN_MAX + 1e-9),
+    Math.max(...aligns.map(Math.abs)),
+  );
+
+  /*
+   * Squaring up is what makes the scrape cheap — that is the whole point of
+   * doing it. Same rail, same speed, one car broadside and one running true:
+   * the aligned one must keep more.
+   */
+  const scrapeFor = (gap: number): number =>
+    TILT_SCRAPE_DECEL * (TILT_SCRAPE_ALIGNED + (1 - TILT_SCRAPE_ALIGNED) * Math.abs(Math.sin(gap)));
+  check(
+    `running true costs a fraction of broadside (${scrapeFor(0).toFixed(0)} vs ${scrapeFor(Math.PI / 2).toFixed(0)} u/s²)`,
+    scrapeFor(0) * 3 < scrapeFor(Math.PI / 2),
+    { aligned: scrapeFor(0), broadside: scrapeFor(Math.PI / 2) },
+  );
+
+  /*
+   * And the debt is paid back: off the wall the offset bleeds away, so the
+   * car comes back under the wrist and the 1:1 promise holds again (§2.1).
+   */
+  const free: Drive = { ...car, bump: 'none', at: { ...atArc(CIRCLE, car.s).at } };
+  let relaxing = free;
+  for (let i = 0; i < 30; i++) {
+    relaxing = step(CIRCLE, relaxing, { roll: heldRoll, reverse: false }, FRAME);
+    if (relaxing.bump !== 'none') break;
+  }
+  check(
+    `off the wall it relaxes back towards the wrist (${car.align.toFixed(2)} → ${relaxing.align.toFixed(2)} rad)`,
+    Math.abs(relaxing.align) < Math.abs(car.align),
+    { from: car.align, to: relaxing.align, tau: TILT_ALIGN_RELAX_MS },
+  );
 }
 
 function rearWheelDrive(): void {
@@ -509,10 +596,35 @@ function rearWheelDrive(): void {
     { travelled, speeds: speeds.map((v) => Math.round(v)) },
   );
   check('and it never grinds to a standstill', car.speed > 0, car.speed);
+  /*
+   * It squares up as it goes, so it no longer settles to a crawl — it works
+   * back up its own speed curve. The bound that still holds is that the rail
+   * cannot push it PAST that curve: a wall can return a car to the speed it
+   * was entitled to, never hand it more (spec §2.3).
+   */
   check(
-    `the crawl it settles to is slower than reverse, so the wall is still the wrong place (${car.speed.toFixed(0)})`,
-    car.speed < TILT_REVERSE_SPEED,
-    car.speed,
+    `held against the rail it works back up its curve (${car.speed.toFixed(0)})`,
+    car.speed <= tiltSpeedAt(car.runMs) + 1,
+    { speed: car.speed, ceiling: tiltSpeedAt(car.runMs) },
+  );
+  /*
+   * The nose ends up nearer the rail than it started. Measured on the HEADING
+   * rather than on `align`: this fixture re-reads `roll` from the car every
+   * frame, so a wrist that follows the car absorbs the offset and `align`
+   * itself stays near zero while the car really has squared up. `aligning()`
+   * below holds the wrist still and watches `align` directly.
+   */
+  const gapBefore = Math.abs(Math.sin(pinned.heading - RAIL_ALONG));
+  const gapAfter = Math.abs(Math.sin(car.heading - RAIL_ALONG));
+  check(
+    `and it has squared up with the rail on the way (${gapBefore.toFixed(2)} → ${gapAfter.toFixed(2)})`,
+    gapAfter < gapBefore,
+    { gapBefore, gapAfter },
+  );
+  check(
+    `the crawl floor is still slower than reverse, so a pinned nose is the wrong place (${TILT_RAIL_CRAWL})`,
+    TILT_RAIL_CRAWL < TILT_REVERSE_SPEED,
+    { crawl: TILT_RAIL_CRAWL, reverse: TILT_REVERSE_SPEED },
   );
 
   /*
@@ -537,12 +649,21 @@ function rearWheelDrive(): void {
   check('rather than stopping dead in it', wedged.speed > 0, wedged.speed);
 
   /*
-   * Nose square into the wall is the one case with nothing along the rail to
-   * give — and that is exactly what reverse is for, so it must still work.
+   * Nose square into the wall has nothing along the rail to give AT THE MOMENT
+   * OF THE HIT — and that used to be the end of it. Now the rear wheels turn
+   * the car out of it: the push is a torque as well as a shove, so the nose
+   * swings off square and the car finds its way along the wall (spec §2.3).
    */
   let stuck = untilBump(aimedAt(Math.PI / 2 - 0.02)).hit;
+  check('a square hit does stop the car in the frame it lands', Math.abs(stuck.speed) < 5, stuck.speed);
+  const squareAlign = stuck.align;
   for (let i = 0; i < 10; i++) stuck = step(CIRCLE, stuck, { roll: stuck.heading - stuck.base, reverse: false }, FRAME);
-  check('nose-on into a wall the push has nothing along the rail to give', Math.abs(stuck.speed) < 5, stuck.speed);
+  check(
+    `but the rear wheels turn it out rather than pinning it (align ${squareAlign.toFixed(2)} → ${stuck.align.toFixed(2)} rad)`,
+    Math.abs(stuck.align) > Math.abs(squareAlign),
+    { from: squareAlign, to: stuck.align },
+  );
+  check(`and it is moving again (${stuck.speed.toFixed(0)})`, Math.abs(stuck.speed) > 0, stuck.speed);
   const backedOut = step(CIRCLE, stuck, { roll: stuck.heading - stuck.base, reverse: true }, FRAME);
   check('and reverse is still the way out', backedOut.speed < 0, backedOut.speed);
 
@@ -677,6 +798,7 @@ steering();
 skidding();
 theBody();
 rails();
+aligning();
 rearWheelDrive();
 reversing();
 aWholeLap();

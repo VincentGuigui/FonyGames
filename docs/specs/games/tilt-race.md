@@ -44,9 +44,11 @@ of a mistake.
 6. **Guardrails turn the car, they do not stop it** (§2.3). The collision box
    is the drawn body, not a point at its centre. A hit keeps whatever of the
    momentum was already running along the rail and loses what was running
-   across it, the rear wheels keep pushing the car along the rail, and
-   `TILT_SCRAPE_DECEL` keeps taking speed off for as long as the car is
-   against it — down to a crawl, never to a standstill.
+   across it; the rear wheels both push the car along the rail and **swing its
+   nose onto it**, so a car squares itself up with a wall it is scraping; and
+   the scrape costs what the angle says (`TILT_SCRAPE_DECEL` broadside,
+   `TILT_SCRAPE_ALIGNED` of that once running true) — so squaring up is worth
+   doing, and the wall never brings the car to a standstill.
 7. First across the finish line wins. Everyone else runs until
    `TILT_RUN_CAP_MS` so a whole room gets a placing.
 
@@ -133,23 +135,53 @@ This replaced an `along²` impact multiplier, which took a second bite out of a
 car that had already lost its across-rail momentum and was the thing that read
 as stopping dead on contact.
 
-**Then the rear wheels.** The car is rear-wheel drive and the engine does not
-care that there is a wall: it keeps pushing along the car's own heading, and
-the rail turns whatever part of that runs along itself into motion
-(`TILT_RAIL_DRIVE`, 240 u/s²). So a car sitting at an angle against a
-guardrail crabs along it and works itself straight rather than sticking where
-it landed. Nose square into the wall there is nothing along the rail to give,
-and the car does stop — correctly, and that is what reverse is for.
+**Then the rear wheels, twice over.** The car is rear-wheel drive and the
+engine does not care that there is a wall: it keeps pushing along the car's own
+heading, and the rail turns whatever part of that runs along itself into motion
+(`TILT_RAIL_DRIVE`, 240 u/s²). So a car sitting at an angle against a guardrail
+crabs along it rather than sticking where it landed.
 
-The heading itself is never touched: it is the phone's, 1:1 (§2.1), so the
-rail moves the car along itself and never rotates the body out from under the
-player's wrist.
+**And that same push, resisted at the corner that is touching, is a torque: it
+squares the car up with the wall.** A rear-wheel-drive car pinned at the front
+does not keep crabbing at the angle it arrived at — it swings straight and runs
+along the rail. `TILT_RAIL_ALIGN` (1.8 rad/s broadside, scaled by `sin` of the
+misalignment so it fades to nothing once true) turns a 45° scrape straight in
+about a third of a second. Measured: a car hitting at 0.8 rad closes to 0.09 rad
+of the rail within a second of contact.
 
-**The scrape**, every frame the car is still touching, at `TILT_SCRAPE_DECEL`
-(180 units/s²). This is what makes riding a wall round a corner a losing line
-rather than a free guide, and it has to beat the spool to mean anything at all
-— a car regains speed at about `TILT_CRUISE_SPEED` per second, so anything under
-100 would let a scraping car accelerate.
+This is the one thing in the game allowed to sit on top of the phone's own
+heading, and it is deliberately a **debt, not a second steering input**:
+
+- it is carried in its own field, `align`, so `heading` is `base + roll + align`
+  and the wrist's contribution is never overwritten;
+- it is **bounded** by `TILT_ALIGN_MAX` (0.7 rad, 40°), so a player who points
+  90° into a wall gets a car 50° off it — helped, not taken out of their hands;
+- it **relaxes back to zero** the moment the car is free, over
+  `TILT_ALIGN_RELAX_MS` (260 ms), so the 1:1 promise of §2.1 is restored within
+  a quarter second of leaving the wall.
+
+Nose square into the wall there is still nothing along the rail to give in the
+frame of the hit, and the car does stop there — but it no longer *stays*
+stopped: the torque swings the nose off square and it finds its way along. What
+reverse is still for is the genuinely wedged case, a nose into a corner the 40°
+of alignment cannot turn out of.
+
+**Then the scrape, and it costs what the angle says.** Every frame of contact,
+at `TILT_SCRAPE_DECEL` (90 u/s²) scaled by how far the car is from running true:
+
+```
+scrape = TILT_SCRAPE_DECEL × (TILT_SCRAPE_ALIGNED + (1 − TILT_SCRAPE_ALIGNED) × |sin misalignment|)
+```
+
+So a car dragged broadside pays 90 u/s² and one running along the wall pays
+22.5 — where both used to pay a flat 180. Charging the same for both is what
+made every graze read as a crash, and it left the alignment above nothing to
+earn. The floor is not zero on purpose: at zero the outside wall becomes free
+banking to lean on round every corner.
+
+**What this trades away** is the old rule that "the scrape must beat the spool,
+or wall-riding is free". It no longer does, and that is now the deliberate
+position rather than an oversight — see §12 Q9.
 
 **...but never to a dead stop.** Drive and scrape are both accelerations, so
 on their own one simply beats the other and the car either accelerates along
@@ -288,12 +320,14 @@ case something else was meant.
 - **Permission denied**: cannot play (§5); spectates on the rail.
 - **Backgrounded tab**: stops simulating and reporting; on return it rejoins at
   the referee's clock, having lost the time. Dimmed on the rail while silent.
-- **Car wedged against a rail**: it keeps crabbing along the rail at
-  `TILT_RAIL_CRAWL` rather than stopping, so this is a slow patch rather than a
-  dead end. Turned more than ~53° across the road the body cannot fit at all
-  and is against both rails at once — still crabbing, still steerable out.
-  Only a nose square into the wall genuinely stops, and reverse exists
-  precisely for that; the spool restarts from 0 when it is released.
+- **Car wedged against a rail**: it crabs along the rail and squares itself up
+  with it as it goes (§2.3), so this is a slow patch rather than a dead end —
+  measured at 104 units in the first second from a 0.8 rad hit, closing to
+  0.09 rad of the rail. Turned more than ~53° across the road the body cannot
+  fit at all and is against both rails at once; still crabbing, still steerable
+  out. `TILT_RAIL_CRAWL` remains the floor for a nose the alignment cannot turn
+  out of, and reverse is the way out of that; the spool restarts from 0 when it
+  is released.
 - **Nobody finishes** before `TILT_RUN_CAP_MS`: placings by progress.
 - **Solo (1 player)**: the card promises 2–8, and the referee enforces the
   card (AGENTS.md §4), so a lone player cannot start a public race. Nothing
@@ -408,6 +442,24 @@ Two the build raised:
    rails are real — but a wider grid with a shorter blob would look more like a
    circuit, at the cost of the lap length. `endurance` mode (three laps) would
    let the circuit itself be a third of the size, which may be the real answer.
+
+Two the guardrail rework raised:
+
+9. **Wall-riding is barely a speed penalty any more.** The scrape was halved and
+   is now scaled by the angle (§2.3), so a car running true along a rail pays
+   22.5 u/s² where it used to pay a flat 180 — less than the spool gives back,
+   which means a squared-up car against a wall climbs back to its own speed
+   curve rather than bleeding out. That is what was asked for, and it is worth
+   a playtest: the only thing left discouraging the outside wall is the
+   geometry of the line, not the friction. If it turns out a wall is the *fast*
+   way round a corner, the lever is `TILT_SCRAPE_ALIGNED`, not the base figure.
+10. **The rail is allowed to steer, a little.** `align` is the first thing ever
+    to sit on top of the phone's 1:1 heading (§2.1) — the rear wheels swinging
+    the nose onto the wall. It is bounded (`TILT_ALIGN_MAX`, 40°) and it bleeds
+    away in about a quarter second once the car is free, so the wrist is still
+    plainly driving; but it is a real exception to the game's strongest promise
+    and it should be watched for on a phone, where a car that squares itself up
+    while the hand holds still might read as the car fighting back.
 
 One a real phone raised, reversing a piece of §2.1/§5 as built:
 

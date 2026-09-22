@@ -1,11 +1,15 @@
 import {
+  TILT_ALIGN_MAX,
+  TILT_ALIGN_RELAX_MS,
   TILT_CAR_CORNER,
   TILT_CAR_LENGTH,
   TILT_CAR_WIDTH,
   TILT_HEAD_ON,
+  TILT_RAIL_ALIGN,
   TILT_RAIL_CRAWL,
   TILT_RAIL_DRIVE,
   TILT_REVERSE_SPEED,
+  TILT_SCRAPE_ALIGNED,
   TILT_SCRAPE_DECEL,
   TILT_SKID_TAU_MS,
   TILT_SPOOL_MS,
@@ -79,6 +83,15 @@ export type Drive = {
    * `TILT_CRUISE_SPEED` lags the heading — that is the skid (spec §2.2).
    */
   drift: number;
+  /**
+   * How far the rails have turned the car away from where the phone points,
+   * radians — `heading` is `base + roll + align` (spec §2.3).
+   *
+   * Zero whenever the car is free of a wall, and it gets back there fast
+   * (`TILT_ALIGN_RELAX_MS`): this is the one thing allowed on top of the 1:1
+   * control, and it is a debt, not a second steering input.
+   */
+  align: number;
   /** Elapsed run time, ms. The speed curve is a function of this. */
   runMs: number;
   /** Arc length round the current lap, and laps completed. */
@@ -116,6 +129,7 @@ export function startDrive(track: Track, startS = 0): Drive {
     base: TILT_UPRIGHT_HEADING,
     speed: 0,
     drift: TILT_UPRIGHT_HEADING,
+    align: 0,
     runMs: 0,
     s: startS,
     lap: 0,
@@ -300,7 +314,17 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
    * so a violent flick makes it slide rather than teleport. A rate cap on top
    * would only break the one property the control exists for.
    */
-  next.heading = car.base + input.roll;
+  /*
+   * ...plus whatever the rails have turned it to, which decays back to nothing
+   * as soon as the car is free of them (spec §2.3). Relaxed here, at the top,
+   * off LAST frame's contact, so one frame has exactly one heading: the
+   * alignment the rail branch below applies is what the car carries into the
+   * next step.
+   */
+  next.align = car.bump === 'none'
+    ? car.align * Math.exp(-Math.max(0, dtMs) / TILT_ALIGN_RELAX_MS)
+    : car.align;
+  next.heading = car.base + input.roll + next.align;
 
   /*
    * Skid. Below cruise the momentum is the heading exactly — the car goes
@@ -369,13 +393,45 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
    * The heading is the phone's, 1:1 (spec §2.1), so this moves the car along
    * the rail; it never rotates the body out from under the player's wrist.
    */
+  /*
+   * ...and the same push, resisted at the corner that is touching, is a
+   * TORQUE: it squares the car up with the wall. A rear-wheel-drive car pinned
+   * at the front does not keep crabbing at the angle it arrived at — it swings
+   * straight and runs along the rail, which is both what a car does and what
+   * makes the scrape below cheap.
+   *
+   * The error is measured against whichever END of the rail's tangent the nose
+   * is already nearer, so a car reversing along a wall squares up to it too,
+   * and |err| is never past a right angle.
+   */
+  const railAngle = Math.atan2(tangent.y, tangent.x);
+  const ahead = angleDelta(next.heading, railAngle);
+  const behind = angleDelta(next.heading, railAngle + Math.PI);
+  const err = Math.abs(ahead) <= Math.abs(behind) ? ahead : behind;
+  // `sin |err|` is the torque a contact at the nose actually makes: strongest
+  // broadside, nothing once the car is running true. Never past the error
+  // itself, so it settles rather than ringing.
+  const swing = Math.sign(err) * Math.min(Math.abs(err), TILT_RAIL_ALIGN * Math.abs(Math.sin(err)) * dt);
+  next.align = Math.max(-TILT_ALIGN_MAX, Math.min(TILT_ALIGN_MAX, next.align + swing));
+  next.heading = car.base + input.roll + next.align;
+
   const push = input.reverse ? -TILT_RAIL_DRIVE : TILT_RAIL_DRIVE;
   along += (Math.cos(next.heading) * tangent.x + Math.sin(next.heading) * tangent.y) * push * dt;
 
-  // Friction, for as long as contact lasts. The impact costs what the angle
-  // says; this is the part that keeps riding a wall round a corner a losing
-  // line rather than a free guide.
-  along = Math.sign(along) * Math.max(0, Math.abs(along) - TILT_SCRAPE_DECEL * dt);
+  /*
+   * Friction, for as long as contact lasts — and it costs what the ANGLE says,
+   * not a flat fee. A car dragged broadside along a wall pays
+   * `TILT_SCRAPE_DECEL`; one running true along it is barely touching and pays
+   * `TILT_SCRAPE_ALIGNED` of that. Charging both the same is what made every
+   * graze read as a crash, and it left the alignment above with nothing to
+   * earn.
+   *
+   * Measured from the freshly-swung heading, so squaring up pays off in the
+   * same frame it happens.
+   */
+  const misalign = Math.abs(Math.sin(angleDelta(next.heading, railAngle)));
+  const scrape = TILT_SCRAPE_DECEL * (TILT_SCRAPE_ALIGNED + (1 - TILT_SCRAPE_ALIGNED) * misalign);
+  along = Math.sign(along) * Math.max(0, Math.abs(along) - scrape * dt);
 
   /*
    * ...but never all the way to a standstill while the wheels still have
