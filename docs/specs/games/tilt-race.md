@@ -41,15 +41,20 @@ of a mistake.
    and it **locks in place** until released, then falls back to wherever down
    has become. Its icon is a straight arrow down: the car backs straight out
    the way it came, where a curved return arrow read as "turn round".
-6. **Guardrails turn the car, they do not stop it** (§2.3). The collision box
-   is the drawn body, not a point at its centre. A hit keeps whatever of the
-   momentum was already running along the rail and loses what was running
-   across it; the rear wheels both push the car along the rail and **swing its
-   nose onto it**, so a car squares itself up with a wall it is scraping; and
-   the scrape costs what the angle says (`TILT_SCRAPE_DECEL` broadside,
-   `TILT_SCRAPE_ALIGNED` of that once running true) — so squaring up is worth
-   doing, and the wall never brings the car to a standstill.
-7. First across the finish line wins. Everyone else runs until
+6. **The car is two points, and it turns about the back one** (§2.3) — the
+   steered wheels are at the front, so the wrist swings the nose and the tail
+   follows, in reverse the other way round.
+7. **Guardrails turn the car, they do not stop it** (§2.3), and **only the end
+   being driven into one costs anything**: clip a wall with the tail while
+   going forwards and the car is simply put back on the road, same speed, same
+   direction. A hit on the leading end keeps whatever of the momentum was
+   already running along the rail and loses what was running across it; putting
+   that end back swings the body straight, so a car squares itself up with a
+   wall it is scraping; and the scrape costs what the angle says
+   (`TILT_SCRAPE_DECEL` broadside, `TILT_SCRAPE_ALIGNED` of that once running
+   true) — so squaring up is worth doing, and the wall never brings the car to
+   a standstill.
+8. First across the finish line wins. Everyone else runs until
    `TILT_RUN_CAP_MS` so a whole room gets a placing.
 
 **Win condition:** first across the finish line.
@@ -96,27 +101,56 @@ number this constant tracks any more.
 
 ### 2.3 The body, and what a guardrail does to it
 
-**The collision box is the car, not a point at its centre.** It is the drawn
-body: `TILT_CAR_LENGTH` × `TILT_CAR_WIDTH` (70 × 31 world units, the sprite's
-own 225/512 aspect), with corners rounded by `TILT_CAR_CORNER` — a tenth of
-the short side, about 3 units. `TrackCanvas` derives the pixels it draws from
-those same constants, so the box and the picture cannot drift apart: what the
-player sees touch a rail is what touched it.
+**The car is two points, not a box round its centre.** A front point and a
+rear point, `TILT_WHEELBASE` apart (39 units), each carrying a disc of half the
+car's width — a capsule `TILT_CAR_LENGTH` × `TILT_CAR_WIDTH` (70 × 31, the
+sprite's own 225/512 aspect). `TrackCanvas` draws the sprite at those same two
+constants centred on the same midpoint, so the body and the picture cannot
+drift apart: what the player sees touch a rail is what touched it.
 
-It is tested as four discs at the corner-arc centres. A convex body's furthest
-point against a straight edge is always a corner, and the rails are straight
-between centreline points, so four corners is the whole test rather than a
-sample of it (`carCorners`, `carContact` in `drive.ts`).
+Two points rather than one centre, because **a car does not pivot about its
+middle**, and rather than four corners, because the question the physics
+actually needs to answer is *which end is touching*.
 
-**Two consequences worth stating, both measured rather than guessed:**
+**Steering swings the front about the back.** The steered wheels are at the
+front, so turning the wheel holds the back still and points the front
+somewhere else. A single centre point and a heading give you the other thing —
+the nose going one way and the tail the other — so every turn of the wrist
+crabbed the whole car sideways out of its lane and swept the tail into rails it
+was nowhere near. In reverse the pivot swaps ends, because backing a car up is
+the tail that swings. Measured: one frame of a turned wrist moves the leading
+end 19.3 units and the trailing end 0.1 (`thePivot` in `drive.test.ts`).
 
-- The road is 72 units wide and the car is 70 long, so **past about 0.92 rad
-  (53°) across the road there is no position at all that holds the car** — it
-  is touching both rails at once. That is a real state a player can steer
-  into, and the physics has to keep working in it rather than freezing.
-- A car square across the road clears the rails by under a unit.
+This is also what made the autopilot's lap drop from 125 s and a long tally of
+rail touches to **54 s and none at all** — not a physics tuning, just a car that
+goes where it is pointed instead of shouldering its way round every corner.
 
-**What a rail does is turn the car, not stop it.**
+**One edge case disappears with the box.** The rounded rectangle stuck its
+corners out at the diagonal, so past about 0.92 rad (53°) across the road there
+was no legal pose at all — the body was against both rails at once and the
+physics had to keep working in a state with no answer. A capsule's reach across
+the road is `halfWheelbase·sinθ + radius`, topping out at 19.5 + 15.5 = 35
+against the 36 the road gives, so **a car on the centreline fits at every angle,
+sideways included**. A car can still be pinned against a rail; it just always
+has somewhere legal to be put.
+
+**Which end hit decides whether it costs anything at all.**
+
+The *leading* end is the one the car is being driven onto — the nose going
+forwards, the tail in reverse. Only that one pays:
+
+- **The trailing end clipping a wall is free.** Nothing is being driven into
+  the wall there, so there is no momentum for the wall to take. All that is
+  owed is the overlap: the tail is put back on the road and the body swings
+  round the nose, at the same speed, in the same direction of travel, with no
+  bump reported and the spool untouched. Measured: 170 u/s in, 170 u/s out, the
+  tail lifted 11 units back onto the road while the nose moved 3.6
+  (`theFreeEnd` in `drive.test.ts`). That swing is the two-point body earning
+  its keep — a tail that clips a wall steps the car out, exactly as it would on
+  tarmac, instead of braking it.
+- **The leading end is what the rest of this section is about.**
+
+**And what a rail does to that end is turn the car, not stop it.**
 
 The momentum is split against the rail: the component running *across* it is
 absorbed by the wall, the component running *along* it is kept, whole. That
@@ -141,13 +175,12 @@ heading, and the rail turns whatever part of that runs along itself into motion
 (`TILT_RAIL_DRIVE`, 240 u/s²). So a car sitting at an angle against a guardrail
 crabs along it rather than sticking where it landed.
 
-**And that same push, resisted at the corner that is touching, is a torque: it
-squares the car up with the wall.** A rear-wheel-drive car pinned at the front
-does not keep crabbing at the angle it arrived at — it swings straight and runs
-along the rail. `TILT_RAIL_ALIGN` (1.8 rad/s broadside, scaled by `sin` of the
-misalignment so it fades to nothing once true) turns a 45° scrape straight in
-about a third of a second. Measured: a car hitting at 0.8 rad closes to 0.09 rad
-of the rail within a second of contact.
+**And squaring up needs no torque constant at all — the geometry does it.**
+Putting the leading end back on the road while the trailing end stays where it
+is *is* a rotation, and it rotates the nose off the wall. So a car that arrives
+at an angle works itself straight simply by being repeatedly lifted out of the
+rail at one end. Measured: a car hitting at 0.69 rad closes to 0.07 rad of the
+rail within a second of contact, covering 116 units of track while it does.
 
 This is the one thing in the game allowed to sit on top of the phone's own
 heading, and it is deliberately a **debt, not a second steering input**:
@@ -160,11 +193,13 @@ heading, and it is deliberately a **debt, not a second steering input**:
   `TILT_ALIGN_RELAX_MS` (260 ms), so the 1:1 promise of §2.1 is restored within
   a quarter second of leaving the wall.
 
-Nose square into the wall there is still nothing along the rail to give in the
-frame of the hit, and the car does stop there — but it no longer *stays*
-stopped: the torque swings the nose off square and it finds its way along. What
-reverse is still for is the genuinely wedged case, a nose into a corner the 40°
-of alignment cannot turn out of.
+Nose **exactly** square into a wall is the one case with no way out but
+reverse, and now for a reason rather than by decree: the rail pushes the
+touching end straight back down the car's own axis, so there is no sideways
+component, nothing to swing the body about its tail, and nothing along the rail
+for the wheels to bite. Off square by any margin at all and the geometry starts
+turning it out. Measured: dead square it settles at 1.9 u/s and stays there
+until reverse is pressed.
 
 **Then the scrape, and it costs what the angle says.** Every frame of contact,
 at `TILT_SCRAPE_DECEL` (90 u/s²) scaled by how far the car is from running true:
@@ -320,14 +355,14 @@ case something else was meant.
 - **Permission denied**: cannot play (§5); spectates on the rail.
 - **Backgrounded tab**: stops simulating and reporting; on return it rejoins at
   the referee's clock, having lost the time. Dimmed on the rail while silent.
-- **Car wedged against a rail**: it crabs along the rail and squares itself up
-  with it as it goes (§2.3), so this is a slow patch rather than a dead end —
-  measured at 104 units in the first second from a 0.8 rad hit, closing to
-  0.09 rad of the rail. Turned more than ~53° across the road the body cannot
-  fit at all and is against both rails at once; still crabbing, still steerable
-  out. `TILT_RAIL_CRAWL` remains the floor for a nose the alignment cannot turn
-  out of, and reverse is the way out of that; the spool restarts from 0 when it
-  is released.
+- **Car pinned against a rail**: it crabs along and squares itself up as it
+  goes (§2.3), so this is a slow patch rather than a dead end — measured at 116
+  units in the first second from a 0.69 rad hit, closing to 0.07 rad of the
+  rail. There is no "wedged with no legal pose" case any more: the two-point
+  body fits on the centreline at every angle, sideways included. Only a nose
+  driven **exactly** square into a wall has nothing to turn it, and reverse is
+  the way out of that; `TILT_RAIL_CRAWL` is the floor until it is pressed, and
+  the spool restarts from 0 when it is released.
 - **Nobody finishes** before `TILT_RUN_CAP_MS`: placings by progress.
 - **Solo (1 player)**: the card promises 2–8, and the referee enforces the
   card (AGENTS.md §4), so a lone player cannot start a public race. Nothing
@@ -454,12 +489,14 @@ Two the guardrail rework raised:
    geometry of the line, not the friction. If it turns out a wall is the *fast*
    way round a corner, the lever is `TILT_SCRAPE_ALIGNED`, not the base figure.
 10. **The rail is allowed to steer, a little.** `align` is the first thing ever
-    to sit on top of the phone's 1:1 heading (§2.1) — the rear wheels swinging
-    the nose onto the wall. It is bounded (`TILT_ALIGN_MAX`, 40°) and it bleeds
-    away in about a quarter second once the car is free, so the wrist is still
-    plainly driving; but it is a real exception to the game's strongest promise
-    and it should be watched for on a phone, where a car that squares itself up
-    while the hand holds still might read as the car fighting back.
+    to sit on top of the phone's 1:1 heading (§2.1) — the body turning because
+    a rail pushed one of its two ends off the wall while the other stayed. It
+    is bounded (`TILT_ALIGN_MAX`, 40°, with any leftover overlap taken out by
+    shifting the whole car instead) and it bleeds away in about a quarter second
+    once the car is free, so the wrist is still plainly driving; but it is a
+    real exception to the game's strongest promise and it should be watched for
+    on a phone, where a car that squares itself up while the hand holds still
+    might read as the car fighting back.
 
 One a real phone raised, reversing a piece of §2.1/§5 as built:
 

@@ -1,8 +1,9 @@
 import {
-  CAR_CORNER_RADIUS,
+  CAR_END_RADIUS,
   TILT_UPRIGHT_HEADING,
   carContact,
-  carCorners,
+  carEnds,
+  endContact,
   carFits,
   progress,
   skidToward,
@@ -17,6 +18,7 @@ import {
   TILT_ALIGN_RELAX_MS,
   TILT_CAR_LENGTH,
   TILT_CAR_WIDTH,
+  TILT_WHEELBASE,
   TILT_CORNER_RATE,
   TILT_CRUISE_SPEED,
   TILT_RAIL_CRAWL,
@@ -116,6 +118,14 @@ function circleTrack(radius = 200000, steps = 720): Track {
 
 const CIRCLE = circleTrack();
 const STRAIGHT: DriveInput = { roll: 0, reverse: false };
+
+/** Shortest signed angle from `a` to `b` — `drive.ts` keeps its own copy private. */
+function angleDeltaT(a: number, b: number): number {
+  let d = (b - a) % (Math.PI * 2);
+  if (d > Math.PI) d -= Math.PI * 2;
+  if (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
 const FRAME = 1000 / 60;
 
 /** Run `ms` of driving with a fixed input. */
@@ -202,20 +212,27 @@ function steering(): void {
   const car = startDrive(CIRCLE);
   check('a car starts at TILT_UPRIGHT_HEADING, with the roll at zero', car.base === car.heading && car.base === TILT_UPRIGHT_HEADING);
 
+  /*
+   * Stated as `heading - align`, because a rail is now allowed to turn the car
+   * (§2.3) and `align` is exactly how much it has. Take that back off and the
+   * wrist's own promise is untouched: the phone sets the heading, one for one,
+   * and nothing else ever adds to it.
+   */
   const quarter = Math.PI / 2;
+  const wristOf = (d: Drive): number => d.heading - d.align;
   check('a quarter turn of the wrist is a quarter turn of the car',
-    Math.abs(step(CIRCLE, car, { roll: quarter, reverse: false }, 100).heading - (car.base + quarter)) < 1e-12);
+    Math.abs(wristOf(step(CIRCLE, car, { roll: quarter, reverse: false }, 100)) - (car.base + quarter)) < 1e-12);
   check('and the other way, the other way',
-    Math.abs(step(CIRCLE, car, { roll: -quarter, reverse: false }, 100).heading - (car.base - quarter)) < 1e-12);
+    Math.abs(wristOf(step(CIRCLE, car, { roll: -quarter, reverse: false }, 100)) - (car.base - quarter)) < 1e-12);
   check('no rotation holds the heading', step(CIRCLE, car, STRAIGHT, 100).heading === car.heading);
 
   // The property that makes it "1:1" rather than "proportional": it is an
   // angle, not a rate, so holding still does not keep turning.
   const held = drive(car, { roll: 0.4, reverse: false }, 1_000, CIRCLE);
-  check('holding a rotation does not keep turning', Math.abs(held.heading - (car.base + 0.4)) < 1e-12, held.heading - car.base);
+  check('holding a rotation does not keep turning', Math.abs(wristOf(held) - (car.base + 0.4)) < 1e-12, wristOf(held) - car.base);
   check('and it does not depend on how long the frame was',
-    Math.abs(step(CIRCLE, car, { roll: 0.4, reverse: false }, 5).heading
-      - step(CIRCLE, car, { roll: 0.4, reverse: false }, 500).heading) < 1e-12);
+    Math.abs(wristOf(step(CIRCLE, car, { roll: 0.4, reverse: false }, 5))
+      - wristOf(step(CIRCLE, car, { roll: 0.4, reverse: false }, 500))) < 1e-12);
 
   // All the way round, which is the point of the control: the wrist can go
   // further than a gamma reading ever could, and the car goes with it.
@@ -342,86 +359,93 @@ function untilBump(from: Drive, frames = 120): { hit: Drive; before: Drive } {
  * the road that holds the car — it is touching both rails at once.
  */
 const WEDGE_ANGLE = (() => {
-  const l = TILT_CAR_LENGTH / 2 - CAR_CORNER_RADIUS;
-  const w = TILT_CAR_WIDTH / 2 - CAR_CORNER_RADIUS;
-  const room = TRACK_HALF_WIDTH - CAR_CORNER_RADIUS;
-  const amp = Math.hypot(l, w);
-  return Math.asin(Math.min(1, room / amp)) - Math.atan2(w, l);
+  // A capsule turned θ off the road reaches `halfWheelbase·sinθ + radius`
+  // across it, and that has to fit inside `TRACK_HALF_WIDTH`.
+  const room = TRACK_HALF_WIDTH - CAR_END_RADIUS;
+  const reach = TILT_WHEELBASE / 2;
+  const ratio = room / reach;
+  return ratio >= 1 ? Math.PI / 2 : Math.asin(ratio);
 })();
 
 function theBody(): void {
-  console.log('\nthe collision box is the car, not a point at its centre (§2.3)');
+  console.log('\nthe car is two points, not a box round its centre (§2.3)');
 
-  const box = carCorners({ x: 0, y: 0 }, 0);
-  check('a pose has four corners', box.length === 4);
-  // Heading 0 is +x, so "along" is x and "across" is y.
-  const spanX = Math.max(...box.map((p) => p.x)) - Math.min(...box.map((p) => p.x));
-  const spanY = Math.max(...box.map((p) => p.y)) - Math.min(...box.map((p) => p.y));
+  const [front, rear] = carEnds({ x: 0, y: 0 }, 0);
+  check('a pose has a front and a rear', !!front && !!rear);
+  // Heading 0 is +x, so the two points are separated along x.
   check(
-    `the corner centres span the body less its rounding (${spanX.toFixed(1)} x ${spanY.toFixed(1)})`,
-    Math.abs(spanX - (TILT_CAR_LENGTH - 2 * CAR_CORNER_RADIUS)) < 1e-9 &&
-      Math.abs(spanY - (TILT_CAR_WIDTH - 2 * CAR_CORNER_RADIUS)) < 1e-9,
-    { spanX, spanY },
+    `they sit a wheelbase apart (${Math.hypot(front.x - rear.x, front.y - rear.y).toFixed(1)})`,
+    Math.abs(Math.hypot(front.x - rear.x, front.y - rear.y) - TILT_WHEELBASE) < 1e-9,
   );
+  check('and the front one is the one in front', front.x > rear.x);
   check(
-    `the rounding is a tenth of the short side (${CAR_CORNER_RADIUS.toFixed(2)})`,
-    Math.abs(CAR_CORNER_RADIUS - TILT_CAR_WIDTH * 0.1) < 1e-9,
-    CAR_CORNER_RADIUS,
-  );
-  check('and the box is longer than it is wide, like the sprite', TILT_CAR_LENGTH > TILT_CAR_WIDTH);
-
-  // The whole point of the change: a centre that is comfortably on the road,
-  // with a body that is not. A point car calls this pose legal.
-  const across = Math.atan2(RAIL_NORMAL.y, RAIL_NORMAL.x);
-  const offCentre = {
-    x: RAIL_AT.at.x + RAIL_NORMAL.x * (TRACK_HALF_WIDTH * 0.4),
-    y: RAIL_AT.at.y + RAIL_NORMAL.y * (TRACK_HALF_WIDTH * 0.4),
-  };
-  const centreOffset = locate(CIRCLE, offCentre).offset;
-  check(`the centre is well inside the road (${centreOffset.toFixed(1)} of ${TRACK_HALF_WIDTH})`, centreOffset < TRACK_HALF_WIDTH);
-  check('and the same pose pointed along the road fits, body and all', carFits(CIRCLE, offCentre, RAIL_ALONG));
-  check(
-    'but turned across the road that very same centre does not — which a point car could never tell',
-    !carFits(CIRCLE, offCentre, across),
-    carContact(CIRCLE, offCentre, across).clearance,
-  );
-
-  // Clearance is a real distance, and it is measured from the worst corner.
-  const middle = carContact(CIRCLE, { x: RAIL_AT.at.x, y: RAIL_AT.at.y }, RAIL_ALONG);
-  const expected = TRACK_HALF_WIDTH - CAR_CORNER_RADIUS - TILT_CAR_WIDTH / 2 + CAR_CORNER_RADIUS;
-  check(
-    `dead centre and square on, the room left is the road minus half the body (${middle.clearance.toFixed(1)})`,
-    Math.abs(middle.clearance - expected) < 0.5,
-    { clearance: middle.clearance, expected },
+    `each carries half the car's width (${CAR_END_RADIUS.toFixed(1)})`,
+    Math.abs(CAR_END_RADIUS - TILT_CAR_WIDTH / 2) < 1e-9,
   );
   /*
-   * Which of the four corners is "worst" is a tie dead centre, so which way
-   * `inward` points is arbitrary there — what must hold either way is that it
-   * is a unit vector square across the rail, since that is the direction the
-   * car is pushed out along.
-   *
-   * Square to within a facet or two: this "circle" is a 720-sided polygon, so
-   * a corner can sit on the segment next door to the fixture's own and take
-   * its normal from there — 2π/720 ≈ 0.0087 rad out, which is what this
-   * measures. Real tracks are polylines too, which is why the normal comes
-   * from the segment rather than from an ideal curve.
+   * The capsule the two points describe is the drawn body: wheelbase plus a
+   * radius at each end is the sprite's own length, and twice the radius is its
+   * width. That is the whole reason the wheelbase is `LENGTH - WIDTH`.
    */
-  const facet = (Math.PI * 2) / 720;
-  const inwardLen = Math.hypot(middle.inward.x, middle.inward.y);
-  const inwardAlongRail = middle.inward.x * RAIL_AT.tangent.x + middle.inward.y * RAIL_AT.tangent.y;
   check(
-    'the way out of a rail is a unit vector square across it',
-    Math.abs(inwardLen - 1) < 1e-9 && Math.abs(inwardAlongRail) < facet * 1.5,
-    { inwardLen, inwardAlongRail, facet },
+    `the capsule is exactly the drawn body (${(TILT_WHEELBASE + 2 * CAR_END_RADIUS).toFixed(0)} x ${(2 * CAR_END_RADIUS).toFixed(0)})`,
+    Math.abs(TILT_WHEELBASE + 2 * CAR_END_RADIUS - TILT_CAR_LENGTH) < 1e-9 &&
+      Math.abs(2 * CAR_END_RADIUS - TILT_CAR_WIDTH) < 1e-9,
+  );
+  check('and it is longer than it is wide, like the sprite', TILT_CAR_LENGTH > TILT_CAR_WIDTH);
+
+  // A car on the centreline is on the road; one shoved sideways is not.
+  const onLine = { x: RAIL_AT.at.x, y: RAIL_AT.at.y };
+  check('a car on the centreline fits', carFits(CIRCLE, onLine, RAIL_ALONG));
+  const shoved = {
+    x: onLine.x + RAIL_NORMAL.x * (TRACK_HALF_WIDTH - 2),
+    y: onLine.y + RAIL_NORMAL.y * (TRACK_HALF_WIDTH - 2),
+  };
+  check('a car shoved onto the rail does not', !carFits(CIRCLE, shoved, RAIL_ALONG));
+
+  // Each end is measured on its own — that is what makes "which end hit"
+  // answerable at all.
+  const [f2, r2] = carEnds(shoved, RAIL_ALONG);
+  const fc = endContact(CIRCLE, f2);
+  const rc = endContact(CIRCLE, r2);
+  check(
+    `both ends are measured separately (front ${fc.depth.toFixed(1)}, rear ${rc.depth.toFixed(1)} deep)`,
+    Number.isFinite(fc.depth) && Number.isFinite(rc.depth),
+    { front: fc.depth, rear: rc.depth },
+  );
+  check('and the inward normal is a unit vector', Math.abs(Math.hypot(fc.inward.x, fc.inward.y) - 1) < 1e-9);
+}
+
+/**
+ * Steering swings the FRONT of the car about the back of it, not the whole body
+ * about its middle (spec §2.3).
+ */
+function thePivot(): void {
+  console.log('\nthe car turns about the end that is not leading (§2.3)');
+
+  const start = startDrive(TRACK);
+  const [f0, r0] = carEnds(start.at, start.heading);
+
+  // One frame of a turned wrist, driving forwards.
+  const turned = step(TRACK, { ...start, speed: 60, runMs: 4_000 }, { roll: 0.5, reverse: false }, 1);
+  const [f1, r1] = carEnds(turned.at, turned.heading);
+  const rearMoved = Math.hypot(r1.x - r0.x, r1.y - r0.y);
+  const frontMoved = Math.hypot(f1.x - f0.x, f1.y - f0.y);
+  check(
+    `going forwards the front swings and the rear holds (front ${frontMoved.toFixed(1)}, rear ${rearMoved.toFixed(1)})`,
+    frontMoved > rearMoved * 2,
+    { frontMoved, rearMoved },
   );
 
-  // A car turned square across the road is very nearly as wide as the road,
-  // which is the cost of a body this size and worth pinning as a number.
-  const sideways = carContact(CIRCLE, { x: RAIL_AT.at.x, y: RAIL_AT.at.y }, across);
+  // And the other way round in reverse: back a car up and the tail is what
+  // swings out.
+  const backing = { ...start, speed: -TILT_REVERSE_SPEED };
+  const [f2, r2] = carEnds(backing.at, backing.heading);
+  const backed = step(TRACK, backing, { roll: 0.5, reverse: true }, 1);
+  const [f3, r3] = carEnds(backed.at, backed.heading);
   check(
-    `square across the road it barely fits (${sideways.clearance.toFixed(1)} to spare)`,
-    sideways.clearance >= 0 && sideways.clearance < 5,
-    sideways.clearance,
+    `reversing the rear swings and the front holds (front ${Math.hypot(f3.x - f2.x, f3.y - f2.y).toFixed(1)}, rear ${Math.hypot(r3.x - r2.x, r3.y - r2.y).toFixed(1)})`,
+    Math.hypot(r3.x - r2.x, r3.y - r2.y) > Math.hypot(f3.x - f2.x, f3.y - f2.y) * 2,
   );
 }
 
@@ -569,6 +593,101 @@ function aligning(): void {
   );
 }
 
+
+/**
+ * Clipping a wall with the end that is NOT being driven into it costs nothing
+ * (spec §2.3) — the user-facing half of the two-point body.
+ */
+function theFreeEnd(): void {
+  console.log('\nclipping a wall with the trailing end is free (§2.3)');
+
+  /*
+   * A car running along the rail with its TAIL through it and its nose clear.
+   * Found by scanning rather than solved, because what matters is that the
+   * fixture really is that case — both depths are asserted below.
+   */
+  const FIXTURE_RUN_MS = TILT_SPOOL_MS * 1.5;
+  let fixture: Drive | null = null;
+  for (let d = TRACK_HALF_WIDTH - CAR_END_RADIUS; d < TRACK_HALF_WIDTH && !fixture; d += 0.5) {
+    for (let theta = -0.6; theta < 0 && !fixture; theta += 0.02) {
+      const heading = RAIL_ALONG + theta;
+      const at = { x: RAIL_AT.at.x + RAIL_NORMAL.x * d, y: RAIL_AT.at.y + RAIL_NORMAL.y * d };
+      const [f, r] = carEnds(at, heading);
+      if (endContact(CIRCLE, r).depth > 0.5 && endContact(CIRCLE, f).depth < -0.5) {
+        fixture = {
+          ...startDrive(CIRCLE), at, heading, drift: heading,
+          base: TILT_UPRIGHT_HEADING, align: heading - TILT_UPRIGHT_HEADING,
+          // On the curve, not beside it: `step` pulls any speed down to what the
+          // spool allows, and a fixture above its own ceiling would lose speed to
+          // that rather than to the rail and prove nothing.
+          speed: tiltSpeedAt(FIXTURE_RUN_MS), runMs: FIXTURE_RUN_MS,
+          index: endContact(CIRCLE, at).found.index,
+        };
+      }
+    }
+  }
+  if (!fixture) {
+    check('a tail-through-the-rail fixture exists', false);
+    return;
+  }
+  const [f0, r0] = carEnds(fixture.at, fixture.heading);
+  check(
+    `the fixture has its tail through the rail and its nose clear (${endContact(CIRCLE, r0).depth.toFixed(1)} / ${endContact(CIRCLE, f0).depth.toFixed(1)})`,
+    endContact(CIRCLE, r0).depth > 0 && endContact(CIRCLE, f0).depth < 0,
+  );
+
+  const after = step(CIRCLE, fixture, { roll: fixture.heading - fixture.base - fixture.align, reverse: false }, FRAME);
+
+  /*
+   * The rail takes NOTHING. The car is a shade faster afterwards, and that is
+   * the spool doing its ordinary job — one frame further up its own curve — so
+   * the test is "it did not lose any, and it gained no more than a free car
+   * would", which is what "free" actually means here.
+   */
+  const freeGain = tiltSpeedAt(FIXTURE_RUN_MS + FRAME) - tiltSpeedAt(FIXTURE_RUN_MS);
+  check(
+    `the rail takes nothing off it (${fixture.speed.toFixed(0)} → ${after.speed.toFixed(2)})`,
+    after.speed >= fixture.speed - 1e-9,
+    { before: fixture.speed, after: after.speed },
+  );
+  check(
+    `and it gains no more than the spool owes it (+${(after.speed - fixture.speed).toFixed(2)}, free car +${freeGain.toFixed(2)})`,
+    after.speed - fixture.speed <= freeGain + 1e-6,
+    { gained: after.speed - fixture.speed, freeGain },
+  );
+  /*
+   * The momentum is not snapped onto the rail either, which is what a real hit
+   * does. It drifts by the width of one frame of the ordinary skid filter
+   * chasing the body's new heading — the same thing it would do on open road.
+   */
+  check(
+    `and its direction of travel, bar one frame of skid (${(angleDeltaT(fixture.drift, after.drift) * 1000).toFixed(1)} mrad)`,
+    Math.abs(angleDeltaT(fixture.drift, after.drift)) < 0.02,
+    { before: fixture.drift, after: after.drift },
+  );
+  check('and the spool is untouched, so nothing has to be won back', after.runMs > fixture.runMs);
+  check(`no bump is reported for it (${after.bump})`, after.bump === 'none', after.bump);
+
+  // What it DOES do is put the tail back and swing the body round the nose.
+  const [f1, r1] = carEnds(after.at, after.heading);
+  check(
+    `the tail is lifted back onto the road (${endContact(CIRCLE, r1).depth.toFixed(2)} deep now)`,
+    endContact(CIRCLE, r1).depth <= 1e-3,
+    endContact(CIRCLE, r1).depth,
+  );
+  check(
+    `and it is the tail that moved, not the nose (nose ${Math.hypot(f1.x - f0.x, f1.y - f0.y).toFixed(1)}, tail ${Math.hypot(r1.x - r0.x, r1.y - r0.y).toFixed(1)})`,
+    Math.hypot(r1.x - r0.x, r1.y - r0.y) > Math.hypot(f1.x - f0.x, f1.y - f0.y),
+  );
+
+  /*
+   * The same clip on the LEADING end is not free — that is the contrast the
+   * rule only means anything against.
+   */
+  const nose = untilBump(aimedAt(0.8)).hit;
+  check(`driving the nose into the same rail does cost speed (${nose.speed.toFixed(0)})`, nose.bump !== 'none', nose.bump);
+}
+
 function rearWheelDrive(): void {
   console.log('\nthe rear wheels keep pushing along the rail (§2)');
 
@@ -628,21 +747,39 @@ function rearWheelDrive(): void {
   );
 
   /*
-   * The car is longer than the road is wide once it is turned far enough
-   * across it, so past `WEDGE_ANGLE` there is no legal pose at all — the body
-   * is against both rails at once. It must STILL crab along rather than
-   * freezing, which is precisely the reported bug (#42).
+   * **The wedge is gone, and that is the two-point body's doing.**
+   *
+   * The rounded rectangle this replaced stuck its corners out at the diagonal,
+   * so past about 53° across the road there was no legal pose at all — the
+   * body touched both rails at once and the physics had to keep working in a
+   * state with no answer. A capsule is narrower at every angle but head-on:
+   * its reach across the road is `halfWheelbase·sinθ + radius`, which tops out
+   * at 19.5 + 15.5 = 35 against the 36 the road gives, so a car ON THE
+   * CENTRELINE fits sideways and at every angle in between.
+   *
+   * That is one whole class of edge case deleted rather than handled. A car can
+   * still be pinned against a rail — it just always has somewhere legal to be
+   * put, which is why `settle` can no longer fail.
    */
-  check(`a body this long cannot sit across the road past ${WEDGE_ANGLE.toFixed(2)} rad`, WEDGE_ANGLE > 0.5 && WEDGE_ANGLE < Math.PI / 2, WEDGE_ANGLE);
   check(
-    'and the geometry agrees no position on the road holds it there',
-    !carFits(CIRCLE, { x: RAIL_AT.at.x, y: RAIL_AT.at.y }, RAIL_ALONG + WEDGE_ANGLE + 0.15),
+    `a capsule fits at every angle on the centreline (worst reach ${(TILT_WHEELBASE / 2 + CAR_END_RADIUS).toFixed(1)} of ${TRACK_HALF_WIDTH})`,
+    TILT_WHEELBASE / 2 + CAR_END_RADIUS <= TRACK_HALF_WIDTH,
+    { reach: TILT_WHEELBASE / 2 + CAR_END_RADIUS, room: TRACK_HALF_WIDTH },
   );
-  let wedged = untilBump(aimedAt(WEDGE_ANGLE + 0.15)).hit;
+  check(
+    'so square across the road is a legal pose now, not a wedge',
+    carFits(CIRCLE, { x: RAIL_AT.at.x, y: RAIL_AT.at.y }, RAIL_ALONG + Math.PI / 2),
+  );
+  check(`and WEDGE_ANGLE has become the right angle itself (${WEDGE_ANGLE.toFixed(2)})`, Math.abs(WEDGE_ANGLE - Math.PI / 2) < 1e-9, WEDGE_ANGLE);
+
+  // Turned hard across the road and shoved onto a rail, it must still crab
+  // along rather than freeze — the reported bug (#42), which the pose being
+  // legal does not by itself answer.
+  let wedged = untilBump(aimedAt(1.2)).hit;
   const wedgedFrom = wedged.s;
   for (let i = 0; i < 60; i++) wedged = step(CIRCLE, wedged, { roll: wedged.heading - wedged.base, reverse: false }, FRAME);
   check(
-    `a wedged car still crabs along the rail (${Math.abs(wedged.s - wedgedFrom).toFixed(0)} units in a second)`,
+    `a car turned hard across the road still crabs along the rail (${Math.abs(wedged.s - wedgedFrom).toFixed(0)} units in a second)`,
     Math.abs(wedged.s - wedgedFrom) > 5,
     { travelled: Math.abs(wedged.s - wedgedFrom), speed: wedged.speed },
   );
@@ -655,15 +792,35 @@ function rearWheelDrive(): void {
    * swings off square and the car finds its way along the wall (spec §2.3).
    */
   let stuck = untilBump(aimedAt(Math.PI / 2 - 0.02)).hit;
-  check('a square hit does stop the car in the frame it lands', Math.abs(stuck.speed) < 5, stuck.speed);
+  /*
+   * "Stops" against the entry speed rather than against a flat number: the
+   * capsule's round nose meets the rail a shade off square where the old box's
+   * corner met it dead on, so a sliver of the momentum is along the rail and
+   * survives. A few units out of two hundred is still a car that has stopped.
+   */
+  const squareFrom = untilBump(aimedAt(Math.PI / 2 - 0.02)).before.speed;
+  check(
+    `a square hit takes all but a sliver in the frame it lands (${stuck.speed.toFixed(1)} of ${squareFrom.toFixed(0)})`,
+    Math.abs(stuck.speed) < squareFrom * 0.05,
+    { after: stuck.speed, before: squareFrom },
+  );
   const squareAlign = stuck.align;
   for (let i = 0; i < 10; i++) stuck = step(CIRCLE, stuck, { roll: stuck.heading - stuck.base, reverse: false }, FRAME);
+  /*
+   * And square-on really is the one case with no way out but reverse. The rail
+   * turns the car by pushing the touching END sideways, so a nose driven
+   * exactly perpendicular into a wall is pushed straight back down its own
+   * axis: there is no sideways component, nothing to swing about the tail, and
+   * nothing along the rail for the wheels to bite. Off square by any margin at
+   * all and the geometry starts turning it out (`aligning()` above, and the
+   * hard-across case just before this).
+   */
   check(
-    `but the rear wheels turn it out rather than pinning it (align ${squareAlign.toFixed(2)} → ${stuck.align.toFixed(2)} rad)`,
-    Math.abs(stuck.align) > Math.abs(squareAlign),
+    `dead square there is nothing to turn it (align ${squareAlign.toFixed(3)} → ${stuck.align.toFixed(3)} rad)`,
+    Math.abs(stuck.align) < 0.05,
     { from: squareAlign, to: stuck.align },
   );
-  check(`and it is moving again (${stuck.speed.toFixed(0)})`, Math.abs(stuck.speed) > 0, stuck.speed);
+  check(`and it is down to a crawl (${stuck.speed.toFixed(1)})`, Math.abs(stuck.speed) < TILT_REVERSE_SPEED, stuck.speed);
   const backedOut = step(CIRCLE, stuck, { roll: stuck.heading - stuck.base, reverse: true }, FRAME);
   check('and reverse is still the way out', backedOut.speed < 0, backedOut.speed);
 
@@ -797,8 +954,10 @@ spooling();
 steering();
 skidding();
 theBody();
+thePivot();
 rails();
 aligning();
+theFreeEnd();
 rearWheelDrive();
 reversing();
 aWholeLap();

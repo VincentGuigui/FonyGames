@@ -3204,17 +3204,25 @@ export const TILT_CAR_LENGTH = 70;
 export const TILT_CAR_WIDTH = 31;
 
 /**
- * How far the box's corners are rounded, as a fraction of its **short** side —
- * the issue's own "small rounded corner of 10% of the size". Off the short
- * side rather than the long one so the round-off stays small on both axes
- * (10% of 31 ≈ 3 units); taken off the length it would blunt the nose by
- * seven, which is a different shape from the one drawn.
+ * The distance between the car's two points, world units.
  *
- * It earns its keep at the moment of contact: a square corner catches on a
- * rail and pins the car, where a rounded one rolls along it, which is the
- * whole point of the slide.
+ * **The car is two points, not a box** (spec §2.3). A front point and a rear
+ * point, this far apart, each carrying a disc of half the car's width — a
+ * capsule `TILT_CAR_LENGTH` long and `TILT_CAR_WIDTH` wide, so the drawn body
+ * and the tested body are still the same shape.
+ *
+ * Two points rather than four corners because a car does not pivot about its
+ * middle. The rear wheels drive and the front wheels steer, so turning the
+ * wheel swings the FRONT of the car about the back of it; rotating a box about
+ * its centre instead swings the nose one way and the tail the other, which is
+ * how a car is pushed sideways, not how it is driven. The two points are what
+ * makes "which end hit the wall" a question with an answer, too — and the
+ * answer decides whether a bump costs anything (§2.3).
+ *
+ * `LENGTH - WIDTH`, so the capsule's round ends land exactly at the drawn
+ * body's nose and tail rather than adding half a width at each end.
  */
-export const TILT_CAR_CORNER = 0.1;
+export const TILT_WHEELBASE = TILT_CAR_LENGTH - TILT_CAR_WIDTH;
 
 /**
  * How hard the driven wheels keep pushing while the body is against a rail,
@@ -3278,8 +3286,9 @@ export const TILT_SCRAPE_DECEL = 90;
  * true along one is barely touching it, and charging both the same was what
  * made a graze feel like a crash. The scrape now runs
  * `DECEL x (ALIGNED + (1 - ALIGNED) x |sin misalignment|)`, so squaring up
- * with the rail is worth doing and the rear wheels have something to earn
- * (`TILT_RAIL_ALIGN`).
+ * with the rail is worth doing — and squaring up is what a car pushed off a
+ * wall at one end does by itself, once the body is two points rather than a
+ * box (`TILT_WHEELBASE`).
  *
  * **Not zero.** At zero a perfectly parallel car pays nothing at all and the
  * outside wall becomes a free banking to lean on round every corner. A quarter
@@ -3287,24 +3296,6 @@ export const TILT_SCRAPE_DECEL = 90;
  * the sideways one — 22.5 u/s^2 against 90.
  */
 export const TILT_SCRAPE_ALIGNED = 0.25;
-
-/**
- * How fast the rear wheels swing the nose onto the rail while the car is
- * against it, radians per second at a square hit.
- *
- * A rear-wheel-drive car with its front pinned against a wall does not just
- * slide: the push at the back, resisted at the front, is a torque, and the car
- * squares itself up with the wall. That is the missing half of the slide — the
- * car should come off a rail pointing along it rather than still crabbing at
- * the angle it arrived.
- *
- * The rate is scaled by `sin` of the misalignment, so it is strongest sideways
- * on and fades to nothing once aligned, which is the torque a contact at the
- * nose actually produces. 1.8 rad/s squares up a 45 degree scrape in about a
- * third of a second: fast enough to feel like the car helping, slow enough to
- * watch happen.
- */
-export const TILT_RAIL_ALIGN = 1.8;
 
 /**
  * The most the rail may turn the car away from where the phone is pointing,
@@ -3317,6 +3308,12 @@ export const TILT_RAIL_ALIGN = 1.8;
  * against, and small enough that the wrist is still obviously driving: a
  * player who points 90 degrees into a wall gets a car 50 degrees off it, not a
  * car that has taken itself out of their hands.
+ *
+ * It bounds a GEOMETRIC result now, not an invented torque: the car turns
+ * because one of its two points was pushed off a rail while the other stayed
+ * (spec section 2.3). So the bound can stop the body turning as far as the
+ * rail wants, and when it does the leftover overlap is taken out by shifting
+ * the whole car instead — never left sitting inside a wall.
  */
 export const TILT_ALIGN_MAX = 0.7;
 

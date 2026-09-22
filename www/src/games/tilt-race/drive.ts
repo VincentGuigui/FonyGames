@@ -1,11 +1,8 @@
 import {
   TILT_ALIGN_MAX,
   TILT_ALIGN_RELAX_MS,
-  TILT_CAR_CORNER,
-  TILT_CAR_LENGTH,
   TILT_CAR_WIDTH,
   TILT_HEAD_ON,
-  TILT_RAIL_ALIGN,
   TILT_RAIL_CRAWL,
   TILT_RAIL_DRIVE,
   TILT_REVERSE_SPEED,
@@ -13,6 +10,7 @@ import {
   TILT_SCRAPE_DECEL,
   TILT_SKID_TAU_MS,
   TILT_SPOOL_MS,
+  TILT_WHEELBASE,
   TILT_CRUISE_SPEED,
   tiltSpeedAt,
 } from '../../../../shared/protocol';
@@ -139,86 +137,80 @@ export function startDrive(track: Track, startS = 0): Drive {
   };
 }
 
-/** The corner-arc radius of the collision box, world units — `TILT_CAR_CORNER`
- *  of the box's short side (see that constant). */
-export const CAR_CORNER_RADIUS = TILT_CAR_WIDTH * TILT_CAR_CORNER;
+/**
+ * The radius of each of the car's two points, world units — half the car's
+ * width, so the two discs plus the hull between them is a capsule
+ * `TILT_CAR_LENGTH` long and `TILT_CAR_WIDTH` wide (`TILT_WHEELBASE`).
+ */
+export const CAR_END_RADIUS = TILT_CAR_WIDTH / 2;
 
-/** Where the centres of the four corner arcs sit, given a pose. */
-const HALF_L = TILT_CAR_LENGTH / 2 - CAR_CORNER_RADIUS;
-const HALF_W = TILT_CAR_WIDTH / 2 - CAR_CORNER_RADIUS;
+/** Half the gap between the two points — where each sits from the centre. */
+const HALF_WB = TILT_WHEELBASE / 2;
 
 /**
- * The four points a rounded-rectangle body has to be tested at: the centres of
- * its corner arcs. The body is exactly those four discs of
- * `CAR_CORNER_RADIUS` plus their convex hull, so "every corner disc is inside
- * the road" is the same statement as "the body is inside the road".
+ * The car's two points: nose first, tail second.
  *
- * **Four corners is the whole test, not a sample of it.** The road's edge is
- * straight between centreline points, and the furthest-out point of a convex
- * body against a straight edge is always a corner — so an edge cannot be
- * through a rail while all four corners are clear. What a curved rail can do
- * is put two different corners against two different segments, which is why
- * every corner is located separately rather than the deepest one being
- * assumed.
+ * **This is the whole body.** Every question the physics asks — does it fit,
+ * which end is touching, what does the touch cost — is asked of these two
+ * points and the discs around them (spec §2.3).
  */
-export function carCorners(at: Point, heading: number): Point[] {
-  const fx = Math.cos(heading);
-  const fy = Math.sin(heading);
-  // Left-hand normal of the heading: the car's own across-axis.
-  const sx = -fy;
-  const sy = fx;
-  const out: Point[] = [];
-  for (const alongSign of [1, -1]) {
-    for (const acrossSign of [1, -1]) {
-      out.push({
-        x: at.x + fx * alongSign * HALF_L + sx * acrossSign * HALF_W,
-        y: at.y + fy * alongSign * HALF_L + sy * acrossSign * HALF_W,
-      });
-    }
-  }
-  return out;
+export function carEnds(at: Point, heading: number): [Point, Point] {
+  const fx = Math.cos(heading) * HALF_WB;
+  const fy = Math.sin(heading) * HALF_WB;
+  return [
+    { x: at.x + fx, y: at.y + fy },
+    { x: at.x - fx, y: at.y - fy },
+  ];
 }
 
-export type CarContact = {
-  /**
-   * How much road is left under the worst corner. Positive is clearance in
-   * world units; negative is how far the body is already through a rail.
-   */
-  clearance: number;
-  /** Unit vector from that corner back towards the road's middle. */
+/** Rebuild a car's centre from one end and a heading — the other end follows. */
+function centreFrom(end: Point, heading: number, isFront: boolean): Point {
+  const fx = Math.cos(heading) * HALF_WB;
+  const fy = Math.sin(heading) * HALF_WB;
+  return isFront ? { x: end.x - fx, y: end.y - fy } : { x: end.x + fx, y: end.y + fy };
+}
+
+export type EndContact = {
+  /** How far this point's disc is through a rail. Zero or less is clear. */
+  depth: number;
+  /** Unit vector from the point back towards the road's middle. */
   inward: Point;
   /** The rail's own direction there — what the car slides along. */
   tangent: Point;
-  /** Where that corner sits against the centreline. */
+  /** Where the point sits against the centreline. */
   found: OnTrack;
 };
 
-/**
- * The tightest point of the body against the rails, for a pose.
- *
- * Every corner is located, and the worst one wins: that is the corner that
- * decides both whether the car fits and, when it does not, which rail it is
- * sliding along.
- */
+/** One point of the car against the rails. */
+export function endContact(track: Track, point: Point, hint?: number): EndContact {
+  const found = locate(track, point, hint);
+  const depth = found.offset + CAR_END_RADIUS - TRACK_HALF_WIDTH;
+  const outX = point.x - found.nearest.x;
+  const outY = point.y - found.nearest.y;
+  const len = Math.hypot(outX, outY);
+  const inward = len > 1e-9
+    ? { x: -outX / len, y: -outY / len }
+    // Dead on the centreline there is no "out" to speak of, and no contact
+    // either; the rail's own left normal keeps the vector well-defined.
+    : { x: -found.tangent.y, y: found.tangent.x };
+  return { depth, inward, tangent: found.tangent, found };
+}
+
+export type CarContact = {
+  /** How much road is left under the worse end. Positive is clearance. */
+  clearance: number;
+  inward: Point;
+  tangent: Point;
+  found: OnTrack;
+};
+
+/** The tighter of the car's two points against the rails, for a pose. */
 export function carContact(track: Track, at: Point, heading: number, hint?: number): CarContact {
-  let worst: CarContact | null = null;
-  for (const corner of carCorners(at, heading)) {
-    const found = locate(track, corner, hint);
-    const clearance = TRACK_HALF_WIDTH - CAR_CORNER_RADIUS - found.offset;
-    if (worst !== null && clearance >= worst.clearance) continue;
-    // Away from the centreline is out; the car is pushed back the other way.
-    const outX = corner.x - found.nearest.x;
-    const outY = corner.y - found.nearest.y;
-    const len = Math.hypot(outX, outY);
-    const inward = len > 1e-9
-      ? { x: -outX / len, y: -outY / len }
-      // Dead on the centreline there is no "out" to speak of, and no contact
-      // either; the rail's own left normal keeps the vector well-defined.
-      : { x: -found.tangent.y, y: found.tangent.x };
-    worst = { clearance, inward, tangent: found.tangent, found };
-  }
-  // A track always has at least one segment, so `carCorners` always locates.
-  return worst as CarContact;
+  const [front, rear] = carEnds(at, heading);
+  const a = endContact(track, front, hint);
+  const b = endContact(track, rear, hint);
+  const worst = a.depth >= b.depth ? a : b;
+  return { clearance: -worst.depth, inward: worst.inward, tangent: worst.tangent, found: worst.found };
 }
 
 /** Does the whole body fit on the road in this pose? */
@@ -227,13 +219,13 @@ export function carFits(track: Track, at: Point, heading: number, hint?: number)
 }
 
 /**
- * Push a body that is through a rail back onto the road, along the rail's own
- * normal.
+ * Last-resort depenetration: shove the whole body back onto the road.
  *
- * Iterated rather than solved: a car wedged into a corner is against two rails
- * at once, and clearing the worst one can expose the other. Three passes is
- * enough for that and cheap; a body that still does not fit is left where it
- * was for the caller to decide about.
+ * The rail response below moves ONE POINT and lets the body swing round the
+ * other, which is what a car does. This is the fallback for what that cannot
+ * reach — a car across a narrow road with both ends through a rail, where
+ * turning about either end just buries the other. Iterated, because clearing
+ * the worse end can expose the other.
  */
 function settle(track: Track, at: Point, heading: number, hint?: number): Point {
   let p = at;
@@ -269,6 +261,20 @@ function angleDelta(a: number, b: number): number {
 export function skidToward(drift: number, heading: number, dtMs: number): number {
   const k = 1 - Math.exp(-Math.max(0, dtMs) / TILT_SKID_TAU_MS);
   return drift + angleDelta(drift, heading) * k;
+}
+
+/**
+ * Turn the car to where a rail has pushed one of its points — as far as the
+ * offset from the wrist is allowed to go.
+ *
+ * `TILT_ALIGN_MAX` is the leash. When the rail wants more than that, the body
+ * stops turning and whatever overlap is left is taken out by `settle` moving
+ * the whole car instead: bounded rotation, but never a car left inside a wall.
+ */
+function swingTo(next: Drive, wrist: number, wanted: number): void {
+  const offset = angleDelta(wrist, wanted);
+  next.align = Math.max(-TILT_ALIGN_MAX, Math.min(TILT_ALIGN_MAX, offset));
+  next.heading = wrist + next.align;
 }
 
 /**
@@ -327,6 +333,26 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
   next.heading = car.base + input.roll + next.align;
 
   /*
+   * **And the car turns about the end that is not leading.**
+   *
+   * Steering swings the FRONT of a car, because that is where the steered
+   * wheels are: hold the back still, point the front somewhere else. Rotating
+   * the body about its middle instead — which is what a single centre point and
+   * a heading give you — swings the nose one way and the tail the other, so
+   * the whole car crabs sideways out of its lane on every turn of the wrist and
+   * the tail sweeps into rails it was nowhere near. That is a car being shoved,
+   * not driven (spec §2.3).
+   *
+   * So the trailing point is the pivot: the rear going forwards, the front in
+   * reverse (back a car up and it is the tail that swings). The heading is
+   * still the phone's, 1:1 — this only decides where the body ends up hanging
+   * off it.
+   */
+  const pivotIsRear = next.speed >= 0;
+  const [oldFront, oldRear] = carEnds(car.at, car.heading);
+  next.at = centreFrom(pivotIsRear ? oldRear : oldFront, next.heading, !pivotIsRear);
+
+  /*
    * Skid. Below cruise the momentum is the heading exactly — the car goes
    * where it points. Above it, the momentum is a low-passed version,
    * so the car keeps some of its old direction through a turn and the last
@@ -352,136 +378,173 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
   }
 
   const moved = {
-    x: car.at.x + Math.cos(next.drift) * next.speed * dt,
-    y: car.at.y + Math.sin(next.drift) * next.speed * dt,
+    x: next.at.x + Math.cos(next.drift) * next.speed * dt,
+    y: next.at.y + Math.sin(next.drift) * next.speed * dt,
   };
 
-  // The whole body, not the point at its centre: the car fits where its four
-  // corners fit (`carContact`).
-  const contact = carContact(track, moved, next.heading, car.index);
-  if (contact.clearance >= 0) {
+  /*
+   * Which end is touching, and which one is LEADING.
+   *
+   * The leading end is the one the car is being driven onto: the nose going
+   * forwards, the tail in reverse. That distinction is the whole of the rule
+   * below, so it is drawn once, here.
+   */
+  let carriedAlong = 0;
+  let carriedTangent: Point | null = null;
+  const leadIsFront = next.speed >= 0;
+  const [movedFront, movedRear] = carEnds(moved, next.heading);
+  const leadEnd = leadIsFront ? movedFront : movedRear;
+  const trailEnd = leadIsFront ? movedRear : movedFront;
+  const lead = endContact(track, leadEnd, car.index);
+  const trail = endContact(track, trailEnd, car.index);
+
+  if (lead.depth <= 0 && trail.depth <= 0) {
     settleAt(track, next, car, moved);
     return next;
   }
 
   /*
-   * Against a rail. **The car is not stopped — it is turned.**
+   * **A bump on the trailing end is free.**
+   *
+   * Clipping a wall with the back of the car while driving forwards is not a
+   * crash, it is a scrape you barely feel: nothing is being driven into the
+   * wall there, so there is no momentum for the wall to take. All that is owed
+   * is the overlap — put the tail back on the road and carry on at the same
+   * speed, in the same direction (spec §2.3).
+   *
+   * Putting it back ROTATES the car, because the other end stays where it is.
+   * That is the two-point body earning its keep: a tail that clips a wall
+   * swings the nose, exactly as it would on tarmac, and the driver feels the
+   * car step out rather than stop.
+   */
+  let centre = moved;
+  if (trail.depth > 0) {
+    const pushed = {
+      x: trailEnd.x + trail.inward.x * (trail.depth + 1e-6),
+      y: trailEnd.y + trail.inward.y * (trail.depth + 1e-6),
+    };
+    // Swung about the leading end, which is the one that stays put.
+    const swungHeading = leadIsFront
+      ? Math.atan2(leadEnd.y - pushed.y, leadEnd.x - pushed.x)
+      : Math.atan2(pushed.y - leadEnd.y, pushed.x - leadEnd.x);
+    swingTo(next, car.base + input.roll, swungHeading);
+    centre = centreFrom(leadEnd, next.heading, leadIsFront);
+  }
+
+  /*
+   * The leading end is the one that costs something — and the cost is the
+   * angle, as it always was.
    *
    * The momentum is split against the rail: the part running across it is
-   * absorbed by the wall, and the part running along it is kept, whole. That
-   * one projection is the "based on the collision angle" rule — a graze keeps
-   * nearly all of its speed because nearly all of it was already going the
-   * rail's way, and a square hit keeps nearly none because none of it was.
-   * Nothing else is taken off it on impact.
+   * absorbed by the wall, and the part running along it is kept, whole. A
+   * graze keeps nearly all its speed because nearly all of it was already
+   * going the rail's way; a square hit keeps nearly none because none of it
+   * was. Nothing else is taken off on impact.
    */
-  const tangent = contact.tangent;
-  const into = Math.abs(Math.cos(next.drift) * contact.inward.x + Math.sin(next.drift) * contact.inward.y);
-  next.bump = into >= TILT_HEAD_ON ? 'head-on' : 'graze';
+  if (lead.depth > 0) {
+    const tangent = lead.tangent;
+    const into = Math.abs(Math.cos(next.drift) * lead.inward.x + Math.sin(next.drift) * lead.inward.y);
+    next.bump = into >= TILT_HEAD_ON ? 'head-on' : 'graze';
 
-  const vx = Math.cos(next.drift) * next.speed;
-  const vy = Math.sin(next.drift) * next.speed;
-  let along = vx * tangent.x + vy * tangent.y;
+    const vx = Math.cos(next.drift) * next.speed;
+    const vy = Math.sin(next.drift) * next.speed;
+    let along = vx * tangent.x + vy * tangent.y;
+
+    /*
+     * Put the leading end back on the road, swinging the car about the end
+     * that is not touching. This is what squares a car up with a wall it is
+     * scraping: the nose is held out of the rail while the tail keeps coming,
+     * so the body turns to run along it. No torque constant does this any
+     * more — the geometry of two points does it on its own.
+     */
+    const pushed = {
+      x: leadEnd.x + lead.inward.x * (lead.depth + 1e-6),
+      y: leadEnd.y + lead.inward.y * (lead.depth + 1e-6),
+    };
+    const pivot = leadIsFront ? carEnds(centre, next.heading)[1] : carEnds(centre, next.heading)[0];
+    const swungHeading = leadIsFront
+      ? Math.atan2(pushed.y - pivot.y, pushed.x - pivot.x)
+      : Math.atan2(pivot.y - pushed.y, pivot.x - pushed.x);
+    swingTo(next, car.base + input.roll, swungHeading);
+    centre = centreFrom(pivot, next.heading, !leadIsFront);
+
+    /*
+     * Rear-wheel drive. The engine does not care that there is a wall: it
+     * keeps pushing along the car's own heading, and the rail turns whatever
+     * part of that runs along itself into motion. So a car sitting at an angle
+     * against a guardrail crabs along it rather than sticking where it landed
+     * — and one facing squarely into the wall gets nothing, which is exactly
+     * when reverse is the answer.
+     */
+    const push = input.reverse ? -TILT_RAIL_DRIVE : TILT_RAIL_DRIVE;
+    along += (Math.cos(next.heading) * tangent.x + Math.sin(next.heading) * tangent.y) * push * dt;
+
+    /*
+     * Friction, for as long as contact lasts — and it costs what the ANGLE
+     * says, not a flat fee. A car dragged broadside along a wall pays
+     * `TILT_SCRAPE_DECEL`; one running true along it is barely touching and
+     * pays `TILT_SCRAPE_ALIGNED` of that. Charging both the same is what made
+     * every graze read as a crash.
+     */
+    const railAngle = Math.atan2(tangent.y, tangent.x);
+    const misalign = Math.abs(Math.sin(angleDelta(next.heading, railAngle)));
+    const scrape = TILT_SCRAPE_DECEL * (TILT_SCRAPE_ALIGNED + (1 - TILT_SCRAPE_ALIGNED) * misalign);
+    along = Math.sign(along) * Math.max(0, Math.abs(along) - scrape * dt);
+
+    /*
+     * ...but never all the way to a standstill while the wheels still have
+     * somewhere to push. Friction and drive are both accelerations, so on
+     * their own they can only run away from each other — one wins and the car
+     * either accelerates forever or grinds to nothing. The crawl is the
+     * equilibrium they are missing, scaled by how much of the nose points
+     * along the rail. Nose square in it is zero and the car really does stop,
+     * which is the case reverse exists for.
+     */
+    const noseAlong = Math.cos(next.heading) * tangent.x + Math.sin(next.heading) * tangent.y;
+    const crawl = Math.abs(noseAlong) * TILT_RAIL_CRAWL;
+    if (crawl > 0 && Math.abs(along) < crawl) along = Math.sign(noseAlong) * (input.reverse ? -crawl : crawl);
+
+    carriedAlong = along;
+    carriedTangent = tangent;
+  }
 
   /*
-   * Rear-wheel drive. The engine does not care that there is a wall: it keeps
-   * pushing along the car's own heading, and the rail turns whatever part of
-   * that runs along itself into motion. So a car sitting at an angle against a
-   * guardrail crabs forward and squares itself up with the rail rather than
-   * sticking where it landed — and one facing squarely into the wall gets
-   * nothing, which is exactly when reverse is the answer.
+   * Back into the car's own terms — only if the LEADING end actually hit.
    *
-   * The heading is the phone's, 1:1 (spec §2.1), so this moves the car along
-   * the rail; it never rotates the body out from under the player's wrist.
+   * A trailing-end bump has already had its say: the tail was put back on the
+   * road and the body swung round the nose, and that is all it is owed. The
+   * speed, the direction of travel and the spool are untouched, which is the
+   * rule this whole branch exists for.
    */
+  if (carriedTangent !== null) {
+    const tangent = carriedTangent;
+    const along = carriedAlong;
+    // `speed` keeps the sign it had, so a car reversing into a rail is still
+    // reversing, and `drift` takes the rail's direction — the wall, not the
+    // wheel, decides which way the car is now actually travelling. That is
+    // also what the next frame's skid has to lag FROM, which is why `bump`
+    // keeps the lag alive through the recovery.
+    const sign = next.speed < 0 ? -1 : 1;
+    const way = along === 0 ? 0 : Math.sign(along) * sign;
+    if (way !== 0) next.drift = Math.atan2(tangent.y * way, tangent.x * way);
+    next.speed = sign * Math.abs(along);
+    // The spool follows the speed, so the car climbs back up its own curve
+    // from wherever the rail left it rather than snapping to the ceiling.
+    next.runMs = spoolFor(next.speed);
+    centre = { x: centre.x + tangent.x * along * dt, y: centre.y + tangent.y * along * dt };
+  }
+
   /*
-   * ...and the same push, resisted at the corner that is touching, is a
-   * TORQUE: it squares the car up with the wall. A rear-wheel-drive car pinned
-   * at the front does not keep crabbing at the angle it arrived at — it swings
-   * straight and runs along the rail, which is both what a car does and what
-   * makes the scrape below cheap.
+   * Whatever is left, take out of the position — and take that position
+   * whatever it measures, rather than only when the whole body fits.
    *
-   * The error is measured against whichever END of the rail's tangent the nose
-   * is already nearer, so a car reversing along a wall squares up to it too,
-   * and |err| is never past a right angle.
+   * Swinging one end clear can bury the other on a road this narrow, and a car
+   * turned far enough across it is against both rails at once with no pose
+   * that holds it. Requiring a clean fit before moving froze exactly those
+   * cars. `settle` only ever pushes back toward the middle of the road, so its
+   * answer is always the best place available.
    */
-  const railAngle = Math.atan2(tangent.y, tangent.x);
-  const ahead = angleDelta(next.heading, railAngle);
-  const behind = angleDelta(next.heading, railAngle + Math.PI);
-  const err = Math.abs(ahead) <= Math.abs(behind) ? ahead : behind;
-  // `sin |err|` is the torque a contact at the nose actually makes: strongest
-  // broadside, nothing once the car is running true. Never past the error
-  // itself, so it settles rather than ringing.
-  const swing = Math.sign(err) * Math.min(Math.abs(err), TILT_RAIL_ALIGN * Math.abs(Math.sin(err)) * dt);
-  next.align = Math.max(-TILT_ALIGN_MAX, Math.min(TILT_ALIGN_MAX, next.align + swing));
-  next.heading = car.base + input.roll + next.align;
-
-  const push = input.reverse ? -TILT_RAIL_DRIVE : TILT_RAIL_DRIVE;
-  along += (Math.cos(next.heading) * tangent.x + Math.sin(next.heading) * tangent.y) * push * dt;
-
-  /*
-   * Friction, for as long as contact lasts — and it costs what the ANGLE says,
-   * not a flat fee. A car dragged broadside along a wall pays
-   * `TILT_SCRAPE_DECEL`; one running true along it is barely touching and pays
-   * `TILT_SCRAPE_ALIGNED` of that. Charging both the same is what made every
-   * graze read as a crash, and it left the alignment above with nothing to
-   * earn.
-   *
-   * Measured from the freshly-swung heading, so squaring up pays off in the
-   * same frame it happens.
-   */
-  const misalign = Math.abs(Math.sin(angleDelta(next.heading, railAngle)));
-  const scrape = TILT_SCRAPE_DECEL * (TILT_SCRAPE_ALIGNED + (1 - TILT_SCRAPE_ALIGNED) * misalign);
-  along = Math.sign(along) * Math.max(0, Math.abs(along) - scrape * dt);
-
-  /*
-   * ...but never all the way to a standstill while the wheels still have
-   * somewhere to push. Friction and drive are both accelerations, so on their
-   * own they can only ever run away from each other — one wins and the car
-   * either accelerates forever or grinds to nothing. The crawl is the
-   * equilibrium the two are missing: the speed the engine can always hold
-   * against a scraping wall, scaled by how much of the nose points along it.
-   *
-   * Nose square into the rail this is zero, and the car really does stop —
-   * correctly, since nothing the engine does is pointing anywhere useful. That
-   * is the case reverse exists for.
-   */
-  const noseAlong = Math.cos(next.heading) * tangent.x + Math.sin(next.heading) * tangent.y;
-  const crawl = Math.abs(noseAlong) * TILT_RAIL_CRAWL;
-  if (crawl > 0 && Math.abs(along) < crawl) along = Math.sign(noseAlong) * (input.reverse ? -crawl : crawl);
-
-  /*
-   * Back into the car's own terms. `speed` keeps the sign it had, so a car
-   * reversing into a rail is still reversing, and `drift` takes the rail's
-   * direction — the wall, not the wheel, decides which way the car is now
-   * actually travelling. That is also what the next frame's skid has to lag
-   * FROM, which is why `bump` keeps the lag alive through the recovery.
-   */
-  const sign = next.speed < 0 ? -1 : 1;
-  const way = along === 0 ? 0 : Math.sign(along) * sign;
-  if (way !== 0) next.drift = Math.atan2(tangent.y * way, tangent.x * way);
-  next.speed = sign * Math.abs(along);
-  // The spool follows the speed, so the car climbs back up its own curve from
-  // wherever the rail left it rather than snapping to the ceiling.
-  next.runMs = spoolFor(next.speed);
-
-  const slid = {
-    x: car.at.x + tangent.x * along * dt,
-    y: car.at.y + tangent.y * along * dt,
-  };
-  /*
-   * Slide, then lift clear of the rail — and take that position whatever it
-   * measures, rather than only when the whole body fits.
-   *
-   * **A body this size cannot always fit.** The car is 70 long on a road 72
-   * wide, so past about 53 degrees across it there is no position on the road
-   * that holds it: it is touching both rails at once, wedged. Requiring a
-   * clean fit before moving froze exactly those cars in place — the thing this
-   * change exists to stop. `settle` only ever pushes back toward the middle of
-   * the road, so accepting its answer is always the best available place, and
-   * a wedged car keeps crabbing along the rail until the player's own wrist
-   * brings the nose back round.
-   */
-  settleAt(track, next, car, settle(track, slid, next.heading, car.index));
+  settleAt(track, next, car, settle(track, centre, next.heading, car.index));
   return next;
 }
 
