@@ -64,35 +64,53 @@ const check = process.argv.includes('--check');
 const OWN_ACCENT = '#818CF8';
 
 /**
- * The posed board — and not posed by hand any more: it is the board
- * `rollBoard(seeded(16))` actually deals, copied out verbatim. Three planets
+ * The posed board — and not posed by hand: it is the board
+ * `rollBoard(seeded(1265))` actually deals, copied out verbatim. Three planets
  * split two/one across the centre line (spec §2.1) is fiddly enough to place
  * by eye that hand-writing one risks advertising a board the game would never
  * produce; taking a real roll makes that impossible, and `assertLegal` below
  * still checks it against every rule independently.
+ *
+ * **Chosen for being the SMALLEST board the roller deals.** The previous pose
+ * (`seeded(16)`) came out near the top of every legal range — a star of 0.1454
+ * against a 0.15 maximum, and a 0.19 planet — and between them they filled the
+ * frame, so the one thing the card exists to show, a shot curving *round*
+ * something, had nowhere to be seen. Of 4000 rolls this is the lowest total
+ * radius on screen (0.300 against the old 0.463): the star is at its legal
+ * minimum of 0.075, and the planets are 0.072 / 0.103 / 0.050 against a 0.25
+ * cap. Same rules, same roller — just the end of the range that leaves room
+ * for the trajectory.
  */
 const BOARD = {
-  starRadius: 0.1454,
+  starRadius: 0.0750,
   planets: [
-    { x: 0.1622, y: 0.6993, r: 0.0753, art: 0 },
-    { x: 0.1958, y: 0.4102, r: 0.0523, art: 2 },
-    { x: 0.6031, y: 0.4778, r: 0.1901, art: 1 },
+    { x: 0.1586, y: 0.6757, r: 0.0718, art: 0 },
+    { x: 0.2463, y: 0.3637, r: 0.1030, art: 1 },
+    { x: 0.6993, y: 0.6649, r: 0.0500, art: 0 },
   ],
 };
 
 /**
- * The shot: 68° off straight up — fired all but sideways, away from the target
- * — at a little over half strength. Of a swept fan of every angle and strength over
- * this board, it is the one whose *drawn* trail bends hardest and still lands,
- * which is the thing the card has to promise. A shot that curves late is a
- * straight line in a still picture.
+ * The shot: 29° off straight up, at a fifth of full strength — lobbed gently
+ * across, so the star has time to bend it.
  *
- * Re-swept whenever the physics under it moves — the launch point going to the
- * ship's nose (issue #37) swallowed the previous pose in a planet outright, so
- * the card was briefly advertising a shot the game no longer flies. Same sweep
- * each time, re-run over whatever board is posed above.
+ * Swept over every angle and strength on the board above, scored on how far the
+ * *drawn* trail turns while still landing, and required to pass close to the
+ * STAR rather than merely close to something: the picture the card sells is a
+ * shot going round the sun. This one turns 1.43 rad (82°) and clears the star's
+ * surface by 0.045 — about half a star-radius, near enough to read as a
+ * deliberate swerve, far enough not to read as a hit. Nothing else on the board
+ * comes within 0.06.
+ *
+ * **Re-sweep this whenever the physics under it moves, and check `hit` first.**
+ * The pose before this one had stopped landing altogether — it was being
+ * swallowed by a planet, 0.002 inside the surface, so the card was advertising
+ * a shot the game eats. That is the second time a physics change has quietly
+ * invalidated the pose (the first was the launch point moving to the ship's
+ * nose, issue #37), which is why `assertFlight` below now fails the build on it
+ * rather than leaving it to the eye.
  */
-const SHOT = { angleDeg: -68, strength: 0.55 };
+const SHOT = { angleDeg: 29, strength: 0.21 };
 
 /** How far along its own flight the missile is caught, 0..1. Late, so the whole
  *  hook is behind it and reads as something that already happened. */
@@ -256,6 +274,39 @@ const physics = await gamePhysics();
 await assertLegal(physics);
 const bodies = physics.gravityBodies(BOARD.starRadius, BOARD.planets);
 const shot = physics.simulateShot(bodies, 0, (SHOT.angleDeg * Math.PI) / 180, SHOT.strength);
+
+/**
+ * The posed shot must still be a shot that WORKS.
+ *
+ * `assertLegal` proves the board is one the game deals; nothing proved the same
+ * of the flight, and it drifted twice — most recently to a pose absorbed by a
+ * planet 0.002 inside its surface, so the card was selling a shot the game
+ * swallows. A card advertising an impossible shot is worse than an ugly one, and
+ * this is two lines.
+ */
+function assertFlight() {
+  const problems = [];
+  if (!shot.hit) problems.push('the posed shot does not hit — re-sweep SHOT over the board above');
+  if (shot.absorbedAt) problems.push(`a planet swallowed it at ${shot.absorbedAt.x.toFixed(3)},${shot.absorbedAt.y.toFixed(3)}`);
+  // A trail that barely turns is a straight line in a still picture, which is
+  // the one thing this card cannot be.
+  let turn = 0;
+  for (let i = 2; i < shot.path.length; i++) {
+    const a = Math.atan2(shot.path[i - 1].y - shot.path[i - 2].y, shot.path[i - 1].x - shot.path[i - 2].x);
+    const b = Math.atan2(shot.path[i].y - shot.path[i - 1].y, shot.path[i].x - shot.path[i - 1].x);
+    let d = b - a;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    turn += Math.abs(d);
+  }
+  if (turn < 1.0) problems.push(`the trail only turns ${turn.toFixed(2)} rad — it will read as a straight line`);
+  if (problems.length > 0) {
+    console.error(`gravity-card: the posed shot is not one worth advertising —\n  ${problems.join('\n  ')}`);
+    process.exit(1);
+  }
+  return turn;
+}
+const turned = assertFlight();
 const shooter = physics.shipPosition(0);
 const target = physics.shipPosition(1);
 const shipW = physics.GRAVITY_SHIP_WIDTH;
@@ -411,5 +462,5 @@ writeFileSync(OUT_SVG, svg);
 writeFileSync(MANIFEST, `${JSON.stringify({ generator: GENERATOR, hash }, null, 2)}\n`);
 console.log(
   `gravity-card: card.svg regenerated (${(bytes / 1024).toFixed(1)} KB total, `
-  + `${shot.path.length} path points, hit=${shot.hit})`,
+  + `${shot.path.length} path points, hit=${shot.hit}, trail turns ${turned.toFixed(2)} rad)`,
 );
