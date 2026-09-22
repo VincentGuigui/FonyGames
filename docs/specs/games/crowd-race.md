@@ -289,32 +289,17 @@ position locally, and only the position travels
 
 ## 12. Open questions
 
-1. ~~**Do players collide with each other?**~~ Built as **no** — rivals are
-   drawn from `crowd-move` reports but never checked against the player's own
-   hitbox. Still worth a yes or no from a playtest, since it is the easiest of
-   these to add later.
-2. **`CROWD_BOUNCE_IMPULSE` as a single constant** — the issue says so for now.
+1. **`CROWD_BOUNCE_IMPULSE` as a single constant** — the issue says so for now.
    A bicycle bouncing you as hard as a pedestrian will probably feel wrong the
    first time it happens. Not changed in this build.
-3. **Mass**: pedestrians all identical, or a range? A cascade through
+2. **Mass**: pedestrians all identical, or a range? A cascade through
    identical bodies is easier to predict and probably easier to enjoy. Not
    changed in this build.
-4. ~~**How long the street is.**~~ Settled twice. First built as
-   `CROWD_COURSE_LENGTH` = 4000 units on a scrolling course; rebuilt as a
-   fixed, one-screen board — `CROWD_SCREEN_HEIGHT` = 600, so
-   `CROWD_COURSE_LENGTH` (the gap between the start and finish margins) is 520
-   — under 10 s of clean walking at `CROWD_WALK_SPEED`, before the crowd's own
-   delay.
-5. ~~**Whether being pushed back below the start line is possible.**~~ Built
-   as: yes, a little, but never off the bottom of the fixed screen. There is
-   no longer a *ratchet* floor that rises with progress — the scrolling course
-   that needed one is gone — so the wall is simply world `y = 0`, the fixed
-   screen's own bottom edge, a small margin below the start line itself.
-6. **No sensitivity setting** (§11) — this game's uncalibrated, un-gained
+3. **No sensitivity setting** (§11) — this game's uncalibrated, un-gained
    `downVector` read means the gear-menu slider that helps Asteroid Race does
    nothing here. Worth its own adjustable floor (`CROWD_MIN_TILT`) or gain if
    a playtest finds it too twitchy or too dead.
-7. **Obstacles recycle by wrapping `y`, in place** (§2.2) — found necessary
+4. **Obstacles recycle by wrapping `y`, in place** (§2.2) — found necessary
    during the first build, and now central to the fixed-board redesign: since
    the whole street is always on screen, a flowing crowd depends on it. A
    pedestrian that wraps keeps its `x`, so the same lane empties and refills
@@ -322,6 +307,6 @@ position locally, and only the position travels
    as an obviously looping street once a player is paying attention to it —
    more likely now that the wrap point can be on screen at the same time as
    the wrapped body, rather than off in an unseen part of a long course?
-8. **`rush-hour`'s own numbers are stale** (§3) — written against a scrolling
+5. **`rush-hour`'s own numbers are stale** (§3) — written against a scrolling
    course that no longer exists, and not yet implemented. Worth a fresh design
    pass once the base game has had a real playtest.

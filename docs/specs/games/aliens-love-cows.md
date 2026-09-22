@@ -301,22 +301,6 @@ live.
 
 ## 12. Open questions
 
-- ~~One pick per round, not several~~ — **resolved.** A follow-up message
-  ("let's clarify the timing") confirmed persistent, whole-match barn
-  destruction (§2.1) over a shrinking-barn elimination loop inside each
-  round: the UFO draws once per round, from whichever barns still stand.
-- ~~Flat, equal scoring, no elimination~~ — **resolved, reversed.** A later
-  message asked for permanent elimination: getting abducted is now out for
-  the rest of the match (§2.2), and the match itself ends by last cow
-  standing rather than by a fixed round count. The +1-per-survived-round
-  score still exists and is shown, but it no longer decides the winner.
-- ~~The forced final round~~ — **resolved.** With destruction unconditional
-  and no fixed round cap, the round that would take the fifth and last barn
-  would have forced everyone still in onto it — a decided outcome played
-  out for nothing. A later message asked for the UFO to give up instead:
-  `phase: 'fleeing'` (§2, §2.1, §4) replaces that round, so the match now
-  always ends by elimination or by the UFO leaving, never by a barn count
-  hitting zero.
 - **A single winner, not the brief's original plural "winners."** The
   original brief said "winners of the round are the ones with most points"
   — plural, allowing co-winners; that framing no longer applies now that
@@ -337,26 +321,3 @@ live.
   still have its rise animation cut short by the round advancing — the
   outcome itself is never in doubt by then (§2), only how much of the
   flourish is seen.
-- ~~Cow and barn art~~ — **resolved.** Originally hand-drawn SVG, since this
-  session cannot produce polished raster art on its own; the maintainer then
-  supplied the real pixel-art PNGs (`art/cow.png`, `art/barn.png`) directly,
-  used exactly as given — loaded through an `<img>` like any other gameplay
-  sprite, sized by CSS `width` percentages, nothing redrawn or regenerated.
-  The UFO alone is still the SVG copy of `ufo-hunt/art/ufo.svg`.
-- ~~Game name~~ — **resolved.** Renamed from Abduct-Moo to Aliens love cows,
-  per direct instruction: the title, slug (`abduct-moo` → `aliens-love-cows`),
-  this spec's own file name, the client folder and page, and the worker
-  referee module's file name all moved to match. Left as-is, deliberately,
-  same reasoning as the Tap Tap Music rename before it: the `AbductState`/
-  `Abduct` type names, the `ABDUCT_*` constants, the `abduct`/`abduct-pick`
-  wire message types, and the `.abduct__*` CSS class prefix — internal
-  identifiers nobody outside this codebase ever sees, and renaming them would
-  touch a dozen more call sites for no user-facing benefit.
-- ~~Hub card art~~ — **resolved.** The hub card's illustration (§4's header
-  table) now embeds base64 crops of the real `art/barn.png` and `art/cow.png`
-  directly into `art/card.svg`, in place of the hand-drawn barn and cow paths
-  it shipped with — the UFO, its cone, the stars and the ground are still
-  fresh vector paths. Per direct instruction ("hub's card should reuse actual
-  art") and the same reasoning Tap Fighter's own card exception already
-  established (docs/design/illustrations.md): a hand-drawn approximation of
-  authored pixel art reads worse than the real thing at hub-card size.

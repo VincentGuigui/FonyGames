@@ -21,7 +21,7 @@ file under 200 lines** — put detail in `docs/`, not here.
 | Deployment (branches, environments, secrets) | [docs/deployment.md](./docs/deployment.md) |
 | Database (MySQL, migrations) | [docs/database.md](./docs/database.md) |
 | Design: [UI / UX](./docs/design/ui-guidelines.md) · [illustrations & sprites](./docs/design/illustrations.md) · [in-game chrome](./docs/design/game-chrome.md) | `docs/design/` |
-| Conventions: [commits](./docs/conventions/commits.md) · [code style](./docs/conventions/code-style.md) | `docs/conventions/` |
+| Conventions: [commits](./docs/conventions/commits.md) · [code style](./docs/conventions/code-style.md) · [docs & comments](./docs/conventions/documentation.md) | `docs/conventions/` |
 | Testing strategy | [docs/testing.md](./docs/testing.md) |
 | Roadmap & open decisions · monetization | [docs/roadmap.md](./docs/roadmap.md) · [monetization_v1](./docs/monetization_v1.md), [v2](./docs/monetization_v2_global.md), [interstitials](./docs/monetization_v2_interstitial.md) |
 | Specs: [index](./docs/specs/README.md) · [hub](./docs/specs/hub.md) · [game template](./docs/specs/game-spec-template.md) | `docs/specs/` |
@@ -54,32 +54,33 @@ host, `worker/` → Cloudflare. Nothing else ships; nothing outside `docs/` docu
 
 ## 3. Golden rules
 
-1. **Everything is written down.** Any rule, decision, or statement produced in
-   a conversation must land in one of the files indexed above — in the right
-   one. If it fits nowhere, create the file and add it to the index (here and
-   in `docs/README.md`). **Anything about how a contributor or agent *behaves
-   every time* goes HERE; `docs/` gets the reasoning.** This is the only file an
-   agent is guaranteed to have read, so a behavioural rule left in `docs/` alone
-   gets silently dropped — which is how both of §5's were lost once already.
+1. **Everything is written down.** Any rule or decision from a conversation
+   lands in one of the files indexed above; if it fits nowhere, create the file
+   and add it to the index (here and in `docs/README.md`). **Anything about how
+   a contributor or agent *behaves every time* goes HERE; `docs/` gets the
+   reasoning** — this is the only file an agent is guaranteed to have read, so a
+   behavioural rule left in `docs/` alone gets silently dropped.
 2. **One change, one commit.** Every modification is committed with a short,
    explicit, prefixed message. See
    [docs/conventions/commits.md](./docs/conventions/commits.md). Update docs in
    the same change when behaviour or rules move.
 3. **No big-bang changes without validation.** Do not introduce a framework,
    restructure directories, add a backend, add a dependency, or ship a new game
-   engine without asking the maintainer first. Propose → get a yes → build.
-   Small, incremental, reviewable steps are the default — *pragmatic*, not
-   closed: a rendering engine (PixiJS, Phaser, …) is worth proposing when one
-   game's motion or particle count genuinely needs it, weighed against its bundle
-   cost ([architecture.md](./docs/architecture.md) §4) and against what plain
-   DOM/canvas already does. Never a house default; still asked, always.
-4. **Art is a file, comments are short.** Illustrations and sprites live in
-   `art/*.svg`, never inline SVG in a component
-   ([illustrations.md](./docs/design/illustrations.md),
-   [code-style.md](./docs/conventions/code-style.md)). Comments in CSS and
-   client code stay to a line or two of *why*; a design walkthrough belongs in
-   the spec or the commit message, not the source file.
-5. **Never run computer vision on a user-provided image without asking
+   engine without asking first. Propose → get a yes → build. A rendering engine
+   is worth *proposing* when one game genuinely needs it, weighed against its
+   bundle cost ([architecture.md](./docs/architecture.md) §4) — never a house
+   default, always asked.
+4. **Art is a file.** Illustrations and sprites live in `art/*.svg`, never
+   inline SVG in a component ([illustrations.md](./docs/design/illustrations.md)).
+5. **Docs and comments are minimal**
+   ([documentation.md](./docs/conventions/documentation.md)). Comments say
+   *why*, never narrate changes or history, and are written as if the code had
+   always been this way. Prefer clearer code to a comment. **Never create a
+   `.md` for a summary, fix report or task note** — update the canonical file.
+   One source of truth per topic; history belongs in commits and issues. Before
+   finishing, re-read what you wrote and cut anything redundant, historical or
+   obvious.
+6. **Never run computer vision on a user-provided image without asking
    first.** Cropping, OCR, edge/colour analysis or any other automated
    inspection of an attached image needs an explicit yes before it runs — read
    what it shows by eye, or ask the user directly, instead of reaching for a

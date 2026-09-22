@@ -334,19 +334,11 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
   next.heading = car.base + input.roll + next.align;
 
   /*
-   * **And the car turns about the end that is not leading.**
-   *
-   * Steering swings the FRONT of a car, because that is where the steered
-   * wheels are: hold the back still, point the front somewhere else. Rotating
-   * the body about its middle instead — which is what a single centre point and
-   * a heading give you — swings the nose one way and the tail the other, so
-   * the whole car crabs sideways out of its lane on every turn of the wrist and
-   * the tail sweeps into rails it was nowhere near. That is a car being shoved,
-   * not driven (spec §2.3).
-   *
-   * So the trailing point is the pivot: the rear going forwards, the front in
-   * reverse (back a car up and it is the tail that swings). The heading is
-   * still the phone's, 1:1 — this only decides where the body ends up hanging
+   * The car turns about the end that is not leading: the rear going forwards,
+   * the front in reverse. The steered wheels are at the front, so the wrist
+   * swings the nose and the tail follows — rotating the body about its middle
+   * instead crabs the whole car sideways out of its lane (spec §2.3). The
+   * heading is still the phone's, 1:1; this only decides where the body hangs
    * off it.
    */
   const pivotIsRear = next.speed >= 0;
@@ -405,18 +397,11 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
   }
 
   /*
-   * **A bump on the trailing end is free.**
-   *
-   * Clipping a wall with the back of the car while driving forwards is not a
-   * crash, it is a scrape you barely feel: nothing is being driven into the
-   * wall there, so there is no momentum for the wall to take. All that is owed
-   * is the overlap — put the tail back on the road and carry on at the same
-   * speed, in the same direction (spec §2.3).
-   *
-   * Putting it back ROTATES the car, because the other end stays where it is.
-   * That is the two-point body earning its keep: a tail that clips a wall
-   * swings the nose, exactly as it would on tarmac, and the driver feels the
-   * car step out rather than stop.
+   * A bump on the trailing end is free: nothing is being driven into the wall
+   * there, so there is no momentum for it to take. Only the overlap is owed —
+   * same speed, same direction (spec §2.3). Putting the end back rotates the
+   * car about the other one, so a clipped tail steps the car out rather than
+   * braking it.
    */
   let centre = moved;
   if (trail.depth > 0) {
@@ -452,18 +437,13 @@ export function step(track: Track, car: Drive, input: DriveInput, dtMs: number):
     let along = vx * tangent.x + vy * tangent.y;
 
     /*
-     * Lift the touching end clear, then TUCK THE OTHER END IN (issue #42).
+     * Lift the touching end clear, then tuck the other end in: the wall's
+     * reaction at the nose, against the drive pushing from behind, brings the
+     * tail round until the car lies flush (spec §2.3).
      *
-     * A rear-wheel-drive car scraping its nose along a wall does not swing the
-     * nose away — the wall's reaction at the nose, with the drive pushing from
-     * behind, rotates the body the other way and brings the tail in until the
-     * car lies flush. Swinging the nose out instead left the car permanently
-     * angled off the rail, which is what still read as "not sliding".
-     *
-     * So the depenetration is a straight shift (no rotation of its own), and
-     * the rotation is a separate tuck about the touching end, toward whichever
-     * way the rail runs. Its rate comes from the drive, so a car with no
-     * thrust does not tidy itself up.
+     * Depenetration is a straight shift with no rotation of its own; the tuck
+     * is separate, about the touching end, at a rate the drive sets — a car
+     * with no thrust does not tidy itself up.
      */
     centre = {
       x: centre.x + lead.inward.x * (lead.depth + 1e-6),

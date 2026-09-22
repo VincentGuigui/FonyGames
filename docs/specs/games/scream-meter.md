@@ -250,10 +250,6 @@ sounds much worse than what it actually does.
 
 ## 12. Open questions
 
-Five were open when this spec was written. Building it settled two and left
-three genuinely open — which is honest for a game whose central number can
-only be judged in a room full of people.
-
 1. **`SCREAM_SUSTAIN_MS` = 3 s of the 10 s window.** Still the central number
    and still a guess. What the build *can* show is that it does the job it was
    chosen for: `shared/scream.test.ts` fires a full-scale single-frame bark and
@@ -268,28 +264,16 @@ only be judged in a room full of people.
    What it cannot pin is whether a cheap microphone's 45 dB is the same 45 dB
    as a good one's. If it is not, this becomes a per-*device* handicap measured
    in the lobby.
-3. ~~**What a `partial` window scores.**~~ **Settled: the mean of what it got,
-   flagged as partial.** Zero would be simpler and is the wrong answer for iOS,
-   which suspends the audio context in a backgrounded tab through no fault of
-   the player. `loudestWindow` averages a short run rather than padding it, the
-   phone sets `partial` when it collected under 80% of the samples it should
-   have, and the results screen marks it rather than hiding it.
-4. ~~**Whether `relay` earns its place.**~~ **Not built**, and on reflection it
-   is a different game rather than a mode: one at a time doubles the round
-   length and needs its own turn machinery, and the whole appeal of `classic`
-   is eight people screaming at once. Declared in §3 and left there.
-5. **Prompt list**: four vowels and two pitches are built and dealt by the
+3. **Prompt list**: four vowels and two pitches are built and dealt by the
    referee. Whether it wants silly ones ("scream like a seagull") is a content
    question nobody has answered.
 
-Two the build raised:
-
-6. **`SCREAM_DB_SPAN` is doing more work than it looks.** It is the single
+4. **`SCREAM_DB_SPAN` is doing more work than it looks.** It is the single
    number that turns dB over the floor into 0–100, so it decides whether a
    normal shout scores 40 or 90 — and 45 dB was picked from what a phone
    microphone plausibly spans, not from anybody screaming into one. It is the
    first thing to adjust if scores bunch at either end.
-7. **The heartbeat bar is deliberately low** (`SCREAM_MIN_ALIVE` = 3). It only
+5. **The heartbeat bar is deliberately low** (`SCREAM_MIN_ALIVE` = 3). It only
    catches a client that did not even pretend to sample, because this is a
    party game in one room where everybody can hear everybody and the social
    check is the real one. Raising it would start punishing a phone with a bad
@@ -297,7 +281,7 @@ Two the build raised:
 
 One the maintainer reversed outright, on purpose:
 
-8. **Ten rounds, and live side meters, replacing the original one-round shape.**
+6. **Ten rounds, and live side meters, replacing the original one-round shape.**
    The original build (§4, as written) was one ten-second window and a
    deliberate choice **not** to show other players live: "eight live meters
    would be unreadable at this size and would put eight streams on the wire

@@ -294,28 +294,24 @@ reassuring enough to be worth the sentence.
 
 Q1 is answered; the rest block their own numbers, not the build.
 
-1. ~~**Does Color Hunt join AGENTS.md §4's closed list?**~~ **Answered on
-   2026-09-06, by changing the rule rather than the list**: a fallback is a
-   recommendation, not a gate. Color Hunt is named in §4 beside the five, and
-   owes what they owe — saying who it excludes, and asking from Ready/Start.
-2. **`COLOR_MISS` almost certainly needs to be looser here than in Color
+1. **`COLOR_MISS` almost certainly needs to be looser here than in Color
    Match.** A camera under a warm bulb reads a red book as something like
    `(180, 60, 45)`; against a `(204, 31, 31)` target that is a normalised
    redmean distance of roughly 0.1, which scores well — but a blue jumper under
    the same bulb can be 0.3 off its target and still be, unarguably, the blue
    thing in the room. Sharing one constant between the two games may be the
    wrong economy. Only a real room answers this.
-3. **Are `COLOR_HUNT_TARGET_S`/`_V` reachable indoors?** §2.2's whole argument
+2. **Are `COLOR_HUNT_TARGET_S`/`_V` reachable indoors?** §2.2's whole argument
    is that a pure primary is not findable and a plausible one is. 0.85/0.80 is
    a guess at where "plausible" starts, and a beige meeting room may not
    contain anything that clears it even so.
-4. **Should a perfect 100 be rejected as synthetic?** §8 argues no. It is a one
+3. **Should a perfect 100 be rejected as synthetic?** §8 argues no. It is a one
    line check if the maintainer disagrees.
-5. **One shared target, or one per player?** Specced as shared, because
+4. **One shared target, or one per player?** Specced as shared, because
    everybody hunting the same red is the conversation. Per-player targets would
    stop the fastest player from simply telling everyone where the red thing is,
    which is either the flaw in the shared version or the best part of it.
-6. **Is six seconds enough to stand up and walk?** `COLOR_HUNT_ACTION_MS` is
+5. **Is six seconds enough to stand up and walk?** `COLOR_HUNT_ACTION_MS` is
    double Color Match's and still short. Too short and every round is "whatever
    is on the table"; too long and the momentum §2 is built around is gone.
 

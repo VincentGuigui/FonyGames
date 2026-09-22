@@ -167,10 +167,6 @@ contact.
 | forty-five degrees | cos 45, about 71% |
 | a pure graze, along the rail | everything |
 
-This replaced an `along²` impact multiplier, which took a second bite out of a
-car that had already lost its across-rail momentum and was the thing that read
-as stopping dead on contact.
-
 **Then the rear wheels, twice over.** The car is rear-wheel drive and the
 engine does not care that there is a wall: it keeps pushing along the car's own
 heading, and the rail turns whatever part of that runs along itself into motion
@@ -218,30 +214,20 @@ made every graze read as a crash, and it left the alignment above nothing to
 earn. The floor is not zero on purpose: at zero the outside wall becomes free
 banking to lean on round every corner.
 
-**What this trades away** is the old rule that "the scrape must beat the spool,
-or wall-riding is free". It no longer does, and that is now the deliberate
-position rather than an oversight — see §12 Q9.
+Wall-riding is deliberately not much of a speed penalty; what makes the outside
+wall a bad line is the geometry, not the friction (§12 Q9).
 
-**...but never to a dead stop.** Drive and scrape are both accelerations, so
-on their own one simply beats the other and the car either accelerates along
-the wall forever or grinds to nothing. Simulation showed the second: a car
-held against a rail decayed 34 → 0 and sat there, which is [#42](https://github.com/VincentGuigui/FonyGames/issues/42)
-wearing a different hat. `TILT_RAIL_CRAWL` (35 u/s at full nose-along-rail) is
-the equilibrium the pair were missing — under `TILT_REVERSE_SPEED`, so
-scraping is still the slowest way round and backing out is still worth doing,
-but a car against a wall is never stuck.
+**...but never to a dead stop.** Drive and scrape are both accelerations, so on
+their own one simply beats the other. `TILT_RAIL_CRAWL` (35 u/s at full
+nose-along-rail) is the equilibrium they are missing — under
+`TILT_REVERSE_SPEED`, so scraping is still the slowest way round, but a car
+against a wall is never stuck.
 
-**The momentum, after all of it, follows the rail's own tangent — not the
-wheel.** A hit used to leave the car's direction of travel exactly wherever the
-wheel was already pointing, and since that is usually roughly at the wall (it
-is what caused the hit), the very next frame re-squared the car into the same
-rail before any of the surviving `along` speed had covered any distance. The
-skid lag (§2.2) is what keeps a car's momentum independent of the wheel for a
-moment, but it only ran above cruise, and a hit routinely scrubs the car below
-it in the same frame — so a bumped car kept the lag one frame too briefly, in
-exactly the frame it mattered. Fixed by locking the momentum to the rail's
-tangent on contact and keeping the lag alive for as long as the car was
-touching a rail last frame, regardless of speed.
+**The momentum, after all of it, follows the rail's own tangent, not the
+wheel**, and the skid lag (§2.2) stays alive for as long as the car is touching
+a rail whatever its speed. Otherwise the wheel — still aimed at the wall, since
+that is what caused the hit — re-squares the car into the same rail before any
+of the surviving speed has covered any distance.
 
 `TILT_HEAD_ON` survives as a *presentation* threshold only: it decides whether
 the renderer plays the head-on shake or the graze one. The speed is continuous
@@ -453,115 +439,30 @@ stored. Raw orientation readings never leave the phone.
 
 ## 12. Open questions
 
-Five were open when this spec was written. Building it settled four, and
-turned up two the spec had not thought to ask.
-
-1. ~~**"Every 0.25 ms"** (§6).~~ **Settled as 250 ms** (`TILT_REPORT_MS`), the
-   rate every other continuous game here uses. Still worth a word from the
-   maintainer if something else was meant.
-2. ~~**What the speed numbers mean.**~~ **Settled**: the issue's 100 and 120 are
-   `TILT_CRUISE_SPEED` and `TILT_TOP_SPEED` in world units per second, where a
-   grid tile is 100 units — and the circuit's *length* is then derived from a
-   ~100 s target lap rather than the speed being derived from a guess.
-   `shared/tiltTrack.test.ts` measures the median lap at 105 s across 120
-   rolled circuits.
-3. ~~**`TILT_SKID_TAU_MS`.**~~ **Settled at 110 ms, and it cannot be judged
-   alone.** A constant turn rate against a first-order lag settles at
-   `rate × tau` radians of slide, so the skid and the turn rate multiply. At the
-   320 ms first written here a corner-rate turn would settle at 66° of slide,
-   which is a spin rather than a skid; 110 ms puts it at 23°. The test asserts
-   the *product*, against `TILT_CORNER_RATE`. Since the heading is now the
-   wrist's own, this is also the only thing between a violent flick and an
-   instant reversal — which is exactly the physics it should be.
-4. **Does the reverse button really need to move?** Still open, and still a
-   lovely detail with a real accessibility cost. It is built as the issue asks
-   — it follows gravity round the screen's edge and freezes while held — and
-   `gravityButton.test.ts` pins every pose. The pin-it-in-place option in §11
-   is **not** built.
-5. ~~**Track generation**: spline or tiles?~~ **Settled, and stronger than
-   either.** The circuit is the **boundary of a polyomino**: grow a blob of grid
-   cells, and its outline is the centreline. Closed for free, non-self-crossing
-   provided the blob has no hole and no diagonal pinch (both tested before a
-   cell is accepted), and the rails cannot meet because two sides of a
-   one-cell arm are a whole tile apart. 200 rolled circuits are checked segment
-   pair by segment pair.
-
-Two the build raised:
-
-6. **The tightest corner asks for 206°/s of wrist.** A snaking circuit contains
+1. **Does the reverse button really need to move?** It is built as the issue
+   asks — it follows gravity round the screen's edge, turns its face to match
+   (§2, #43) and freezes while held — and `gravityButton.test.ts` pins every
+   pose. The pin-it-in-place option in §11 is **not** built, and the
+   accessibility cost of a moving control is real.
+2. **The tightest corner asks for 206°/s of wrist.** A snaking circuit contains
    corners of radius `TILE / 3`, and following one at top speed needs 3.6 rad/s
-   (`TILT_CORNER_RATE`). Nothing caps it any more — the wrist is the limit — but
-   it is a real physical demand, and whether a hand can hold that through a
-   sequence of corners is the first thing to find out on a real phone. The
-   alternative is a slower car or a looser roller, and both change the lap time.
-7. **The circuit reads as a maze rather than a race track.** Getting a 100 s lap
+   (`TILT_CORNER_RATE`). Nothing caps it — the wrist is the limit — but whether
+   a hand can hold that through a sequence of corners is the first thing to find
+   out on a real phone. The alternative is a slower car or a looser roller, and
+   both change the lap time.
+3. **The circuit reads as a maze rather than a race track.** Getting a 100 s lap
    out of an 11×15 grid means corridors packed one tile apart, so a lot of road
    is visible that cannot be reached from where the car is. It is correct — the
    rails are real — but a wider grid with a shorter blob would look more like a
    circuit, at the cost of the lap length. `endurance` mode (three laps) would
-   let the circuit itself be a third of the size, which may be the real answer.
-
-Two the guardrail rework raised:
-
-9. **Wall-riding is barely a speed penalty any more.** The scrape was halved and
-   is now scaled by the angle (§2.3), so a car running true along a rail pays
-   22.5 u/s² where it used to pay a flat 180 — less than the spool gives back,
-   which means a squared-up car against a wall climbs back to its own speed
-   curve rather than bleeding out. That is what was asked for, and it is worth
-   a playtest: the only thing left discouraging the outside wall is the
-   geometry of the line, not the friction. If it turns out a wall is the *fast*
-   way round a corner, the lever is `TILT_SCRAPE_ALIGNED`, not the base figure.
-10. **The rail is allowed to steer, a little.** `align` is the first thing ever
-    to sit on top of the phone's 1:1 heading (§2.1) — the body turning because
-    a rail pushed one of its two ends off the wall while the other stayed. It
-    is bounded (`TILT_ALIGN_MAX`, 40°, with any leftover overlap taken out by
-    shifting the whole car instead) and it bleeds away in about a quarter second
-    once the car is free, so the wrist is still plainly driving; but it is a
-    real exception to the game's strongest promise and it should be watched for
-    on a phone, where a car that squares itself up while the hand holds still
-    might read as the car fighting back.
-
-One a real phone raised, reversing a piece of §2.1/§5 as built:
-
-8. **`base` is a fixed constant now, not a per-round calibration.** The first
-   build zeroed `roll.ts` on the round's first reading and set `base` to
-   wherever the track happened to start — "hold it however you like" — which
-   read, on a real phone, as the car turning further than the wrist did:
-   holding the phone bolt upright at the green light could still show it
-   pointing sideways, since the baseline was the track's own arbitrary start
-   direction rather than upright, and correcting that mismatch by hand looked
-   exactly like an over-eager control. Upright now always means "up the map"
-   (`TILT_UPRIGHT_HEADING`, `drive.ts`), and there is no calibration step left
-   to remove. The cost, not yet weighed against a real circuit: the car can
-   start pointing away from the road it is standing on, if a given track's own
-   first stretch does not happen to run north — untested against whether that
-   reads as confusing at the green light the way the old mismatch did.
-9. **`downVector`'s formula was wrong off the four poses it was validated
-   against.** A real phone raised this too: a steady roll read as changing
-   direction on its own when the phone was pitched back or forth, with nobody
-   touching the steering. The formula matched the actual device-orientation
-   rotation matrix only when `beta` or `gamma` sat at the extreme that zeroes
-   the missing cosine — true at "held upright," "upside down," and the two
-   edge-down poses, false everywhere else, which is any ordinary grip.
-   Corrected in `gravityButton.ts`; `gravityButton.test.ts` now also pins a
-   pose with both axes away from their extremes.
-10. **The reverse button was sliding to the edge opposite the player's
-    thumb.** A second sign bug in the same vector, and the exact failure mode
-    #9's own doc warns about: `downVector`'s `x` had picked up an extra `-`
-    somewhere along the way — correct for `roll.ts`'s own "clockwise on the
-    wrist is clockwise on the road" need, backwards for the button's much
-    simpler "which edge is lowest right now." Fixed by keeping `downVector`
-    as the raw screen direction and moving the compensating `-` into
-    `rollAngle`, where the clockwise convention actually lives;
-    `gravityButton.test.ts` now also checks `reverseSpot` end to end, not
-    just `downVector`'s raw output, which is what let this one through.
-11. **Top speed doubled to 240** (maintainer request, this same round of
-    fixes). `TILT_CRUISE_SPEED` is unchanged, so the 3 s spool from 100 to top
-    is a steeper climb than before. Two costs, accepted rather than chased:
-    a lap at full speed now runs well under the ~100 s `TILT_TARGET_LAP_MS`
-    was tuned for (`shared/tiltTrack.test.ts` still passes — its band is wide
-    on purpose — but the median is now closer to 50 s than 100), and the
-    tightest corner taken flat out asks for about 7.2 rad/s of wrist, double
-    what `TILT_CORNER_RATE` called reasonable. Neither the track roller nor
-    the corner radius was retuned; whether either should be is the natural
-    next question, not answered here.
+   let the circuit itself be a third of the size.
+4. **Wall-riding is barely a speed penalty.** A car running true along a rail
+   pays 22.5 u/s², less than the spool gives back, so a squared-up car against a
+   wall climbs back to its own curve. Worth a playtest: the only thing
+   discouraging the outside wall is the racing line. The lever is
+   `TILT_SCRAPE_ALIGNED`, not the base figure.
+5. **The rail is allowed to steer, a little.** `align` sits on top of the
+   phone's 1:1 heading (§2.1) — the body turning because a rail pushed one end.
+   Bounded (`TILT_ALIGN_MAX`, 40°) and gone within a quarter second of coming
+   off the wall, but it is a real exception to the game's strongest promise and
+   should be watched for on a phone.

@@ -557,37 +557,31 @@ nickname, city/country. No colour ever appears in it.
 
 Everything here needs a maintainer answer, and Q1 blocks the build.
 
-1. ~~**Is the whole shape right?**~~ **Answered on 2026-09-06**: approved as
-   written, so the flat threshold and the two-presentation wheel are the
-   design rather than a proposal. **The multiplicative luminance half of that
-   answer was reversed by issue #40** — item 7 below — so only the threshold
-   and the wheel's own two presentations still stand from this approval.
-   Q2–Q6 are untouched by either and still want a real thumb.
-2. **Does the wheel's sector→continuous switch read as one control?** Levels
+1. **Does the wheel's sector→continuous switch read as one control?** Levels
    1–21 are tap-a-wedge and 22+ are drag-and-snap. That may be a graceful
    ramp or it may feel like the game swapped its input out from under you at
    the exact moment it got hard. The alternative is continuous from level 1,
    which makes the four-colour rungs feel silly. Untestable on paper.
-3. **Flat `COLOR_MISS`, or one scaled to the rung?** Flat means early levels
+2. **Flat `COLOR_MISS`, or one scaled to the rung?** Flat means early levels
    are all-or-nothing and late levels are all partial credit. Scaled — a
    threshold of, say, one and a half quantisation steps — would make "one step
    off" worth the same everywhere and keep the score's meaning stable down the
    whole ladder. Flat is simpler; scaled is probably fairer.
-4. **Are the three tiers right at the top of the ladder?** The window steps
+3. **Are the three tiers right at the top of the ladder?** The window steps
    twice, but the search space grows by orders of magnitude. Either that is
    the difficulty working as intended, or the last rungs are unplayable for
    everyone at once and the barren rule ends every run at the same level
    regardless of the room, which would make §2.1's whole argument false.
-5. **A mode that starts partway up?** Once a room knows it reliably dies at
+4. **A mode that starts partway up?** Once a room knows it reliably dies at
    level 30, starting at 20 is a shorter game. Deliberately not specced as a
    mode yet (§3).
-6. **1–8 or 2–8?** Specced as 1–8 because the ladder is a perfectly good solo
+5. **1–8 or 2–8?** Specced as 1–8 because the ladder is a perfectly good solo
    score attack and costs nothing to allow, but the issue said "1 to 8" about a
    game whose fun is arguing about a colour with other people.
 
 One the maintainer reversed outright, on purpose:
 
-7. **Brightness is a ring, not a slider — the multiplicative model item 1
+6. **Brightness is a ring, not a slider — the multiplicative model item 1
    approved is gone.** The original build put value on a separate control:
    the disc drew `hsv(hue, sat, 1)` only, and a slider hidden until rung 7
    dimmed it afterwards, `base × lum`. Issue #40 asked for the wheel's own

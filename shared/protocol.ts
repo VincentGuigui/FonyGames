@@ -3293,21 +3293,13 @@ export const TILT_REAR_TUCK = 2.4;
 export const TILT_SCRAPE_DECEL = 90;
 
 /**
- * What is left of the scrape when the car is perfectly parallel to the rail,
- * as a fraction of `TILT_SCRAPE_DECEL`.
+ * What is left of the scrape when the car runs parallel to the rail, as a
+ * fraction of `TILT_SCRAPE_DECEL`: the full figure is for a car dragged
+ * sideways along a wall, and a car running true is barely touching it.
  *
- * The full figure is for a car dragged sideways along a wall; a car running
- * true along one is barely touching it, and charging both the same was what
- * made a graze feel like a crash. The scrape now runs
- * `DECEL x (ALIGNED + (1 - ALIGNED) x |sin misalignment|)`, so squaring up
- * with the rail is worth doing — and squaring up is what a car pushed off a
- * wall at one end does by itself, once the body is two points rather than a
- * box (`TILT_WHEELBASE`).
- *
- * **Not zero.** At zero a perfectly parallel car pays nothing at all and the
- * outside wall becomes a free banking to lean on round every corner. A quarter
- * keeps a cost on the board while leaving the aligned car far better off than
- * the sideways one — 22.5 u/s^2 against 90.
+ * `DECEL x (ALIGNED + (1 - ALIGNED) x |sin misalignment|)`, so squaring up is
+ * worth doing. Not zero: at zero the outside wall becomes free banking to lean
+ * on round every corner. A quarter is 22.5 u/s^2 against 90.
  */
 export const TILT_SCRAPE_ALIGNED = 0.25;
 

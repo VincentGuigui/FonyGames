@@ -34,6 +34,7 @@ is made in a discussion, it belongs in one of these files.
 | --- | --- |
 | [conventions/commits.md](conventions/commits.md) | Commit types, format, examples |
 | [conventions/code-style.md](conventions/code-style.md) | Naming, file layout, TS/CSS rules |
+| [conventions/documentation.md](conventions/documentation.md) | How much to comment, and where docs live |
 
 ## Design
 

@@ -687,18 +687,7 @@ Still open:
    a table read (§5), which is more than the other guesses in this list got,
    but the simulation cannot feel whether 20 s reads as sluggish or as
    twitchy on an actual arm.
-7. ~~**Does the hull hide the rock about to kill you?**~~ **Largely answered
-   by #31**: pulling the camera to 38 draws the hull at ~14% of the board's
-   width rather than 37%, so it no longer covers the spot a rock grows from.
-   Whether the halo still needs to carry the warning at all is a smaller
-   question than it was.
-8. ~~**The hull flies out of frame before it reaches the tube wall.**~~
-   **Answered by #31**: `ASTEROID_CAM_BACK` is 38, the swing is 0.35 board
-   widths, and `game.test.ts` pins the invariant — a hull against the wall,
-   plus half its own sprite, still fits inside half a board width. What is
-   open now is the opposite question: whether the ship at 14% of the board's
-   width is too *small* to fly by.
-9. **Is the tilt right after #32?** `SENSITIVITY_DEG` went 20 → 32,
+7. **Is the tilt right after #32?** `SENSITIVITY_DEG` went 20 → 32,
    `PITCH_SENSITIVITY_DEG` 22 → 34, and a 10% dead zone now sits at centre.
    That was a report of twitchiness, not a measurement; the same hand may now
    find it sluggish.
