@@ -4,6 +4,7 @@ import {
   CROWD_BICYCLE_SPEED,
   CROWD_DOWN_STREET_SHARE,
   CROWD_FINISH_Y,
+  CROWD_LANES,
   CROWD_OBSTACLE_SPACING,
   CROWD_PERSON_RX,
   CROWD_PERSON_RY,
@@ -82,39 +83,46 @@ export function slotCount(): number {
  * of course, each jittered in `y` by up to half a spacing so the street does
  * not read as a grid, and in `x` across the walkable width.
  *
- * A tree's `x` is biased toward one edge or the other — "trees down both
- * sides" (the card's own illustration) — rather than drawn uniformly, which
- * would plant them in the middle of the walkway as often as at its edge.
+ * Every row deals one obstacle into each of `CROWD_LANES` bands across the
+ * street, so the crowd is four wide and nothing spawns overlapping.
  */
 export function dealStreet(roundId: number): ObstacleSpawn[] {
   const slots = slotCount();
   const out: ObstacleSpawn[] = [];
   const margin = CROWD_PERSON_RX + 2;
+  const walkable = CROWD_STREET_WIDTH - margin * 2;
+  const lane = walkable / CROWD_LANES;
 
   for (let i = 0; i < slots; i++) {
-    const jitterY = (hash01(roundId, i, 1) - 0.5) * CROWD_OBSTACLE_SPACING;
-    const y = CROWD_START_CLEAR + (i + 0.5) * CROWD_OBSTACLE_SPACING + jitterY;
+    for (let l = 0; l < CROWD_LANES; l++) {
+      // One `hash01` stream per (row, lane) so adding a lane does not reshuffle
+      // the rows that were already dealt.
+      const seed = i * CROWD_LANES + l;
+      // A third of a spacing, not half: enough that a row does not read as a
+      // ruled line, little enough that it stays a row.
+      const jitterY = (hash01(roundId, seed, 1) - 0.5) * CROWD_OBSTACLE_SPACING * 0.66;
+      const y = CROWD_START_CLEAR + (i + 0.5) * CROWD_OBSTACLE_SPACING + jitterY;
 
-    const kindRoll = hash01(roundId, i, 2);
-    const kind: ObstacleKind = kindRoll < TREE_SHARE ? 'tree' : kindRoll < TREE_SHARE + BICYCLE_SHARE ? 'bicycle' : 'pedestrian';
+      const kindRoll = hash01(roundId, seed, 2);
+      const kind: ObstacleKind =
+        kindRoll < TREE_SHARE ? 'tree' : kindRoll < TREE_SHARE + BICYCLE_SHARE ? 'bicycle' : 'pedestrian';
 
-    let x: number;
-    if (kind === 'tree') {
-      const side = hash01(roundId, i, 3) < 0.5 ? 0 : 1;
-      const band = hash01(roundId, i, 4) * (CROWD_STREET_WIDTH * 0.12);
-      x = side === 0 ? margin + band : CROWD_STREET_WIDTH - margin - band;
-    } else {
-      x = margin + hash01(roundId, i, 3) * (CROWD_STREET_WIDTH - margin * 2);
+      const rx = kind === 'tree' ? CROWD_TREE_R : kind === 'bicycle' ? CROWD_BICYCLE_RX : CROWD_PERSON_RX;
+      const ry = kind === 'tree' ? CROWD_TREE_R : kind === 'bicycle' ? CROWD_BICYCLE_RY : CROWD_PERSON_RY;
+
+      // Inside its own lane, with room for the body, so a row never deals two
+      // obstacles on top of each other.
+      const room = Math.max(0, lane - rx * 2);
+      const x = margin + l * lane + rx + hash01(roundId, seed, 3) * room;
+
+      // Majority down-street (toward the player, `-1`) so the crowd comes at
+      // you — the issue's own "most of the moving obstacles are going down".
+      const dir: 0 | 1 | -1 =
+        kind === 'tree' ? 0 : hash01(roundId, seed, 5) < CROWD_DOWN_STREET_SHARE ? -1 : 1;
+      const speed = kind === 'tree' ? 0 : kind === 'bicycle' ? CROWD_BICYCLE_SPEED : CROWD_WALK_SPEED;
+
+      out.push({ id: `${roundId}:${i}:${l}`, kind, x, y, dir, speed, rx, ry });
     }
-
-    // Majority down-street (toward the player, `-1`) so the crowd comes at
-    // you — the issue's own "most of the moving obstacles are going down".
-    const dir: 0 | 1 | -1 = kind === 'tree' ? 0 : hash01(roundId, i, 5) < CROWD_DOWN_STREET_SHARE ? -1 : 1;
-    const speed = kind === 'tree' ? 0 : kind === 'bicycle' ? CROWD_BICYCLE_SPEED : CROWD_WALK_SPEED;
-    const rx = kind === 'tree' ? CROWD_TREE_R : kind === 'bicycle' ? CROWD_BICYCLE_RX : CROWD_PERSON_RX;
-    const ry = kind === 'tree' ? CROWD_TREE_R : kind === 'bicycle' ? CROWD_BICYCLE_RY : CROWD_PERSON_RY;
-
-    out.push({ id: `${roundId}:${i}`, kind, x, y, dir, speed, rx, ry });
   }
 
   return out;

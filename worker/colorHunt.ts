@@ -40,6 +40,8 @@ export type ColorHunt = {
   phase: 'hunt' | 'done';
   dueAt: number;
   finds: Record<PlayerId, HuntFind>;
+  /** Who has locked this round's pick (spec §2.2). Cleared with every round. */
+  confirmed: PlayerId[];
   /** Last scored round, kept separately from the round in flight so the
    *  scoreboard can still show what just happened while the next target is
    *  already up — there is no reveal phase to hold it (spec §2). */
@@ -77,6 +79,7 @@ function armRound(ctx: Ctx, s: ColorHunt, round: number): boolean {
   s.phase = 'hunt';
   s.dueAt = ctx.now() + COLOR_HUNT_ACTION_MS;
   s.finds = {};
+  s.confirmed = [];
   return true;
 }
 
@@ -104,6 +107,7 @@ export async function startColorHunt(
     phase: 'hunt',
     dueAt: now,
     finds: {},
+    confirmed: [],
     lastFinds: {},
     used: [],
     totals,
@@ -139,8 +143,38 @@ export async function onHuntFind(
 
   const found = asRgb(rgb);
   if (!found) return;
+  // A locked pick is locked: re-aiming the camera must not quietly change it.
+  if (s.confirmed.includes(playerId)) return;
   s.finds[playerId] = { rgb: found, score: 0 };
   await ctx.save(s);
+}
+
+/**
+ * One phone locks its pick. Once everyone still playing has, the round scores
+ * immediately rather than running the clock down for nobody (spec §2.2).
+ *
+ * Not confirming is not a penalty: the deadline auto-confirms whatever pick a
+ * phone last sent, which is exactly what `tick` already scores.
+ */
+export async function onHuntConfirm(ctx: Ctx, playerId: PlayerId, roundId: number, round: number): Promise<void> {
+  const s = await ctx.load();
+  if (!s || s.roundId !== roundId || s.phase !== 'hunt' || s.round !== round) return;
+  if (!(playerId in s.totals)) return;
+  if (s.confirmed.includes(playerId)) return;
+  if (!(playerId in s.finds)) return;
+
+  s.confirmed.push(playerId);
+  if (s.confirmed.length >= Object.keys(s.totals).length) {
+    // Everyone is in: bring the deadline to now and let the alarm score it, so
+    // there is one scoring path rather than two.
+    s.dueAt = ctx.now();
+    await ctx.save(s);
+    broadcast(ctx, s);
+    await ctx.setAlarm(nextDeadline(s));
+    return;
+  }
+  await ctx.save(s);
+  broadcast(ctx, s);
 }
 
 /** The clock: score what came in, then immediately deal the next target. */
@@ -191,8 +225,13 @@ function score(s: ColorHunt): void {
 export async function onPlayerGone(ctx: Ctx, playerId: PlayerId): Promise<void> {
   const s = await ctx.load();
   if (!s || s.phase !== 'hunt') return;
-  if (!(playerId in s.finds)) return;
   delete s.finds[playerId];
+  /*
+   * A phone that has gone counts as locked in. It cannot pick again, and the
+   * all-confirmed shortcut is measured against everyone in `totals` — leaving
+   * them out would hold the round open until the clock ran down for nobody.
+   */
+  if (playerId in s.totals && !s.confirmed.includes(playerId)) s.confirmed.push(playerId);
   await ctx.save(s);
 }
 
@@ -237,6 +276,7 @@ export function toState(s: ColorHunt): ColorHuntState {
     totals: { ...s.totals },
     finds,
     barren: s.barren,
+    confirmed: [...s.confirmed],
     winner: s.winner,
   };
 }

@@ -194,6 +194,7 @@ import {
 } from './crowdRace';
 import {
   nextDeadline as huntColorDeadline,
+  onHuntConfirm,
   onHuntFind,
   onPlayerGone as huntColorPlayerGone,
   startColorHunt,
@@ -608,6 +609,11 @@ export class Room extends DurableObject<Env> {
       case 'hunt-find': {
         const id = this.#idOf(ws);
         if (id) await onHuntFind(this.#huntColorCtx(), id, msg.d.roundId, msg.d.round, msg.d.rgb, msg.d.at);
+        return;
+      }
+      case 'hunt-confirm': {
+        const id = this.#idOf(ws);
+        if (id) await onHuntConfirm(this.#huntColorCtx(), id, msg.d.roundId, msg.d.round);
         return;
       }
       case 'tttt-select': {

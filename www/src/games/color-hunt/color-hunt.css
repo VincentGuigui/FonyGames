@@ -124,3 +124,34 @@
   color: var(--text);
   font-weight: 600;
 }
+
+/* The lock-in button and the "3 of 5 in" tally under the viewport (#45). */
+.chunt__confirm {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.chunt__lock {
+  flex: 1;
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-2);
+  background: var(--accent, #22d3ee);
+  color: #06202a;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.chunt__lock:disabled {
+  background: rgb(255 255 255 / 0.16);
+  color: rgb(255 255 255 / 0.7);
+}
+
+.chunt__incount {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255 / 0.75);
+  font-size: 0.9rem;
+}

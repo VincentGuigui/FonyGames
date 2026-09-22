@@ -115,6 +115,13 @@ this profile exists to avoid.
   rather than draining away, which matters more now that the whole board is
   always on screen at once (§2, §4).
 
+**Four abreast.** Every row deals one obstacle into each of `CROWD_LANES` bands
+across the street, so a row is four wide and a lane five deep over the course —
+twenty obstacles, where one per row gave five and read as a stroll. Each is
+jittered inside its own band and by two thirds of a spacing along the street, so
+the crowd is not a grid, and no two are ever dealt overlapping.
+
+
 ## 3. Modes / variations
 
 | Mode | Blurb (one line, shown in the lobby) | Difference from core |

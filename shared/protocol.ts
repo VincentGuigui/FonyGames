@@ -347,6 +347,9 @@ export type ClientMessage =
    * game's privacy claim (spec §10).
    */
   | { t: 'hunt-find'; d: { roundId: number; round: number; rgb: [number, number, number]; at: number } }
+  /** Lock this round's pick. When everyone playing has, the round scores at
+   *  once instead of waiting out the clock (spec §2.2). */
+  | { t: 'hunt-confirm'; d: { roundId: number; round: number } }
   /**
    * Asteroid Race: how far I have got and what it has cost me, on a 1 s tick
    * plus immediately on a life change or a finish (spec §6). Nothing about the
@@ -970,6 +973,9 @@ export type ColorHuntState = {
   /** Last scored round only. Empty until the first one is scored. */
   finds: Record<PlayerId, { rgb: [number, number, number]; score: number }>;
   barren: number;
+  /** Who has locked this round's pick, so the phone can show "3 of 5 in" and
+   *  grey out its own button. */
+  confirmed: PlayerId[];
   winner: PlayerId | null;
 };
 
@@ -2106,6 +2112,7 @@ const CLIENT_TYPES = new Set([
   'asteroid-report',
   'color-pick',
   'hunt-find',
+  'hunt-confirm',
   'math-answer',
   'tilt-move',
   'tilt-finish',
@@ -3569,6 +3576,19 @@ export const CROWD_START_CLEAR = CROWD_START_Y + 40;
  *  next — a density the eye reads as "crowded" without every gap being
  *  identical (the actual gap is jittered per obstacle, §13). */
 export const CROWD_OBSTACLE_SPACING = 90;
+
+/**
+ * Obstacles dealt across the street in every row — the lanes the crowd fills.
+ *
+ * The course holds five rows, so four lanes is four obstacles in every row and
+ * five in every lane: "at least 4 per column" either way round you read it.
+ * One per row left twenty obstacles' worth of street holding five, which is a
+ * walk rather than a crowd.
+ *
+ * The width divides into this many bands and each takes one obstacle, jittered
+ * inside its own band, so a row is never dealt two bodies on top of each other.
+ */
+export const CROWD_LANES = 4;
 
 /** Share of moving obstacles walking down-street (toward the player) rather
  *  than up it — the issue's own number. */

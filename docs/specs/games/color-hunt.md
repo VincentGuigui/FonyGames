@@ -87,6 +87,21 @@ indoors. The target is the primary or secondary hue at
 real object can plausibly be — and §12 Q3 is whether those two numbers survive
 a real room.
 
+**Locking a pick.** A phone can tap **Lock it in** to commit what it is
+pointing at rather than waiting out the clock (`hunt-confirm`). The pick goes
+with the tap, so it is one action, and a locked pick cannot be changed by
+re-aiming the camera.
+
+When everyone still playing has locked in, the round's deadline is pulled to
+now and scores immediately — the clock exists to stop a round hanging, not to
+make a room that is ready wait. Not confirming costs nothing: the deadline
+auto-confirms whatever pick that phone last sent, which is what the referee
+scored before the button existed. A phone that leaves counts as locked in, or
+it would hold the round open for a player who is gone.
+
+The tally ("3 of 5 in") is on the wire as `confirmed`, so every phone can see
+who the room is waiting for.
+
 ## 3. Modes / variations
 
 | Mode | Blurb (one line, shown in the lobby) | Difference from core |

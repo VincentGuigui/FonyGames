@@ -1,5 +1,6 @@
 import {
   nextDeadline,
+  onHuntConfirm,
   onHuntFind,
   onPlayerGone,
   startColorHunt,
@@ -81,6 +82,62 @@ function harness(at = 1_000_000) {
       return tick(ctx);
     },
   };
+}
+
+async function confirming(): Promise<void> {
+  console.log('\nlocking a pick ends the round early (§2.2, #45)');
+
+  const h = harness();
+  await startColorHunt(h.ctx, 1, [A, B]);
+  const due = h.state.dueAt;
+
+  check('nobody is locked in to start with', h.state.confirmed.length === 0);
+  await onHuntConfirm(h.ctx, A, 1, 1);
+  check('confirming without a pick does nothing', h.state.confirmed.length === 0, h.state.confirmed);
+
+  await onHuntFind(h.ctx, A, 1, 1, [...h.state.target], 0);
+  await onHuntConfirm(h.ctx, A, 1, 1);
+  check('with a pick, it locks', h.state.confirmed.includes(A), h.state.confirmed);
+  check('confirming twice does not double up', (await onHuntConfirm(h.ctx, A, 1, 1), h.state.confirmed.length === 1));
+  check('one of two is not everyone, so the clock stands', h.state.dueAt === due, { was: due, now: h.state.dueAt });
+  check('and it is on the wire for the other phones', toState(h.state).confirmed.includes(A));
+
+  // A locked pick is locked.
+  await onHuntFind(h.ctx, A, 1, 1, [1, 2, 3], 0);
+  check('a locked pick cannot be changed', h.state.finds[A]?.rgb[0] !== 1, h.state.finds[A]);
+
+  await onHuntFind(h.ctx, B, 1, 1, [10, 10, 10], 0);
+  await onHuntConfirm(h.ctx, B, 1, 1);
+  check('everyone in brings the deadline to now', h.state.dueAt <= 1_000_000, h.state.dueAt);
+
+  await h.step();
+  check('and the round scores on it', h.state.round === 2, h.state.round);
+  check('the exact pick still got its points', h.state.totals[A] === 100, h.state.totals);
+  check('the new round starts unlocked', h.state.confirmed.length === 0, h.state.confirmed);
+}
+
+async function confirmTimeout(): Promise<void> {
+  console.log('\nnot confirming is not a penalty (§2.2, #45)');
+
+  const h = harness();
+  await startColorHunt(h.ctx, 1, [A, B]);
+  await onHuntFind(h.ctx, A, 1, 1, [...h.state.target], 0);
+  // Nobody confirms; the clock runs out.
+  await h.step();
+  check('the deadline auto-confirms whatever was picked', h.state.totals[A] === 100, h.state.totals);
+  check('and the hunt carries on', h.state.round === 2);
+}
+
+async function leaverDoesNotHoldTheRound(): Promise<void> {
+  console.log('\na phone that leaves does not hold the round open (§2.2, #45)');
+
+  const h = harness();
+  await startColorHunt(h.ctx, 1, [A, B]);
+  await onHuntFind(h.ctx, A, 1, 1, [...h.state.target], 0);
+  await onHuntConfirm(h.ctx, A, 1, 1);
+  check('one of two is in, clock still running', h.state.dueAt > 1_000_000);
+  await onPlayerGone(h.ctx, B);
+  check('the one who left counts as in', h.state.confirmed.includes(B), h.state.confirmed);
 }
 
 async function starting(): Promise<void> {
@@ -289,6 +346,9 @@ async function targets(): Promise<void> {
 async function main(): Promise<void> {
   await starting();
   await scoring();
+  await confirming();
+  await confirmTimeout();
+  await leaverDoesNotHoldTheRound();
   await neverRepeats();
   await sixAndDone();
   await barren();

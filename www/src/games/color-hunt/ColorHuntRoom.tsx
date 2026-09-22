@@ -187,6 +187,19 @@ function ColorHuntRoomInner({ game: card, code }: { game: GameCard; code: string
     };
   }, [state?.roundId, state?.round, state?.phase, state?.dueAt]);
 
+  /*
+   * Lock this round's pick (issue #45). The reading goes with it, so confirming
+   * is one tap rather than "hold still and hope the timer catches it".
+   */
+  const confirm = useCallback(() => {
+    const s = state;
+    const c = clientRef.current;
+    const rgb = readingRef.current;
+    if (!s || !c || s.phase !== 'hunt') return;
+    if (rgb) c.send({ t: 'hunt-find', d: { roundId: s.roundId, round: s.round, rgb: [rgb[0], rgb[1], rgb[2]], at: c.now() } });
+    c.send({ t: 'hunt-confirm', d: { roundId: s.roundId, round: s.round } });
+  }, [state?.roundId, state?.round, state?.phase]);
+
   // The pie, straight into the DOM.
   const pieRef = useRef<SVGCircleElement>(null);
   useEffect(() => {
@@ -284,6 +297,29 @@ function ColorHuntRoomInner({ game: card, code }: { game: GameCard; code: string
             </p>
           )}
         </div>
+
+        {(() => {
+          const locked = myId !== undefined && state.confirmed.includes(myId);
+          const inCount = state.confirmed.length;
+          const total = Object.keys(state.totals).length;
+          return (
+            <div class="chunt__confirm">
+              <button
+                type="button"
+                class="chunt__lock"
+                disabled={locked || !cameraOn}
+                onClick={confirm}
+              >
+                {locked
+                  ? text({ en: 'Locked in', fr: 'Validé' })
+                  : text({ en: 'Lock it in', fr: 'Valider' })}
+              </button>
+              <p class="chunt__incount" aria-live="polite">
+                {text({ en: `${inCount} of ${total} in`, fr: `${inCount} sur ${total} validé${inCount > 1 ? 's' : ''}` })}
+              </p>
+            </div>
+          );
+        })()}
 
         <WideScoreboard
           rows={ladder}

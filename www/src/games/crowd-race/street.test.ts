@@ -1,6 +1,7 @@
 import {
   CROWD_DOWN_STREET_SHARE,
   CROWD_FINISH_Y,
+  CROWD_LANES,
   CROWD_START_CLEAR,
   CROWD_STREET_WIDTH,
 } from '../../../../shared/protocol';
@@ -33,7 +34,52 @@ function dealing(): void {
 
   check('the same round deals the same street', JSON.stringify(a) === JSON.stringify(aAgain));
   check('a different round deals a different one', JSON.stringify(a) !== JSON.stringify(b));
-  check('there is at least one slot', a.length === slotCount() && a.length > 0, a.length);
+  check(
+    `every row deals a full set of lanes (${a.length} = ${slotCount()} x ${CROWD_LANES})`,
+    a.length === slotCount() * CROWD_LANES && a.length > 0,
+    a.length,
+  );
+
+  /*
+   * Issue #46: at least four per column, whichever way "column" is read. Rows
+   * run across the street and lanes run up it, and both have to be crowded.
+   */
+  // Bucketed by the row each was DEALT into, not by where its jitter left it:
+  // the guarantee is about the deal, and a body that drifted into the next
+  // band is still four-abreast on screen.
+  const rows = new Map<string, number>();
+  for (const o of a) {
+    const row = o.id.split(':')[1] ?? '?';
+    rows.set(row, (rows.get(row) ?? 0) + 1);
+  }
+  check(
+    `at least ${CROWD_LANES} across every row (${[...rows.values()].join(', ')})`,
+    [...rows.values()].every((n) => n >= CROWD_LANES),
+    [...rows.entries()],
+  );
+  const lanes = new Map<string, number>();
+  for (const o of a) {
+    const lane = o.id.split(':')[2] ?? '?';
+    lanes.set(lane, (lanes.get(lane) ?? 0) + 1);
+  }
+  check(
+    `and at least ${CROWD_LANES} up every lane (${[...lanes.values()].join(', ')})`,
+    [...lanes.values()].every((n) => n >= CROWD_LANES),
+    [...lanes.entries()],
+  );
+  check(`the street is crowded, not a stroll (${a.length} obstacles)`, a.length >= 20, a.length);
+
+  // Nothing is dealt inside another body — by the game's own overlap test,
+  // not an approximation of it.
+  let overlaps = 0;
+  for (let i = 0; i < a.length; i++) {
+    for (let j = i + 1; j < a.length; j++) {
+      const p1 = a[i]!;
+      const p2 = a[j]!;
+      if (ellipsesOverlap(p1.x, p1.y, p1.rx, p1.ry, p2.x, p2.y, p2.rx, p2.ry)) overlaps++;
+    }
+  }
+  check(`no two obstacles are dealt overlapping (${overlaps})`, overlaps === 0, overlaps);
 
   check('nothing is dealt in the cleared start zone', a.every((o) => o.y >= CROWD_START_CLEAR), a.filter((o) => o.y < CROWD_START_CLEAR));
   check('nothing is dealt past the finish', a.every((o) => o.y < CROWD_FINISH_Y), a.filter((o) => o.y >= CROWD_FINISH_Y));
