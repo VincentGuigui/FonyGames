@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" role="img" width="120" height="90">
+  <title>Maximum Jump</title>
+  <!-- Literal hexes, no currentColor and no CSS variable: an img renders the
+       first black and drops the second, taking the whole card with it. -->
+  <rect width="120" height="90" fill="#141A22"/>
+  <!-- Sky glow behind the pit, so the figure has something to be against. -->
+  <ellipse cx="72" cy="52" rx="46" ry="30" fill="#1D2733"/>
+
+  <!-- The runway, the take-off board, and the sand. -->
+  <rect x="0" y="66" width="52" height="10" fill="#8C4A32"/>
+  <rect x="52" y="66" width="4" height="10" fill="#F3E9D2"/>
+  <rect x="56" y="66" width="64" height="16" fill="#D9C79A"/>
+  <rect x="0" y="76" width="56" height="14" fill="#101620"/>
+
+  <!-- The arc, dashed the way the card for a throw is. -->
+  <path d="M56 62 Q80 26 108 62" fill="none" stroke="#EAB308" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round"/>
+
+  <!-- The jumper at the top of it, in the hang: legs trailing, arms forward. -->
+  <g stroke="#3B3550" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M78 42 L70 48 L62 46"/>
+    <path d="M78 42 L71 51 L63 51"/>
+  </g>
+  <path d="M76 32 L80 44" stroke="#EAB308" stroke-width="9" stroke-linecap="round" fill="none"/>
+  <g stroke="#3B3550" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M77 34 L86 33 L92 37"/>
+  </g>
+  <circle cx="75" cy="29" r="5" fill="#E8B98A"/>
+</svg>

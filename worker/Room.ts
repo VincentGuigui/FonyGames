@@ -203,6 +203,16 @@ import {
   type Ctx as RhinoCtx,
 } from './rhinoSpin';
 import {
+  nextDeadline as jumpDeadline,
+  onJumpResult,
+  onPlayerGone as jumpPlayerGone,
+  startMaximumJump,
+  tick as jumpTick,
+  toState as jumpToState,
+  type MaximumJump,
+  type Ctx as JumpCtx,
+} from './maximumJump';
+import {
   nextDeadline as huntColorDeadline,
   onHuntConfirm,
   onHuntFind,
@@ -591,6 +601,11 @@ export class Room extends DurableObject<Env> {
         if (id) await onRhinoSpins(this.#rhinoCtx(), id, msg.d.roundId, msg.d.spins, msg.d.at);
         return;
       }
+      case 'jump-result': {
+        const id = this.#idOf(ws);
+        if (id) await onJumpResult(this.#jumpCtx(), id, msg.d.roundId, msg.d.attempt, msg.d.speed, msg.d.distance);
+        return;
+      }
       case 'scream-alive': {
         const id = this.#idOf(ws);
         if (id) await onScreamAlive(this.#screamCtx(), id, msg.d.roundId, msg.d.round);
@@ -883,6 +898,12 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const jumping = await this.#jump();
+    if (jumping && jumping.phase === 'jumping' && Date.now() >= jumpDeadline(jumping)) {
+      await jumpTick(this.#jumpCtx());
+      await this.#rearm();
+      return;
+    }
     const hunting = await this.#colorHunt();
     if (hunting && hunting.phase === 'hunt' && Date.now() >= huntColorDeadline(hunting)) {
       await huntColorTick(this.#huntColorCtx());
@@ -1032,6 +1053,8 @@ export class Room extends DurableObject<Env> {
     if (crowding && crowding.phase !== 'done') return;
     const spinning = await this.#rhino();
     if (spinning && spinning.phase !== 'done') return;
+    const jumping = await this.#jump();
+    if (jumping && jumping.phase !== 'done') return;
     const colorHunting = await this.#colorHunt();
     if (colorHunting && colorHunting.phase !== 'done') return;
     const tttt = await this.#tttt();
@@ -1072,6 +1095,7 @@ export class Room extends DurableObject<Env> {
       || mode === 'fighter'
       || mode === 'crowd'
       || mode === 'rhino'
+      || mode === 'jump'
     ) {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
@@ -1104,6 +1128,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'fighter') started = await startTapFighter(this.#fighterCtx(), roundId, ids, solo);
       else if (mode === 'crowd') started = await startCrowdRace(this.#crowdCtx(), roundId, ids, solo);
       else if (mode === 'rhino') started = await startRhinoSpin(this.#rhinoCtx(), roundId, ids, solo);
+      else if (mode === 'jump') started = await startMaximumJump(this.#jumpCtx(), roundId, ids, solo);
       // `direct` is the default because it needs no explanation: grab your icon
       // and it follows your finger. `capped` is the deliberate choice.
       else started = await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct', solo);
@@ -1175,7 +1200,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'scream', 'dark', 'tttt', 'fighter', 'crowd', 'rhino', 'roundId', 'scores']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'scream', 'dark', 'tttt', 'fighter', 'crowd', 'rhino', 'jump', 'roundId', 'scores']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -1604,6 +1629,21 @@ export class Room extends DurableObject<Env> {
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#rhino(),
       save: (s) => this.ctx.storage.put('rhino', s),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #jump(): Promise<MaximumJump | null> {
+    return (await this.ctx.storage.get<MaximumJump>('jump')) ?? null;
+  }
+
+  #jumpCtx(): JumpCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#jump(),
+      save: (s) => this.ctx.storage.put('jump', s),
       setAlarm: () => this.#rearm(),
     };
   }
@@ -2061,6 +2101,14 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'rhino-spin', s: this.#nextSeq(), d: rhinoToState(spinning) });
     }
 
+    /* Maximum Jump: the board is public — best distance, best speed and how
+       many attempts each player has spent (spec §6). The attempt itself only
+       ever existed on one phone. */
+    const jumping = await this.#jump();
+    if (jumping && jumping.phase !== 'done') {
+      this.#send(ws, { t: 'maximum-jump', s: this.#nextSeq(), d: jumpToState(jumping) });
+    }
+
     await this.#broadcastPresence(ws);
   }
 
@@ -2158,6 +2206,9 @@ export class Room extends DurableObject<Env> {
     // Rhino Spin keeps their count on the ladder — it is what they spun, and
     // a rejoin resumes from the referee's own best (spec §7).
     await rhinoPlayerGone(this.#rhinoCtx(), id);
+    // Maximum Jump keeps their best too, and writes off the attempts they
+    // had left so the room is not held open for jumps nobody will take.
+    await jumpPlayerGone(this.#jumpCtx(), id);
     // Neon Fall is the same shape as Grid Attack: two fixed seats, and a phone
     // leaving means one of the roles is simply gone — there is no game left.
     await neonPlayerGone(this.#neonCtx(), id);
@@ -2294,6 +2345,9 @@ export class Room extends DurableObject<Env> {
 
     const spinning = await this.#rhino();
     if (spinning?.phase === 'spin') return rhinoDeadline(spinning);
+
+    const jumping = await this.#jump();
+    if (jumping?.phase === 'jumping') return jumpDeadline(jumping);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);

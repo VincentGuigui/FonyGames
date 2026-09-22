@@ -369,6 +369,9 @@ export type ClientMessage =
   | { t: 'crowd-move'; d: { roundId: number; x: number; y: number; at: number } }
   /** Rhino Spin: the phone's running spin count (spec §6). */
   | { t: 'rhino-spins'; d: { roundId: number; spins: number; at: number } }
+  /** One finished long-jump attempt: the top speed reached and the ground
+   *  covered, and nothing about how either was arrived at (maximum-jump.md §6). */
+  | { t: 'jump-result'; d: { roundId: number; attempt: number; speed: number; distance: number } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
@@ -1377,6 +1380,7 @@ export type ServerMessage =
   /** Color Hunt: the target in flight, and what the last one was worth. */
   | { t: 'color-hunt'; s: number; d: ColorHuntState }
   | { t: 'rhino-spin'; s: number; d: RhinoSpinState }
+  | { t: 'maximum-jump'; s: number; d: MaximumJumpState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
    * Tap Tap Music: sent to **one player only** — their own cleared
@@ -2125,6 +2129,7 @@ const CLIENT_TYPES = new Set([
   'dark-act',
   'crowd-move',
   'rhino-spins',
+  'jump-result',
   'switch-game',
 ]);
 
@@ -3694,6 +3699,107 @@ export type RhinoSpinState = {
   endsAt: number;
   /** Best spin count seen per player. */
   spins: Record<PlayerId, number>;
+  solo: boolean;
+  winner: PlayerId | null;
+};
+
+/* ── Maximum Jump ────────────────────────────────────────────────────────────
+ * Spec: docs/specs/games/maximum-jump.md
+ *
+ * World units are metres and seconds throughout, so the ballistic maths reads
+ * as physics rather than as pixels; the canvas scales them at draw time.
+ */
+
+export const MAXJUMP_MIN_PLAYERS = PLAYERS['maximum-jump'][0];
+export const MAXJUMP_MAX_PLAYERS = PLAYERS['maximum-jump'][1];
+
+/** Attempts each, best one counting — the sport's own three (spec §2). */
+export const MAXJUMP_ATTEMPTS = 3;
+
+/** How far down the track the take-off line is, in steps (spec §2.2), and how
+ *  much ground one of those steps covers. The position along the run-up is a
+ *  distance, not a press count: pressing in rhythm buys speed, and the speed
+ *  is what carries the jumper to the line. */
+export const MAXJUMP_JUMP_STEP = 50;
+export const MAXJUMP_STRIDE = 1.6;
+
+/** A sprinter's top speed, m/s. The ceiling every other number is scaled
+ *  against, including the referee's own anti-cheat bound (spec §8). */
+export const MAXJUMP_MAX_SPEED = 11;
+
+/** What one perfectly timed step is worth, m/s (spec §2.1). Fifty of them
+ *  reach `MAXJUMP_MAX_SPEED` with a little to spare, so a flawless run-up is
+ *  fast and a merely good one is not. */
+export const MAXJUMP_SPEED_PER_STEP = 0.25;
+
+/** One leg's animation, standing still and flat out, ms. Between them it is
+ *  linear in the speed: the faster the jumper, the tighter the rhythm. */
+export const MAXJUMP_STEP_SLOW_MS = 520;
+export const MAXJUMP_STEP_FAST_MS = 150;
+
+/** How far either side of the beat still scores something, ms. Wide enough
+ *  that a first-timer builds some speed, narrow enough that the rhythm is the
+ *  skill (spec §2.1). */
+export const MAXJUMP_TIMING_WINDOW_MS = 220;
+
+/**
+ * The slice of the last step that counts as hitting the line exactly, as a
+ * fraction of one step (spec §2.2).
+ *
+ * Read as time rather than distance: at `MAXJUMP_MAX_SPEED` this is about
+ * 60 ms, which is demanding without being a coin flip. A tenth of a step — the
+ * first try — came out at 20 ms, one or two frames, and no thumb hits that.
+ */
+export const MAXJUMP_PERFECT_BAND = 0.4;
+
+/** What hitting it exactly is worth, in whole step increments. */
+export const MAXJUMP_TAKEOFF_BONUS = 2;
+
+/** The two take-off angles, radians: the one that goes furthest, and the
+ *  steep, short, safe one an early jump gets (spec §2.2). */
+export const MAXJUMP_BEST_ANGLE = (42 * Math.PI) / 180;
+export const MAXJUMP_EARLY_ANGLE = (50 * Math.PI) / 180;
+
+/** m/s². Earth, because the jump reads wrong at anything else. */
+export const MAXJUMP_GRAVITY = 9.81;
+
+/** The drag coefficient on the horizontal component, per second, with the
+ *  player doing nothing at all in the air. */
+export const MAXJUMP_DRAG = 1.6;
+
+/** Taps a second that cancel the drag entirely (spec §2.3). The issue names
+ *  both four and five; five is the top of the ramp, because "at least 5 per
+ *  second" is what it asks for to remove the deceleration. */
+export const MAXJUMP_FLAP_RATE = 5;
+
+/** The rolling window the tap rate is measured over, ms. Short enough that
+ *  stopping shows up inside the flight rather than after it. */
+export const MAXJUMP_TAP_WINDOW_MS = 600;
+
+/** The safety cap on a whole round, and the one on a single run-up: a jumper
+ *  who never reaches the line fouls rather than holding the room up. */
+export const MAXJUMP_ROUND_CAP_MS = 180_000;
+export const MAXJUMP_RUNUP_CAP_MS = 45_000;
+
+/** A metre of slack in the referee's bound, for a phone whose own frame timing
+ *  put it a hair past the ideal arc (spec §8). */
+export const MAXJUMP_CLAIM_SLACK = 1;
+
+export type MaximumJumpAttempt = {
+  /** Metres. 0 for a faceplant, which still spends an attempt. */
+  best: number;
+  /** The top speed behind that best jump, m/s — the scoreboard's colour. */
+  speed: number;
+  /** How many of `MAXJUMP_ATTEMPTS` have been spent. */
+  used: number;
+};
+
+export type MaximumJumpState = {
+  roundId: number;
+  phase: 'jumping' | 'done';
+  startsAt: number;
+  endsAt: number;
+  jumpers: Record<PlayerId, MaximumJumpAttempt>;
   solo: boolean;
   winner: PlayerId | null;
 };

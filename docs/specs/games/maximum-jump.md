@@ -120,6 +120,13 @@ air — the distance so far, counting up.
 Three controls, all thumb-reachable in landscape: left leg bottom-left, right
 leg bottom-right, jump bottom-centre.
 
+**The next leg's button fills up to the beat.** The run-up is timing against the
+end of the previous leg's animation (§2.1), and at sprite size on a phone the
+animation is not a cue anyone can act on. The fill carries the same information
+at thumb size: full is the beat, and a press there is worth a whole increment.
+Nothing forces the player to wait for it — going early is allowed and simply
+buys less.
+
 ## 5. Inputs & sensors
 
 Touch only. No sensor, no permission, and therefore no fallback to describe.

@@ -1,0 +1,161 @@
+/*
+ * Maximum Jump. Spec: docs/specs/games/maximum-jump.md §4
+ * Shared chrome (StatusBar, lobby) is styled by core; this file owns the
+ * track and the three controls.
+ */
+
+.maxjump {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--color-bg);
+}
+
+.maxjump__board {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.maxjump__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Everything is the three buttons; the board itself is not touched. */
+  touch-action: none;
+}
+
+/* The read-out across the top of the board: speed, then what is left to run. */
+.maxjump__hud {
+  position: absolute;
+  inset: 0.4rem 0.6rem auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+.maxjump__hud b {
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.maxjump__speed {
+  flex: 1 1 auto;
+  height: 6px;
+  max-width: 45%;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-text) 14%, transparent);
+  overflow: hidden;
+}
+
+.maxjump__speed span {
+  display: block;
+  height: 100%;
+  background: var(--game-accent);
+}
+
+/* The controls: two legs in the bottom corners, the jump between them. The
+   board is landscape, so the corners are where the thumbs already are. */
+.maxjump__controls {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 0.6rem 0.8rem max(0.6rem, env(safe-area-inset-bottom));
+  gap: 0.6rem;
+  pointer-events: none;
+}
+
+.maxjump__btn {
+  position: relative;
+  overflow: hidden;
+  pointer-events: auto;
+  min-width: 5.5rem;
+  padding: 0.9rem 1rem;
+  border: 2px solid color-mix(in srgb, var(--game-accent) 55%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-bg) 80%, transparent);
+  color: var(--color-text);
+  font-size: 1rem;
+  font-weight: 700;
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* The leg that is next in the alternation, filling up to the moment it is due.
+   Full is the beat: a press there is worth a whole increment, and the further
+   either side of it the less it buys (spec §2.1, §4). */
+.maxjump__btn--next {
+  border-color: var(--game-accent);
+}
+
+.maxjump__btn--next::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--beat, 0%);
+  background: color-mix(in srgb, var(--game-accent) 34%, transparent);
+  pointer-events: none;
+}
+
+.maxjump__btn > span {
+  position: relative;
+}
+
+.maxjump__btn--jump {
+  min-width: 7rem;
+  border-color: #f3e9d2;
+}
+
+.maxjump__btn:disabled {
+  opacity: 0.35;
+}
+
+.maxjump__verdict {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0 1rem;
+  text-align: center;
+  font-size: clamp(1.4rem, 6vw, 2.4rem);
+  font-weight: 800;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+  pointer-events: none;
+}
+
+.maxjump__countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  font-size: clamp(4rem, 22vh, 10rem);
+  font-weight: 800;
+  color: var(--game-accent);
+  background: color-mix(in srgb, var(--color-bg) 70%, transparent);
+}
+
+.maxjump__ladder {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.3rem 0.9rem;
+  padding: 0 0.8rem 0.4rem;
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.maxjump__ladder b {
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
