@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" width="200" height="200">
+  <title>A rhino with its eyes shut, being sick</title>
+  <!-- The winner's face: eyes closed, and green. Literal hexes for the reason
+       rhino.svg gives. -->
+  <path d="M26 118 L174 118 L182 190 L18 190 Z" fill="#8C6239"/>
+  <path d="M26 118 L174 118 L170 132 L30 132 Z" fill="#A9784A"/>
+
+  <path d="M100 26 C142 26 166 54 166 92 C166 122 140 142 100 142 C60 142 34 122 34 92 C34 54 58 26 100 26 Z" fill="#8FA58C"/>
+  <ellipse cx="100" cy="116" rx="34" ry="24" fill="#A6BCA2"/>
+  <path d="M100 66 L110 106 L90 106 Z" fill="#E4E7EB"/>
+  <path d="M100 96 L106 118 L94 118 Z" fill="#E4E7EB"/>
+  <ellipse cx="46" cy="44" rx="13" ry="18" fill="#8FA58C" transform="rotate(-24 46 44)"/>
+  <ellipse cx="154" cy="44" rx="13" ry="18" fill="#8FA58C" transform="rotate(24 154 44)"/>
+
+  <!-- Shut eyes: two downward arcs. -->
+  <path d="M62 88 Q76 100 90 88" fill="none" stroke="#3C4550" stroke-width="5" stroke-linecap="round"/>
+  <path d="M110 88 Q124 100 138 88" fill="none" stroke="#3C4550" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- What is coming out, and where it lands. -->
+  <path d="M86 132 Q100 158 114 132 L114 150 Q100 176 86 150 Z" fill="#7FB069"/>
+  <ellipse cx="100" cy="178" rx="30" ry="9" fill="#7FB069"/>
+</svg>

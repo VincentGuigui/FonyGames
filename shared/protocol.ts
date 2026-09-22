@@ -367,6 +367,8 @@ export type ClientMessage =
    * what lets the room draw everyone else's avatar.
    */
   | { t: 'crowd-move'; d: { roundId: number; x: number; y: number; at: number } }
+  /** Rhino Spin: the phone's running spin count (spec §6). */
+  | { t: 'rhino-spins'; d: { roundId: number; spins: number; at: number } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
@@ -1374,6 +1376,7 @@ export type ServerMessage =
   | { t: 'crowd'; s: number; d: CrowdRaceState }
   /** Color Hunt: the target in flight, and what the last one was worth. */
   | { t: 'color-hunt'; s: number; d: ColorHuntState }
+  | { t: 'rhino-spin'; s: number; d: RhinoSpinState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
    * Tap Tap Music: sent to **one player only** — their own cleared
@@ -2121,6 +2124,7 @@ const CLIENT_TYPES = new Set([
   'scream-level',
   'dark-act',
   'crowd-move',
+  'rhino-spins',
   'switch-game',
 ]);
 
@@ -3642,3 +3646,54 @@ export const CROWD_CLAIM_SLACK = CROWD_WALK_SPEED / 2;
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const CROWD_MIN_PLAYERS = PLAYERS['crowd-race'][0];
 export const CROWD_MAX_PLAYERS = PLAYERS['crowd-race'][1];
+
+/* ── Rhino Spin ─────────────────────────────────────────────────────────────
+ * Spec: docs/specs/games/rhino-spin.md
+ */
+
+export const RHINO_MIN_PLAYERS = PLAYERS['rhino-spin'][0];
+export const RHINO_MAX_PLAYERS = PLAYERS['rhino-spin'][1];
+
+/** The throwing window, and the countdown before it. */
+export const RHINO_ROUND_MS = 30_000;
+export const RHINO_COUNTDOWN_MS = 3_000;
+
+/** How often a phone reports its running spin count. */
+export const RHINO_REPORT_MS = 400;
+
+/**
+ * The biggest jump in gravity's screen angle a single sample may claim,
+ * radians. A real phone cannot rotate most of a turn between two samples, so a
+ * step past this is a glitch and is dropped rather than banked as spin.
+ */
+export const RHINO_MAX_STEP = Math.PI * 0.9;
+
+/**
+ * The most spins per second of elapsed round the referee will believe. A
+ * hand-thrown phone tops out well under this; it is here to bound a phone that
+ * simply makes numbers up (spec §6).
+ */
+export const RHINO_MAX_RATE = 12;
+
+/** How hard the pupils chase gravity, and how fast that chase decays — the two
+ *  numbers that make a rhino look dizzy rather than merely responsive. */
+export const RHINO_PUPIL_SPRING = 22;
+export const RHINO_PUPIL_DAMP = 1.8;
+
+/** Below this angular speed the eyes count as settled and the closing scene
+ *  starts, radians per second. */
+export const RHINO_SETTLE_RATE = 0.6;
+
+/** How long the sick-rhino scene holds before the scoreboard. */
+export const RHINO_SCENE_MS = 2_000;
+
+export type RhinoSpinState = {
+  roundId: number;
+  phase: 'spin' | 'done';
+  startsAt: number;
+  endsAt: number;
+  /** Best spin count seen per player. */
+  spins: Record<PlayerId, number>;
+  solo: boolean;
+  winner: PlayerId | null;
+};

@@ -51,6 +51,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Together in the Dark](games/together-in-the-dark.md) | *One match at a time, guide him out of the woods* | touch | 1–8 co-op | 🎮 beta — the turn timer and the terrain-memory rule untested in a real room ([#20](https://github.com/VincentGuigui/FonyGames/issues/20)) |
 | [Ball Bounce](games/ball-bounce.md) | *Bank it off two walls and through the hoop* | touch | 2 | 📝 draft — awaiting approval ([#21](https://github.com/VincentGuigui/FonyGames/issues/21)) |
 | [Crowd Race](games/crowd-race.md) | *Tilt through the crowd. First up the street wins* | orientation | 1–8 | 🎮 beta — the bounce impulse, obstacle density and course length untested on real thumbs ([#25](https://github.com/VincentGuigui/FonyGames/issues/25)) |
+| [Rhino Spin](games/rhino-spin.md) | *Throw your phone. Count the spins. Mind the ceiling* | motion | 1–8 | 🎮 beta — motion-only, no fallback, and the one throwing mechanic in the catalogue (AGENTS.md §7); the spin count untested on a real throw ([#49](https://github.com/VincentGuigui/FonyGames/issues/49)) |
 
 ### Idea notes (not yet specs)
 
@@ -191,6 +192,12 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
   ball banked off first**, so the rebound is the game rather than the aim.
   Deformation is squash-and-stretch on a drawn circle, not soft-body physics —
   canvas sprites cannot change shape.
+- **Rhino Spin** ([#49](https://github.com/VincentGuigui/FonyGames/issues/49))
+  — throw the phone so it spins, catch it, score a point per rotation. The one
+  game in the catalogue that asks for a phone to leave a hand, allowed by
+  explicit maintainer decision and carved out of AGENTS.md §7 rather than
+  setting a precedent. A spin is `2π` of unwrapped sweep in gravity's own
+  screen angle, counted entirely on the phone; the wire carries one integer.
 - **Crowd Race** ([#25](https://github.com/VincentGuigui/FonyGames/issues/25))
   — walk up a crowded street, tilt to weave, and bounce off everyone who gets
   in the way, cascading. Built. The obstacles are **not** on the wire: every

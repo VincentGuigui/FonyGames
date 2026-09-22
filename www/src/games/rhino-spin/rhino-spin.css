@@ -1,0 +1,115 @@
+/*
+ * Rhino Spin. Spec: docs/specs/games/rhino-spin.md §4
+ * Shared chrome (StatusBar, lobby) is styled by core; this file owns the
+ * rhino, its pupils and the dizzy scene.
+ */
+
+.rhino {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--color-bg);
+}
+
+.rhino__board {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  gap: 0.5rem;
+  /* The phone leaves the hand; nothing here is touched. */
+  touch-action: none;
+}
+
+.rhino__count {
+  font-size: clamp(3.5rem, 22vw, 7rem);
+  font-weight: 800;
+  line-height: 1;
+  color: var(--game-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.rhino__clock {
+  font-size: 1.1rem;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The rhino is a square box so the pupil percentages below mean the same
+   thing on every screen. */
+.rhino__face {
+  position: relative;
+  width: min(76vw, 50vh);
+  aspect-ratio: 1;
+}
+
+.rhino__face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * The pupils. They live here rather than in rhino.svg because they move every
+ * frame and an img cannot be animated from the outside; the eye whites they
+ * sit in are at 38% and 62% across, 44% down, which is where rhino.svg draws
+ * them. `translate` is written by the frame loop, so nothing else may use it.
+ */
+.rhino__pupil {
+  position: absolute;
+  width: 6%;
+  height: 6%;
+  margin: -3% 0 0 -3%;
+  border-radius: 50%;
+  background: #2a2740;
+  top: 44%;
+}
+
+.rhino__pupil--left { left: 38%; }
+.rhino__pupil--right { left: 62%; }
+
+.rhino__countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  font-size: clamp(5rem, 40vw, 12rem);
+  font-weight: 800;
+  color: var(--game-accent);
+  background: color-mix(in srgb, var(--color-bg) 70%, transparent);
+}
+
+.rhino__scene {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--color-text);
+  text-align: center;
+  padding: 0 1rem;
+}
+
+.rhino__ladder {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem 0.9rem;
+  padding: 0 1rem 0.6rem;
+  font-size: 0.95rem;
+  color: var(--color-muted);
+}
+
+.rhino__ladder b {
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.rhino__safety {
+  margin: 0;
+  padding: 0 1rem 0.8rem;
+  font-size: 0.85rem;
+  text-align: center;
+  color: var(--color-muted);
+}

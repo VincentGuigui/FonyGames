@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" role="img" width="120" height="90">
+  <title>Rhino Spin</title>
+  <!-- Literal hexes, no currentColor and no CSS variable: an img renders the
+       first black and drops the second, taking the whole card with it. -->
+  <rect width="120" height="90" fill="#171522"/>
+  <!-- The throw, as an arc of motion the accent traces. -->
+  <path d="M14 72 Q60 2 106 72" fill="none" stroke="#A78BFA" stroke-width="3" stroke-dasharray="6 5" stroke-linecap="round"/>
+
+  <!-- A phone, mid-tumble at the top of the arc. -->
+  <g transform="rotate(38 60 26)">
+    <rect x="52" y="13" width="16" height="26" rx="3" fill="#2A2740" stroke="#A78BFA" stroke-width="1.5"/>
+    <rect x="54.5" y="16" width="11" height="20" rx="1.5" fill="#4C3F86"/>
+  </g>
+
+  <!-- The rhino below, watching it go, eyes already rolling. -->
+  <ellipse cx="60" cy="72" rx="26" ry="19" fill="#9AA3AD"/>
+  <ellipse cx="60" cy="80" rx="14" ry="10" fill="#B4BCC5"/>
+  <path d="M60 58 L65 74 L55 74 Z" fill="#E4E7EB"/>
+  <ellipse cx="38" cy="59" rx="6" ry="8" fill="#9AA3AD" transform="rotate(-24 38 59)"/>
+  <ellipse cx="82" cy="59" rx="6" ry="8" fill="#9AA3AD" transform="rotate(24 82 59)"/>
+  <circle cx="50" cy="68" r="7" fill="#FDFDFB"/>
+  <circle cx="70" cy="68" r="7" fill="#FDFDFB"/>
+  <circle cx="53" cy="64" r="3" fill="#2A2740"/>
+  <circle cx="67" cy="72" r="3" fill="#2A2740"/>
+</svg>

@@ -99,15 +99,13 @@ host, `worker/` → Cloudflare. Nothing else ships; nothing outside `docs/` docu
 - **A game may have several modes/variations**, declared in its spec, sharing the
   core loop, pickable in the lobby.
 - **Rounds are short.** Target 30 s – 3 min per round. Fun beats depth.
-- **Degrade, never dead-end.** If a sensor or permission is unavailable, offer
-  a touch-based fallback or say clearly why the game can't run. **A fallback is
-  the recommendation, not a gate**: prefer one, and go without when the touch
-  version would be a different, lesser game — one physical act, like holding a
-  phone still or aiming a camera at a colour. Either way the game says who it
+- **Degrade, never dead-end.** If a sensor or permission is unavailable, offer a
+  touch fallback or say clearly why the game can't run. **A fallback is the
+  recommendation, not a gate**: go without when the touch version would be a
+  lesser game built on one physical act. Either way the game says who it
   excludes, in the lobby, before anyone starts, and any permission it cannot run
-  without is asked for by Ready/Start, not by a button of its own (the games
-  that qualify, and both rules:
-  [device-capabilities.md](./docs/device-capabilities.md) §2).
+  without is asked for by Ready/Start, not a button of its own
+  ([device-capabilities.md](./docs/device-capabilities.md) §2).
 
 ---
 
@@ -118,9 +116,9 @@ host, `worker/` → Cloudflare. Nothing else ships; nothing outside `docs/` docu
    [specs/README.md](./docs/specs/README.md), commit as `spec:`.
 2. **Validate.** Get maintainer approval on the spec before writing code.
 3. **Build.** Implement under `www/`, incrementally, committing each step.
-4. **Test.** `npm run typecheck && npm test`, then [testing.md](./docs/testing.md);
-   at minimum verify on a real phone or device emulation before declaring done.
-   Any scoring, timing or win rule gets a test in the same commit series.
+4. **Test.** `npm run typecheck && npm test` ([testing.md](./docs/testing.md));
+   verify on a phone or device emulation before declaring done. Any scoring,
+   timing or win rule gets a test in the same commit series.
 5. **Document.** Update the spec and any affected doc in the same commit series.
 6. **Push & ship.** Work on a `feat/` · `fix/` · `docs/` · `chore/` branch, push
    it, then merge into **`main`** (trunk, deploys nothing). To publish,
@@ -189,12 +187,14 @@ them ([commits.md](./docs/conventions/commits.md) §Rules 6).
 
 - No native app, no store distribution.
 - No personal data stored server-side beyond a room's lifetime, other than the
-  bounded, disclosed activity record in
-  [analytics.md](./docs/specs/analytics.md) §1 (a visitor id, an optional
-  nickname, city/country — never the IP itself). GPS and every other sensor
-  reading never leave the room they are played in
-  ([device-capabilities.md](./docs/device-capabilities.md)).
-- No mechanic that encourages throwing, dropping or violently swinging a phone,
-  or moving unsafely in traffic. "Bump" is a gentle tap of two phones; safety
-  copy is mandatory in motion and GPS games.
+  bounded, disclosed record in [analytics.md](./docs/specs/analytics.md) §1 (a
+  visitor id, an optional nickname, city/country — never the IP). Sensor
+  readings never leave the room they are played in.
+- No mechanic that encourages violently swinging a phone or moving unsafely in
+  traffic. "Bump" is a gentle tap of two phones; safety copy is mandatory in
+  motion and GPS games. **One throwing game is allowed by explicit maintainer
+  decision** — Rhino Spin (#49) — and it carries its own safety copy and a
+  stated dropped-phone risk ([rhino-spin.md](./docs/specs/games/rhino-spin.md)
+  §9). It is an exception, not a precedent: any other throw or drop mechanic
+  needs the same explicit yes.
 - No dependency added without the validation rule (§3.3).

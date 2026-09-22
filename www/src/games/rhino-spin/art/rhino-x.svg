@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" role="img" width="200" height="200">
+  <title>A rhino with crosses for eyes</title>
+  <!-- Everyone else's face. Literal hexes for the reason rhino.svg gives. -->
+  <path d="M26 118 L174 118 L182 190 L18 190 Z" fill="#8C6239"/>
+  <path d="M26 118 L174 118 L170 132 L30 132 Z" fill="#A9784A"/>
+
+  <path d="M100 26 C142 26 166 54 166 92 C166 122 140 142 100 142 C60 142 34 122 34 92 C34 54 58 26 100 26 Z" fill="#9AA3AD"/>
+  <ellipse cx="100" cy="116" rx="34" ry="24" fill="#B4BCC5"/>
+  <path d="M100 66 L110 106 L90 106 Z" fill="#E4E7EB"/>
+  <path d="M100 96 L106 118 L94 118 Z" fill="#E4E7EB"/>
+  <ellipse cx="88" cy="126" rx="4" ry="3" fill="#6B7480"/>
+  <ellipse cx="112" cy="126" rx="4" ry="3" fill="#6B7480"/>
+  <ellipse cx="46" cy="44" rx="13" ry="18" fill="#9AA3AD" transform="rotate(-24 46 44)"/>
+  <ellipse cx="154" cy="44" rx="13" ry="18" fill="#9AA3AD" transform="rotate(24 154 44)"/>
+
+  <g stroke="#3C4550" stroke-width="6" stroke-linecap="round">
+    <path d="M65 77 L87 99 M87 77 L65 99"/>
+    <path d="M113 77 L135 99 M135 77 L113 99"/>
+  </g>
+  <ellipse cx="62" cy="122" rx="14" ry="9" fill="#8A929B"/>
+  <ellipse cx="138" cy="122" rx="14" ry="9" fill="#8A929B"/>
+</svg>

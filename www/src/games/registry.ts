@@ -27,6 +27,7 @@ import { CARD as TILT_RACE_CARD } from './tilt-race/card';
 import { CARD as SCREAM_METER_CARD } from './scream-meter/card';
 import { CARD as DARK_CARD } from './together-in-the-dark/card';
 import { CARD as CROWD_RACE_CARD } from './crowd-race/card';
+import { CARD as RHINO_SPIN_CARD } from './rhino-spin/card';
 import type { GameCard } from '../core/types';
 
 /**
@@ -72,6 +73,7 @@ export const GAMES: GameCard[] = [
   SCREAM_METER_CARD,
   DARK_CARD,
   CROWD_RACE_CARD,
+  RHINO_SPIN_CARD,
 ];
 
 /** Display order by status. One entry per value of `GameCard['status']`. */

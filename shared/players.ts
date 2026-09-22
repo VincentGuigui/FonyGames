@@ -37,6 +37,7 @@ export type PlayerLimits = readonly [min: number, max: number];
  */
 export const PLAYERS = {
   'random-game': [1, 10],
+  'rhino-spin': [1, 8],
   'tap-duel': [2, 8],
   'tap-fighter': [2, 2],
   spill: [2, 4],
