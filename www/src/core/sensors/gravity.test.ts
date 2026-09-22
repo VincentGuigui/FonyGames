@@ -31,9 +31,8 @@ function directions(): void {
   /*
    * Each of these is a pose you can hold a phone in, and its answer is forced
    * by physics rather than chosen — which is the point of deriving the vector
-   * instead of guessing an angle. The first version of this module was written
-   * as an angle with guessed signs and had two of the four quadrants
-   * backwards.
+   * instead of guessing an angle: written as an angle with guessed signs, two
+   * of the four quadrants come out backwards and nothing on screen says so.
    */
   const near = (v: { x: number; y: number }, x: number, y: number): boolean =>
     Math.abs(v.x - x) < 1e-9 && Math.abs(v.y - y) < 1e-9;

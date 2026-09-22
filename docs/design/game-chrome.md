@@ -91,20 +91,19 @@ the right way round, because the guest is the common case and never sees it move
 
 ### Why the avatar picker is behind a button
 
-It used to sit open under the list in every lobby: twelve buttons, **123 vertical pixels**,
-permanently, for a choice each player makes once and usually before anybody else has
-joined. Measured on a 390×844 phone that is a tenth of the whole lobby and a seventh of the
-first screenful, spent on a control that is finished with the moment it has been used.
+Open under the list it is twelve buttons and **123 vertical pixels**, permanently, for a
+choice each player makes once and usually before anybody else has joined. On a 390×844
+phone that is a tenth of the whole lobby and a seventh of the first screenful, spent on a
+control that is finished with the moment it has been used.
 
-Both halves of "who am I" now live behind one **Change** button on your own row —
-name and avatar, saved together in one frame, because they are one decision and two frames
-give the room a moment to show a half-changed player. The button replaced a `rename` link
-that opened a native `prompt()`: an OS dialog in the middle of a game, which some browsers
-refuse outright and none of them style.
+Both halves of "who am I" live behind one **Change** button on your own row — name and
+avatar, saved together in one frame, because they are one decision and two frames give the
+room a moment to show a half-changed player. Not a `rename` link opening a native
+`prompt()`: an OS dialog in the middle of a game, which some browsers refuse outright and
+none of them style.
 
-The sheet is `core/ui/Sheet.tsx`, shared with the gear menu — extracted the moment a second
-thing needed the same scrim, the same tap-outside-to-close and the same safe-area padding,
-rather than copied.
+The sheet is `core/ui/Sheet.tsx`, shared with the gear menu, which needs the same scrim,
+the same tap-outside-to-close and the same safe-area padding.
 
 A game customises it only through slots:
 
@@ -113,16 +112,15 @@ A game customises it only through slots:
 | `aside` | inside how-to-play, after the bullets | Spill's table diagram and its no-liquids note |
 | `extras` | below the players | Spill's theme picker |
 
-There used to be a `standings` slot as well, and it was a mistake worth recording: four
-games ended a round by dropping back into this lobby with their result panel wedged
-between the room code and the avatar picker. Finishing looked like leaving. The end of a
-round is its own screen now (§8), and the slot is gone.
+**There is no `standings` slot.** A game ending a round by dropping back into this lobby
+with its result panel wedged between the room code and the avatar picker makes finishing
+look like leaving. The end of a round is its own screen (§8).
 
 **A slot can never reorder or replace a panel.** If a game needs something the
 template cannot express, change the template for everyone rather than
-special-casing one game — that is the entire point. Before this existed each
-game had drifted into its own arrangement of the same pieces, so learning your
-way around one lobby taught you nothing about the next.
+special-casing one game — that is the entire point. Per game, each drifts into
+its own arrangement of the same pieces, so learning your way around one lobby
+teaches you nothing about the next.
 
 Panels share one `.panel` class for the same reason.
 
@@ -408,9 +406,8 @@ Every game had grown its own — `.steady__bar`, `.rush__bar`, `.hunt__bar`,
 `.spill__hud`, and a `hud__row` in three more. The same three things in six
 arrangements, so learning one game's chrome taught you nothing about the next.
 
-**Other players are not on this bar.** There used to be an opponent slot here; §6's
-panel replaced it, and the reasoning is recorded there. What is left is the player's
-own number, a free-text status, and the gear.
+**Other players are not on this bar** — that is §6's panel, and the reasoning is there.
+What this carries is the player's own number, a free-text status, and the gear.
 
 The bar also carries `--game-accent` for its own number — which means every round
 screen has to **set** that variable on its root. Most of them did not: the lobby

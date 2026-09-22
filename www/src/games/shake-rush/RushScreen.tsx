@@ -94,9 +94,9 @@ export function RushScreen({
 
   if (over) {
     /*
-     * The result is the shared panel now (core/ui/GameOver.tsx). What used to be here — a
-     * trophy, a placing list and a "Race again" button — was the same three facts in
-     * Shake Rush's own class names, and every other game had its own copy of it.
+     * The result is the shared panel (core/ui/GameOver.tsx). A trophy, a placing list and
+     * a "Race again" button here would be the same three facts in Shake Rush's own class
+     * names, once per game.
      *
      * The lane list is NOT repeated here. It is the game's picture of the race and it
      * belongs to the round; once the race is over, the numbers are the result.

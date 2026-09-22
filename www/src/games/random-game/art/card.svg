@@ -249,7 +249,7 @@
     <circle cx="74" cy="45" r="1.6"/>
   </g>
 
-  <!-- A soft glow under the disc — the same "you are close" language Ghost Hunt's ring used. -->
+  <!-- A soft glow under the disc — the same "you are close" language Ghost Hunt's ring uses. -->
   <ellipse cx="60" cy="45" rx="26" ry="9" fill="none" stroke="#5EEAD4" stroke-width="1" opacity="0.3"/>
 </g>
 

@@ -333,9 +333,8 @@ async function timing(): Promise<void> {
 
   // The boundaries are derived from the ladder, so this asserts the RUNGS the
   // steps sit on rather than the numbers they currently work out to — those
-  // move the moment a rung's length does, and did when the first was shortened.
-  // Since issue #40 the boundary is the rung before the wheel goes continuous
-  // (`COLOR_SECTOR_MAX`), not the rung that used to add a slider.
+  // move the moment a rung's length does. The boundary is the rung before the
+  // wheel goes continuous (`COLOR_SECTOR_MAX`).
   const lastSector = RUNG_ENDS[4] ?? 0;
   check('3 s while a wedge can be tapped exactly',
     colorActionMs(1) === 3000 && colorActionMs(lastSector) === 3000, colorActionMs(1));

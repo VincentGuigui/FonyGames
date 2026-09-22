@@ -16,10 +16,10 @@ import type { PlayerId } from '../../../../shared/protocol';
  * Scoped per room code ONLY, not per pathname — `idFromName(code)`
  * (worker/index.ts) makes a code the room's entire identity, globally, no
  * matter which game's URL it is opened through. Keying on the pathname too
- * used to break exactly the case that needs a seat to survive most: a host
+ * would break exactly the case that needs a seat to survive most: a host
  * switching the room's game (`switch-game`) navigates every tab to a new
  * pathname with the same code, and a stale pathname-scoped key would resume
- * nobody — the server would see brand-new joins instead of the same seats
+ * nobody — the server seeing brand-new joins instead of the same seats
  * reconnecting, duplicating every player and leaving the actual host
  * mis-recognised as an ordinary one.
  */

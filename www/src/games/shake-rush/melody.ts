@@ -13,8 +13,8 @@ import { RUSH_DISTANCE } from '../../../../shared/protocol';
  * hearing the tune land is one event rather than two, and nobody has to keep shaking an
  * already-won race to hear how it ends.
  *
- * That is why the old invariant — "exactly `RUSH_DISTANCE` notes" — is gone. The song
- * decides its own length; the track is a hundred shakes because that is the race
+ * So the invariant is not "exactly `RUSH_DISTANCE` notes". The song decides its own
+ * length; the track is a hundred shakes because that is the race
  * (`shared/protocol.ts`). The only thing that must hold is that there is a **little** left
  * over at the line rather than a lot, which `game.test.ts` checks: a phrase that came up
  * short would loop back to the start mid-run, and one that ran way over would leave a

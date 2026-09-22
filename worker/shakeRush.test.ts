@@ -93,8 +93,7 @@ function harness(at = 1_000_000) {
  *
  * The fractional remainder is carried between frames rather than rounded away:
  * 8/s across a 150 ms tick is 1.2 shakes, and rounding that to 1 quietly turns a
- * capped shaker into a 6.7/s one — which is how the first version of this helper
- * failed to reach the finish line at all.
+ * capped shaker into a 6.7/s one, which never reaches the finish line at all.
  */
 async function run(
   h: ReturnType<typeof harness>,

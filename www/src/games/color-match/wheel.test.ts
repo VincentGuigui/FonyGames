@@ -201,9 +201,8 @@ function continuous(): void {
     const c = continuousAt(rung, 0, 0);
     return !!c && Math.min(...c) > 150;
   })(), continuousAt(rung, 0, 0));
-  // Issue #40: the rim used to be the fully saturated ring, full stop. Now it
-  // is the darkest ring — dimmed, not merely saturated — with the plain,
-  // full-strength colour somewhere in the middle of the disc instead.
+  // The rim is the darkest ring — dimmed, not merely saturated — with the
+  // plain, full-strength colour in the middle of the disc.
   check('the middle of the disc is the plain, full-strength colour', (() => {
     const c = continuousAt(rung, 0, -0.64);
     return !!c && Math.min(...c) === 0 && Math.max(...c) === 255;
@@ -251,8 +250,8 @@ function cursor(): void {
   const wide = rungAt(31);
   const rings = shadeSteps(wide).length;
   const plainRing = wide.sats - 1;
-  // Issue #40: a plain, full-strength colour is no longer the outermost ring
-  // — it is the one ring both the light and dark sides share, in the middle.
+  // A plain, full-strength colour is not the outermost ring: it is the one
+  // ring both the light and dark sides share, in the middle.
   check('a plain colour sits on the shared middle ring', (() => {
     const p = positionOf([255, 0, 0], wide);
     const { r0, r1 } = ringBand(rings, plainRing);

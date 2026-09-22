@@ -25,11 +25,11 @@ export type RoomHash = { kind: 'code'; code: string } | { kind: 'empty' } | { ki
  * the only reason it can be tested: this project has no DOM test runner, so the logic worth
  * asserting has to be reachable from node (`hash.test.ts`).
  *
- * An invalid hash is reported, never repaired. It used to mint a fresh code, which dropped
- * the player into a *different, empty room* with the bad code erased from the URL: they
- * believed they had joined, they were alone, and the evidence was gone. A chat app eating a
- * character, or a code copied one short, does exactly that. Leaving it in place is what lets
- * it still be compared against the code the sender meant to send.
+ * An invalid hash is reported, never repaired. Minting a fresh code instead would drop the
+ * player into a *different, empty room* with the bad code erased from the URL: they believe
+ * they have joined, they are alone, and the evidence is gone. A chat app eating a character,
+ * or a code copied one short, does exactly that. Leaving it in place is what lets it still be
+ * compared against the code the sender meant to send.
  *
  * Lives here rather than in code.ts because that module is shared with the Worker, which has
  * no `location` and must stay DOM-free.
@@ -77,15 +77,13 @@ export function readRoomHash(): RoomHash {
 /**
  * Mint a room code.
  *
- * Called when the player chooses **Create**, not on arrival — opening a game page used to
- * do this unconditionally, so browsing the catalogue created rooms nobody entered
- * (docs/specs/join.md).
+ * Called when the player chooses **Create**, not on arrival: doing it on arrival would
+ * create a room for everyone browsing the catalogue (docs/specs/join.md).
  *
- * **It does not touch the URL.** It used to `replaceState` the fresh code into the hash,
- * which quietly made it the second thing that decided the page's history — and `RoomGate`'s
- * `enter` skips writing a hash that already says what it was about to say, so the moment
- * entering a room became a `pushState` the Create path silently kept the old behaviour and
- * back still jumped off the game. Minting is minting; the URL has one owner.
+ * **It does not touch the URL.** `replaceState`-ing the fresh code into the hash would make
+ * this the second thing deciding the page's history, and `RoomGate`'s `enter` skips writing
+ * a hash that already says what it was about to say — so Create would quietly opt out of the
+ * `pushState` that keeps Back inside the game. Minting is minting; the URL has one owner.
  */
 export function mintRoomCode(): string {
   return generateRoomCode();
@@ -134,7 +132,7 @@ export function useRoom(
 
   useEffect(() => {
     // Recovering the seat from storage is what makes a refresh rejoin as the
-    // same player instead of spawning a ghost alongside the old one.
+    // same player instead of spawning a second one alongside it.
     const client = new RoomClient(roomServerUrl(), code, game, loadSeat(code));
     clientRef.current = client;
     setActiveRoom({ client, code, game, room: null });

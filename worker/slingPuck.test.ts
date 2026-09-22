@@ -201,8 +201,8 @@ async function cheatFloor(): Promise<void> {
   const crossings = () => h.sent.filter((m) => m.t === 'puck').length;
 
   // A burst is legitimate: one shot can knock a second and third puck through a
-  // few frames behind it. Refusing those used to cost the sender pucks the server
-  // never counted — the board went empty while the count still said 1.
+  // few frames behind it. Refusing those costs the sender pucks the server never
+  // counts — the board goes empty while the count still says 1.
   for (let i = 0; i < SLING_CROSS_BURST; i++) await onCross(h.ctx, A, 1, shot);
   check('a burst of crossings all count', crossings() === SLING_CROSS_BURST, crossings());
   check('and the count moved by the whole burst',

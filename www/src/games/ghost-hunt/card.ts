@@ -18,9 +18,9 @@ export const CARD: GameCard = {
   pitch: 'Sweep the room for ghosts only your phone can see',
   concept: 'Only the radar can see them. Sweep the room until one shows up in it.',
   /*
-   * Three rules, all of them things a player must DO. The traced outlines used to have
-   * a line here and they are a visual effect, not a rule — knowing the radar draws
-   * edges changes nothing about how you play, while "keep it in there" is the game.
+   * Three rules, all of them things a player must DO. The traced outlines get no line:
+   * they are a visual effect, not a rule — knowing the radar draws edges changes nothing
+   * about how you play, while "keep it in there" is the game.
    */
   rules: [
     'Hold your phone up and sweep the room.',

@@ -36,10 +36,9 @@ import { gameSlug } from './router';
 /**
  * `'1'` bypasses the flag gate entirely — set only on the dev Worker's own env
  * (`wrangler.jsonc`'s `env.dev`). docs/specs/backoffice.md §2b already has the hub
- * show every game on dev as clickable ("dev exists to try things"); before this,
- * clicking one that was `soon`/`hidden` still failed to connect. This removes that
- * mismatch rather than adding a new one — verifying the real block still means
- * checking prod, exactly as the doc already says.
+ * show every game on dev as clickable ("dev exists to try things"), and without this
+ * clicking one that is `soon`/`hidden` would still fail to connect. Verifying the real
+ * block still means checking prod, exactly as the doc says.
  */
 export function flagGateDisabled(disableFlagGate: string | undefined): boolean {
   return disableFlagGate === '1';

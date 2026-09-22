@@ -280,9 +280,9 @@ async function timeout(): Promise<void> {
 }
 
 /**
- * Issue #34. The opponent's shot clock used to start the instant a shot was
- * sent, while the missile was still crossing both screens — so a long flight
- * ate their turn and `tick()` then took a life off them for it.
+ * Starting the opponent's shot clock the instant a shot is sent, while the
+ * missile is still crossing both screens, lets a long flight eat their turn —
+ * and then `tick()` takes a life off them for it.
  */
 async function flightHoldsTheClock(): Promise<void> {
   console.log('\nthe next shot clock waits for the missile to land');

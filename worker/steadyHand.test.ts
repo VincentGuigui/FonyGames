@@ -354,11 +354,11 @@ console.log('\nleaving');
  * deadline an ABSOLUTE moment, and a deadline derived from the caller's own clock is
  * never due — `now >= now + TICK` is false forever.
  *
- * The first version of this took a `now` and returned `now + STEADY_TICK_MS`, and the
- * test asserted exactly that, so the suite was green while no tick ever fired in a real
- * room: the tolerance never closed in and nobody was ever reaped for going quiet. It
- * still LOOKED like it worked, because eliminations broadcast from `onWobble`. So these
- * checks are written as Room's own expression rather than as the function's shape.
+ * A version taking a `now` and returning `now + STEADY_TICK_MS` passes a test asserting
+ * exactly that while no tick ever fires in a real room: the tolerance never closes in and
+ * nobody is ever reaped for going quiet. It still LOOKS like it works, because
+ * eliminations broadcast from `onWobble`. So these checks are written as Room's own
+ * expression rather than as the function's shape.
  */
 console.log('\nthe deadline is a moment, and it comes round');
 

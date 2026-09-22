@@ -111,11 +111,10 @@ export class CatMouseGame {
              * gap grows with the walk. Adopting it would drag the icon backwards
              * every frame.
              *
-             * That is not hypothetical: an earlier version corrected on a 0.08
-             * gap *and* cleared the destination, so `capped` walked about a
-             * quarter of the way to the finger and then stopped for good. The
-             * destination is the player's stated intent and is never thrown away
-             * here — only a release or a respawn clears it.
+             * Correcting on a 0.08 gap *and* clearing the destination walks
+             * `capped` about a quarter of the way to the finger and then stops
+             * it for good. The destination is the player's stated intent and is
+             * never thrown away here — only a release or a respawn clears it.
              *
              * On release the server's word is taken, because a stopped icon
              * should sit exactly where the referee thinks it is. And a gap too

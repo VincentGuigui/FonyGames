@@ -113,10 +113,10 @@ function TiltRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   /*
    * The reverse button's place is a ref and a direct style write, NOT state.
    *
-   * It used to ride along with the four-times-a-second HUD update, which is
-   * fine for a lap counter and far too slow for something the player is
-   * watching follow their own wrist — it arrived a visible quarter-second
-   * after the phone had turned. Gravity is sampled every frame, so the button
+   * Riding along with the four-times-a-second HUD update is fine for a lap
+   * counter and far too slow for something the player is watching follow their
+   * own wrist: it lands a visible quarter-second after the phone has turned.
+   * Gravity is sampled every frame, so the button
    * moves every frame; going through `useState` to do that would re-render
    * Preact sixty times a second, which is exactly what this component's own
    * doc comment forbids. Writing the two style properties on the node is the

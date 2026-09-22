@@ -152,7 +152,7 @@ function broadcast(ctx: Ctx, s: UfoHunt): void {
  *
  * Everything that decides the shot happens here, not on the phone: the saucer's true
  * position at THIS instant is recomputed from `ufoPositionAt` — the same deterministic
- * roam the client used to render it — and the angle from that to the reported aim is
+ * roam the client renders it with — and the angle from that to the reported aim is
  * what `ufoImpact` turns into damage. The client's aim itself still cannot be verified
  * as the phone's real sensor reading; `UFOHUNT_SHOT_COOLDOWN_MS` bounds how often that
  * unverifiable claim can be cashed in, which is the honest limit spec §8 states plainly.

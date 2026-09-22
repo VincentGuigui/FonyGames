@@ -35,8 +35,8 @@ import './scream-meter.css';
  * before the next prompt. `state.round`/`state.rounds` say where the room is;
  * `state.phase` says which of the three it is in.
  *
- * Your own meter is still the biggest thing on screen, but it is no longer
- * alone: a narrow, dimmed band for every other connected player flanks it,
+ * Your own meter is the biggest thing on screen, but not the only one: a
+ * narrow, dimmed band for every other connected player flanks it,
  * fed by `state.levels` — purely visual, never scored, sampled and relayed
  * every `SCREAM_LEVEL_MS` while the window is open. The row of avatars
  * lighting up as each phone REPORTS is a different fact from how loud they

@@ -1329,11 +1329,10 @@ export type ServerMessage =
         /**
          * Whether that was the end of the round.
          *
-         * The phone used to work this out for itself — "a boom that leaves one player or
-         * none" — which was right for the elimination rounds and wrong for the other two
-         * ways a round ends: a two-player round finishes after a single boom with nobody
-         * left to pass to, and the five-minute safety cap finishes one with a whole circle
-         * left. Both looked to the phone like the round carrying on.
+         * The referee's call, not the phone's: "a boom that leaves one player or none" is
+         * right for the elimination rounds and wrong for the other two ways a round ends
+         * — a two-player round finishes after one boom with nobody left to pass to, and
+         * the safety cap finishes one with a whole circle left.
          */
         over: boolean;
         match: BombMatch;
@@ -1462,7 +1461,7 @@ export type ServerMessage =
          * Time spent searching, per player, in ms.
          *
          * Cumulative across their finds and measured by the server, so it cannot be
-         * beaten by a client with a generous clock. No longer the score — it is what the
+         * beaten by a client with a generous clock. Not the score itself — it is what the
          * score is computed FROM, and what the end screen turns into an average.
          */
         totals: Record<PlayerId, number>;
@@ -1960,11 +1959,9 @@ export const SLING_MIN_GAP_MS = 250;
 /**
  * Crossings accepted back to back before the floor above starts to bite.
  *
- * The floor was originally a hard one-per-`SLING_MIN_GAP_MS`, on the assumption
- * that "no human throws twice at once". A human does not have to: one shot can
- * knock a second puck through a few frames later, and knocking pucks through is
- * the whole point of the sling. Those crossings were refused silently, so the
- * sender lost a puck the server never counted.
+ * A hard one-per-`SLING_MIN_GAP_MS` would assume "no human throws twice at
+ * once". A human does not have to: one shot can knock a second puck through a
+ * few frames later, and knocking pucks through is the whole point of the sling.
  */
 export const SLING_CROSS_BURST = 3;
 
@@ -2317,16 +2314,16 @@ export const HUNT_ROUND_MS = 100_000;
 /**
  * What a ghost is worth: a hundred, less the seconds it took to find it.
  *
- * One number instead of two facing opposite ways. The score used to be the *time* spent
- * searching, lowest wins, which is honest and awkward everywhere it is shown: a panel that
- * ranks low-is-good bolds whoever has played least, and a player with no catches has spent
- * no time, so their zero reads like a win. Points only go up.
+ * One number instead of two facing opposite ways. Scoring the *time* spent searching,
+ * lowest wins, is honest and awkward everywhere it is shown: a panel that ranks
+ * low-is-good bolds whoever has played least, and a player with no catches has spent no
+ * time, so their zero reads like a win. Points only go up.
  *
  * **The value is chosen against `HUNT_ROUND_MS`, not picked for roundness.** A whole ghost
  * has to outweigh any time difference, or a player who caught fewer could still come first:
  * with the hunt capped at 100 s, no total can span more than 100 s, so 100 points a ghost
- * makes "more catches" beat "quicker catches" every time — the exact ranking this game had
- * before, now expressed as one number. `ghost-hunt/game.test.ts` pins the inequality; if
+ * makes "more catches" beat "quicker catches" every time. `ghost-hunt/game.test.ts` pins
+ * that inequality; if
  * the round ever grows past this, that test is the thing that fails.
  */
 export const HUNT_POINTS_PER_FIND = 100;
@@ -3184,9 +3181,9 @@ export const TILT_CORNER_RATE = 3.6;
  *
  * **It can only be judged against a turn rate.** Holding a constant turn rate
  * `w` against a first-order lag of time constant `t` settles at a steady skid
- * of `w × t` radians, so the two multiply: at the 320 ms this started as, a
- * corner-rate turn would settle at 1.15 rad — the car sliding 66° sideways,
- * which is not a skid, it is a spin.
+ * of `w × t` radians, so the two multiply: at 320 ms a corner-rate turn would
+ * settle at 1.15 rad — the car sliding 66° sideways, which is not a skid, it is
+ * a spin.
  *
  * 110 ms puts a corner-rate turn at 0.4 rad, about 23°: enough to push a
  * careless driver into the outside rail, not enough to lose the car altogether.

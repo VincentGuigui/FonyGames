@@ -39,10 +39,9 @@ import { ghostAt } from './radar';
 /**
  * Where the hunt happens: your own room through the camera, or a photosphere.
  *
- * Renamed from `'sensor' | 'sphere'`, which named one route after its INPUT and the other
- * after its scenery — and that pairing is exactly what stopped being true when the virtual
- * room learnt to be aimed with the phone as well as with a finger. A route is a place now;
- * how you look around inside it is `Aiming`.
+ * A route is a place, never an input: the virtual room can be aimed with the phone as
+ * well as with a finger, so naming one route after its sensor and the other after its
+ * scenery would be wrong for both. How you look around inside a route is `Aiming`.
  */
 type Route = 'camera' | 'sphere';
 
@@ -101,7 +100,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   /*
    * The camera is the default, because it is the game: the pitch, the card and the whole
    * of §2 are about turning around in your own room. The virtual room is the seated
-   * alternative, and it used to be what a player got by doing nothing.
+   * alternative, chosen rather than fallen into.
    *
    * Defaulting to it does NOT grant anything — a permission still needs a tap, and the
    * Start button is that tap when nobody has pressed the picker (see `onStart`).
@@ -135,10 +134,10 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   /*
    * Forward is whatever this phone is facing when the round BEGINS — for everyone.
    *
-   * It used to be anchored in the host's start handler, which is a tap only the host has,
-   * so every other player in the room hunted against an unanchored origin: their ghosts
-   * were in the right places relative to each other and in the wrong place relative to
-   * the room. Keyed on the round id so "again" re-anchors and a re-render does not.
+   * Not the host's start handler, which is a tap only the host has: anchoring there
+   * leaves every other player hunting against an unanchored origin, with their ghosts in
+   * the right places relative to each other and the wrong place relative to the room.
+   * Keyed on the round id so "again" re-anchors and a re-render does not.
    */
   const anchoredRound = useRef(0);
   useEffect(() => {
@@ -264,10 +263,10 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
    * Size the background canvas once the round screen exists, and again if the window
    * changes shape.
    *
-   * This used to live in the canvas's own `ref` callback, which the screen re-created on
-   * every render — so it ran at sensor rate, and since assigning `canvas.width` CLEARS
-   * the canvas, the background was wiped immediately after every paint. The feed was
-   * drawn correctly sixty times a second and shown none of them.
+   * Not the canvas's own `ref` callback, which the screen re-creates on every render:
+   * that runs at sensor rate, and since assigning `canvas.width` CLEARS the canvas, the
+   * background would be wiped immediately after every paint — the feed drawn correctly
+   * sixty times a second and shown none of them.
    */
   useEffect(() => {
     if (!running) return;
@@ -350,10 +349,9 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   /**
    * "Use your camera to find the ghost" — both permissions, one tap.
    *
-   * They used to be two buttons, and the second one only appeared after the first
-   * succeeded, so the camera was a thing you discovered rather than a thing you
-   * chose. The choice a player is actually making is *how they want to play*, and
-   * for this route the camera is not an extra: it is the room they are searching.
+   * One button, not two behind each other: the choice a player is making is *how they
+   * want to play*, and for this route the camera is not an extra to unlock — it is the
+   * room they are searching.
    *
    * Orientation first, straight out of the tap — iOS refuses that prompt outside a
    * gesture and remembers a denial (docs/device-capabilities.md §2). The camera is
@@ -388,8 +386,8 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
    *
    * Straight out of the toggle's tap, because switching TO the sensor may need the
    * orientation permission and iOS refuses that prompt outside a gesture. A refusal
-   * leaves the finger in charge and says so, rather than leaving a room that no longer
-   * responds to anything.
+   * leaves the finger in charge and says so, rather than leaving a room that responds
+   * to nothing.
    */
   async function switchAiming(next: Aiming): Promise<void> {
     if (next === 'drag') {
@@ -662,10 +660,8 @@ function sizeToScreen(el: HTMLCanvasElement): void {
  *
  * Two choices, named by **what you do** rather than by which sensor they use — a
  * player picking between "Sweep the room" and "Drag to look around" is being asked
- * to guess which one needs a camera. And each choice now turns on everything it
- * needs from the one tap: the camera used to be a third button that only appeared
- * after motion was granted, so the feature this game is built around was something
- * you discovered rather than something you chose.
+ * to guess which one needs a camera. Each choice turns on everything it needs from
+ * that one tap, so the camera is chosen rather than discovered behind another button.
  *
  * The finger route is offered to everyone from the start, not only after a denial:
  * it is seated, one-handed and quiet, which makes it the accessible way to play

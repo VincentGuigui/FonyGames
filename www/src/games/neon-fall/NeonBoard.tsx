@@ -15,9 +15,9 @@ import { useGameText } from '../../core/i18n/gameText';
  * As in Goat Siege and Spill, the canvas animates on its own rAF loop and Preact
  * only re-renders the chrome around it.
  *
- * One steer source, and only one (spec §5): the glider tilts. The held tap zones
- * that used to stand in for a refused tilt are gone — the room does not let
- * anybody into a round without it now, so there is no second source to blend.
+ * One steer source, and only one (spec §5): the glider tilts. There are no held tap
+ * zones standing in for a refused tilt — the room does not let anybody into a round
+ * without it — so there is no second source to blend.
  */
 export function NeonBoard({
   game,
@@ -135,11 +135,10 @@ export function NeonBoard({
  * Squash Mosquitoes' always-mounted cells: native tap targets, no hand-rolled
  * hit-testing.
  *
- * No shared ammo pool any more (spec §2.2): each trigger cools down on its
- * own for `NEON_LANE_COOLDOWN_MS` after firing, dimmed exactly like the old
- * empty-ammo state was. `boltsInFlight` reaching `NEON_MAX_BOLTS` disables
- * every trigger at once regardless of any one lane's own cooldown — the real
- * limiter now that lanes no longer share ammo to ration.
+ * No shared ammo pool (spec §2.2): each trigger cools down on its own for
+ * `NEON_LANE_COOLDOWN_MS` after firing, and is dimmed while it does.
+ * `boltsInFlight` reaching `NEON_MAX_BOLTS` disables every trigger at once
+ * regardless of any one lane's cooldown — that is the real limiter.
  */
 function Triggers({
   laneReadyAt,

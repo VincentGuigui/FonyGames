@@ -54,10 +54,10 @@ export function CodeCard({
   /*
    * The body of the "Invite a player" panel, not a panel itself.
    *
-   * It used to be a bordered card of its own, permanently open, sitting between How to
-   * play and the player list — the biggest thing in the lobby, shown to everybody, for a
-   * job only the host has and only until everyone has arrived. It is a `<div>` rather
-   * than a `<section>` for the same reason: `Disclosure` is the section now.
+   * A bordered card of its own, permanently open between How to play and the player
+   * list, would be the biggest thing in the lobby — shown to everybody, for a job only
+   * the host has and only until everyone has arrived. A `<div>` rather than a
+   * `<section>` for the same reason: `Disclosure` is the section.
    */
   return (
     <div class="code-card">

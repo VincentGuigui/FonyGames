@@ -50,9 +50,8 @@ function check(what: string, ok: boolean, detail?: unknown): void {
  * `MIN_FIND_MS`, so a test that means "an honest find" has to advance the clock by at
  * least this and claim at least this.
  *
- * Named rather than written as 1000, which is what these tests used to say. When the
- * hold went from 600 ms to four seconds every one of those became a claim the server
- * must reject — and the index-validation checks below would then have passed because
+ * Named rather than written as a literal: retune the hold and every literal becomes a
+ * claim the server must reject, so the index-validation checks below would pass because
  * of the timing rather than because of the index they exist to test.
  */
 const HONEST = MIN_FIND_MS;
@@ -277,10 +276,10 @@ console.log('\ntwo hunters, one ghost');
 /*
  * The hunt runs its full hundred seconds — nothing closes it early.
  *
- * It used to end the moment somebody reached five catches. A window makes the closing
- * seconds matter again, but only because the score is points: under a bare count you cannot
- * finish a four-second hold in the last three seconds, so nothing you do in them can change
- * anything. A late catch is still worth most of a hundred.
+ * Ending it the moment somebody reaches five catches would take the closing seconds away.
+ * A window gives them back, but only because the score is points: under a bare count you
+ * cannot finish a four-second hold in the last three seconds, so nothing you do in them can
+ * change anything. A late catch is still worth most of a hundred.
  */
 console.log('\nthe hunt runs its full length');
 
@@ -328,14 +327,15 @@ console.log('\nwhat a ghost is worth');
 }
 
 /*
- * THE claim behind the change of scoring: points rank exactly as the old rule did.
+ * THE claim behind scoring in points: they rank exactly as "most caught, then the lowest
+ * total time" does.
  *
- * The old rule was "most caught, then the lowest total time", two values facing opposite
- * ways, and the reason one number can replace it is arithmetic rather than taste — a ghost
- * is worth `HUNT_POINTS_PER_FIND` and no total can span more than the round, so the time
- * term can never bridge a catch. This plays real finds and compares the two orders.
+ * That two-value rule faces opposite ways, and the reason one number can replace it is
+ * arithmetic rather than taste — a ghost is worth `HUNT_POINTS_PER_FIND` and no total can
+ * span more than the round, so the time term can never bridge a catch. This plays real
+ * finds and compares the two orders.
  */
-console.log('\npoints rank the same way the old rule did');
+console.log('\npoints rank the same way catches-then-time does');
 
 {
   const profiles = [

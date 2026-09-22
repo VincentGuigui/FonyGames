@@ -6,12 +6,11 @@
  * *invariant*, and the bug it guards against was invisible for exactly as long as
  * nobody wrote the invariant down.
  *
- * `aimTolerance` used to return `SPILL_AIM_FRACTION * π / n`, where `π/n` is the gap
- * between **seats**. The window is supposed to be a fraction of the gap between
- * **aims**, halved — 1.40× smaller. So the windows overlapped, `aimSeat` (nearest
- * seat, then a tolerance check it always passed) delivered 95% of every forward flick
- * at a table of four, and there was no such thing as a miss. Players noticed before
- * the code did and stopped aiming, which was the correct response.
+ * `SPILL_AIM_FRACTION * π / n` is the tempting wrong answer, because `π/n` is the gap
+ * between **seats**. The window is a fraction of the gap between **aims**, halved —
+ * 1.40× smaller. Get it wrong and the windows overlap, `aimSeat` (nearest seat, then a
+ * tolerance check it always passes) delivers 95% of every forward flick at a table of
+ * four, and there is no such thing as a miss.
  */
 import { SPILL_AIM_FRACTION, SPILL_SPEED_MAX, SPILL_SPEED_MIN } from './protocol';
 import {

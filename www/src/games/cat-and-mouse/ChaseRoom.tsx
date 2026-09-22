@@ -29,8 +29,8 @@ import { CatMouseGame } from './game';
 /**
  * Everything about *which* room is the shared gate's job: the chooser when there is no code
  * in the hash, "this room doesn't exist" when the hash is damaged, and this screen once
- * there is a room to be in (lobby/RoomGate.tsx). Five copies of that logic used to live in
- * five files, identical down to the comment.
+ * there is a room to be in (lobby/RoomGate.tsx). Per game it would be five identical copies
+ * of the same logic.
  */
 export function ChaseRoom(props: { game: GameCard }): JSX.Element {
   return <RoomGate game={props.game}>{(code, card) => <ChaseRoomInner game={card} code={code} />}</RoomGate>;
@@ -213,7 +213,7 @@ function DragPicker({
 }): JSX.Element {
   const text = useGameText();
   // The default leads, because a list is read top down and the first entry is what a host
-  // in a hurry picks. That used to be `direct`, which is the lesser of the two games.
+  // in a hurry picks — and `direct` is the lesser of the two games.
   const options: { id: 'direct' | 'capped'; label: string; blurb: string }[] = [
     { id: 'capped', label: text({ en: 'Walk where I point', fr: 'Marcher vers mon doigt' }),
       blurb: text({ en: 'A real chase — the cat gains slowly.', fr: 'Une vraie poursuite — le chat se rapproche lentement.' }) },

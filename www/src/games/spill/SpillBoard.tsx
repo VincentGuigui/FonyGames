@@ -31,12 +31,12 @@ const DRAG_SLOP_PX = 24;
 /**
  * The tap-a-seat fallback throws at a fixed, **deliberate** speed (spec §11).
  *
- * It aims dead centre by construction, so it can never miss. At the old 2.2 that also
- * put it on the 250 ms cooldown floor — perfect accuracy *and* the fastest throw in
- * the game, which made it strictly better than dragging the moment a drag could miss.
- * At 1.0 it is a careful throw: certain, and half the rate of a hard flick. That turns
- * the accessibility fallback into a legitimate tactic instead of an exploit, which is
- * the best place for an accessibility feature to end up.
+ * It aims dead centre by construction, so it can never miss. At 2.2 that would also put
+ * it on the 250 ms cooldown floor — perfect accuracy *and* the fastest throw in the game,
+ * strictly better than dragging the moment a drag could miss. At 1.0 it is a careful
+ * throw: certain, and half the rate of a hard flick. That makes the accessibility
+ * fallback a legitimate tactic instead of an exploit, which is the best place for an
+ * accessibility feature to end up.
  */
 const FALLBACK_SPEED = 1.0;
 

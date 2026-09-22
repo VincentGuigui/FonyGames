@@ -337,8 +337,8 @@ function relaxingIsAlwaysLegal(): void {
   }
   check(`an impossible setting still yields ${divisions}/400 exact divisions and nothing else`, divisions === 400 && illegal === 0, { divisions, illegal });
 
-  // And the operations it gives back are still only the ticked one, which is
-  // the guarantee the first version of this file broke.
+  // And the operations it gives back are only the ticked one, which is the
+  // guarantee a relax-the-operations fallback quietly breaks.
   const subOnly: MathOptions = { ops: ['-'], digits: [3], operators: [3] };
   const r = seeded(5);
   let additions = 0;

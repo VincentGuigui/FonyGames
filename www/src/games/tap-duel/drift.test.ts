@@ -158,8 +158,8 @@ function speedsUp(): void {
   // hand can react — which is not harder, it is arbitrary.
   check('but it is capped', driftSpeed(500) === DRIFT_SPEED_MAX);
   check('and the last duel of a match is inside the cap', driftSpeed(9) <= DRIFT_SPEED_MAX);
-  // The first round of a match must be slower than the old fixed speed, or "slow at first"
-  // is not true of the only round every player definitely sees.
+  // The first round of a match must be slower than a plain unramped target, or "slow at
+  // first" is not true of the only round every player definitely sees.
   check('the opening target is slower than a plain one', driftSpeed(0) < 1);
   check('nonsense is not a speed', driftSpeed(Number.NaN) === DRIFT_SPEED_START);
   check('nor is a negative one', driftSpeed(-4) === DRIFT_SPEED_START);

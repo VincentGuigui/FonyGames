@@ -3,10 +3,10 @@
  *
  * ## Why letters only, and why alternating
  *
- * The old alphabet was 24 letters plus 8 digits, drawn uniformly — so a code came out as
- * `K7P4X2`, which is a *password*. Codes here are not typed off a screen by one person;
- * they are **shouted across a room**, and a string of unrelated glyphs has to be spelled
- * out character by character, twice, over other people's noise.
+ * Letters and digits drawn uniformly give `K7P4X2`, which is a *password*. Codes here are
+ * not typed off a screen by one person; they are **shouted across a room**, and a string of
+ * unrelated glyphs has to be spelled out character by character, twice, over other people's
+ * noise.
  *
  * So: no digits, all 26 letters, and each group of three alternates between vowels and
  * consonants. A triplet is `CVC` or `VCV` — `TAK`, `OBE` — which means every code is two
@@ -31,10 +31,10 @@
  * ## How many there are
  *
  * A triplet is 26 × 5 × 21 = 2 730 either way round (the first letter is free, and the two
- * after it are determined in class by it), so a code is one of **7 452 900**. That is far
- * fewer than the old billion, and it is enough: codes live only as long as a room does,
- * and at a hundred rooms at once the chance of any two colliding is under a tenth of a
- * percent. Being sayable is worth more than the digits were.
+ * after it are determined in class by it), so a code is one of **7 452 900**. Far fewer
+ * than a mixed alphabet's billion, and enough: codes live only as long as a room does, and
+ * at a hundred rooms at once the chance of any two colliding is under a tenth of a percent.
+ * Being sayable is worth more than the extra digits.
  */
 
 /** Kept separate because the pattern below is about which of the two a letter is in. */
@@ -141,10 +141,9 @@ export function generateRoomCode(
 /**
  * A uniform index below `bound`, with the biased tail thrown away.
  *
- * The old alphabet was 32 characters and 256 divided by it exactly, so a plain modulo was
- * uniform. None of 26, 21 or 5 divides 256 — a bare `% 26` would make the first six letters
- * of the alphabet ten percent likelier than the rest — so bytes in the short final block
- * are rejected and redrawn instead.
+ * None of 26, 21 or 5 divides 256, so a bare `% 26` would make the first six letters of the
+ * alphabet ten percent likelier than the rest. Bytes in the short final block are rejected
+ * and redrawn instead.
  */
 function cryptoRandomIndex(bound: number): number {
   const limit = Math.floor(256 / bound) * bound;

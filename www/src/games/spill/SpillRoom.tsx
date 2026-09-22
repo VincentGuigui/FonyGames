@@ -33,8 +33,8 @@ import { SPILL_THEME } from './themes';
 /**
  * Everything about *which* room is the shared gate's job: the chooser when there is no code
  * in the hash, "this room doesn't exist" when the hash is damaged, and this screen once
- * there is a room to be in (lobby/RoomGate.tsx). Five copies of that logic used to live in
- * five files, identical down to the comment.
+ * there is a room to be in (lobby/RoomGate.tsx). Per game it would be five identical copies
+ * of the same logic.
  */
 export function SpillRoom(props: { game: GameCard }): JSX.Element {
   return <RoomGate game={props.game}>{(code, card) => <SpillRoomInner game={card} code={code} />}</RoomGate>;

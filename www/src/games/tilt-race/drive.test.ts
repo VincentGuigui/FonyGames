@@ -166,10 +166,9 @@ function alongTrack(car: Drive, ms: number, reverse: boolean, track = TRACK): Dr
  *
  * This is a test instrument, not a game feature, and it earns its place by
  * being the only thing that can answer "is this circuit drivable at all?".
- * Now that the heading is the phone's own rotation, an autopilot is simply a
- * hand: it names the angle it wants the car to point at, and the car points
- * there. That is a much more honest instrument than the old one, which had to
- * guess a gain and hope the turn rate could keep up.
+ * The heading is the phone's own rotation, so an autopilot is simply a hand:
+ * it names the angle it wants the car to point at, and the car points there.
+ * No gain to guess, and no turn rate to hope keeps up.
  */
 function autopilot(track: Track, car: Drive): DriveInput {
   const found = locate(track, car.at, car.index);
@@ -322,10 +321,10 @@ const RAIL_ALONG = Math.atan2(RAIL_AT.tangent.y, RAIL_AT.tangent.x);
  * `base + roll` every frame, so a fixture that set only `heading` would be
  * steered straight again by the next step.
  *
- * On the centreline rather than a hair off the rail, as the point-car fixtures
- * used to be: a body 31 units wide placed at 0.9 of the half-width is already
- * through the rail before the test starts. Aiming it across the road and
- * letting it drive into the rail is the honest way to stage a hit now.
+ * On the centreline rather than a hair off the rail: a body 31 units wide
+ * placed at 0.9 of the half-width is already through the rail before the test
+ * starts. Aiming it across the road and letting it drive in is the honest way
+ * to stage a hit.
  */
 function aimedAt(angle: number, speed?: number): Drive {
   const fast = drive(startDrive(CIRCLE, CIRCLE.length * 0.5), STRAIGHT, TILT_SPOOL_MS * 2.5, CIRCLE);
@@ -465,8 +464,8 @@ function rails(): void {
   /*
    * The rule, at a spread of angles: what a hit costs is what was going across
    * the rail, and what it keeps is what was already going along it. So the
-   * speed kept should track |cos| of the approach angle — no separate impact
-   * penalty on top, which is what used to stop the car dead.
+   * speed kept should track |cos| of the approach angle, with no separate
+   * impact penalty on top — that is what stops a car dead.
    */
   for (const angle of [0.2, 0.4, 0.6, 0.8]) {
     const { hit, before } = untilBump(aimedAt(angle));
@@ -745,10 +744,10 @@ function rearWheelDrive(): void {
   );
   check('and it never grinds to a standstill', car.speed > 0, car.speed);
   /*
-   * It squares up as it goes, so it no longer settles to a crawl — it works
-   * back up its own speed curve. The bound that still holds is that the rail
-   * cannot push it PAST that curve: a wall can return a car to the speed it
-   * was entitled to, never hand it more (spec §2.3).
+   * It squares up as it goes, so instead of settling to a crawl it works back
+   * up its own speed curve. The bound is that the rail cannot push it PAST
+   * that curve: a wall can return a car to the speed it was entitled to, never
+   * hand it more (spec §2.3).
    */
   check(
     `held against the rail it works back up its curve (${car.speed.toFixed(0)})`,
@@ -788,7 +787,7 @@ function rearWheelDrive(): void {
    *
    * That is one whole class of edge case deleted rather than handled. A car can
    * still be pinned against a rail — it just always has somewhere legal to be
-   * put, which is why `settle` can no longer fail.
+   * put, which is why `settle` cannot fail.
    */
   check(
     `a capsule fits at every angle on the centreline (worst reach ${(TILT_WHEELBASE / 2 + CAR_END_RADIUS).toFixed(1)} of ${TRACK_HALF_WIDTH})`,
@@ -816,16 +815,16 @@ function rearWheelDrive(): void {
 
   /*
    * Nose square into the wall has nothing along the rail to give AT THE MOMENT
-   * OF THE HIT — and that used to be the end of it. Now the rear wheels turn
-   * the car out of it: the push is a torque as well as a shove, so the nose
-   * swings off square and the car finds its way along the wall (spec §2.3).
+   * OF THE HIT, and the rear wheels are what get it out: the push is a torque
+   * as well as a shove, so the nose swings off square and the car finds its way
+   * along the wall (spec §2.3).
    */
   let stuck = untilBump(aimedAt(Math.PI / 2 - 0.02)).hit;
   /*
    * "Stops" against the entry speed rather than against a flat number: the
-   * capsule's round nose meets the rail a shade off square where the old box's
-   * corner met it dead on, so a sliver of the momentum is along the rail and
-   * survives. A few units out of two hundred is still a car that has stopped.
+   * capsule's round nose meets the rail a shade off square, so a sliver of the
+   * momentum is along the rail and survives. A few units out of two hundred is
+   * still a car that has stopped.
    */
   const squareFrom = untilBump(aimedAt(Math.PI / 2 - 0.02)).before.speed;
   check(
@@ -934,10 +933,10 @@ function reversingOverTheLine(): void {
    * The bug this section exists for, and the one that hid behind it.
    *
    * **Sitting on the line is not a lap.** Every car starts at arc 0, which is
-   * the same point as arc `length`, so the old "did the arc wrap?" test banked
-   * a full lap out of the first few units of wobble — a one-lap race was over
-   * before the flag, and the progress rail spent the rest of the race riding
-   * the referee's cheat clamp instead of the car (spec §8).
+   * the same point as arc `length`, so a plain "did the arc wrap?" test banks a
+   * full lap out of the first few units of wobble — a one-lap race over before
+   * the flag, and a progress rail riding the referee's cheat clamp instead of
+   * the car (spec §8).
    */
   const onTheLine = drive(startDrive(TRACK), { roll: 0, reverse: false }, 1_200);
   check(

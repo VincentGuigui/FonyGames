@@ -98,8 +98,8 @@ export const ACTION_BEAT_MS = BG_MUSIC_BEAT_MS * 2;
 /**
  * The canvas lunge's own envelope inside that action half (`FightCanvas.tsx`'s
  * `attackProgress`): ramps in, holds through contact, then fades back to idle.
- * `ACTION_LUNGE_FADE_END_MS` doubles as the instant `TapFighterRoom.tsx` treats a
- * fighter as no longer attacking, so the canvas and the room state can never
+ * `ACTION_LUNGE_FADE_END_MS` doubles as the instant `TapFighterRoom.tsx` stops
+ * treating a fighter as attacking, so the canvas and the room state can never
  * disagree about when the lunge is over.
  */
 export const ACTION_LUNGE_RAMP_MS = 70;
@@ -113,10 +113,10 @@ export function idleWindupPose(sinceBeatStart: number): number {
 
 /**
  * The "sobbing" loop for a round lost on points: loss1/loss2 alternate at
- * three cycles per second for as long as the round-over panel is showing —
- * it used to hold on the final frame after one second, which read as the
- * animation freezing mid-round-over rather than as a loser who keeps
- * sobbing while the room waits for the next round. Purely cosmetic and
+ * three cycles per second for as long as the round-over panel is showing.
+ * Holding on the final frame after a second instead reads as the animation
+ * freezing mid-round-over rather than as a loser who keeps sobbing while the
+ * room waits for the next round. Purely cosmetic and
  * never needs to agree between devices, so — unlike every other pose
  * function here — it is driven by a local timer (`TapFighterRoom.tsx`'s
  * `useLossPose`), not the fight's authoritative clock.

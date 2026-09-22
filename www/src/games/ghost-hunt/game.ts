@@ -196,9 +196,9 @@ export function pointsOf(state: HuntView, id: PlayerId): number {
 /**
  * Everyone, best first: **most points**.
  *
- * One key, one direction, which it took a change of scoring to earn. The rule used to be
- * "most caught, then the lowest time", in that order and never either alone — a player who
- * has caught nothing has spent no time, so ranking on time crowned whoever played least.
+ * One key, one direction. The obvious alternative — "most caught, then the lowest time",
+ * in that order and never either alone — crowns whoever played least, because a player who
+ * has caught nothing has spent no time.
  *
  * Points say the same thing in one number. A ghost is worth `HUNT_POINTS_PER_FIND` and no
  * total can span more than the round, so more catches always outranks quicker catches, and

@@ -58,23 +58,23 @@ export type Vec3 = { x: number; y: number; z: number };
  * of the second half: the camera leans only a tenth of the way toward the
  * hull.
  *
- * The camera used to ride 3.4 units high and track the hull exactly, which
- * kept the tube mouth clear but drew the ship at ~83% down a real board and
- * pinned it there.
+ * Riding the camera a few units high and tracking the hull exactly would keep
+ * the tube mouth clear, at the cost of drawing the ship ~83% down a real board
+ * and pinning it there.
  *
- * **`ASTEROID_CAM_BACK` is 38 because the lean is 0.1** (issue #31). The two
+ * **`ASTEROID_CAM_BACK` is 38 because the lean is 0.1.** The two
  * are one decision: the hull's own on-screen swing is
- * `ASTEROID_REACH x (1 - lean) x ASTEROID_FOCAL / this`, and at 14 that came
- * to 0.96 board widths against a half-width of 0.5 — the ship left the frame a
- * third of the way to the wall. At 38 the swing is 0.35 and the sprite's far
+ * `ASTEROID_REACH x (1 - lean) x ASTEROID_FOCAL / this`, and at 14 that comes
+ * to 0.96 board widths against a half-width of 0.5 — the ship leaves the frame
+ * a third of the way to the wall. At 38 the swing is 0.35 and the sprite's far
  * edge reaches 0.42, so the hull stays on screen all the way to the wall with
  * room to spare. Moving one of these two without the other puts it back
  * outside.
  *
- * Pulling back also draws the hull about a third of its old size, which is
- * what settles §12 Q7: it no longer covers the spot a rock dead ahead grows
- * from, and the whole tube (radius 0.44 board widths at the hull's depth) now
- * fits the board instead of spilling past both edges.
+ * Pulling back also draws the hull small, which is what settles §12 Q7: it
+ * does not cover the spot a rock dead ahead grows from, and the whole tube
+ * (radius 0.44 board widths at the hull's depth) fits the board instead of
+ * spilling past both edges.
  */
 export const ASTEROID_CAM_BACK = 38;
 

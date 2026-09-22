@@ -155,8 +155,8 @@ function run(): void {
   check('every comment is gone once its own window has passed', r.comments.length === 0);
 
   // Pressing a lane with nothing in it is a press that landed nothing, and
-  // costs the same life any other early press does (spec §2.2). It used to be
-  // free, which made mashing every lane strictly better than reading the board.
+  // costs the same life any other early press does (spec §2.2). Free, it would
+  // make mashing every lane strictly better than reading the board.
   const beforeIdleTap = { lives: r.lives, score: r.score };
   r.press(4, 999_999, tileHeightPx, lineY);
   check('pressing an empty lane costs a life', r.lives === beforeIdleTap.lives - 1, r.lives);

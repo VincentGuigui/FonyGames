@@ -169,8 +169,7 @@ function FightScreen({ game, state, players, me, isHost, onNext, clock }: { game
     : -1;
   const beat = beatIndex >= 0 ? state.beats[beatIndex] : undefined;
   const withinBeat = elapsed >= 0 ? elapsed % beatMs : 0;
-  // Time since the wind-up ended — negative during it, then 0…ACTION_BEAT_MS,
-  // exactly what `withinBeat` used to mean before the wind-up existed.
+  // Time since the wind-up ended — negative during it, then 0…ACTION_BEAT_MS.
   const actionElapsed = withinBeat - FIGHTER_WINDUP_MS;
   const contact = elapsed >= 0 && actionElapsed >= halfBeat;
   const previous = beatIndex > 0 ? state.beats[beatIndex - 1] : undefined;

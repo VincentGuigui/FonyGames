@@ -185,8 +185,8 @@ function palettes(): void {
   check('laid out ring by ring, palest ring first', Math.abs(satOf(wide[0] as Rgb) - COLOR_SAT_MIN) < 0.02 && satOf(wide[wide.length - 1] as Rgb) === 1, [wide[0], wide[wide.length - 1]]);
   check('and hue by hue within a ring, starting at red', JSON.stringify(wide[36]) === JSON.stringify([255, 0, 0]), wide[36]);
 
-  // Every ring is in `palette()` now, dark ones included (issue #40), so this
-  // one check covers what used to need a second pass with `withLuminance`.
+  // Every ring is in `palette()`, dark ones included, so one check covers the
+  // whole wheel rather than needing a second pass over the dark side.
   check('no rung ever offers black or white, on any ring, light or dark', [1, 4, 9, 14, 19, 24, 29, 34, 41, 60].every((lv) => palette(rungAt(lv)).every((c) => !isExtreme(c))));
   check('the palette grows down the ladder', palette(rungAt(4)).length > palette(rungAt(1)).length);
   check('every entry is a real colour', palette(rungAt(19)).every((c) => c.every((v) => Number.isInteger(v) && v >= 0 && v <= 255)));
@@ -332,12 +332,11 @@ function dealing(): void {
   })());
 
   /*
-   * The rule the whole rewrite exists for: a dealt target is a palette
-   * colour, and nothing else. The old randomiser built colours on an RGB
-   * grid and could hand out a dark green at level 17 that the wheel — drawn
-   * at full value — had no way to show. Since issue #40 there is no second
-   * axis to cross a base against any more: `palette(rung)` already is every
-   * shade the wheel offers.
+   * THE rule: a dealt target is a palette colour, and nothing else. A
+   * randomiser building colours on an RGB grid can hand out a dark green at
+   * level 17 that the wheel has no way to show. There is no second axis to
+   * cross a base against here — `palette(rung)` already is every shade the
+   * wheel offers.
    */
   check('every target is a colour the rung\'s own palette offers, at every level', (() => {
     for (const lv of [1, 3, 8, 14, 17, 21, 24, 29, 33, 40, 45, 60]) {

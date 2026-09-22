@@ -130,10 +130,9 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
   }
 
   /*
-   * The result, on the shared end screen (core/ui/GameOver.tsx). Steady Hand used to drop
-   * straight back to the lobby with the times hidden in the player list's tags, so the
-   * answer to "how long did I last" was a badge beside somebody's avatar in a joining
-   * screen.
+   * The result, on the shared end screen (core/ui/GameOver.tsx) rather than a drop back
+   * to the lobby with the times in the player list's tags — which would make the answer
+   * to "how long did I last" a badge beside somebody's avatar in a joining screen.
    */
   if (state && state.phase === 'over') {
     const players = room.room?.players ?? [];

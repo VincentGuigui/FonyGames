@@ -12,8 +12,8 @@ export interface UiStrings {
     tagline: string;
     shellNotice: string;
     /**
-     * The footer's privacy line. Rewritten 2026-08-20 — it used to claim nothing
-     * is stored at all, which activity tracking made false. Spec: docs/specs/analytics.md §1.
+     * The footer's privacy line. It must not claim nothing is stored at all, which the
+     * activity record makes false. Spec: docs/specs/analytics.md §1.
      */
     privacy: string;
     sourceLink: string;

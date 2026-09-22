@@ -206,9 +206,9 @@ async function aimingAndLock(): Promise<void> {
    * And it comes home. Water leaves your phone by arriving on somebody else's, so a
    * flick at the floor is a wasted turn rather than a free way to shed a drop.
    *
-   * This assertion used to read `- 1`: the water left the game. That was the whole
-   * problem — disposal is the win condition, so throwing at nobody was the safest
-   * move on the board and aiming was for people who enjoyed losing (spec §4c).
+   * Not `- 1`, which would let the water leave the game: disposal is the win
+   * condition, so throwing at nobody would be the safest move on the board and
+   * aiming would be for people who enjoy losing (spec §4c).
    */
   const total = [A, B, C, D].reduce((n, p) => n + (h.state().levels[p] ?? 0), 0);
   check('a miss costs no water', total === SPILL_START_LEVEL * 4, total);

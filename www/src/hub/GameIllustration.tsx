@@ -6,8 +6,8 @@ import type { GameArt } from '../core/types';
  *
  * An `<img>`, not inline SVG, and that is the whole point: inline art is JavaScript,
  * and illustrations are budgeted *out* of the hub's payload
- * (docs/architecture.md §4). This file used to be ~410 lines of hand-written paths —
- * 54% of the hub chunk — and is now a wrapper around a file per game.
+ * (docs/architecture.md §4). Hand-written paths here would be ~410 lines and 54% of the
+ * hub chunk; this is a wrapper around a file per game instead.
  *
  * The accent tint is painted **here** rather than inside the SVG so that one paint
  * does two jobs: it is the placeholder that holds the space before the file arrives
@@ -35,8 +35,7 @@ export function GameIllustration({
       height={90}
       loading="lazy"
       decoding="async"
-      // `24` is 14% alpha — the same tint the old inline <rect> painted. Eight-digit
-      // hex rather than color-mix(), which wants Safari 16.2, and the older
+      // `24` is 14% alpha. Eight-digit hex rather than color-mix(), which wants Safari 16.2, and the older
       // mid-range phone in docs/testing.md §3 is the point of this project.
       style={{ backgroundColor: `${accent}24` } as JSX.CSSProperties}
     />

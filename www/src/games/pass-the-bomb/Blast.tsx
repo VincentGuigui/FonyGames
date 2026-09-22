@@ -25,8 +25,8 @@ const SIZE = 340;
  *
  * Well under half, and that is the whole reason the canvas is bigger than the bomb: a
  * particle that leaves the canvas is clipped and gone, so drawing the bomb edge-to-edge
- * gives the pieces nowhere to fly. The first version filled the square and the entire
- * explosion was over in a quarter of a second, most of it off-canvas.
+ * gives the pieces nowhere to fly: fill the square and the whole explosion is over in a
+ * quarter of a second, most of it off-canvas.
  */
 const BOMB = 0.46;
 

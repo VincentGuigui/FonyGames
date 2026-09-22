@@ -81,14 +81,13 @@ const GRAVITY_MIN_FLIGHT_S = 3;
 const GRAVITY_MAX_FLIGHT_S = 12;
 
 /**
- * Launch speed at full strength, in world widths per second — roughly a
- * third of this game's previous value (a second follow-up after #16, on top
- * of the earlier halving): the weaker the missile, the more of its flight
- * gravity gets to shape, so cutting the ceiling further keeps that true even
- * at a full-strength pull. Derived from `GRAVITY_MIN_FLIGHT_S` above rather
- * than hand-picked again, so the "about 3 seconds, full strength" display
- * target is exactly what this constant produces, not a number that
- * quietly drifts away from it the next time either changes.
+ * Launch speed at full strength, in world widths per second. Low on purpose:
+ * the slower the missile, the more of its flight gravity gets to shape, and
+ * that has to stay true at a full-strength pull too.
+ *
+ * Derived from `GRAVITY_MIN_FLIGHT_S` above rather than hand-picked, so the
+ * "about 3 seconds, full strength" the UI promises is exactly what this
+ * produces rather than a number that drifts away from it.
  */
 export const GRAVITY_MAX_LAUNCH_SPEED = GRAVITY_BOARD_HEIGHT / GRAVITY_MIN_FLIGHT_S;
 
@@ -272,9 +271,9 @@ export function shipPosition(seat: Seat): Vec {
 
 /**
  * Where a shot actually leaves from: the **nose** of the ship, one hull height
- * toward the opponent (issue #37). One point, used by the real simulation, by
- * the dashed preview and by the missile marker under the finger alike — they
- * used to disagree, the marker sitting a ship-height above a trajectory that
+ * toward the opponent. One point, used by the real simulation, by the dashed
+ * preview and by the missile marker under the finger alike: three of them
+ * would disagree, putting the marker a ship-height above a trajectory that
  * started inside the hull.
  *
  * A fixed world constant rather than the rasterised sprite's own height: both
@@ -483,10 +482,10 @@ function easeInOut(t: number): number {
  * through the middle of the board; pairing by screen order keeps each slide
  * short and uncrossed.
  *
- * It used to pair by SIDE, which worked while there was exactly one planet per
- * half. With three planets split two/one (spec §2.1) the crowded side can swap
- * between boards, so left-to-right order is what survives that — the slide is
- * cosmetic either way, and this is the ordering that crosses fewest paths.
+ * Not by SIDE, which only works while there is exactly one planet per half:
+ * with three planets split two/one (spec §2.1) the crowded side can swap
+ * between boards. Left-to-right order survives that, and the slide is cosmetic
+ * either way, so this is simply the ordering that crosses fewest paths.
  */
 function leftToRight(board: readonly GravityPlanet[]): GravityPlanet[] {
   return [...board].sort((a, b) => a.x - b.x);
@@ -666,7 +665,7 @@ export class GravityGame {
    *
    * 1. While a shot is in flight, the planets it was fired on stay put. The
    *    missile is flying a trajectory that board shaped, so swapping underneath
-   *    it would show the shot curving around planets that are no longer there.
+   *    it would show the shot curving around planets that are not there.
    * 2. Once the flight is done, the new board is eased in over
    *    `GRAVITY_PLANET_TWEEN_MS` — position and radius both — rather than
    *    teleporting.

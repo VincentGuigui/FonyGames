@@ -308,9 +308,9 @@ function fairnessFingerLands(bodies: readonly GravityPlanet[], seat: 0 | 1, dx: 
  * much room for error does this seat get", and the accept condition for a
  * fresh roll (spec §2.1).
  *
- * **A count, not just existence.** The old rule stopped at the first hit, which
- * asked the wrong question: a hairline the sampling grid happened to fall on
- * passed it exactly as well as a wide open lane. Scanning the real winning
+ * **A count, not just existence.** Stopping at the first hit asks the wrong
+ * question: a hairline the sampling grid happens to fall on passes exactly as
+ * well as a wide open lane. Scanning the real winning
  * region finely on 50 rolled seat-boards showed why that matters — the median
  * board offers a window about 22px by 11° on a 400px board, but the worst
  * fifth offer 4-14px by 3-8°, which is not an aim, it is a coincidence.
@@ -394,9 +394,8 @@ function allSurfacesClear(planets: readonly GravityPlanet[]): boolean {
  * caller's business, because it is the expensive half.
  *
  * Returns null when this roll could not be spaced legally at all, rather than
- * shipping an overlapping board the way the two-planet version's fallback
- * did: with a guaranteed board behind it (`rollBoard`) there is no longer any
- * reason to accept a bad one.
+ * shipping an overlapping board: `rollBoard` has a guaranteed board behind it,
+ * so there is never a reason to accept a bad one.
  */
 function rollGeometry(random: () => number): GravityBoard | null {
   for (let spacing = 0; spacing < GRAVITY_SPACING_ATTEMPTS; spacing++) {
@@ -427,10 +426,9 @@ function rollGeometry(random: () => number): GravityBoard | null {
  *
  * The **star** is the fixed point: always dead centre, only its size rolled.
  * It is what makes the straight line between the two ships a non-shot, which
- * is a job the planets used to share awkwardly — one of them was pinned to
- * cover the centre, and both were pulled close to the centre line so their
- * gravity reached it. Both of those rules are gone: the star does the work,
- * and the planets are free to roam their own halves.
+ * is a job the planets would otherwise share awkwardly — one pinned to cover
+ * the centre, both pulled close to the centre line so their gravity reached it.
+ * The star does that work instead, and the planets roam their own halves.
  *
  * **Three planets, two on one side and one on the other** (coin flip which),
  * with everything issue #16 asked for still guaranteed rather than merely
@@ -439,13 +437,12 @@ function rollGeometry(random: () => number): GravityBoard | null {
  * (`rollSideYs`), and every pair 50px of clear surface apart
  * (`allSurfacesClear`).
  *
- * **And a landing shot, for both seats, guaranteed.** This used to be best
- * effort — eight tries and then ship whatever the last one was. It is now the
- * accept condition: a geometry is only returned once `seatCanReachOpponent`
+ * **And a landing shot, for both seats, guaranteed.** Not best effort: it is
+ * the accept condition. A geometry is only returned once `seatCanReachOpponent`
  * finds a trajectory from EACH seat that reaches the other ship without ever
  * leaving the visible board, which the real simulation cannot then end early
- * for any reason. A crowded board is much easier to seal off than a
- * two-planet one was, so this is the rule that keeps three planets fair.
+ * for any reason. Three planets are far easier to seal a board off with than
+ * two, so this is the rule that keeps them fair.
  *
  * If 200 attempts somehow all fail, `GRAVITY_FALLBACK_BOARD` ships instead —
  * a fixed board whose own landing shots are asserted by the referee's tests.
@@ -574,9 +571,9 @@ export async function onGravityShot(
   }
 
   // The opponent's shot clock starts when the missile lands, not when it was
-  // fired (issue #34): until then they are watching someone else's flight, and
-  // a 10s trajectory used to eat almost their whole turn — then `tick` took a
-  // life off them for a shot they never had time to aim.
+  // fired: until then they are watching someone else's flight, and a 10s
+  // trajectory would eat almost their whole turn before `tick` took a life off
+  // them for a shot they never had time to aim.
   g.turn = opponent;
   g.resolvesAt = ctx.now() + watching + GRAVITY_SHOT_TIMEOUT_MS;
   countShotAndMaybeReroll(ctx, g);

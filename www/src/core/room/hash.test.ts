@@ -16,9 +16,9 @@ import {
  * Spec: docs/specs/join.md §Landing on a game page
  *
  * The three-way answer decides which of three screens a player gets, and two of the three
- * have been wrong before: an empty hash used to mint a code and connect on arrival, and a
- * damaged one used to mint a *different* code and erase the evidence. So the distinction is
- * asserted rather than trusted to the shape of an `if`.
+ * are easy to get wrong: an empty hash must not mint a code and connect on arrival, and a
+ * damaged one must not mint a *different* code and erase the evidence. So the distinction
+ * is asserted rather than trusted to the shape of an `if`.
  *
  * `roomFromHash` is pure for exactly this reason — there is no DOM test runner here, so
  * anything that reads `location` cannot be tested from node.
@@ -74,11 +74,11 @@ check('in either case', dashedLower.kind === 'code' && dashedLower.code === 'FON
 
 group('a damaged hash is reported, never repaired');
 
-// THE regression this file exists for: each of these used to mint a fresh code and rewrite
-// the URL, so the player landed alone in a different room with nothing left to compare.
+// THE case this file exists for: minting a fresh code and rewriting the URL for any of
+// these lands the player alone in a different room with nothing left to compare.
 check('five characters — a code copied one short', roomFromHash('#FONGA').kind === 'invalid');
 check('seven characters', roomFromHash('#FONGAME').kind === 'invalid');
-check('the old four-character length is no longer a code', roomFromHash('#FONG').kind === 'invalid');
+check('four characters', roomFromHash('#FONG').kind === 'invalid');
 check('a word', roomFromHash('#lobby').kind === 'invalid');
 
 /*
@@ -102,9 +102,9 @@ check('a zero is not folded into O', roomFromHash('#TAK0BE').kind === 'invalid')
 check('and a one is not folded into I', roomFromHash('#TAK1BE').kind === 'invalid');
 
 /*
- * THE new rule. Six letters is no longer enough: a code is two sayable triplets, and a
- * string that is not one cannot have been minted here. Every check below is six letters
- * and every one of them is a damaged link.
+ * Six letters is not enough on its own: a code is two sayable triplets, and a string that
+ * is not one cannot have been minted here. Every check below is six letters and every one
+ * of them is a damaged link.
  */
 check('six letters in the wrong shape is not a code', roomFromHash('#TKAOBE').kind === 'invalid');
 check('nor is an English word that misses it', roomFromHash('#SILENT').kind === 'invalid');

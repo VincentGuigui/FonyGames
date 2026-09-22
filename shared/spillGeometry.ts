@@ -45,9 +45,9 @@ export function flickBearing(k: number, screenAngle: number, n: number): number 
  * How far off straight ahead a flick may point: 80°, either side.
  *
  * **You throw water away from you, up the table.** Backwards is your own lap and sideways is
- * the floor, and neither is a shot anybody means to take — but a drag is a drag, and a
- * flick that curled back under the thumb used to launch a drop into nothing and cost the
- * thrower the drop, the lock, and the second it took to work out what had happened.
+ * the floor, and neither is a shot anybody means to take — but a drag is a drag, and
+ * without the cone a flick that curls back under the thumb launches a drop into nothing,
+ * costing the thrower the drop, the lock, and the second it takes to work out why.
  *
  * 80° is wide, on purpose. Every seat is across the table from every other one, so the
  * furthest a legitimate aim ever needs to point is 90° − 180°/n — 45° with a full table of
@@ -78,11 +78,11 @@ export function clampFlick(screenAngle: number): number {
 /**
  * How much of the aim window a flat-out flick gives up.
  *
- * **This is the decision the gesture is for.** Flick speed used to have exactly one
- * consequence — a shorter launch lock — which made throwing as hard as possible
- * strictly better than aiming, four times the throughput for no cost at all. Now a
- * hard throw buys that tempo by narrowing the window it has to fit through, so
- * "how hard do I dare throw this" is a real question with a real answer either way.
+ * **This is the decision the gesture is for.** If flick speed only bought a shorter
+ * launch lock, throwing as hard as possible would be strictly better than aiming — four
+ * times the throughput for no cost at all. A hard throw buys that tempo by narrowing the
+ * window it has to fit through, so "how hard do I dare throw this" is a real question
+ * with a real answer either way.
  *
  * Scaled **deterministically**, never jittered. A random deviation would be simpler
  * and is wrong twice over: the aim preview could not tell the truth about a throw it

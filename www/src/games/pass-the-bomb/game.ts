@@ -16,11 +16,11 @@ import type { BombMatch, PlayerId, ServerMessage } from '../../../../shared/prot
  *
  * ## Round end is announced now, and it has to be
  *
- * This used to work it out for itself — "a boom that leaves one player or none" — which held
- * for the elimination rounds and quietly failed for the other two ways a round ends. A
- * two-player round is over after one boom with both players still on their feet, and the
- * five-minute safety cap ends one with a whole circle left. So `boom` carries `over`, and
- * this believes it rather than counting heads.
+ * Working it out here — "a boom that leaves one player or none" — holds for the elimination
+ * rounds and quietly fails for the other two ways a round ends. A two-player round is over
+ * after one boom with both players still on their feet, and the five-minute safety cap ends
+ * one with a whole circle left. So `boom` carries `over`, and this believes it rather than
+ * counting heads.
  */
 export type BombView = {
   roundId: number;

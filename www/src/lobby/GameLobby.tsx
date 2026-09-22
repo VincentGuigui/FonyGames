@@ -20,10 +20,10 @@ import { GameSwitcher } from './GameSwitcher';
 /**
  * The lobby, identical for every game.
  *
- * Before this existed each game had grown its own arrangement of the same
- * pieces, in a different order with different headings — so learning your way
- * around one lobby taught you nothing about the next. The panels and their
- * order are fixed here:
+ * Per game, each would grow its own arrangement of the same pieces, in a
+ * different order with different headings, so learning your way around one
+ * lobby would teach you nothing about the next. The panels and their order are
+ * fixed here:
  *
  * 1. title and tagline
  * 2. how to play — the concept, then the bullets

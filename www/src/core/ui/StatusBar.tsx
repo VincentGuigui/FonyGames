@@ -18,11 +18,11 @@ import { GameMenu } from './GameMenu';
  *
  * ## Other players are NOT on this bar
  *
- * There used to be an opponent slot here, filled only in a two-player round because
- * with three or more a single "them" is a lie. That made the answer to "how am I
- * doing" arrive in one place at two players and somewhere else at three, and left
- * every screen computing which case it was in. Everyone's score now lives in one
- * panel that is the same at every head count — `core/ui/Scoreboard.tsx`.
+ * An opponent slot here could only be filled in a two-player round, because with three
+ * or more a single "them" is a lie — so the answer to "how am I doing" would arrive in
+ * one place at two players and somewhere else at three, with every screen computing
+ * which case it was in. Everyone's score lives in one panel that is the same at every
+ * head count instead — `core/ui/Scoreboard.tsx`.
  */
 
 export type StatusScore = {

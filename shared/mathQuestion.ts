@@ -180,11 +180,11 @@ function buildRun(
       const top = Math.min(Math.max(2, hi), budget);
       if (top < Math.max(2, lo)) {
         /*
-         * No divisor of this width fits any more. Falling back to `×` here is
-         * what the first version did, and it put a multiplication into a
-         * division-only question — the host's toggles silently overruled. So:
-         * multiply only if the host ticked it, and otherwise give up on this
-         * roll and let `generateQuestion` try again.
+         * No divisor of this width fits any more. Falling back to `×`
+         * unconditionally would put a multiplication into a division-only
+         * question, silently overruling the host's toggles. So: multiply only
+         * if the host ticked it, and otherwise give up on this roll and let
+         * `generateQuestion` try again.
          */
         if (!muls.includes('*')) return null;
         tail.push({ op: '*', n: operand(random, digits) });
@@ -434,9 +434,8 @@ export const MATH_ROLL_TRIES = 60;
  * The simplest legal question the host's options can express: two operands and
  * one ticked operation, built so it cannot break a spec rule.
  *
- * It must use an operation the host actually ticked — an addition-shaped
- * fallback under a subtraction-only setting is the game ignoring the lobby, and
- * it is exactly what the first version of this file shipped.
+ * It must use an operation the host actually ticked: an addition-shaped
+ * fallback under a subtraction-only setting is the game ignoring the lobby.
  */
 function simplest(random: () => number, options: MathOptions): { text: string; value: number } {
   const op = pickOf(random, options.ops);
@@ -472,8 +471,7 @@ function simplest(random: () => number, options: MathOptions): { text: string; v
  *
  * So this walks *down* from what was asked to what fits, and the thing it gives
  * up is the operator count — never the ticked operations, and never a spec rule.
- * Relaxing the operations instead is what the first version did, and a
- * subtraction-only room got additions.
+ * Relaxing the operations instead hands a subtraction-only room additions.
  *
  * `buildExpression` also rejects rather than repairs (a subtraction that would
  * go negative), so each count gets `MATH_ROLL_TRIES` attempts before the next

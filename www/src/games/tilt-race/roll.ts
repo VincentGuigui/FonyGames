@@ -34,7 +34,7 @@ import { downVector } from './gravityButton';
  * Held upright, gravity points down the screen and the angle is 0. Rotating the
  * phone clockwise brings its right edge down, which swings gravity toward
  * screen-right and the angle up — so **clockwise on the wrist is clockwise on
- * the road**, the sign the first version had backwards.
+ * the road**, which is the whole of the sign convention here.
  *
  * DOM-free: no event listener in here, only the maths, so `roll.test.ts` can
  * turn a phone right round without a phone.

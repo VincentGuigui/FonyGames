@@ -225,10 +225,10 @@ async function speedLimit(): Promise<void> {
    * Against what `capped` would have allowed over the same 100 ms, which is the
    * comparison that means "unclamped".
    *
-   * This used to read `flick > CM_MOUSE_SPEED`, comparing a distance against a speed in
-   * board widths per *second* — dimensionally wrong, and only passing because the speed
-   * happened to be small enough. Raising CM_MOUSE_SPEED from 0.55 to 0.7 walked straight
-   * into it, with the flick at 0.58 failing a test about a rule it had not broken.
+   * Not `flick > CM_MOUSE_SPEED`, which compares a distance against a speed in board
+   * widths per *second*: dimensionally wrong, and it passes only while the speed happens
+   * to be small enough, so raising `CM_MOUSE_SPEED` fails a test about a rule the flick
+   * has not broken.
    */
   const budget = CM_MOUSE_SPEED * 0.1;
   check('direct mode lets a real flick cross the floor',

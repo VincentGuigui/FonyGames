@@ -15,9 +15,9 @@ type Tab = 'create' | 'join';
  * Start a room, or join a friend's. Shown when the hash is empty.
  * Spec: docs/specs/join.md §Landing on a game page
  *
- * Opening a game page used to mint a code and connect immediately, so you were the host of a
- * new room before deciding you wanted one, and anyone who came to *join* had to go back to the
- * hub to type their code. Merely browsing the catalogue created rooms.
+ * A game page mints nothing on arrival: doing so would make you the host of a new room before
+ * deciding you wanted one, send anyone who came to *join* back to the hub to type their code,
+ * and create a room for everyone merely browsing the catalogue.
  *
  * **Create is the default tab**, because of who actually reaches this screen. A valid hash goes
  * straight to the lobby and the hub's code field navigates straight to a lobby, so the only way

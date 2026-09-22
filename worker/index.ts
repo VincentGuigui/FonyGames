@@ -37,10 +37,9 @@ export type Env = {
   /**
    * `'1'` to bypass the flag gate below entirely — set only on the dev Worker
    * (`wrangler.jsonc`'s `env.dev`). docs/specs/backoffice.md §2b already has the hub
-   * show every game on dev as clickable ("dev exists to try things"); before this,
-   * clicking one that was `soon`/`hidden` still failed to connect. This removes that
-   * mismatch rather than adding a new one — verifying the real block still means
-   * checking prod, exactly as the doc already says.
+   * show every game on dev as clickable ("dev exists to try things"), and without this
+   * clicking one that is `soon`/`hidden` would still fail to connect. Verifying the real
+   * block still means checking prod, exactly as the doc says.
    */
   DISABLE_FLAG_GATE?: string;
 };
@@ -48,7 +47,7 @@ export type Env = {
 /**
  * One reader per isolate, built lazily and kept — the whole point is a cache that
  * outlives a request. Keyed by URL so a config change cannot be served by a reader
- * holding the old host's answers.
+ * still holding the previous host's answers.
  */
 let reader: FlagsReader | null = null;
 let readerUrl: string | undefined;

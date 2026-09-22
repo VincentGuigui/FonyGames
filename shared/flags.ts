@@ -8,13 +8,11 @@
  * ## One state, not two fields
  *
  * A game is exactly one of `new` / `active` / `soon` / `hidden` — never two of these at
- * once. This supersedes an earlier design (superseded 2026-09-01) that kept `isNew` as a
- * second, independent boolean specifically so a game could be "new and disabled" at the
- * same time; the operator asked for the simpler mental model instead, at the cost of that
- * combination. `soon` also replaces the old `disabled` — the same runtime "not playable
- * right now" state, renamed to read the same as the build-time "not built yet" one
- * (`GameCard.status`), which the stricter-of-the-two rule in `cardState` already treated
- * as the same kind of caveat to a player.
+ * once. Keeping `isNew` as a second, independent boolean would allow "new and disabled";
+ * the maintainer's call is the simpler mental model, at the cost of that combination.
+ * `soon` is the runtime "not playable right now" state, named to read the same as the
+ * build-time "not built yet" one (`GameCard.status`), which the stricter-of-the-two rule
+ * in `cardState` treats as the same kind of caveat to a player.
  *
  * ## Fail open, on purpose
  *

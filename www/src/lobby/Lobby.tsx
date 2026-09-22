@@ -25,8 +25,8 @@ import { Duel, type DuelPhase } from '../games/tap-duel/Duel';
 /**
  * Everything about *which* room is the shared gate's job: the chooser when there is no code
  * in the hash, "this room doesn't exist" when the hash is damaged, and this screen once
- * there is a room to be in (lobby/RoomGate.tsx). Five copies of that logic used to live in
- * five files, identical down to the comment.
+ * there is a room to be in (lobby/RoomGate.tsx). Per game it would be five identical copies
+ * of the same logic.
  */
 
 /** How long the win/lose colour flash holds before the scoreboard replaces it. */

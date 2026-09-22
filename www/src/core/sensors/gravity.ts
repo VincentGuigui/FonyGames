@@ -2,12 +2,12 @@
  * Which way gravity pulls, in screen coordinates — from a raw
  * `deviceorientation` reading, no calibration and no reference pose.
  *
- * First written for Tilt Race's reverse button (`games/tilt-race/gravityButton.ts`
- * still owns that game's own doc on the derivation and its history of sign
- * bugs) and shared here once Crowd Race needed the identical vector for a
- * second, unrelated reason: a player's own walking direction is "whichever
- * way is up, as gravity currently sees it" (docs/specs/games/crowd-race.md
- * §5) — the same primitive, read with the opposite sign.
+ * Shared, because two games want the identical vector for unrelated reasons:
+ * Tilt Race's reverse button follows the lowest screen edge
+ * (`games/tilt-race/gravityButton.ts`, which owns the note on why that file
+ * does not negate `x` and `roll.ts` does), and a Crowd Race player walks
+ * "whichever way is up, as gravity currently sees it"
+ * (docs/specs/games/crowd-race.md §5) — the same primitive, opposite sign.
  *
  * Derived from the actual device-orientation rotation matrix
  * (`Rz(alpha) Rx(beta) Ry(gamma)`, the W3C's own composition order): gravity

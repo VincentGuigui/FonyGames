@@ -60,8 +60,8 @@ function theAngle(): void {
   check('left edge down is a quarter the other way', Math.abs((rollAngle(90, 0) ?? 0) * DEG + 90) < 1e-6, (rollAngle(90, 0) ?? 0) * DEG);
   check('upside down is half a turn', Math.abs(Math.abs((rollAngle(0, -90) ?? 0) * DEG) - 180) < 1e-6, (rollAngle(0, -90) ?? 0) * DEG);
 
-  // The sign is the whole of the first bullet of the report: the old control
-  // turned the car the other way from the wrist.
+  // The sign is the one thing worth pinning: get it wrong and the car turns the
+  // other way from the wrist, which reads as the control being broken.
   check('a small clockwise turn reads positive', (rollAngle(upright(20).gamma, upright(20).beta) ?? 0) > 0);
   check('and a small counter-clockwise turn negative', (rollAngle(upright(-20).gamma, upright(-20).beta) ?? 0) < 0);
 

@@ -361,17 +361,16 @@ export class Room extends DurableObject<Env> {
    * have seen, so this must only ever go **up** — for the life of the room, not the life of this
    * object.
    *
-   * That distinction is the bug this shape exists to fix. It used to be a plain counter starting
-   * at 0, and a Durable Object is evicted whenever the room goes quiet: the next instance began
-   * again at 1, every frame it sent looked stale to a client that had already seen 11, and
-   * `RoomClient` silently dropped all of them for the rest of the session. Pass the Bomb found it
-   * because its fuse is a deliberate 8-25 second silence — an eviction window by design — so the
-   * `boom` ending the round never arrived and the game could not finish. Every other game had the
-   * same hole; they just rarely go quiet long enough to fall in it.
+   * That distinction is what this shape exists for. A plain counter starting at 0 cannot hold
+   * it: a Durable Object is evicted whenever the room goes quiet, the next instance begins again
+   * at 1, every frame it sends looks stale to a client that has already seen 11, and
+   * `RoomClient` drops all of them for the rest of the session. Pass the Bomb is where that
+   * bites hardest — its fuse is a deliberate 8-25 second silence, an eviction window by design —
+   * but every game has quiet moments.
    *
    * Seeded from the clock instead of from storage, so it needs no write per frame and no
-   * migration: wall-clock time already survives eviction, and every previously sent value was
-   * also roughly `Date.now()`, so a fresh instance resumes above them. The `+1` keeps it strictly
+   * migration: wall-clock time survives eviction, and every value sent is also roughly
+   * `Date.now()`, so a fresh instance resumes above them. The `+1` keeps it strictly
    * increasing when two frames land in the same millisecond, which `boom` and the `bomb` that
    * follows it always do.
    *
@@ -2158,9 +2157,9 @@ export class Room extends DurableObject<Env> {
     if (!me) return;
 
     // Another live socket may already hold this seat — either a refresh that
-    // resumed before the old socket finished closing, or the duplicate-tab
-    // eviction in #onJoin. Marking the player away here would undo a resume
-    // that has already succeeded.
+    // resumed before this one finished closing, or the duplicate-tab eviction
+    // in #onJoin. Marking the player away here would undo a resume that has
+    // already succeeded.
     const heldElsewhere = this.ctx
       .getWebSockets()
       .some((other) => other !== ws && this.#idOf(other) === id);

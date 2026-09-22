@@ -68,28 +68,26 @@ Reference algorithm (implemented once in `core/sensors/bump.ts`):
    direction the phone is held) and take `Δ = |a − baseline|` — how far the reading has
    MOVED, in any direction.
 
-   > This step used to compare **magnitudes**: `Δ = | |a| − baseline |`. That reads as the
-   > direction-agnostic choice and is the opposite of one, because gravity dominates the
-   > vector and a knock arriving *sideways* adds to it at right angles. A 6 m/s² tap across
-   > an upright phone shows up as √(9.81² + 6²) − 9.81 ≈ **1.7** on the magnitude and as the
-   > full 6 on the vector — so the gentle corner-to-corner knock this game asks for was
-   > being thrown away by trigonometry, while the same knock along the phone's length
-   > registered fine. The answer was the right measurement, not a lower threshold.
+   > **Not magnitudes** (`Δ = | |a| − baseline |`), which reads as the direction-agnostic
+   > choice and is the opposite of one: gravity dominates the vector, and a knock arriving
+   > *sideways* adds to it at right angles. A 6 m/s² tap across an upright phone shows up as
+   > √(9.81² + 6²) − 9.81 ≈ **1.7** on the magnitude and as the full 6 on the vector, so the
+   > gentle corner-to-corner knock this game asks for is thrown away by trigonometry while
+   > the same knock along the phone's length registers fine. No threshold fixes that; the
+   > measurement has to be right.
 3. Candidate spike when `Δ > BUMP_THRESHOLD` (**9 m/s²**, tune per device class) **on a
    rising edge** — the previous sample was under the line and the jump between the two is
    at least `BUMP_JERK` (5 m/s²). Sustained agitation is rejected separately: over the line
    for more than half of the last 500 ms is a phone being waved, and nothing it reports is
    a knock.
 
-   > This step used to read "and the previous 150 ms was calm", where anything above half
-   > the threshold counted as not-calm. **It was wrong, and it broke the gesture.** You
-   > *swing* a phone to meet another one; the swing is 6–10 m/s² of ordinary movement, so
-   > the run-up disqualified the knock at the end of it — and both phones had to pass the
-   > same test within a quarter of a second, so the failure compounded. Replayed against
-   > the same synthetic traces, the old rule scored **0** for a knock at the end of a swing
-   > and 1 for the same knock out of dead stillness. What separates a contact from a swing
-   > is not stillness beforehand, it is how fast the reading changes: a contact arrives in
-   > one or two samples, a swung arm ramps over ten.
+   > **Not "and the previous 150 ms was calm".** You *swing* a phone to meet another one,
+   > and the swing is 6–10 m/s² of ordinary movement, so the run-up disqualifies the knock
+   > at the end of it — with both phones having to pass within a quarter of a second, the
+   > failure compounds. Against synthetic traces a calm rule scores **0** for a knock at
+   > the end of a swing and 1 for the same knock out of dead stillness. What separates a
+   > contact from a swing is not stillness beforehand, it is how fast the reading changes:
+   > a contact arrives in one or two samples, a swung arm ramps over ten.
 4. Send `{t:'bump', at: <clientTs>}` to the server, throttled to 1 per 300 ms.
 5. **The server pairs bumps**: two players in the same room whose bump
    timestamps (clock-corrected) fall within **±250 ms** are a confirmed contact.
@@ -188,8 +186,8 @@ watches for. Those games opt in with a `screen` field on their `GameCard`
 screen: { orientation: 'portrait' | 'landscape' | 'free', fullscreen: boolean }
 ```
 
-Omitted is `{ orientation: 'free', fullscreen: false }` — ask for nothing, behave exactly as
-every game did before this existed. `fullscreen` is what turns the orientation half from a
+Omitted is `{ orientation: 'free', fullscreen: false }` — ask for nothing, and nothing
+happens. `fullscreen` is what turns the orientation half from a
 request into an enforceable lock: `screen.orientation.lock()` is refused outside fullscreen
 on the one browser that honours it at all (Android Chrome), so a game that wants the lock to
 actually hold has to want fullscreen too.

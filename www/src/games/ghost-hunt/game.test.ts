@@ -450,9 +450,9 @@ console.log('\na new round wipes the last one');
 /*
  * Who is winning — one number now, and one direction.
  *
- * It used to be two values pulling opposite ways: most caught, then the lowest time, and
- * never either on its own. Points fold both into a figure that only goes up, so what these
- * check is that the fold really did keep the old order rather than merely looking tidier.
+ * The alternative is two values pulling opposite ways: most caught, then the lowest time,
+ * and never either on its own. Points fold both into a figure that only goes up, so what
+ * these check is that the fold keeps that order rather than merely looking tidier.
  * `worker/ghostHunt.test.ts` proves the two orders agree on real finds; these cover what
  * the phone does with the numbers once they arrive.
  */
@@ -467,9 +467,9 @@ console.log('\nwho is winning');
   check('a player who left the room is not drawn', ranking(board, [A, C]).join() === 'c,a');
 
   /*
-   * THE check, kept from the old rule. A has spent the least time of anyone — ten seconds
-   * for their two — and under a score that was a time, lowest winning, they came first for
-   * having barely played. Points cannot do that: two ghosts is two ghosts.
+   * THE check. A has spent the least time of anyone — ten seconds for their two — and under
+   * a score that was a time, lowest winning, they would come first for having barely played.
+   * Points cannot do that: two ghosts is two ghosts.
    */
   check('and barely playing does not win it', ranking(board, [A, B, C])[0] === B);
 }
@@ -683,11 +683,10 @@ console.log('\nthe photosphere');
   /*
    * The vertical window has to fit ABOVE a ghost at the top of the band.
    *
-   * This is the check for the projection bug: the FOV used to be specified across the
-   * screen, so a portrait phone derived a 151° vertical window whose crop was taller
-   * than the image — the vertical crop clamped at every elevation and dragging up and
-   * down did nothing. Half the window plus the highest ghost has to stay under the
-   * zenith, with a little room for the overflow the draw now handles honestly.
+   * Specifying the FOV across the screen instead would leave a portrait phone with a 151°
+   * vertical window whose crop is taller than the image: the vertical crop clamps at every
+   * elevation and dragging up and down does nothing. Half the window plus the highest ghost
+   * has to stay under the zenith, with a little room for the overflow the draw handles.
    */
   check('the window is a window, not the whole sphere', V_FOV_DEG > 0 && V_FOV_DEG < 180);
   check('and a ghost at the top of the band is nearly centrable',

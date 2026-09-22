@@ -188,14 +188,13 @@ export function Duel(props: {
    * cumulative match total, which is the only number Tap Duel keeps.
    *
    * It reads `tally` and not `result.scores`, and that is the whole point: `result` is
-   * cleared on every `arm`, so from the second duel onwards the panel showed **nil for
-   * everyone** through the get-ready and the signal, and only remembered the score once
-   * the round it was about had already finished. The comment here used to claim `result`
-   * survived between rounds. It does not, and had not for as long as the panel existed.
+   * cleared on every `arm`, so from the second duel onwards it is **nil for everyone**
+   * through the get-ready and the signal, and only carries the score once the round it
+   * was about has already finished.
    *
    * It cannot cost a reaction: the panel is `pointer-events: none`, so a tap over it
-   * falls through to the target or the backdrop exactly as it did before, and the round
-   * screen stays the bare tap target it is meant to be.
+   * falls through to the target or the backdrop, and the round screen stays the bare
+   * tap target it is meant to be.
    */
   const scores = (
     <Scoreboard

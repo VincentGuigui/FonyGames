@@ -313,9 +313,9 @@ function render(state: State): void {
  * Two views of "is anyone playing", on their own page.
  * Spec: docs/specs/analytics.md §7
  *
- * Cloudflare monitoring used to share the main page with the flag switches — moved
- * here for the reason its own loader already gave: it makes an outbound call with its
- * own timeout, and the switches must stay usable regardless of how that call is going.
+ * Cloudflare monitoring is on its own page rather than beside the flag switches, for the
+ * reason its own loader gives: it makes an outbound call with its own timeout, and the
+ * switches must stay usable regardless of how that call is going.
  * A full replace on every tap rather than a partial update, same as `signIn()`/`render()`
  * already do: this page has one user, and the cost of re-rendering a handful of DOM
  * nodes is not worth tracking which half changed.

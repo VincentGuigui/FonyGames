@@ -285,10 +285,10 @@ export class TilesRun {
    * is always what a press there means.
    *
    * **A press that lands nothing costs a life** (spec §2.2): too early, too
-   * late, or a lane with nothing in it at all. That last one used to be free —
-   * the lane was simply ignored — which made mashing every lane strictly
-   * better than reading the board, since a mash that arrived early cost
-   * nothing whenever the lane happened to be empty.
+   * late, or a lane with nothing in it at all. Ignoring that last one instead
+   * would make mashing every lane strictly better than reading the board,
+   * since a mash that arrived early would cost nothing whenever the lane
+   * happened to be empty.
    *
    * A press on a lane already held by another finger is not an attempt at
    * anything and is ignored outright: a second thumb landing on a tile that is

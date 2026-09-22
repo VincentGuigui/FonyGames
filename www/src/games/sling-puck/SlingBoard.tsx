@@ -125,8 +125,8 @@ export function SlingBoard({
   // score the server had already moved on from.
   const view = game.view();
 
-  // "Theirs" used to be a second big number in the corner of this board. It is the
-  // shared panel now, so the same glance works the same way in every game.
+  // "Theirs" is the shared panel's job, not a second big number in the corner of this
+  // board, so the same glance works the same way in every game.
   const state = game.state;
   const scores = (state?.players ?? []).map((id) => {
     const p = players.find((q) => q.id === id);

@@ -10,8 +10,8 @@ export class TttGame {
 
 /**
  * The winning finale (spec §4). The referee decides `phase: 'over'` on the tap
- * that wins the meta grid, and before this existed the board vanished in the
- * same frame — the winning move was the one move nobody ever saw land.
+ * that wins the meta grid; without a finale the board vanishes in the same
+ * frame, making the winning move the one move nobody ever sees land.
  *
  * Two beats, then the results:
  *

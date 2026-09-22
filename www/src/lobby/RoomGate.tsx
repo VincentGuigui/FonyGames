@@ -110,23 +110,21 @@ export function RoomGate({
   /**
    * Enter a room, and make sure the URL says so.
    *
-   * The hash is what a reload reads, so entering without writing it left the player one refresh
-   * away from being dumped back on the chooser — the property the old mint-on-arrival code had
-   * for free and the first thing this lost.
+   * The hash is what a reload reads, so entering without writing it leaves the player one
+   * refresh away from being dumped back on the chooser.
    *
    * The comparison is against the code itself, not merely "is there a code there" — a hash left
    * over from a room the player minted but did not enter would otherwise survive while they sat
    * in a different one, and a reload would take them to the wrong room.
    *
-   * **`pushState`, so back leaves the room and lands on the game's own page.** This was
-   * `replaceState` on the reasoning that the chooser and the room it minted are one step. In
-   * use they are not: the lobby is somewhere you sit and wait, and it is the screen people
-   * press back from — and back took them clean off the game, past the page they had just come
-   * through, because that step had been folded away.
+   * **`pushState`, so back leaves the room and lands on the game's own page.** `replaceState`
+   * would treat the chooser and the room it minted as one step, which they are not in use: the
+   * lobby is somewhere you sit and wait, and it is the screen people press back from. Folding
+   * that step away takes them clean off the game, past the page they just came through.
    *
    * Only this transition pushes. Someone who arrived on a link has no game page behind them,
-   * and synthesising one would mean back no longer returns to wherever they were — the
-   * messages app they tapped the link in, which is genuinely where they came from.
+   * and synthesising one would stop back returning them to wherever they actually were — the
+   * messages app they tapped the link in.
    */
   function enter(code: string): void {
     const current = readRoomHash();

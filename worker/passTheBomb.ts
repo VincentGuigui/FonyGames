@@ -331,8 +331,8 @@ export async function onFuse(ctx: Ctx): Promise<boolean> {
   bomb.pending = {};
 
   // With two people this is already true the moment the fuse blows: nobody is left to pass
-  // to. With three or more it is the same check the classic round always used — it just
-  // used to reset for another round afterwards, and now it does not (§2.2).
+  // to. With three or more it is the classic last-one-standing check, and it ends the round
+  // rather than dealing another (§2.2).
   const over = lastStanding(bomb.alive.length, bomb.solo) || now >= bomb.endsAt;
   if (over) closeRound(bomb);
 

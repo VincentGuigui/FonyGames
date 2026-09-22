@@ -13,13 +13,11 @@ import { onMotion, type MotionSample } from './motion';
  *
  * ## What a knock is: a sharp EDGE, not a moment of stillness
  *
- * The first version required 150 ms of near-stillness before a spike would count, where
- * "not still" meant any sample half the knock threshold above the baseline. That is the
- * bug this file was rewritten for: **you swing a phone to meet another one**, and the
- * swing is 6–10 m/s² of perfectly ordinary movement, so the run-up disqualified the very
- * knock it led to. Two phones both had to pass that test in the same tenth of a second, so
- * the failure compounded — a room of people knocking phones together and nothing
- * happening.
+ * Requiring, say, 150 ms of near-stillness before a spike counts is the obvious rule and
+ * the wrong one: **you swing a phone to meet another one**, and the swing is 6–10 m/s² of
+ * perfectly ordinary movement, so the run-up disqualifies the very knock it leads to. Two
+ * phones both have to pass in the same tenth of a second, so the failure compounds into a
+ * room of people knocking phones together and nothing happening.
  *
  * What separates a knock from a swing is not calm beforehand, it is **how fast the reading
  * changes**: a contact is a step of tens of m/s² between consecutive samples (~16 ms
@@ -33,26 +31,25 @@ import { onMotion, type MotionSample } from './motion';
  *
  * ## A spike in ANY direction, which is not what the magnitude says
  *
- * The reading is a vector, and this used to watch only its **length**. That sounds like the
- * direction-agnostic choice and is the opposite of one, because the vector is dominated by
- * gravity: a phone held upright reads about 9.8 straight down, and a knock that arrives
- * sideways adds to it *at right angles*. Pythagoras then eats almost all of it — a 6 m/s²
- * lateral tap shows up as √(9.8² + 6²) − 9.8 ≈ **1.7** on the magnitude, comfortably under
- * any sane threshold, while the same tap along the phone's length shows up as the full 6.
+ * The reading is a vector, and watching only its **length** sounds direction-agnostic while
+ * being the opposite, because the vector is dominated by gravity: a phone held upright reads
+ * about 9.8 straight down, and a knock that arrives sideways adds to it *at right angles*.
+ * Pythagoras then eats almost all of it — a 6 m/s² lateral tap shows up as √(9.8² + 6²) − 9.8
+ * ≈ **1.7** on the magnitude, comfortably under any sane threshold, while the same tap along
+ * the phone's length shows up as the full 6.
  *
- * So a gentle corner-to-corner knock — the exact gesture the game asks for, and the one that
- * arrives across the phone rather than through it — was being thrown away by trigonometry,
- * and the fix was not a lower threshold but the right measurement: how far the vector has
- * MOVED from its resting place, `|a − baseline|`, which is the same number whichever way
- * the knock came from.
+ * That would throw away the gentle corner-to-corner knock the game actually asks for, and no
+ * threshold is low enough to fix it. The measurement is what has to be right: how far the
+ * vector has MOVED from its resting place, `|a − baseline|`, which is the same number
+ * whichever way the knock came from.
  */
 
 /**
  * Spike away from the rolling baseline that counts as a knock, m/s².
  *
- * Lower than it was (12) — safe now that the measurement above is honest, and deliberate:
- * the spec asks people to tap phones *gently*, and a threshold tuned on knocks hard enough
- * to survive the old magnitude test was asking for the opposite. A false positive costs
+ * Low on purpose, and affordable because the measurement above is honest: the spec asks
+ * people to tap phones *gently*, and a threshold tuned for knocks hard enough to survive a
+ * magnitude test would be asking for the opposite. A false positive costs
  * nothing on its own; the referee only moves the bomb when two different phones report one
  * within 250 ms of each other, and the quota mutes anybody who spams.
  */

@@ -6,8 +6,8 @@
  * `sprites.test.ts`'s `bucket()`: how the 25 poses divide the hull's range is
  * a *stated requirement* — 40% neutral, 40% small bank, 20% hard bank — and a
  * distribution is exactly the kind of thing that looks fine in the source and
- * is wrong on a phone. The first version quantised linearly and gave the
- * neutral pose 25%, which is why this file exists.
+ * is wrong on a phone: quantising linearly gives the neutral pose 25%, and the
+ * ship reads as permanently banked even flying straight.
  */
 import { ASTEROID_REACH } from './game';
 import { POSE_BANDS, SHIP_SHEET_COLS, SHIP_SHEET_ROWS, shipFrame } from './pose';

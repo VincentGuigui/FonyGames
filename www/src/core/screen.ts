@@ -60,7 +60,7 @@ export type Visibility = {
  *
  * Failure is silent and total: no `wakeLock` (Safari before 16.4, any browser over plain
  * HTTP), a refused request, a lock dropped by the system — all of them mean the screen
- * behaves as it did before this existed.
+ * behaves exactly as an untouched one does.
  */
 export function keepAwake(nav: WakeLockish, doc: Visibility): () => void {
   let live = true;
@@ -164,8 +164,7 @@ export async function goFullscreen(el: Fullscreenish): Promise<boolean> {
  * (`goFullscreen`'s and `lockUpright`'s own comments above). Spec: docs/device-capabilities.md §5b
  *
  * `wanted` is a game's own `GameScreen`, so a game that asks for nothing (the default)
- * makes this a no-op — every game behaves exactly as it did before this existed unless
- * its card says otherwise.
+ * makes this a no-op: nothing happens to a game whose card does not ask for it.
  *
  * **Fullscreen is awaited before the lock is attempted, not fired alongside it.** Android
  * Chrome refuses `orientation.lock()` outside fullscreen, so asking for the lock before
@@ -217,7 +216,7 @@ export function useGameOrientation(orientation: ScreenOrientation | undefined, o
     return () => {
       delete root.dataset['landscape'];
       release();
-      // Back to the lobby's portrait, which is what the page had before this mounted.
+      // Back to the lobby's portrait, which is what the page holds outside a round.
       lockUpright(screen as Orientationish, 'portrait');
     };
   }, [on, orientation]);

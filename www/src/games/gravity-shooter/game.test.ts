@@ -118,9 +118,8 @@ function aiming(): void {
   const nudged = aimFromFinger(GRAVITY_MIN_AIM_DISTANCE * 0.5, 0);
   check('a floor-band finger still fires toward itself', nudged.angle > 0, nudged.angle);
 
-  // And it is a shot, not a non-shot: `releaseAim` used to reject strength 0,
-  // which after the floor band would have swallowed the whole minimum-power
-  // pad. Only a finger that never left the nose at all is nothing.
+  // And it is a shot, not a non-shot: rejecting strength 0 would swallow the
+  // whole minimum-power pad. Only a finger that never left the nose is nothing.
   const game = new GravityGame();
   game.identify('a', () => 1_000);
   game.apply({
@@ -143,9 +142,9 @@ function aiming(): void {
   const halfway = aimFromFinger(0, -(GRAVITY_MIN_AIM_DISTANCE + (GRAVITY_MAX_AIM_DISTANCE - GRAVITY_MIN_AIM_DISTANCE) / 2));
   check('and halfway up the ramp is half strength', near(halfway.strength, 0.5), halfway.strength);
 
-  // The point of the change: the floor is worth real screen. Both the pad and
-  // the ramp are wider than the whole ramp used to be at 0.3 with no floor.
-  check('the floor band is a thumb-sized pad, and the ramp is wider than it was',
+  // The floor is worth real screen: both the pad and the ramp are wider than
+  // the 0.3 a floorless ramp would give the whole gesture.
+  check('the floor band is a thumb-sized pad, and the ramp is wide',
     GRAVITY_MIN_AIM_DISTANCE > 0 && GRAVITY_MAX_AIM_DISTANCE - GRAVITY_MIN_AIM_DISTANCE > 0.3,
     { GRAVITY_MIN_AIM_DISTANCE, GRAVITY_MAX_AIM_DISTANCE });
 }
@@ -270,9 +269,8 @@ function lifetime(): void {
     Math.abs(timeOffscreen - GRAVITY_OFFSCREEN_LIFETIME_MS) < GRAVITY_STEP_MS, timeOffscreen);
   // `timeOffscreen` above already pins the budget as the actual cause; this
   // only needs to rule out the OTHER possible ending, the outer wall itself
-  // (`GRAVITY_SIM_BOUNDS_MAX`) — which a smaller `GRAVITY_SHIP_MARGIN` brings
-  // this grazing shot noticeably closer to than it used to be, since the
-  // floor speed it launches at rises with the board's own (now taller) height.
+  // (`GRAVITY_SIM_BOUNDS_MAX`), which this grazing shot comes close to: the
+  // floor speed it launches at rises with the board's own height.
   const last = grazing.path.at(-1);
   check('and inside the outer wall, so the budget ended it — not the wall',
     !!last && last.x < GRAVITY_SIM_BOUNDS_MAX, last);
@@ -379,8 +377,8 @@ function shipSizedHitbox(): void {
   const clearing = offsetBy(GRAVITY_HIT_RADIUS * 1.4);
   check('a shot passing inside the sprite\'s own edge connects', clipping.hit === true, clipping.path.at(-1));
   check('and one passing outside it still misses', clearing.hit === false, clearing.path.at(-1));
-  // The old 0.06 hitbox would have missed the first of those outright.
-  check('which the old dot-sized hitbox would not have caught', GRAVITY_HIT_RADIUS * 0.9 > 0.06);
+  // A dot-sized 0.06 hitbox would miss the first of those outright.
+  check('which a dot-sized hitbox would not have caught', GRAVITY_HIT_RADIUS * 0.9 > 0.06);
 }
 
 function replayUsesTheBoardTheShotWasFiredOn(): void {
@@ -426,8 +424,7 @@ function movingBoardIsHeldThenEased(): void {
   // Deliberately slot-shuffled relative to `fired` (rightmost planet first), to
   // prove the tween pairs by SCREEN ORDER rather than by array index — pairing
   // by index would send planets across each other through the middle. The
-  // crowded side swaps too, which is exactly what the old pair-by-side
-  // ordering could not survive.
+  // crowded side swaps too, which is what pairing by side cannot survive.
   const rerolled: GravityPlanetTrio = [
     { x: 0.74, y: 0.32, r: 0.09, art: 2 },
     { x: 0.30, y: 0.66, r: 0.15, art: 1 },

@@ -11,12 +11,12 @@ import { art, type SpriteSheet } from '../../../core/art/sprites';
  *
  * Sorted, so a file's index is stable across builds.
  *
- * **One set, not two.** Kids used to have their own folder and lost it: a kid is an adult
- * design blitted smaller, because `render.ts` scales it at `base` 16 against the adult's
- * 26. That is the maintainer's call and it costs something worth naming — the spec's
- * accessibility rule asked for adult and kid to differ in *shape and size*, and now only
- * size separates them. A 1.6x difference is legible and does not rely on colour, but it
- * is narrower than it was, and goat-siege.md §12 says so rather than pretending.
+ * **One set, not two.** A kid is an adult design blitted smaller, because `render.ts`
+ * scales it at `base` 16 against the adult's 26. That is the maintainer's call and it
+ * costs something worth naming — the spec's accessibility rule asks for adult and kid to
+ * differ in *shape and size*, and only size separates them. A 1.6x difference is legible
+ * and does not rely on colour, but it is a narrow margin, and goat-siege.md §12 says so
+ * rather than pretending.
  */
 const adults = import.meta.glob('./goats/*.svg', {
   query: '?url&no-inline',

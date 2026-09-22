@@ -71,7 +71,7 @@ export type ScreenOrientation = 'portrait' | 'landscape' | 'free';
  * (docs/device-capabilities.md §5b). A game with a sideways board or a camera overlay
  * that a stray rotation would break wants both; most games want neither, which is why
  * an omitted `screen` is `{ orientation: 'free', fullscreen: false }` — ask for
- * nothing, behave exactly as every game did before this existed.
+ * nothing, and nothing happens.
  *
  * Fullscreen is what turns `orientation` from a request into an enforceable lock:
  * `screen.orientation.lock()` rejects outside fullscreen on Android Chrome, and iOS
@@ -171,16 +171,14 @@ export type GameCard = {
    * | `live` | none | yes | first |
    * | `soon` | **SOON**, quiet | **no**, and dimmed | last |
    *
-   * **This says whether a game EXISTS, not how it is being sold.** There used to be a
-   * third value, `new`, and it was a mistake: the NEW badge is a merchandising
-   * decision that changes every few weeks, and baking it into a bundle meant the only
-   * way to take it off a card was a deploy. Worse, `cardState` OR'd it with the flag,
-   * so the admin's NEW toggle silently did nothing for exactly the games that had it.
+   * **This says whether a game EXISTS, not how it is being sold.** A third `new` value
+   * does not belong here: the NEW badge is a merchandising decision that changes every
+   * few weeks, and baking it into a bundle would make a deploy the only way to take it
+   * off a card. NEW lives entirely in `flags.json`, set from the admin centre.
    *
-   * NEW now lives entirely in `flags.json`, set from the admin centre. A game's actual
-   * maturity is not lost either — it stays in its spec's Status row, which is where an
-   * honest "playable but the balance numbers are guesses" belongs, and which nobody
-   * browsing the hub is reading.
+   * A game's actual maturity is not lost either — it stays in its spec's Status row,
+   * which is where an honest "playable but the balance numbers are guesses" belongs,
+   * and which nobody browsing the hub is reading.
    *
    * Adding a value means: this table, the badge in `GameCardTile`, an
    * `ORDER` entry in `games/registry.ts`, and a `.game-card__badge--<value>` rule.

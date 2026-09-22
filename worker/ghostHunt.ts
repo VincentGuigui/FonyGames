@@ -47,8 +47,8 @@ export type HuntPlayer = {
    * Time spent searching, in ms, summed over every find.
    *
    * Server-measured, like `best` and `worst`: a time built from numbers the client chose
-   * is a leaderboard of whoever lies best. It is no longer the score — it is what the
-   * score is computed from, and what the end screen divides into an average.
+   * is a leaderboard of whoever lies best. Not the score itself — it is what the score is
+   * computed from, and what the end screen divides into an average.
    */
   total: number;
   /**

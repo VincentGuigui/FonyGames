@@ -107,9 +107,9 @@ check('phase is over', st?.phase === 'over', st?.phase);
 check('last one standing wins', st?.winner === C, st?.winner);
 
 /*
- * The two endings this reducer used to get wrong, both by counting heads instead of reading
- * the frame: a two-player round is over after ONE boom with the survivor still standing, and
- * the five-minute safety cap ends a round with a whole circle left in it.
+ * The two endings a head count gets wrong, which is why the reducer reads the frame: a
+ * two-player round is over after ONE boom with the survivor still standing, and the
+ * five-minute safety cap ends a round with a whole circle left in it.
  */
 console.log('\ntwo more ways a round ends, neither of them "one player left"');
 

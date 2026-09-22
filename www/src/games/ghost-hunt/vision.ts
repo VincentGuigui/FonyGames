@@ -42,12 +42,11 @@ export const EDGE_RGB = [167, 243, 208] as const;
 /**
  * How opaque the ground under the trace is, 0–255.
  *
- * Not 255. The radar used to be a solid black disc, on the reasoning that letting the feed
- * through would drown the outlines — true when the disc showed a WIDER view than the
- * screen behind it, because then the two pictures disagreed and the eye had to pick one.
- * Now that the disc is a window onto the same view at the same scale (`paintEdges`), the
- * feed underneath lines up with the trace on top of it and reads as one lens rather than
- * two pictures. At ~55% the room is a suggestion and the outlines still carry.
+ * Not 255. A solid black disc would be right if the disc showed a WIDER view than the
+ * screen behind it, because then the two pictures disagree and the eye has to pick one.
+ * The disc is a window onto the same view at the same scale (`paintEdges`), so the feed
+ * underneath lines up with the trace on top of it and reads as one lens rather than two
+ * pictures. At ~55% the room is a suggestion and the outlines still carry.
  */
 export const EDGE_GROUND_ALPHA = 140;
 
@@ -169,16 +168,15 @@ export async function startCamera(): Promise<Camera | null> {
  * ## The window has to match the screen behind it
  *
  * `windowPx` is how much of the source the dial covers, in SOURCE pixels, and getting it
- * wrong is the bug this parameter exists for. It used to take the largest centre square
- * available — the whole 480 of a 640×480 frame — and squeeze it into the 160-pixel dial,
- * while the background behind it was the same frame scaled to COVER a tall phone screen,
- * showing barely a third of that width. So the radar showed a wider, smaller version of
- * the room than the room it was sitting on: the same chair appeared twice, at two sizes,
- * a few centimetres apart.
+ * wrong is what this parameter exists to prevent. Taking the largest centre square
+ * available — the whole 480 of a 640×480 frame — and squeezing it into the 160-pixel dial
+ * puts a wider, smaller version of the room inside the dial than the one behind it, which
+ * is the same frame scaled to COVER a tall phone screen and showing barely a third of that
+ * width: the same chair appears twice, at two sizes, a few centimetres apart.
  *
  * The caller passes the window that corresponds to the dial's own size on screen, so what
- * is inside the dial is exactly what would be behind it. Defaults to the old behaviour for
- * a caller that has no screen to measure.
+ * is inside the dial is exactly what would be behind it. The default is the centre square,
+ * for a caller with no screen to measure.
  */
 export function paintEdges(
   canvas: HTMLCanvasElement,

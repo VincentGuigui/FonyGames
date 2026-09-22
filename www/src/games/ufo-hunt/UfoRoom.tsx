@@ -423,9 +423,9 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
  * way to play it (spec §5.3). Built on the same `PermissionPrimer` shell Steady
  * Hand's own no-fallback motion permission already uses.
  *
- * It explains, and after a refusal it offers the way back; what it no longer does is
- * hold a button in front of the first ask. Ready and Start do that now (issue #29),
- * because a permission with no alternative is not a choice this panel can offer.
+ * It explains, and after a refusal it offers the way back. It does not hold a button in
+ * front of the first ask — Ready and Start do that — because a permission with no
+ * alternative is not a choice this panel can offer.
  */
 function UfoPrimer({
   support,

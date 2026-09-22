@@ -4,19 +4,20 @@ import { bumpCounter, BUMP_THRESHOLD, type Axes } from './bump';
  * What counts as a knock.
  * Algorithm: docs/device-capabilities.md §3 · implementation: core/sensors/bump.ts
  *
- * This is the rule Pass the Bomb runs on, and it had no test — which is how it shipped
- * refusing the one gesture the game is named after. The old detector required 150 ms of
- * near-stillness before a spike would count; a phone being *swung* to meet another phone
- * is not still, so the run-up disqualified the knock at the end of it. Both phones had to
- * pass that test within a quarter of a second of each other, so the failure compounded.
+ * This is the rule Pass the Bomb runs on, and the two ways a plausible-looking detector
+ * refuses the one gesture the game is named after are what it pins down.
  *
- * The streams below are written the way a sensor delivers them — three axes every 16 ms,
+ * **A run-up is not stillness.** Requiring near-stillness before a spike counts
+ * disqualifies the knock at the end of a swing — and a phone being swung to meet another
+ * phone is exactly that. Both phones have to agree within a quarter of a second, so the
+ * failure compounds.
+ *
+ * **A knock across an upright phone barely moves the magnitude at all**: gravity is at
+ * right angles to it and Pythagoras eats the rest, so a detector watching the magnitude
+ * alone misses a corner-to-corner tap. `sideways` below is that knock.
+ *
+ * The streams are written the way a sensor delivers them — three axes every 16 ms,
  * gravity at rest — so each case is a movement you can picture rather than a number.
- *
- * The second thing it exists for is the direction. A knock across a phone held upright barely
- * moves the magnitude at all (gravity is at right angles to it, and Pythagoras eats the rest),
- * so a detector watching the magnitude refused the gesture the game is actually named after.
- * `sideways` below is that knock, and it is the case that fails against the old rule.
  */
 
 let failures = 0;
@@ -38,9 +39,8 @@ const STEP = 16;
 /**
  * A phone held upright: gravity down the screen, and any movement written along it.
  *
- * Everything below is expressed as "how much, and along which axis", so the streams stay as
- * readable as the list of magnitudes they used to be while carrying the direction that
- * turned out to matter.
+ * Everything below is expressed as "how much, and along which axis": as readable as a
+ * list of magnitudes, and carrying the direction that decides the sideways case.
  */
 const along = (m: number): Axes => ({ x: 0, y: -m, z: 0 });
 /** The same size of movement, across the phone instead — a corner-to-corner tap. */
@@ -108,13 +108,13 @@ console.log('\na knock from the side is a knock — the second bug this file exi
 console.log('\nthe swing before the knock — the bug this file exists for');
 
 {
-  // Peak 8 m/s²: an ordinary arm movement, under the 12 threshold, but far over the
-  // half-threshold the old detector treated as "not calm".
+  // Peak 8 m/s²: an ordinary arm movement, under the 12 threshold but far over any
+  // half-threshold a stillness rule would treat as "not calm".
   check('a swing on its own is not a knock', run([...still(20), ...swing(8)]) === 0);
   check('and a knock at the END of a swing still counts',
     run([...still(20), ...swing(8), ...knock()]) === 1);
-  // Straight from the swing into contact, with no calm sample between them at all: this is
-  // what two people actually do, and what used to be refused.
+  // Straight from the swing into contact, with no calm sample between them at all, which
+  // is what two people actually do.
   check('even with no pause between the two',
     run([...still(20), ...swing(8).slice(0, 7), ...knock()]) === 1);
   check('a harder swing does not fool it either',

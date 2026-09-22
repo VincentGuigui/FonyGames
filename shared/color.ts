@@ -85,12 +85,12 @@ export function isExtreme(rgb: Rgb): boolean {
 
 /**
  * Hue, saturation and value are the only three axes a colour is built from,
- * in the palette as much as on screen (color-match.md §2.3) — and, since
- * issue #40, **all three are rings on the wheel**. The old model put value on
- * a separate slider; the disc could only ever show `hsv(hue, sat, 1)`, and
- * the slider dimmed it afterwards. That needed two controls to set one
- * colour, and it read, on a real phone, as a slider bolted onto the side of
- * the actual game. Value is now a second radial axis, laid out around the
+ * in the palette as much as on screen (color-match.md §2.3) — and **all three
+ * are rings on the wheel**. Putting value on a separate slider would leave the
+ * disc showing only `hsv(hue, sat, 1)` with the slider dimming it afterwards:
+ * two controls to set one colour, and on a real phone it reads as a slider
+ * bolted onto the side of the game. Value is a second radial axis, laid out
+ * around the
  * *same* fully-saturated ring saturation already had one side of: light rings
  * inward (pale, tending white), the plain hue in the middle, dark rings
  * outward (dimmed, tending black) — see `shadeSteps` below.
@@ -199,14 +199,12 @@ export type Rung = {
 
 /**
  * The wheel's own rings, hub to rim, as `{s, v}` pairs ready for `hsvToRgb`.
- * **Issue #40**: value used to be a slider's job, applied to a disc colour
- * after the fact; it is now a second radial axis, laid out around the one
- * ring saturation already had at full value.
+ * Value is a second radial axis rather than a slider's multiplier, laid out
+ * around the one ring saturation already has at full value.
  *
  * `sats - 1` light rings first — palest at the hub, working out to (but not
  * including) fully saturated — then the one **plain** ring both axes agree
- * on (`s: 1, v: 1`, the "the colour, at full strength" every rung has always
- * had), then `values - 1` dark rings, working out from (but not including)
+ * on (`s: 1, v: 1`, "the colour, at full strength"), then `values - 1` dark rings, working out from (but not including)
  * full value to the dimmest. Total length `sats + values - 1`: the plain ring
  * is counted once, not twice, which is what `paletteSize` reads off directly
  * rather than restating.
@@ -302,17 +300,13 @@ export function rungAt(level: number): Rung {
  * answer is a precise drag rather than a tap (§4.2).
  *
  * Three seconds is short on purpose (issue #38). The whole point of the run is
- * pace, and every level with an exact wedge to tap is fast by nature — the old
- * 5 s and 10 s left the pie draining with nothing left to do. The reaction
- * bonus below is what makes that window worth beating rather than merely
- * surviving.
+ * pace, and every level with an exact wedge to tap is fast by nature — 5 s or
+ * 10 s would leave the pie draining with nothing left to do. The reaction bonus
+ * below is what makes that window worth beating rather than merely surviving.
  *
- * **Since issue #40** this is no longer about a second control: there has
- * never been more than one, the wheel. The tier now follows the same count
- * that decides which of the wheel's two presentations is on screen —
- * `paletteSize(rung) <= COLOR_SECTOR_MAX` — because free-hand precision, not
- * a second thing to set, is what actually costs a player time past that
- * point.
+ * The tier follows the same count that decides which of the wheel's two
+ * presentations is on screen — `paletteSize(rung) <= COLOR_SECTOR_MAX` —
+ * because free-hand precision is what costs a player time past that point.
  */
 export const COLOR_ACTION_TIERS: readonly { readonly upTo: number; readonly ms: number }[] = [
   { upTo: RUNG_ENDS[LADDER.findIndex((row) => paletteSize(row.rung) > COLOR_SECTOR_MAX) - 1] ?? 21, ms: 3_000 },
@@ -373,9 +367,9 @@ export function colorPoints(accuracy: number, reactionMs: number, actionMs: numb
  * order would put the colours somewhere other than where the hit test looks
  * for them.
  *
- * **Since issue #40, brightness is in here.** It used to be a slider's own
- * multiplier applied to a disc colour after the fact; every ring `shadeSteps`
- * lays out is now a real, distinct colour a tap or a drag can land on.
+ * **Brightness is in here**, not a slider's multiplier applied afterwards:
+ * every ring `shadeSteps` lays out is a real, distinct colour a tap or a drag
+ * can land on.
  */
 export function palette(rung: Rung): Rgb[] {
   const out: Rgb[] = [];

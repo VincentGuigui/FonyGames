@@ -108,13 +108,13 @@ function rolls(): void {
     /*
      * Closed, tested through the arc length rather than the point gap.
      *
-     * The first version compared the last point to the first and allowed a
-     * tile and a half between them — wrong, and it failed on a quarter of the
-     * rolls: the path is rounded, so the last point is the end of the last
-     * corner's arc and the first is the start of the first one's, and the
-     * straight between them is a legitimate track straight of any length.
-     * What "closed" actually means is that `length` accounts for that closing
-     * segment, so arc length 0 and arc length `length` are the same place.
+     * Comparing the last point to the first and allowing a tile and a half
+     * between them fails on a quarter of the rolls: the path is rounded, so
+     * the last point is the end of the last corner's arc and the first is the
+     * start of the first one's, and the straight between them is a legitimate
+     * track straight of any length. What "closed" means is that `length`
+     * accounts for that closing segment, so arc length 0 and arc length
+     * `length` are the same place.
      */
     const zero = atArc(t, 0).at;
     const wrapped = atArc(t, t.length).at;
