@@ -52,6 +52,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Ball Bounce](games/ball-bounce.md) | *Bank it off two walls and through the hoop* | touch | 2 | 📝 draft — awaiting approval ([#21](https://github.com/VincentGuigui/FonyGames/issues/21)) |
 | [Crowd Race](games/crowd-race.md) | *Tilt through the crowd. First up the street wins* | orientation | 1–8 | 🎮 beta — the bounce impulse, obstacle density and course length untested on real thumbs ([#25](https://github.com/VincentGuigui/FonyGames/issues/25)) |
 | [Rhino Spin](games/rhino-spin.md) | *Throw your phone. Count the spins. Mind the ceiling* | motion | 1–8 | 🎮 beta — motion-only, no fallback, and the one throwing mechanic in the catalogue (AGENTS.md §7); the spin count untested on a real throw ([#49](https://github.com/VincentGuigui/FonyGames/issues/49)) |
+| [Maximum Jump](games/maximum-jump.md) | *Sprint, hit the line, fly. Longest jump wins* | touch | 1–8 | 🎮 beta — the run-up rhythm, the take-off band and the drag term untested on real thumbs ([#48](https://github.com/VincentGuigui/FonyGames/issues/48)) |
 
 ### Idea notes (not yet specs)
 
@@ -192,6 +193,12 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
   ball banked off first**, so the rebound is the game rather than the aim.
   Deformation is squash-and-stretch on a drawn circle, not soft-body physics —
   canvas sprites cannot change shape.
+- **Maximum Jump** ([#48](https://github.com/VincentGuigui/FonyGames/issues/48))
+  — the Apple IIe decathlon long jump, in landscape: alternate two leg buttons
+  to build speed, hit the line at step fifty exactly, then hammer the jump
+  button in the air to hold off the drag. The whole attempt runs on the phone;
+  the wire carries a speed and a distance, bounded by what the game's own
+  physics could produce.
 - **Rhino Spin** ([#49](https://github.com/VincentGuigui/FonyGames/issues/49))
   — throw the phone so it spins, catch it, score a point per rotation. The one
   game in the catalogue that asks for a phone to leave a hand, allowed by
