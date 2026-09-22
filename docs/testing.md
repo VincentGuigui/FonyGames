@@ -54,7 +54,16 @@ single-use hole, and none of them is visible in a browser.
 So `api/tests/run.php` is deliberately the same shape as the Node harness — no
 framework, a `check()` counter, a non-zero exit — and it runs on the plain `php`
 binary, which is present locally and preinstalled on GitHub's `ubuntu-latest`
-runners. `npm test` runs both halves; CI therefore does too.
+runners. `npm test` runs both halves.
+
+**CI runs only the Node half.** The deploy workflow calls `npm run test:js` — the
+same chain with `test:php` left off — and its `mariadb:11` service container is
+commented out rather than deleted, so restoring it is one block plus one line
+(`.github/workflows/main.yml`). `api/tests/run.php` is all-or-nothing and eight of
+its eleven files need the database, so there was no half of it worth keeping
+without a server. **That makes the PHP suite a local gate**: run `npm test` (or
+`npm run test:php` alone) before deploying anything that touches `api/` or `db/`,
+because nothing downstream will now catch it for you.
 
 **The suite runs against real MariaDB, built from the shipped `db/init.sql`.** It used
 to build a hand-translated SQLite schema, which was a real hole: the DDL that shipped

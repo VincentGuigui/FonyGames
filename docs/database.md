@@ -82,8 +82,11 @@ Mandatory, from the maintainer:
 
    ✅ **This is now enforced by the suite rather than promised.**
    `api/tests/schema.php` builds its test schema by applying the **shipped
-   `db/init.sql`** to a real MariaDB, and CI runs a `mariadb:11` service container
-   for it. There is deliberately **no SQLite fallback**: the tests were written
+   `db/init.sql`** to a real MariaDB. ⚠️ **It is a local gate, not a CI one**: the
+   deploy workflow's `mariadb:11` service container is commented out and CI runs
+   `npm run test:js`, the Node half only, so run `npm test` yourself before
+   deploying anything touching `api/` or `db/` ([testing.md](testing.md) §1.1).
+   There is deliberately **no SQLite fallback**: the tests were written
    against a hand-translated SQLite schema for a while, which meant a
    MariaDB-only DDL error passed CI and would have failed on the host. A suite
    that skips silently proves nothing, so no server is a hard failure with the

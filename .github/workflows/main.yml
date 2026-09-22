@@ -37,20 +37,29 @@ jobs:
     # MariaDB-only DDL error passed CI and failed on the host. There is deliberately no
     # SQLite fallback, so without this service the tests cannot run at all — which is the
     # point: a suite that skips silently proves nothing.
-    services:
-      mariadb:
-        image: mariadb:11
-        env:
-          MARIADB_ROOT_PASSWORD: ci
-        ports:
-          - 3306:3306
-        # Without a health check the tests start before the server accepts connections,
-        # which reads as "no MariaDB reachable" on a cold runner.
-        options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=12
+    # The database tests do not run in the deploy workflow — commented out, not
+    # deleted, because this is the only thing that has to change to bring them
+    # back (with the FONY_TEST_* env and `npm test` in the Test step below).
+    #
+    # They are still the real check on db/init.sql and the migrator, and
+    # docs/database.md section 4 rule 3 still makes MariaDB the target — so they
+    # are expected to be run locally (`npm test`, or `npm run test:php` alone)
+    # before anything that touches api/ or db/ is deployed.
+    #
+    # services:
+    #   mariadb:
+    #     image: mariadb:11
+    #     env:
+    #       MARIADB_ROOT_PASSWORD: ci
+    #     ports:
+    #       - 3306:3306
+    #     # Without a health check the tests start before the server accepts connections,
+    #     # which reads as "no MariaDB reachable" on a cold runner.
+    #     options: >-
+    #       --health-cmd="healthcheck.sh --connect --innodb_initialized"
+    #       --health-interval=5s
+    #       --health-timeout=5s
+    #       --health-retries=12
 
     steps:
     # Shallow is fine: the deployer's `delta` mode would need full history, but
@@ -130,9 +139,11 @@ jobs:
     - name: 📦 Install
       run: npm ci
 
-    # `npm test` now includes the PHP suite (docs/testing.md §1.1a), so prove the
-    # binary is there and say which version, rather than letting the failure show up
-    # as an opaque `php: not found` inside an npm script.
+    # The build still shells out to PHP — `test:ssr` renders the generated
+    # index.php and checks it is real HTML, not an error page — so prove the binary
+    # is there and say which version, rather than letting the failure show up as an
+    # opaque `php: not found` inside an npm script. (The PHP *test suite* no longer
+    # runs here; see the Test step below.)
     #
     # No `shivammathur/setup-php`: `ubuntu-latest` ships a PHP CLI already, and the
     # suite is plain PHP 8.1 syntax with no extensions beyond the defaults. A
@@ -146,14 +157,22 @@ jobs:
     # rules, and it costs seconds — leaving it out meant a guard that only ever ran
     # on someone's laptop.
     - name: 🧪 Test
-      env:
-        # The service container, over TCP. Named `_test` because the suite REFUSES to run
-        # against a database whose name does not end that way — it truncates every table
-        # it knows about, and that guard is the one mistake here that would destroy data.
-        FONY_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=fonygames_test;charset=utf8mb4
-        FONY_TEST_USER: root
-        FONY_TEST_PASS: ci
-      run: npm test
+      # `test:js` is `npm test` without its PHP half: the referees, the board
+      # physics, the card import rules and the backoffice's auth rules, all of
+      # which are pure logic and need no server. The PHP suite is 8 files out of
+      # 11 backed by the database and `api/tests/run.php` is all-or-nothing, so
+      # dropping the container means dropping that half — see the commented
+      # service block above for how to put it back.
+      #
+      # env:
+      #   # The service container, over TCP. Named `_test` because the suite REFUSES to run
+      #   # against a database whose name does not end that way — it truncates every table
+      #   # it knows about, and that guard is the one mistake here that would destroy data.
+      #   FONY_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=fonygames_test;charset=utf8mb4
+      #   FONY_TEST_USER: root
+      #   FONY_TEST_PASS: ci
+      # run: npm test
+      run: npm run test:js
 
     # Typechecks first (`npm run build` runs tsc --noEmit), so a type error
     # fails the deploy instead of shipping. It also stages api/ into dist/api,
