@@ -84,6 +84,18 @@ export type Drive = {
   /** Arc length round the current lap, and laps completed. */
   s: number;
   lap: number;
+  /**
+   * Signed arc actually covered since the start line, world units, counting up
+   * through the wrap rather than round it. `lap` is derived from this and
+   * nothing else.
+   *
+   * It exists because "did the arc length jump from near the end to near the
+   * start?" is not a lap test — it is also what a car sitting ON the start line
+   * does, since arc 0 and arc `length` are the same point. A stationary car
+   * wobbling a few units across the line was banking a full lap out of a few
+   * units of jitter (spec §8).
+   */
+  travelled: number;
   /** The centreline segment last matched, fed back to `locate` as its hint. */
   index: number;
   /** What happened on the last step, for the renderer's shake and sound. */
@@ -107,6 +119,7 @@ export function startDrive(track: Track, startS = 0): Drive {
     runMs: 0,
     s: startS,
     lap: 0,
+    travelled: 0,
     index: locate(track, at).index,
     bump: 'none',
   };
@@ -427,11 +440,30 @@ function settleAt(track: Track, next: Drive, car: Drive, to: Point): void {
   const found = locate(track, to, car.index);
   next.at = to;
   next.index = found.index;
-  // A lap completes when the arc length wraps from near the end to near the
-  // start — measured on the track's own arc, not on a line crossing, so a car
-  // that reverses over the line cannot count a lap twice.
-  if (car.s > track.length * 0.75 && found.s < track.length * 0.25) next.lap = car.lap + 1;
-  else if (car.s < track.length * 0.25 && found.s > track.length * 0.75 && next.lap > 0) next.lap = car.lap - 1;
+
+  /*
+   * Laps come from arc actually COVERED, not from watching the arc length wrap.
+   *
+   * The wrap test this replaces — "was it past three quarters and is it now
+   * inside the first quarter?" — cannot tell a car finishing a lap from a car
+   * sitting on the start line, because arc 0 and arc `length` are the same
+   * point. Every car starts on exactly that point, so the first few units of
+   * jitter banked a whole lap: a one-lap race was over before it began, the
+   * phone then claimed a lap's worth of progress, and the referee's own cheat
+   * clamp turned that claim into a speed-curve ramp that the progress rail rode
+   * for the rest of the race, ignoring the car completely (spec §8).
+   *
+   * Per frame the car moves a few units at most, so the shortest signed way
+   * round is never ambiguous — a genuine crossing reads as the small forward
+   * step it is, and jitter cancels itself out instead of accumulating.
+   */
+  let ds = found.s - car.s;
+  if (ds > track.length / 2) ds -= track.length;
+  else if (ds < -track.length / 2) ds += track.length;
+  next.travelled = car.travelled + ds;
+  // Never negative: a car that backs off the line before the flag has not
+  // un-run a lap it never ran.
+  next.lap = Math.max(0, Math.floor(next.travelled / track.length));
   next.s = found.s;
 }
 

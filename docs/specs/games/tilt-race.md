@@ -309,6 +309,26 @@ Asteroid Race uses:
   since the last report, plus slack for one collision-free straight.
 - **Lap counts must increase by one at a time**, and only after passing the
   line.
+
+**A lap is arc actually covered, not an arc length that wrapped.** The phone
+carries `travelled`, the signed arc it has run since the flag, and `lap` is
+`floor(travelled / length)` — nothing else. The wrap test this replaced ("was it
+past three quarters, and is it inside the first quarter now?") could not tell a
+car finishing a lap from a car **sitting on the start line**, because arc 0 and
+arc `length` are the same point and every car starts on it. A few units of
+wobble at the lights therefore banked a whole lap, and on a one-lap race that
+was the race.
+
+It did not stop there, and this is the part worth remembering: the phone then
+reported a lap it had not run, the referee's own clamp above refused that claim
+and pinned the stored progress to *the speed curve*, and the ratchet kept it
+there. **The progress rail then climbed at a flat `TILT_CLAIM_SLACK ×
+TILT_TOP_SPEED` = 360 units/s for the rest of the race, ignoring the car
+completely** — measured in a browser at a dead-constant 2.68% of the lap per
+second while the car's own speed swung between 32 and 105. The anti-cheat was
+working exactly as designed; it was being fed a lie by the lap counter. Two
+checks in `drive.test.ts` hold the line now: a car left on the start line has
+run no lap, and nor has one nudged back and forth across it.
 - **The track is the referee's**, so nobody races a straight line.
 
 ## 9. Safety

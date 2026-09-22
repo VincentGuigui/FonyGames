@@ -122,6 +122,25 @@ function drive(car: Drive, input: DriveInput, ms: number, track = TRACK): Drive 
 }
 
 /**
+ * Run `ms` with the wheel held along the road, forwards or in reverse.
+ *
+ * The lap tests need a car that actually covers track, and `roll: 0` points up
+ * the fixed map rather than down the road — from the start line that drives
+ * into a rail within a few frames, which makes the distance covered a fact
+ * about the guardrail model rather than about the lap counter. Following the
+ * tangent keeps them measuring the thing they name.
+ */
+function alongTrack(car: Drive, ms: number, reverse: boolean, track = TRACK): Drive {
+  let out = car;
+  for (let t = 0; t < ms; t += FRAME) {
+    const found = locate(track, out.at, out.index);
+    const roll = Math.atan2(found.tangent.y, found.tangent.x) - out.base;
+    out = step(track, out, { roll, reverse }, FRAME);
+  }
+  return out;
+}
+
+/**
  * An autopilot that keeps the car near the centreline: aim along the track,
  * corrected back toward the middle, and steer hard enough to get there.
  *
@@ -604,14 +623,52 @@ function aWholeLap(): void {
 function reversingOverTheLine(): void {
   console.log('\nthe lap counter cannot be farmed (§8 on the phone side)');
 
-  // Put a car just past the line with a lap already banked, then back it up
-  // over the line: the lap must come back off rather than counting twice.
-  let car = startDrive(TRACK, TRACK.length * 0.02);
-  car = { ...car, lap: 1 };
-  const backed = drive(car, { roll: 0, reverse: true }, 3_000);
-  check('backing over the line takes the lap back off', backed.lap <= 1, backed.lap);
-  const forward = drive(backed, STRAIGHT, 4_000);
-  check('and driving forward over it again re-earns it, not double-counts', forward.lap <= 1 + 1, forward.lap);
+  /*
+   * The bug this section exists for, and the one that hid behind it.
+   *
+   * **Sitting on the line is not a lap.** Every car starts at arc 0, which is
+   * the same point as arc `length`, so the old "did the arc wrap?" test banked
+   * a full lap out of the first few units of wobble — a one-lap race was over
+   * before the flag, and the progress rail spent the rest of the race riding
+   * the referee's cheat clamp instead of the car (spec §8).
+   */
+  const onTheLine = drive(startDrive(TRACK), { roll: 0, reverse: false }, 1_200);
+  check(
+    `a car still on the start line has not run a lap (lap ${onTheLine.lap}, ${onTheLine.travelled.toFixed(0)} units covered)`,
+    onTheLine.lap === 0,
+    { lap: onTheLine.lap, travelled: onTheLine.travelled, s: onTheLine.s },
+  );
+  // Nudging back and forth across the line is the same story from the other
+  // side: arc covered is what counts, and it cancels.
+  let jitter = startDrive(TRACK);
+  for (let i = 0; i < 20; i++) {
+    jitter = alongTrack(jitter, 120, true);
+    jitter = alongTrack(jitter, 120, false);
+  }
+  check(`and nor has one nudged back and forth over it (lap ${jitter.lap})`, jitter.lap === 0, {
+    lap: jitter.lap,
+    travelled: jitter.travelled,
+  });
+
+  // Put a car just past the line with a lap GENUINELY banked — `travelled` is
+  // what `lap` is read from, so the fixture has to have covered the distance —
+  // then back it up over the line: the lap must come back off, not double up.
+  // Just past it, in reach of the reverse: TILT_REVERSE_SPEED over three
+  // seconds covers about 135 units.
+  const past = 60;
+  let car = startDrive(TRACK, past);
+  car = { ...car, lap: 1, travelled: TRACK.length + past };
+  check('the fixture really has a lap banked', car.lap === 1, car.lap);
+  const backed = alongTrack(car, 3_000, true);
+  check(`backing over the line takes the lap back off (${backed.lap})`, backed.lap === 0, {
+    lap: backed.lap,
+    travelled: backed.travelled,
+  });
+  const forward = alongTrack(backed, 4_000, false);
+  check(`and driving forward over it again re-earns it, not double-counts (${forward.lap})`, forward.lap === 1, {
+    lap: forward.lap,
+    travelled: forward.travelled,
+  });
 }
 
 theTrack();
