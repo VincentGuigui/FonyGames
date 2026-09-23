@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import { GRID_SIZE, GRID_TAPS, type GridCell, type Player, type PlayerId } from '../../../../shared/protocol';
+import type { GameScreen } from '../../core/types';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { useT } from '../../core/i18n/strings';
 import { cellsOf, fuseProgress, livesOf, pulseMs, tapCounter, type GridView } from './game';
@@ -34,6 +35,7 @@ export function GridBoard({
   accent,
   clock,
   onTap,
+  screen,
 }: {
   state: GridView;
   players: Player[];
@@ -51,6 +53,9 @@ export function GridBoard({
   clock: () => number;
   /** One tap. The referee counts them; this only reports. */
   onTap: (cell: number, side: 'mine' | 'theirs') => void;
+  /** Threaded through to `StatusBar` — Grid Attack's own sideways board is exactly
+   *  the case its fullscreen re-entry button exists for. */
+  screen?: GameScreen | undefined;
 }): JSX.Element {
   const now = useAnimationClock(clock);
   const t = useT();
@@ -66,6 +71,7 @@ export function GridBoard({
           title={title}
           concept={concept}
           rules={rules}
+          screen={screen}
         />
       </div>
 

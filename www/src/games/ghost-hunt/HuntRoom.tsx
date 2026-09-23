@@ -474,6 +474,7 @@ function HuntRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         rules={card.rules}
         backdropRef={backdropRef}
         radarRef={radarRef}
+        screen={card.screen}
         {...(route === 'sphere'
           ? { aiming, onAiming: (next: Aiming) => void switchAiming(next) }
           : {})}

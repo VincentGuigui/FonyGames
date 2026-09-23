@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import type { JSX, RefObject } from 'preact';
 import type { Player, PlayerId } from '../../../../shared/protocol';
 import { UFOHUNT_KIND_COUNT, UFOHUNT_MISSILE_CHARGE_GOAL } from '../../../../shared/protocol';
+import type { GameScreen } from '../../core/types';
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard } from '../../core/ui/Scoreboard';
 import { scoreOf, type UfoHuntView } from './game';
@@ -63,6 +64,7 @@ export function UfoScreen({
   bursts,
   onMissile,
   missileCharge,
+  screen,
 }: {
   state: UfoHuntView;
   players: Player[];
@@ -92,6 +94,8 @@ export function UfoScreen({
   onMissile: () => void;
   /** This player's own missile charge, 0…`UFOHUNT_MISSILE_CHARGE_GOAL`. */
   missileCharge: number;
+  /** Threaded through to `StatusBar` — the camera round is fullscreen (spec §5.3). */
+  screen?: GameScreen | undefined;
 }): JSX.Element {
   const text = useGameText();
   const mine = myId ? scoreOf(state, myId) : 0;
@@ -134,6 +138,7 @@ export function UfoScreen({
           title={title}
           concept={concept}
           rules={rules}
+          screen={screen}
         />
       </div>
 

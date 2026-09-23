@@ -390,7 +390,10 @@ export function GameOverScreen({
   const t = useT();
   return (
     <div class="over" style={{ '--game-accent': accent } as JSX.CSSProperties}>
-      <StatusBar status={status ?? t.common.roundOver} title={title} concept={concept} rules={rules}>
+      {/* `over.screen` too, same reason the round screen's own StatusBar gets it: the
+          end screen is outside the lobby template, and fullscreen does not end with
+          the round. */}
+      <StatusBar status={status ?? t.common.roundOver} title={title} concept={concept} rules={rules} screen={over.screen}>
         {menu}
       </StatusBar>
       {children}

@@ -379,6 +379,7 @@ function UfoRoomInner({ game: card, code }: { game: GameCard; code: string }): J
         bursts={bursts}
         onMissile={onMissile}
         missileCharge={myId ? missileChargeOf(state, myId) : 0}
+        screen={card.screen}
       />
     );
   }

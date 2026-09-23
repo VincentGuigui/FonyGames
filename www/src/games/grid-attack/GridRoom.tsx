@@ -113,6 +113,7 @@ function GridRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         onTap={(cell, side) =>
           client?.send({ t: 'grid-tap', d: { roundId: state.roundId, cell, side } })
         }
+        screen={card.screen}
       />
     );
   }

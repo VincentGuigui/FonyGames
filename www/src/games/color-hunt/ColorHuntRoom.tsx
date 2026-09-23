@@ -265,6 +265,7 @@ function ColorHuntRoomInner({ game: card, code }: { game: GameCard; code: string
           title={card.title}
           concept={card.concept}
           rules={card.rules}
+          screen={card.screen}
         />
 
         {/* The colour, and only the colour. It used to carry its own name;

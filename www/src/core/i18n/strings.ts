@@ -40,6 +40,9 @@ export interface UiStrings {
     invitePlayer: string;
     /** The in-round gear menu's own close button — `Sheet.tsx`, `GameMenu.tsx`. */
     close: string;
+    /** `StatusBar.tsx`'s own re-entry button, for a game that wants fullscreen
+     *  and finds itself not in it any more (device-capabilities.md §5b). */
+    fullscreen: string;
     /** The in-round menu's way out, and the results panel's — same word, same exit. */
     leaveGame: string;
     /** `GameOver.tsx`'s defaults. A game overriding either with its own flavour
@@ -187,6 +190,7 @@ const en: UiStrings = {
     players: 'Players',
     invitePlayer: 'Invite a player',
     close: 'Close',
+    fullscreen: 'Fullscreen',
     leaveGame: 'Leave game',
     startRound: 'Start round',
     playAgain: 'Play again',
@@ -318,6 +322,7 @@ const fr: UiStrings = {
     players: 'Joueurs',
     invitePlayer: 'Inviter un joueur',
     close: 'Fermer',
+    fullscreen: 'Plein écran',
     leaveGame: 'Quitter la partie',
     startRound: 'Démarrer la manche',
     playAgain: 'Rejouer',

@@ -255,6 +255,7 @@ function JumpRoomInner({ game: card, code }: { game: GameCard; code: string }): 
           title={card.title}
           concept={card.concept}
           rules={card.rules}
+          screen={card.screen}
         />
 
         <div class="maxjump__board">

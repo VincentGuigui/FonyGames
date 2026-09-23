@@ -224,6 +224,17 @@ reading portrait, so it asks from a game-specific "loading screen" tap instead
 (docs/specs/games/grid-attack.md §3). `GameLobby`'s own Start tap still fires
 `requestGameScreen(card.screen)` for it too, as a harmless head start for the host.
 
+**Fullscreen has no re-request loop of its own — leaving it is silent, so `StatusBar`
+offers the way back in.** The system back gesture, Escape, a notification taking the
+screen: any of them drop fullscreen without the game ever hearing about it, and none of
+the six games above re-asks mid-round. Every `StatusBar` passed a `screen` whose
+`fullscreen` is true shows a small re-entry button beside the gear
+(`core/ui/StatusBar.tsx`), CSS-hidden by `:root:fullscreen` while the page actually is
+fullscreen and reappearing the instant it stops being — no `fullscreenchange` listener,
+just the pseudo-class doing what it is for. The one thing checked in JS, once, is whether
+the browser has the API at all (`fullscreenSupported`): iPhone Safari does not, so the
+button never appears there rather than sitting dead.
+
 ## 6. Privacy
 
 - Coordinates, motion samples and mic levels are **relayed, never stored**. They

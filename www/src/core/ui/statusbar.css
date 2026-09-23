@@ -57,3 +57,35 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* The fullscreen re-entry button — a sibling of the gear, same chip so the two
+   read as one family rather than two different controls bolted together. */
+.statusbar__fullscreen {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: rgb(23 26 34 / 88%);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.statusbar__fullscreen:active {
+  transform: scale(0.94);
+}
+
+/*
+ * Hidden while the page actually is fullscreen — a CSS pseudo-class, not a
+ * `fullscreenchange` listener, so it reappears live the instant a player leaves
+ * fullscreen by any means (Escape, the system back gesture, a notification taking
+ * the screen) with nothing here to re-run. `requestFullscreen()` is always called
+ * on `document.documentElement` (core/screen.ts's `goFullscreen`), which is the
+ * element `:fullscreen` matches while it holds it.
+ */
+:root:fullscreen .statusbar__fullscreen {
+  display: none;
+}

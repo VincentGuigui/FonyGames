@@ -159,6 +159,20 @@ export async function goFullscreen(el: Fullscreenish): Promise<boolean> {
 }
 
 /**
+ * Does this browser have the Fullscreen API at all?
+ *
+ * iPhone Safari does not — see `goFullscreen`'s own comment — so a button offering
+ * to re-enter fullscreen would sit there doing nothing on every iPhone in the room.
+ * `StatusBar.tsx`'s own re-entry button checks this once, up front, rather than
+ * showing a control whose only feedback on a tap is silence.
+ */
+export function fullscreenSupported(
+  el: Fullscreenish = typeof document === 'undefined' ? {} : document.documentElement,
+): boolean {
+  return typeof el.requestFullscreen === 'function';
+}
+
+/**
  * Fullscreen and an orientation lock, both best effort, from ONE call meant to sit
  * straight inside a Ready/Start tap — the only place either API can fire from
  * (`goFullscreen`'s and `lockUpright`'s own comments above). Spec: docs/device-capabilities.md §5b

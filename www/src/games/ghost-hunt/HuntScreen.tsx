@@ -59,6 +59,7 @@ export function HuntScreen({
   radarRef,
   aiming,
   onAiming,
+  screen,
 }: {
   state: HuntView;
   players: Player[];
@@ -98,6 +99,8 @@ export function HuntScreen({
    */
   aiming?: 'sensor' | 'drag' | undefined;
   onAiming?: ((next: 'sensor' | 'drag') => void) | undefined;
+  /** Threaded through to the round's own `StatusBar` — see `HuntResults`'s comment. */
+  screen?: GameScreen | undefined;
 }): JSX.Element {
   const text = useGameText();
   const hot = heat(lock.error);
@@ -126,6 +129,7 @@ export function HuntScreen({
           title={title}
           concept={concept}
           rules={rules}
+          screen={screen}
         />
       </div>
 

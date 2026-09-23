@@ -1,4 +1,4 @@
-import { goFullscreen, keepAwake, lockUpright, requestGameScreen, type Fullscreenish, type Visibility, type WakeLockish } from './screen';
+import { fullscreenSupported, goFullscreen, keepAwake, lockUpright, requestGameScreen, type Fullscreenish, type Visibility, type WakeLockish } from './screen';
 
 /**
  * Keeping the screen awake, and giving it back.
@@ -218,6 +218,11 @@ console.log('\ngoing fullscreen');
   // Every other browser, refusing outside a gesture or because the player said no.
   const refused: Fullscreenish = { requestFullscreen: () => Promise.reject(new Error('denied')) };
   check('a rejected request reports failure rather than throwing', (await goFullscreen(refused)) === false);
+
+  // Support is a fact about the browser, not about this one attempt — asked up
+  // front so a game never offers a re-entry button that can only ever be silent.
+  check('an element with the API is reported as supporting it', fullscreenSupported({ requestFullscreen: async () => {} }));
+  check('iPhone Safari, with no such method at all, is not', !fullscreenSupported({}));
 }
 
 console.log('\nasking a card\'s screen for what it wants (§5b)');

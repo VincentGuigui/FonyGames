@@ -146,6 +146,7 @@ export function RushScreen({
         title={title}
         concept={concept}
         rules={rules}
+        screen={screen}
       >
         <SoundToggle on={sound} onChange={onSound} heading={text({ en: 'Sound', fr: 'Son' })}
           onLabel={text({ en: 'A note per shake', fr: 'Une note par secousse' })} offLabel={text({ en: 'Silent', fr: 'Silencieux' })}
