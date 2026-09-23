@@ -379,20 +379,28 @@ final class Flags
     /**
      * Which game the week itself spotlights. Mirrors `gameOfWeek()` in
      * `shared/flags.ts` — see that function's own comment for why `$slugsAlphabetical`
-     * is the caller's job, not this one's.
+     * is the caller's job, not this one's, and for why a `hidden` or `soon` slug is
+     * never a candidate: `hubSections()` pins whatever this returns unconditionally,
+     * and there is no fallback if the pinned slot turns out to render nothing.
      *
      * @param list<string> $slugsAlphabetical
+     * @param array<string, array<string, mixed>> $flags
      */
-    public static function gameOfWeek(array $slugsAlphabetical, int $now): ?string
+    public static function gameOfWeek(array $slugsAlphabetical, int $now, array $flags): ?string
     {
-        $count = count($slugsAlphabetical);
+        $visible = array_values(array_filter(
+            $slugsAlphabetical,
+            static fn (string $slug): bool => self::isPlayable($flags[$slug]['state'] ?? self::ACTIVE),
+        ));
+
+        $count = count($visible);
         if ($count === 0) {
             return null;
         }
 
         $index = (self::isoWeek($now) - 1) % $count;
 
-        return $slugsAlphabetical[$index] ?? null;
+        return $visible[$index] ?? null;
     }
 
     /**

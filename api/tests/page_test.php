@@ -70,9 +70,10 @@ function fakeCardsWithRandomGame(): array
 /**
  * Every live game, alphabetical by title — `weekOrder()` in `scripts/ssr.mjs`, and now
  * the one list `Page::grid()` builds all three tiers from (issue #4). It has replaced
- * `$order` in the grid's own signature entirely: `gameOfWeek()` can never return null for
- * a non-empty list, so this one list is both what the grid iterates and what decides
- * WEEK — there is no longer a separate "curated order" to diverge from it.
+ * `$order` in the grid's own signature entirely: `gameOfWeek()` returns null only when
+ * every game in this list is currently hidden or paused, so this one list is both what
+ * the grid iterates and what decides WEEK — there is no longer a separate "curated
+ * order" to diverge from it.
  */
 const ALPHA = ['ghost-tag', 'spill', 'tap-duel'];
 
@@ -220,17 +221,42 @@ check(
 );
 check('and still gets the soon variant, not active', str_contains($demoted, 'data-slug="spill" data-key="soon:0:0:0"'), $demoted);
 
-// The pinned slot itself can be the one flagged soon — week2 pins spill (ALPHA[1]).
-$demotedFromPinned = Page::grid(fakeCards(), ['spill' => ['state' => 'soon']], false, [], ALPHA, $week2, SOON);
+// Week 2's raw pick is spill (ALPHA[1]) — but it is flagged soon here, so
+// `gameOfWeek` never lands on it in the first place: it skips straight to the next
+// visible game (tap-duel) instead. Spill is demoted exactly like any other soon
+// game, never pinned and never wearing the week bit — there is no slot left with
+// nothing in it.
+$skipsASoonPick = Page::grid(fakeCards(), ['spill' => ['state' => 'soon']], false, [], ALPHA, $week2, SOON);
 check(
-    "even the week's own pin is pulled out, not left pinned wearing a soon badge",
-    slugsIn($demotedFromPinned) === ['ghost-tag', 'tap-duel', 'zone-rush', 'spill'],
-    slugsIn($demotedFromPinned),
+    "a soon-flagged pick is skipped for the next visible game",
+    slugsIn($skipsASoonPick) === ['tap-duel', 'ghost-tag', 'zone-rush', 'spill'],
+    slugsIn($skipsASoonPick),
 );
 check(
-    'its variant key still carries the week bit — cardState ignores it for soon, but the key stays honest',
-    str_contains($demotedFromPinned, 'data-slug="spill" data-key="soon:0:1:0"'),
-    $demotedFromPinned,
+    'tap-duel is pinned with the week variant instead',
+    str_contains($skipsASoonPick, 'data-slug="tap-duel" data-key="active:0:1:0"'),
+    $skipsASoonPick,
+);
+check(
+    'spill gets a plain soon variant — it was never the pick',
+    str_contains($skipsASoonPick, 'data-slug="spill" data-key="soon:0:0:0"'),
+    $skipsASoonPick,
+);
+
+// Hidden works the same way, and it is the more important case: a hidden card
+// renders nothing at all (fakeCards()'s own `$absent` rule), so if `gameOfWeek`
+// ever picked one the pinned slot would be visibly empty rather than merely
+// carrying the wrong badge.
+$skipsAHiddenPick = Page::grid(fakeCards(), ['spill' => ['state' => 'hidden']], false, [], ALPHA, $week2, SOON);
+check(
+    'a hidden pick is skipped for the next visible game too',
+    slugsIn($skipsAHiddenPick) === ['tap-duel', 'ghost-tag', 'zone-rush'],
+    slugsIn($skipsAHiddenPick),
+);
+check(
+    'spill renders nothing at all — hidden, and never picked',
+    !str_contains($skipsAHiddenPick, 'data-slug="spill"'),
+    $skipsAHiddenPick,
 );
 
 group('a flag selects the variant');

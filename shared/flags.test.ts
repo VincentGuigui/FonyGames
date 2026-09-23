@@ -185,22 +185,37 @@ console.log('\nthe week\'s own spotlighted game');
 
 {
   const alphabetical = ['aliens-love-cows', 'ghost-hunt', 'spill', 'tap-duel'];
+  const noFlags: Record<string, GameFlag> = {};
 
   check('week 1 picks the first title alphabetically',
-    gameOfWeek(alphabetical, new Date('2024-01-01T00:00:00Z')) === 'aliens-love-cows');
+    gameOfWeek(alphabetical, new Date('2024-01-01T00:00:00Z'), noFlags) === 'aliens-love-cows');
   check('week 2 picks the second',
-    gameOfWeek(alphabetical, new Date('2024-01-08T00:00:00Z')) === 'ghost-hunt');
+    gameOfWeek(alphabetical, new Date('2024-01-08T00:00:00Z'), noFlags) === 'ghost-hunt');
   // Week 5 wraps back around to the first game — 4 games, and (5-1) % 4 === 0.
   check('the rotation wraps once every game has had a week',
-    gameOfWeek(alphabetical, new Date('2024-01-29T00:00:00Z')) === 'aliens-love-cows');
-  check('an empty catalogue spotlights nothing', gameOfWeek([], new Date()) === null);
-  check('a single game is always it', gameOfWeek(['spill'], new Date('2024-01-01T00:00:00Z')) === 'spill');
+    gameOfWeek(alphabetical, new Date('2024-01-29T00:00:00Z'), noFlags) === 'aliens-love-cows');
+  check('an empty catalogue spotlights nothing', gameOfWeek([], new Date(), noFlags) === null);
+  check('a single game is always it', gameOfWeek(['spill'], new Date('2024-01-01T00:00:00Z'), noFlags) === 'spill');
 
   // The whole point of taking a plain list rather than computing the order here:
   // the same week produces the same slug every single call, with no hidden state.
   const now = new Date('2026-08-30T00:00:00Z');
   check('the same inputs always answer the same way',
-    gameOfWeek(alphabetical, now) === gameOfWeek(alphabetical, now));
+    gameOfWeek(alphabetical, now, noFlags) === gameOfWeek(alphabetical, now, noFlags));
+
+  // A hidden or paused slug is never the pick: `hubSections` would still pin it, and
+  // `cardState` would render nothing in that slot with no fallback to the next game.
+  const week1 = new Date('2024-01-01T00:00:00Z'); // picks aliens-love-cows when everyone is visible
+  check('a hidden pick is skipped for the next visible game',
+    gameOfWeek(alphabetical, week1, { 'aliens-love-cows': { state: 'hidden' } }) === 'ghost-hunt');
+  check('a paused pick is skipped the same way',
+    gameOfWeek(alphabetical, week1, { 'aliens-love-cows': { state: 'soon' } }) === 'ghost-hunt');
+  check('every candidate hidden spotlights nothing',
+    gameOfWeek(alphabetical, week1, Object.fromEntries(alphabetical.map((s) => [s, { state: 'hidden' }]))) === null);
+  // A `new` game is still a candidate — it wears WEEK instead of NEW when picked
+  // (`cardState` ranks the two that way), not excluded from the rotation.
+  check('a game flagged new stays eligible',
+    gameOfWeek(alphabetical, week1, { 'aliens-love-cows': { state: 'new' } }) === 'aliens-love-cows');
 }
 
 console.log('\nWEEK, ranked between HOT and NEW');

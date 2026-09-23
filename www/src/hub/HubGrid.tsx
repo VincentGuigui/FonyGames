@@ -105,7 +105,7 @@ export function HubGrid({
     .sort((a, b) => a.title.localeCompare(b.title))
     .map((g) => g.slug);
   const hot = hottest(plays, alphabetical);
-  const week = gameOfWeek(alphabetical, new Date());
+  const week = gameOfWeek(alphabetical, new Date(), flags);
   const { pinned, fresh, rest } = hubSections(alphabetical, flags, hot, week);
 
   // Any live game an operator has flagged `soon` moves out of its alphabetical tier

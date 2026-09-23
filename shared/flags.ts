@@ -232,9 +232,23 @@ export function isoWeek(now: Date): number {
  * offset, no shuffle. The same slug returns on the same calendar week every year,
  * which is what makes it "automatic" rather than a schedule someone has to maintain —
  * asked for directly, in exactly those words.
+ *
+ * **Only a currently playable game is a candidate.** `hubSections` pins whatever this
+ * returns unconditionally, and `cardState` hides a `hidden` slug outright and demotes a
+ * `soon` one to the bottom tier — either way the pinned slot would render nothing, with
+ * no fallback to the next game in line. Filtering here, on the one list every caller
+ * already needs `flags` to build a page from anyway, is what keeps the spotlight always
+ * pointing at a real, visible card. `new` and `active` both count as playable, so a
+ * freshly added game can still be the week's pick — it wears WEEK instead of NEW
+ * (`cardState` ranks the two that way already).
  */
-export function gameOfWeek(slugsAlphabetical: string[], now: Date): string | null {
-  if (slugsAlphabetical.length === 0) return null;
-  const index = (isoWeek(now) - 1) % slugsAlphabetical.length;
-  return slugsAlphabetical[index] ?? null;
+export function gameOfWeek(
+  slugsAlphabetical: string[],
+  now: Date,
+  flags: Record<string, GameFlag>,
+): string | null {
+  const visible = slugsAlphabetical.filter((slug) => isPlayable(flagFor(flags, slug).state));
+  if (visible.length === 0) return null;
+  const index = (isoWeek(now) - 1) % visible.length;
+  return visible[index] ?? null;
 }

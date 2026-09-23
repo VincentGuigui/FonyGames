@@ -402,9 +402,23 @@ check("and the very next day starts the new year's week 1", Flags::isoWeek($day(
 group("the week's own spotlighted game");
 
 $alphabetical = ['aliens-love-cows', 'ghost-hunt', 'spill', 'tap-duel'];
-check('week 1 picks the first title alphabetically', Flags::gameOfWeek($alphabetical, $day('2024-01-01')) === 'aliens-love-cows');
-check('week 2 picks the second', Flags::gameOfWeek($alphabetical, $day('2024-01-08')) === 'ghost-hunt');
+check('week 1 picks the first title alphabetically', Flags::gameOfWeek($alphabetical, $day('2024-01-01'), []) === 'aliens-love-cows');
+check('week 2 picks the second', Flags::gameOfWeek($alphabetical, $day('2024-01-08'), []) === 'ghost-hunt');
 // Week 5 wraps back around to the first game — 4 games, and (5-1) % 4 === 0.
-check('the rotation wraps once every game has had a week', Flags::gameOfWeek($alphabetical, $day('2024-01-29')) === 'aliens-love-cows');
-check('an empty catalogue spotlights nothing', Flags::gameOfWeek([], $day('2024-01-01')) === null);
-check('a single game is always it', Flags::gameOfWeek(['spill'], $day('2024-01-01')) === 'spill');
+check('the rotation wraps once every game has had a week', Flags::gameOfWeek($alphabetical, $day('2024-01-29'), []) === 'aliens-love-cows');
+check('an empty catalogue spotlights nothing', Flags::gameOfWeek([], $day('2024-01-01'), []) === null);
+check('a single game is always it', Flags::gameOfWeek(['spill'], $day('2024-01-01'), []) === 'spill');
+
+// A hidden or paused slug is never the pick: `hubSections` would still pin it, and
+// `Page::grid` would render nothing in that slot with no fallback to the next game.
+$week1 = $day('2024-01-01'); // picks aliens-love-cows when everyone is visible
+check('a hidden pick is skipped for the next visible game',
+    Flags::gameOfWeek($alphabetical, $week1, ['aliens-love-cows' => ['state' => 'hidden']]) === 'ghost-hunt');
+check('a paused pick is skipped the same way',
+    Flags::gameOfWeek($alphabetical, $week1, ['aliens-love-cows' => ['state' => 'soon']]) === 'ghost-hunt');
+check('every candidate hidden spotlights nothing',
+    Flags::gameOfWeek($alphabetical, $week1, array_fill_keys($alphabetical, ['state' => 'hidden'])) === null);
+// A `new` game is still a candidate — it wears WEEK instead of NEW when picked, not
+// excluded from the rotation.
+check('a game flagged new stays eligible',
+    Flags::gameOfWeek($alphabetical, $week1, ['aliens-love-cows' => ['state' => 'new']]) === 'aliens-love-cows');

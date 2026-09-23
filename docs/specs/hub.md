@@ -84,7 +84,11 @@ play something in under ten seconds.
   sentence rather than a schedule someone has to maintain. Sorted by the
   untranslated title specifically, so a French visitor and an English one see
   the same game: sorting *after* translation would give two languages two
-  different orders.
+  different orders. A `new`-flagged game is still a candidate — picked, it
+  wears WEEK instead of NEW, since the two are ranked (above). A `hidden` or
+  operator-`soon` game never is: the index skips straight to the next visible
+  title, because the pinned slot has no fallback if the raw pick turns out not
+  to render at all.
 - The pinning and tiering rule lives in `hottest()`/`gameOfWeek()`/`isoWeek()`/
   `hubSections()` in `shared/flags.ts`, and is **re-implemented in PHP**
   (`Flags::hottest`/`Flags::gameOfWeek`/`Flags::isoWeek`/`Flags::hubSections`)

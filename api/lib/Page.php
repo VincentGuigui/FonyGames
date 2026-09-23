@@ -111,7 +111,7 @@ final class Page
     public static function grid(array $cards, array $flags, bool $showAll, array $plays = [], array $weekOrder = [], ?int $now = null, array $soonOrder = []): string
     {
         $hot = Flags::hottest($plays, $weekOrder);
-        $week = Flags::gameOfWeek($weekOrder, $now ?? time());
+        $week = Flags::gameOfWeek($weekOrder, $now ?? time(), $flags);
         $sections = Flags::hubSections($weekOrder, $flags, $hot, $week);
 
         // Any live game flagged `soon` moves out of its section and joins the bottom,
