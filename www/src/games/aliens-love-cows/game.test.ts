@@ -1,5 +1,6 @@
 import {
   applyAbduct,
+  barnCenterAt,
   cowGridSlot,
   leaderOf,
   ranking,
@@ -169,11 +170,28 @@ function cowGrid(): void {
   }
 }
 
+function barnCenters(): void {
+  console.log('\nbarnCenterAt: interpolates real (unevenly-spaced) measured centres');
+
+  // Not evenly spaced on purpose — the whole point is that these come from
+  // flexbox `space-evenly` plus padding, not from a formula.
+  const centers = [12.6, 31.3, 50, 68.7, 87.4];
+
+  check('sitting exactly on a barn returns its own centre', barnCenterAt(centers, 2) === 50);
+  check('halfway between two barns is their own midpoint',
+    Math.abs(barnCenterAt(centers, 0.5) - (centers[0]! + centers[1]!) / 2) < 1e-9);
+  check('a fractional index elsewhere interpolates linearly',
+    Math.abs(barnCenterAt(centers, 3.25) - (centers[3]! + (centers[4]! - centers[3]!) * 0.25)) < 1e-9);
+  check('an index below the row clamps to the first barn', barnCenterAt(centers, -1) === centers[0]);
+  check('an index past the row clamps to the last barn', barnCenterAt(centers, 9) === centers[4]);
+}
+
 projecting();
 scoring();
 drift();
 hover();
 cowGrid();
+barnCenters();
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);
 console.log(`\nall passed (${checks} checks)`);

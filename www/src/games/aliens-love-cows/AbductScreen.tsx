@@ -11,7 +11,7 @@ import {
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard, type ScoreRow } from '../../core/ui/Scoreboard';
 import { useGameText } from '../../core/i18n/gameText';
-import { cowGridSlot, ufoDriftAt, ufoHoverAt, type AbductView } from './game';
+import { barnCenterAt, cowGridSlot, ufoDriftAt, ufoHoverAt, type AbductView } from './game';
 import cowArt from './art/cow.png?url&no-inline';
 import barnArt from './art/barn.png?url&no-inline';
 import barnDestroyedArt from './art/barn_destroyed.png?url&no-inline';
@@ -99,6 +99,41 @@ export function AbductScreen({
   const [coneTop, setConeTop] = useState(UFO_TOP_LOCKED);
   const ufoRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const barnRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  /* Each barn's own screen centre, as a stage-percent — `.abduct__barns` lays
+   * barns out with flexbox `space-evenly` plus its own padding, so this can
+   * only come from the DOM (see `barnCenterAt` in game.ts). Seeded with the
+   * naive even-split formula so there is something to draw before the first
+   * measurement lands; `barnCentersRef` is what the raf loop below actually
+   * reads, kept in sync with this state so a resize/orientation change
+   * doesn't need to restart that loop. */
+  const [barnCenters, setBarnCenters] = useState<number[]>(() =>
+    Array.from({ length: ABDUCT_BARN_COUNT }, (_, i) => barnX(i)),
+  );
+  const barnCentersRef = useRef(barnCenters);
+
+  useEffect(() => {
+    const stageEl = stageRef.current;
+    if (!stageEl) return;
+
+    const measure = (): void => {
+      const stageRect = stageEl.getBoundingClientRect();
+      if (stageRect.width === 0) return;
+      const next: number[] = [];
+      for (const el of barnRefs.current) {
+        if (!el) return; // not every barn mounted yet — the next observation retries
+        const rect = el.getBoundingClientRect();
+        next.push(((rect.left + rect.width / 2 - stageRect.left) / stageRect.width) * 100);
+      }
+      barnCentersRef.current = next;
+      setBarnCenters(next);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(stageEl);
+    return () => observer.disconnect();
+  }, []);
 
   const waiting = state.phase === 'waiting';
   const countdown = state.phase === 'countdown';
@@ -138,25 +173,26 @@ export function AbductScreen({
 
     const frame = (): void => {
       raf = requestAnimationFrame(frame);
+      const centers = barnCentersRef.current;
 
       if (waiting || countdown) {
-        place(barnX(ufoDriftAt(now() - driftStartedAt) * (ABDUCT_BARN_COUNT - 1)), UFO_TOP_HOVER);
+        place(barnCenterAt(centers, ufoDriftAt(now() - driftStartedAt) * (ABDUCT_BARN_COUNT - 1)), UFO_TOP_HOVER);
         return;
       }
 
       const target = state.target ?? 0;
       const elapsed = now() - revealStartedAt;
       if (elapsed < ABDUCT_HOVER_MS) {
-        place(barnX(ufoHoverAt(elapsed) * (ABDUCT_BARN_COUNT - 1)), UFO_TOP_HOVER);
+        place(barnCenterAt(centers, ufoHoverAt(elapsed) * (ABDUCT_BARN_COUNT - 1)), UFO_TOP_HOVER);
         return;
       }
       if (elapsed < ABDUCT_LOCK_AT_MS) {
         const t = easeOutCubic((elapsed - ABDUCT_HOVER_MS) / ABDUCT_TRANSIT_MS);
         const from = ufoHoverAt(ABDUCT_HOVER_MS) * (ABDUCT_BARN_COUNT - 1);
-        place(barnX(from + (target - from) * t), UFO_TOP_HOVER + (UFO_TOP_LOCKED - UFO_TOP_HOVER) * t);
+        place(barnCenterAt(centers, from + (target - from) * t), UFO_TOP_HOVER + (UFO_TOP_LOCKED - UFO_TOP_HOVER) * t);
         return;
       }
-      place(barnX(target), UFO_TOP_LOCKED);
+      place(barnCenterAt(centers, target), UFO_TOP_LOCKED);
       if (!wasLocked) {
         wasLocked = true;
         setLocked(true);
@@ -232,7 +268,7 @@ export function AbductScreen({
         {revealing && locked && (
           <div
             class="abduct__cone"
-            style={{ left: `${barnX(state.target ?? 0)}%`, top: `${coneTop}%` }}
+            style={{ left: `${barnCenterAt(barnCenters, state.target ?? 0)}%`, top: `${coneTop}%` }}
             aria-hidden="true"
           />
         )}
@@ -257,6 +293,9 @@ export function AbductScreen({
             return (
               <button
                 key={barn}
+                ref={(el) => {
+                  barnRefs.current[barn] = el;
+                }}
                 type="button"
                 class={`abduct__barn${showDestroyed ? ' abduct__barn--destroyed' : ''}`}
                 disabled={!canPick || destroyed || amOut}
@@ -290,7 +329,7 @@ export function AbductScreen({
             if (placed) {
               const list = occupants.get(barn) ?? [p.id];
               const slot = cowGridSlot(list.indexOf(p.id), list.length);
-              x = barnX(barn) + slot.col * COW_COL_GAP_PCT;
+              x = barnCenterAt(barnCenters, barn) + slot.col * COW_COL_GAP_PCT;
               // An abducted cow rises to meet the UFO itself, not past it —
               // the barn's own target is already this cow's barn (it could
               // not be caught otherwise), so `x` above already lines up.
@@ -337,8 +376,11 @@ const STARS: Array<[number, number, number]> = [
   [80, 7, 1.5], [92, 15, 2], [14, 22, 1.5], [46, 20, 1.5], [74, 24, 1.5],
 ];
 
-/** Barn `i`'s own x, as a percentage across the stage — evenly spaced (spec §4).
- *  Accepts a fractional `i` too: the UFO's own path is continuous, not discrete. */
+/** An assumed even split of the stage — only a seed for `barnCenters` before
+ *  the real DOM measurement above lands (spec §4 still calls for the barns
+ *  evenly spaced; `.abduct__barns`' own flexbox layout is what actually
+ *  delivers that, this is not the source of truth for where they end up).
+ *  Accepts a fractional `i` too, same as `barnCenterAt`. */
 function barnX(i: number): number {
   return ((i + 0.5) / ABDUCT_BARN_COUNT) * 100;
 }

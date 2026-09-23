@@ -138,3 +138,27 @@ export function cowGridSlot(index: number, count: number): { col: number; row: n
   const row = isLoneLastRow ? rows - 1 : Math.floor(index / cols);
   return { col: cols > 1 ? col - (cols - 1) / 2 : 0, row };
 }
+
+/**
+ * Interpolates the UFO's own x (stage percent) for a fractional barn index
+ * `i`, given each barn's own measured screen centre.
+ *
+ * `.abduct__barns` lays barns out with flexbox `space-evenly` plus its own
+ * padding, so a barn's real centre is not `(i + 0.5) / count` of the stage —
+ * that formula assumes an even split of the WHOLE stage width, which only
+ * happens to land exactly on the middle barn; every barn further out drifts
+ * more, which is what put the reveal's cone visibly off a barn's own beam
+ * slot (worst at the two end barns). Real centres have to come from the DOM
+ * (`AbductScreen.tsx` measures them, the same way it already measures
+ * `coneTop`) — this function only interpolates between them for the UFO's
+ * continuous drift/hover/transit path, and clamps `i` to the barn row itself.
+ */
+export function barnCenterAt(centers: readonly number[], i: number): number {
+  const clamped = Math.max(0, Math.min(centers.length - 1, i));
+  const lo = Math.floor(clamped);
+  const hi = Math.min(centers.length - 1, lo + 1);
+  const t = clamped - lo;
+  const from = centers[lo] ?? 0;
+  const to = centers[hi] ?? from;
+  return from + (to - from) * t;
+}
