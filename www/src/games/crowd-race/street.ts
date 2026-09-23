@@ -84,7 +84,10 @@ export function slotCount(): number {
  * not read as a grid, and in `x` across the walkable width.
  *
  * Every row deals one obstacle into each of `CROWD_LANES` bands across the
- * street, so the crowd is four wide and nothing spawns overlapping.
+ * street, so the crowd is six wide and nothing spawns overlapping — and
+ * `closeStraightColumns` below then patches whatever straight column the
+ * random deal still leaves open, which the lane count and jitter alone do
+ * not guarantee (spec §2.2).
  */
 export function dealStreet(roundId: number): ObstacleSpawn[] {
   const slots = slotCount();
@@ -125,7 +128,78 @@ export function dealStreet(roundId: number): ObstacleSpawn[] {
     }
   }
 
-  return out;
+  return [...out, ...closeStraightColumns(out, roundId)];
+}
+
+/**
+ * How far one obstacle's own body reaches across the street once the
+ * player's own half-width is folded in — the actual test a straight vertical
+ * run fails at any `x` inside this range (spec §2.2 follow-up).
+ */
+function blockedRange(o: { x: number; rx: number }): [number, number] {
+  return [o.x - o.rx - CROWD_PERSON_RX, o.x + o.rx + CROWD_PERSON_RX];
+}
+
+/** Sorted and merged — the union of however many ranges came in. */
+function mergeRanges(ranges: readonly [number, number][]): [number, number][] {
+  const sorted = [...ranges].sort((a, b) => a[0] - b[0]);
+  const merged: [number, number][] = [];
+  for (const [lo, hi] of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && lo <= last[1]) last[1] = Math.max(last[1], hi);
+    else merged.push([lo, hi]);
+  }
+  return merged;
+}
+
+/** Whatever `covered` leaves open inside `[lo, hi]`. */
+function gapsIn(covered: readonly [number, number][], lo: number, hi: number): [number, number][] {
+  const gaps: [number, number][] = [];
+  let cursor = lo;
+  for (const [a, b] of covered) {
+    if (a > cursor) gaps.push([cursor, Math.min(a, hi)]);
+    cursor = Math.max(cursor, b);
+    if (cursor >= hi) break;
+  }
+  if (cursor < hi) gaps.push([cursor, hi]);
+  return gaps.filter(([a, b]) => b > a);
+}
+
+/**
+ * The actual guarantee: no straight line from the start to the finish
+ * survives (spec §2.2 follow-up, "so there should be more obstacles").
+ *
+ * A straight run at a fixed `x` fails wherever ANY dealt obstacle's own
+ * `blockedRange` reaches across it — `y` never enters into it, because the
+ * run spans the whole course and every obstacle sits somewhere inside that
+ * span regardless of which row dealt it. So "nothing gets all the way up"
+ * reduces to one condition on `x` alone: the union of every obstacle's own
+ * `blockedRange` has to cover the whole walkable width. `CROWD_LANES` and the
+ * jitter above make that likely, not certain — this closes whatever gap is
+ * still open, one tree per gap, sized to exactly span it (`rx = width / 2`,
+ * centred on it) and never a unit wider, so a patch can never reach into a
+ * neighbour's own body and break the "nothing spawns overlapping" rule
+ * `street.test.ts` already holds the rest of the deal to.
+ */
+function closeStraightColumns(spawns: readonly ObstacleSpawn[], roundId: number): ObstacleSpawn[] {
+  const lo = CROWD_PERSON_RX;
+  const hi = CROWD_STREET_WIDTH - CROWD_PERSON_RX;
+  const covered = mergeRanges(spawns.map(blockedRange));
+  const gaps = gapsIn(covered, lo, hi);
+  const slots = slotCount();
+
+  return gaps.map(([a, b], n) => {
+    const x = (a + b) / 2;
+    const r = (b - a) / 2;
+    // Anywhere in the course — the guarantee above is purely about `x` — but
+    // spread across rows by its own hash rather than piled at one `y`, so a
+    // patch reads as one more tree in the crowd rather than a wall bolted on
+    // after the fact.
+    const row = Math.floor(hash01(roundId, 20_000 + n, 0) * slots);
+    const jitterY = (hash01(roundId, 20_000 + n, 1) - 0.5) * CROWD_OBSTACLE_SPACING * 0.66;
+    const y = CROWD_START_CLEAR + (row + 0.5) * CROWD_OBSTACLE_SPACING + jitterY;
+    return { id: `${roundId}:patch:${n}`, kind: 'tree', x, y, dir: 0, speed: 0, rx: r, ry: r };
+  });
 }
 
 /**

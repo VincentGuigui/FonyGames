@@ -1,10 +1,15 @@
 import {
+  CROWD_BICYCLE_RX,
+  CROWD_BICYCLE_RY,
   CROWD_BIKE_STUN_MS,
   CROWD_BOUNCE_MS,
   CROWD_FINISH_Y,
+  CROWD_PERSON_RX,
+  CROWD_PERSON_RY,
   CROWD_START_CLEAR,
   CROWD_START_Y,
   CROWD_STREET_WIDTH,
+  CROWD_TREE_R,
   CROWD_WALK_SPEED,
 } from '../../../../shared/protocol';
 import { startRun, step, type CrowdRun, type LiveObstacle } from './game';
@@ -90,14 +95,14 @@ function bounds(): void {
     { best: ahead.y, floor: pushedBack.y },
   );
 }
-const CROWD_PERSON_RX_PLUS = 20; // generous slack around the hitbox radius for the wall checks above
+const CROWD_PERSON_RX_PLUS = CROWD_PERSON_RX + 6; // generous slack around the hitbox radius for the wall checks above
 
 function collisions(): void {
   console.log('\ncollisions bounce, cascade, and respect each kind (§2.1)');
 
   // A lone tree, dead ahead of an upright walk.
   const treeObstacles: LiveObstacle[] = [
-    { id: 't', kind: 'tree', x: CROWD_STREET_WIDTH / 2, y: 40, dir: 0, speed: 0, rx: 18, ry: 18, bounce: null, stunUntil: 0 },
+    { id: 't', kind: 'tree', x: CROWD_STREET_WIDTH / 2, y: 40, dir: 0, speed: 0, rx: CROWD_TREE_R, ry: CROWD_TREE_R, bounce: null, stunUntil: 0 },
   ];
   const treeRun = { ...startRun(10), x: CROWD_STREET_WIDTH / 2, y: 0, obstacles: treeObstacles };
   let r = treeRun;
@@ -123,7 +128,7 @@ function collisions(): void {
   // the physics only cares about `kind` for what happens on contact — a
   // stationary pedestrian is a valid test fixture for "the fixture bounces").
   const pedObstacles: LiveObstacle[] = [
-    { id: 'p', kind: 'pedestrian', x: CROWD_STREET_WIDTH / 2, y: 40, dir: 1, speed: 0, rx: 14, ry: 20, bounce: null, stunUntil: 0 },
+    { id: 'p', kind: 'pedestrian', x: CROWD_STREET_WIDTH / 2, y: 40, dir: 1, speed: 0, rx: CROWD_PERSON_RX, ry: CROWD_PERSON_RY, bounce: null, stunUntil: 0 },
   ];
   // Started at the very bottom (world y: 0) rather than the default start
   // line — CROWD_START_Y now sits exactly on this fixture's own y, which
@@ -139,7 +144,7 @@ function collisions(): void {
 
   // A bicycle: stops, does not bounce.
   const bikeObstacles: LiveObstacle[] = [
-    { id: 'b', kind: 'bicycle', x: CROWD_STREET_WIDTH / 2, y: 40, dir: 1, speed: 0, rx: 15, ry: 28, bounce: null, stunUntil: 0 },
+    { id: 'b', kind: 'bicycle', x: CROWD_STREET_WIDTH / 2, y: 40, dir: 1, speed: 0, rx: CROWD_BICYCLE_RX, ry: CROWD_BICYCLE_RY, bounce: null, stunUntil: 0 },
   ];
   const bikeRun = { ...startRun(12), x: CROWD_STREET_WIDTH / 2, y: 0, obstacles: bikeObstacles };
   let r3 = bikeRun;
@@ -153,8 +158,8 @@ function collisions(): void {
   // Cascade: a pedestrian bounced squarely into a second one right behind it
   // must, within a few frames, bounce that second one too.
   const cascadeObstacles: LiveObstacle[] = [
-    { id: 'p1', kind: 'pedestrian', x: CROWD_STREET_WIDTH / 2, y: 40, dir: 1, speed: 0, rx: 14, ry: 20, bounce: null, stunUntil: 0 },
-    { id: 'p2', kind: 'pedestrian', x: CROWD_STREET_WIDTH / 2, y: 80, dir: 1, speed: 0, rx: 14, ry: 20, bounce: null, stunUntil: 0 },
+    { id: 'p1', kind: 'pedestrian', x: CROWD_STREET_WIDTH / 2, y: 40, dir: 1, speed: 0, rx: CROWD_PERSON_RX, ry: CROWD_PERSON_RY, bounce: null, stunUntil: 0 },
+    { id: 'p2', kind: 'pedestrian', x: CROWD_STREET_WIDTH / 2, y: 80, dir: 1, speed: 0, rx: CROWD_PERSON_RX, ry: CROWD_PERSON_RY, bounce: null, stunUntil: 0 },
   ];
   const cascadeRun = { ...startRun(13), x: CROWD_STREET_WIDTH / 2, y: 0, obstacles: cascadeObstacles };
   let r4 = cascadeRun;
@@ -179,13 +184,13 @@ function traffic(): void {
   // pedestrian off the visible street — found by walking a real round, where
   // a repeatedly-bounced pedestrian ended up with a negative x and never drew.
   const edgeObstacles: LiveObstacle[] = [
-    { id: 'e', kind: 'pedestrian', x: 1, y: 0, dir: 1, speed: 0, rx: 14, ry: 20, bounce: null, stunUntil: 0 },
+    { id: 'e', kind: 'pedestrian', x: 1, y: 0, dir: 1, speed: 0, rx: CROWD_PERSON_RX, ry: CROWD_PERSON_RY, bounce: null, stunUntil: 0 },
   ];
   const edgeRun: CrowdRun = { ...startRun(20), x: CROWD_PERSON_RX_PLUS, y: 0, obstacles: edgeObstacles };
   const afterEdge = step(edgeRun, UPRIGHT, FRAME);
   check(
     'a pedestrian bounced toward the kerb is clamped to the street',
-    afterEdge.obstacles[0]!.x >= 14 - 1e-6 && afterEdge.obstacles[0]!.x <= CROWD_STREET_WIDTH - 14 + 1e-6,
+    afterEdge.obstacles[0]!.x >= CROWD_PERSON_RX - 1e-6 && afterEdge.obstacles[0]!.x <= CROWD_STREET_WIDTH - CROWD_PERSON_RX + 1e-6,
     afterEdge.obstacles[0]!.x,
   );
 
@@ -194,7 +199,7 @@ function traffic(): void {
   // obstacles visible", where the crowd near the player thinned to nothing
   // well before the finish line.
   const loopers: LiveObstacle[] = [
-    { id: 'l', kind: 'pedestrian', x: 100, y: CROWD_FINISH_Y - 0.1, dir: 1, speed: CROWD_WALK_SPEED, rx: 14, ry: 20, bounce: null, stunUntil: 0 },
+    { id: 'l', kind: 'pedestrian', x: 100, y: CROWD_FINISH_Y - 0.1, dir: 1, speed: CROWD_WALK_SPEED, rx: CROWD_PERSON_RX, ry: CROWD_PERSON_RY, bounce: null, stunUntil: 0 },
   ];
   const loopRun: CrowdRun = { ...startRun(21), obstacles: loopers };
   const afterLoop = step(loopRun, FLAT, FRAME);
@@ -208,7 +213,7 @@ function traffic(): void {
   // pedestrian at `y: 40` so a round trip does not need 30 s of frames — must
   // not be treated as already past a boundary and snapped away.
   const parked: LiveObstacle[] = [
-    { id: 'p', kind: 'pedestrian', x: 100, y: 40, dir: 1, speed: 0, rx: 14, ry: 20, bounce: null, stunUntil: 0 },
+    { id: 'p', kind: 'pedestrian', x: 100, y: 40, dir: 1, speed: 0, rx: CROWD_PERSON_RX, ry: CROWD_PERSON_RY, bounce: null, stunUntil: 0 },
   ];
   const parkedRun: CrowdRun = { ...startRun(22), obstacles: parked };
   const afterParked = step(parkedRun, FLAT, FRAME);

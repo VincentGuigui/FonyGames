@@ -2,6 +2,7 @@ import {
   CROWD_DOWN_STREET_SHARE,
   CROWD_FINISH_Y,
   CROWD_LANES,
+  CROWD_PERSON_RX,
   CROWD_START_CLEAR,
   CROWD_STREET_WIDTH,
 } from '../../../../shared/protocol';
@@ -34,10 +35,16 @@ function dealing(): void {
 
   check('the same round deals the same street', JSON.stringify(a) === JSON.stringify(aAgain));
   check('a different round deals a different one', JSON.stringify(a) !== JSON.stringify(b));
+
+  // `a` also carries whatever `closeStraightColumns` patched in, on top of the
+  // regular deal — its own coverage guarantee is `noOpenColumn` below, not
+  // this row/lane count, so the dealt-only counts here look at `real`.
+  const real = a.filter((o) => !o.id.includes(':patch:'));
+  const patches = a.length - real.length;
   check(
-    `every row deals a full set of lanes (${a.length} = ${slotCount()} x ${CROWD_LANES})`,
-    a.length === slotCount() * CROWD_LANES && a.length > 0,
-    a.length,
+    `every row deals a full set of lanes (${real.length} = ${slotCount()} x ${CROWD_LANES}, plus ${patches} patched)`,
+    real.length === slotCount() * CROWD_LANES && real.length > 0,
+    real.length,
   );
 
   /*
@@ -46,9 +53,10 @@ function dealing(): void {
    */
   // Bucketed by the row each was DEALT into, not by where its jitter left it:
   // the guarantee is about the deal, and a body that drifted into the next
-  // band is still four-abreast on screen.
+  // band is still six-abreast on screen. Patches carry no row/lane of their
+  // own, so they are excluded here the same way.
   const rows = new Map<string, number>();
-  for (const o of a) {
+  for (const o of real) {
     const row = o.id.split(':')[1] ?? '?';
     rows.set(row, (rows.get(row) ?? 0) + 1);
   }
@@ -57,17 +65,21 @@ function dealing(): void {
     [...rows.values()].every((n) => n >= CROWD_LANES),
     [...rows.entries()],
   );
+  // One obstacle per (row, lane), so every lane gets exactly one per row —
+  // `slotCount()`, not `CROWD_LANES`: the two only happened to coincide while
+  // there were fewer lanes than rows, which is what let this compare against
+  // the wrong count without ever failing.
   const lanes = new Map<string, number>();
-  for (const o of a) {
+  for (const o of real) {
     const lane = o.id.split(':')[2] ?? '?';
     lanes.set(lane, (lanes.get(lane) ?? 0) + 1);
   }
   check(
-    `and at least ${CROWD_LANES} up every lane (${[...lanes.values()].join(', ')})`,
-    [...lanes.values()].every((n) => n >= CROWD_LANES),
+    `and at least ${slotCount()} up every lane (${[...lanes.values()].join(', ')})`,
+    [...lanes.values()].every((n) => n >= slotCount()),
     [...lanes.entries()],
   );
-  check(`the street is crowded, not a stroll (${a.length} obstacles)`, a.length >= 20, a.length);
+  check(`the street is crowded, not a stroll (${a.length} obstacles)`, a.length >= 30, a.length);
 
   // Nothing is dealt inside another body — by the game's own overlap test,
   // not an approximation of it.
@@ -106,6 +118,39 @@ function dealing(): void {
   check(`about ${Math.round(CROWD_DOWN_STREET_SHARE * 100)}% walk down-street (${(share * 100).toFixed(0)}%)`, Math.abs(share - CROWD_DOWN_STREET_SHARE) < 0.08, share);
 }
 
+/**
+ * The actual follow-up guarantee: no straight line from the start to the
+ * finish survives, at any `x` — a body's own dealt `rx`, plus the player's
+ * own `CROWD_PERSON_RX`, is what a run at that `x` would have to clear (spec
+ * §2.2 follow-up). Black-box on purpose: it drives `dealStreet`'s own public
+ * output through the same test a real run would fail, rather than reaching
+ * into `closeStraightColumns`'s own internals.
+ */
+function noOpenColumn(): void {
+  console.log('\nno straight run reaches the top (§2.2 follow-up)');
+
+  const lo = CROWD_PERSON_RX;
+  const hi = CROWD_STREET_WIDTH - CROWD_PERSON_RX;
+  const STEP = 1;
+  const openSeeds: number[] = [];
+  for (let seed = 1; seed <= 150; seed++) {
+    const street = dealStreet(seed);
+    let sawOpen = false;
+    for (let x = lo; x <= hi; x += STEP) {
+      if (!street.some((o) => Math.abs(x - o.x) < o.rx + CROWD_PERSON_RX)) {
+        sawOpen = true;
+        break;
+      }
+    }
+    if (sawOpen) openSeeds.push(seed);
+  }
+  check(
+    `none of 150 seeds leaves a straight column open (${openSeeds.length} did)`,
+    openSeeds.length === 0,
+    openSeeds,
+  );
+}
+
 function overlap(): void {
   console.log('\nellipse-vs-ellipse (used by both game.ts and the referee)');
 
@@ -117,6 +162,7 @@ function overlap(): void {
 }
 
 dealing();
+noOpenColumn();
 overlap();
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);

@@ -128,7 +128,8 @@ export function CrowdCanvas({ run, myAvatar, rivals, onFrame }: Props): JSX.Elem
 
       // Rivals: their own avatar, at their own last-reported position —
       // scenery to look at, never something to collide with (spec §12 Q1).
-      ctx.font = `${28}px system-ui, sans-serif`;
+      // Halved along with every hitbox below (spec §2.1 follow-up).
+      ctx.font = `${14}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       for (const rival of rivals()) {
@@ -139,8 +140,9 @@ export function CrowdCanvas({ run, myAvatar, rivals, onFrame }: Props): JSX.Elem
       }
 
       // This phone's own avatar, always drawn last so it is never hidden
-      // under the crowd.
-      ctx.font = `${34}px system-ui, sans-serif`;
+      // under the crowd. Halved along with every hitbox below (spec §2.1
+      // follow-up).
+      ctx.font = `${17}px system-ui, sans-serif`;
       ctx.fillText(myAvatar, state.x, flip(state.y));
 
       ctx.restore();

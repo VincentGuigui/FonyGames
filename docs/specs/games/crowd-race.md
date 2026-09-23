@@ -115,11 +115,24 @@ this profile exists to avoid.
   rather than draining away, which matters more now that the whole board is
   always on screen at once (§2, §4).
 
-**Four abreast.** Every row deals one obstacle into each of `CROWD_LANES` bands
-across the street, so a row is four wide and a lane five deep over the course —
-twenty obstacles, where one per row gave five and read as a stroll. Each is
+**Six abreast.** Every row deals one obstacle into each of `CROWD_LANES` bands
+across the street, so a row is six wide and a lane five deep over the course —
+thirty obstacles, where one per row gave five and read as a stroll. Each is
 jittered inside its own band and by two thirds of a spacing along the street, so
 the crowd is not a grid, and no two are ever dealt overlapping.
+
+**No straight line survives the crowd.** A random deal on its own does not
+guarantee this — measured against the halved bodies below, four lanes left a
+column with nothing in it, top to bottom, in most rounds. `CROWD_LANES` moving
+up to six closes most of them; `closeStraightColumns` (`street.ts`) closes the
+rest, deterministically: it finds every gap the union of the deal's own
+`[x − rx − CROWD_PERSON_RX, x + rx + CROWD_PERSON_RX]` ranges leaves open across
+the walkable width, and drops one tree into each, centred on the gap and sized
+to exactly span it (`rx = gap width / 2`) — never wider, so a patch can never
+reach into a neighbour's own body and break the "nothing spawns overlapping"
+rule the rest of the deal holds to. `y` does not enter into the test at all: a
+straight run spans the whole course, so a column is only open if EVERY row
+misses it, which is exactly "no obstacle anywhere blocks this `x`".
 
 
 ## 3. Modes / variations

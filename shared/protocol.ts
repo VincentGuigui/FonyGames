@@ -3619,28 +3619,40 @@ export const CROWD_OBSTACLE_SPACING = 90;
 /**
  * Obstacles dealt across the street in every row — the lanes the crowd fills.
  *
- * The course holds five rows, so four lanes is four obstacles in every row and
- * five in every lane: "at least 4 per column" either way round you read it.
- * One per row left twenty obstacles' worth of street holding five, which is a
- * walk rather than a crowd.
+ * The course holds five rows, so six lanes is six obstacles in every row and
+ * five in every lane: thirty in total, up from twenty at four lanes — raised
+ * alongside the halved body sizes below, so the street reads as dense as it
+ * did before the shrink rather than emptying out. Four lanes of the old,
+ * bigger bodies already left a fully open, straight column in roughly a third
+ * of dealt streets; halving every body without raising the lane count would
+ * have left one open in effectively every round (`street.test.ts`'s own
+ * `noOpenColumn` pins the guarantee this and `closeStraightColumns` below
+ * exist for — see docs/specs/games/crowd-race.md §2.2).
  *
  * The width divides into this many bands and each takes one obstacle, jittered
  * inside its own band, so a row is never dealt two bodies on top of each other.
  */
-export const CROWD_LANES = 4;
+export const CROWD_LANES = 6;
 
 /** Share of moving obstacles walking down-street (toward the player) rather
  *  than up it — the issue's own number. */
 export const CROWD_DOWN_STREET_SHARE = 0.75;
 
-/** Ellipse hitbox half-axes, world units: `x` half-width, `y` half-height.
- *  People (players and pedestrians) are taller than wide from above; a tree
- *  is round; a bicycle is longer than a person but no wider (spec §2.1). */
-export const CROWD_PERSON_RX = 14;
-export const CROWD_PERSON_RY = 20;
-export const CROWD_BICYCLE_RX = 15;
-export const CROWD_BICYCLE_RY = 28;
-export const CROWD_TREE_R = 18;
+/**
+ * Ellipse hitbox half-axes, world units: `x` half-width, `y` half-height.
+ * People (players and pedestrians) are taller than wide from above; a tree
+ * is round; a bicycle is longer than a person but no wider (spec §2.1).
+ *
+ * Halved from the original 14/20/15/28/18 (issue follow-up): every sprite —
+ * the player included, since the player uses these same constants — reads
+ * smaller and the street reads roomier, which is exactly why `CROWD_LANES`
+ * moved up alongside this change rather than on its own.
+ */
+export const CROWD_PERSON_RX = 7;
+export const CROWD_PERSON_RY = 10;
+export const CROWD_BICYCLE_RX = 7.5;
+export const CROWD_BICYCLE_RY = 14;
+export const CROWD_TREE_R = 9;
 
 /**
  * The bounce's speed, world units/s, along the line between the two bodies'
