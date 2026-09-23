@@ -19,8 +19,8 @@ export const CARD: GameCard = {
   concept: 'Two ships, two planets between them — point above your ship, let go, and let gravity curve your missile onto their hull.',
   rules: [
     'Touch above your own ship to aim toward your finger, release to fire — the planets bend the shot.',
-    'Land a hit and the other ship loses a life. Five lives each.',
-    'Turns alternate. First ship out of lives loses.',
+    'Land a hit and the other ship loses health — the longer the flight, the harder it lands.',
+    'Turns alternate. First ship out of health loses.',
   ],
   art: { src: art, alt: 'A missile curving hard around a planet toward a distant starship' },
   fr: {
@@ -28,8 +28,8 @@ export const CARD: GameCard = {
     concept: 'Deux vaisseaux, deux planètes entre eux — visez au-dessus de votre vaisseau, lâchez, et laissez la gravité courber votre missile.',
     rules: [
       'Touchez au-dessus de votre vaisseau pour viser vers votre doigt, lâchez pour tirer — les planètes courbent le tir.',
-      'Touchez et l’autre vaisseau perd une vie. Cinq vies chacun.',
-      'Les tours alternent. Le premier vaisseau à court de vies perd.',
+      'Touchez et l’autre vaisseau perd de la vie — plus le vol est long, plus l’impact est fort.',
+      'Les tours alternent. Le premier vaisseau à court de vie perd.',
     ],
     art: { alt: 'Un missile courbant fortement autour d’une planète vers un vaisseau lointain' },
   },

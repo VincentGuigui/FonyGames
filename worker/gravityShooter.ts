@@ -1,5 +1,5 @@
 import {
-  GRAVITY_LIVES,
+  GRAVITY_MAX_HEALTH,
   GRAVITY_MAX_PLAYERS,
   GRAVITY_MIN_LANDING_SHOTS,
   GRAVITY_MAX_AIM_DISTANCE,
@@ -19,10 +19,12 @@ import {
   GRAVITY_SHIP_MARGIN,
   GRAVITY_SHOTS_PER_MAP,
   GRAVITY_MAX_FLIGHT_MS,
+  GRAVITY_MIN_HIT_DAMAGE,
   GRAVITY_SHOT_TIMEOUT_MS,
   GRAVITY_STAR_R_MAX,
   GRAVITY_STAR_R_MIN,
   gravityBodies,
+  gravityHitDamage,
   type GravityPlanet,
   type GravityPlanetTrio,
   type GravityShooterState,
@@ -42,7 +44,7 @@ import { enoughToStart } from '../shared/players';
  * instruction): a shot's own physics runs entirely on the shooter's phone,
  * and this file stores whatever `hit` a `gravity-shot` claims. What it DOES
  * own, same shape as Grid Attack's own two-fixed-seats rule: whose turn it
- * is, lives, the planets (rolled once, here, with the referee's own fair
+ * is, health, the planets (rolled once, here, with the referee's own fair
  * `random()` — a phone cannot be the fairest source of a shared board it is
  * also playing, the same reasoning Squash Mosquitoes' own shuffle uses), and
  * forcing a silent shooter's turn forward rather than ever stalling the match.
@@ -50,7 +52,7 @@ import { enoughToStart } from '../shared/players';
  * **Every per-side field is keyed by seat (0 or 1), never by player id.**
  * Solo mode (Tap Fighter's own idiom) puts the same connected player in both
  * `seats` — a player id cannot tell the two ships apart when there is only
- * one of it, so `lives`, `turn`, a shot's own `shooter`, and `winner` all
+ * one of it, so `health`, `turn`, a shot's own `shooter`, and `winner` all
  * index by seat instead. A `gravity-shot` is still only ever accepted from
  * whoever `seats[turn]` actually is — which in solo is trivially the one
  * connected player, whichever seat is on turn.
@@ -506,7 +508,7 @@ export async function startGravityShooter(
     planets: board.planets,
     starRadius: board.starRadius,
     shots: 0,
-    lives: [GRAVITY_LIVES, GRAVITY_LIVES],
+    health: [GRAVITY_MAX_HEALTH, GRAVITY_MAX_HEALTH],
     turn: 0,
     resolvesAt: now + GRAVITY_SHOT_TIMEOUT_MS,
     lastShot: null,
@@ -563,9 +565,13 @@ export async function onGravityShot(
   const watching = Number.isFinite(flightMs) ? Math.max(0, Math.min(GRAVITY_MAX_FLIGHT_MS, flightMs)) : 0;
 
   g.lastShot = { shooter, angle: safeAngle, strength: safeStrength, hit: landed, timedOut: false };
-  if (landed) g.lives[opponent] = Math.max(0, g.lives[opponent] - 1);
+  // The longer this missile was watched, the harder it lands (spec §2.4
+  // follow-up) — `watching` is the same clamped duration the next turn's shot
+  // clock already waits out, so a claimed flight cannot buy extra damage
+  // beyond what the shot clock itself would allow.
+  if (landed) g.health[opponent] = Math.max(0, g.health[opponent] - gravityHitDamage(watching));
 
-  if (g.lives[opponent] <= 0) {
+  if (g.health[opponent] <= 0) {
     await finish(ctx, g, shooter);
     return;
   }
@@ -603,7 +609,8 @@ function countShotAndMaybeReroll(ctx: Ctx, g: Gravity): void {
 /**
  * The alarm — the shot clock running out (spec §2.4). Taking too long is no
  * longer free: the missile goes off in the dawdler's own hands and costs THEM
- * a life, which can end the match on the spot. The turn still passes either
+ * `GRAVITY_MIN_HIT_DAMAGE` of their own health, which can end the match on
+ * the spot. The turn still passes either
  * way, so a phone that has simply gone quiet cannot stall anything.
  *
  * `lastShot.timedOut` is the marker for it, which is how a client tells this
@@ -619,9 +626,11 @@ export async function tick(ctx: Ctx): Promise<boolean> {
   const opponent = otherSeat(shooter);
 
   g.lastShot = { shooter, angle: 0, strength: 0, hit: false, timedOut: true };
-  g.lives[shooter] = Math.max(0, g.lives[shooter] - 1);
+  // The floor of the damage curve, not a separate number: stalling out the
+  // clock is the self-inflicted equivalent of the weakest hit there is.
+  g.health[shooter] = Math.max(0, g.health[shooter] - GRAVITY_MIN_HIT_DAMAGE);
 
-  if (g.lives[shooter] <= 0) {
+  if (g.health[shooter] <= 0) {
     await finish(ctx, g, opponent);
     return false;
   }

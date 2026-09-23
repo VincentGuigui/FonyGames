@@ -18,8 +18,9 @@ them, three planets — same for both players, two on one side of the board and
 one on the other, placed at random when the match starts. Touch above your ship to aim
 toward your finger, let go, and your missile curves under the planets' own
 gravity on its way across the board — bigger planets pull harder. Land a hit
-and the other ship loses a life; run them out of five and you win. No score,
-no rounds — just landing the shot.
+and the other ship's health bar drops — the longer the missile was in flight,
+the harder it lands; run their health out and you win. No score, no rounds —
+just landing the shot.
 
 ## 2. Core loop
 
@@ -52,19 +53,21 @@ viewer, never two different boards.
    gravity and **turning to point along its own trajectory** as it goes, for as
    long as where it currently is allows (§2.3) before an unresolved shot is
    abandoned outright.
-5. A hit costs the other ship one of five lives. A miss — the missile
+5. A hit costs the other ship health — how much depends on the missile's own
+   flight time (§2.4): a fast, straight shot removes at least a sixth of it,
+   a slow, patient one up to a third, linear between. A miss — the missile
    either drifts off the board or is swallowed by a planet — costs
    nothing, and the turn simply passes.
-6. First ship to 0 lives loses.
+6. First ship out of health loses.
 
-**Win condition:** the opponent's fifth life reaches 0.
+**Win condition:** the opponent's health reaches 0.
 **Scoring:** none. The result panel says only **Win** or **Lose** (§4).
 
 **Solo test mode** is a hotseat, not a second player (Tap Fighter's own
 idiom, `worker/tapFighter.ts`): the one connected phone takes both seats,
 firing for whichever ship currently holds the turn, and the view flips
 per turn exactly as it would between two real phones. Every per-side
-field the referee tracks — `lives`, `turn`, a shot's own `shooter`,
+field the referee tracks — `health`, `turn`, a shot's own `shooter`,
 `winner` — is keyed by **seat** rather than by player id for exactly this
 reason: solo puts the same player id in both `seats`, and a player id
 cannot tell the two ships apart when there is only one of it.
@@ -114,7 +117,7 @@ honest rather than about the rules:
   destination's `art` from the first frame of the slide, where the movement
   covers the sprite change. This is `game.ts`'s own `displayedBoard`, and it
   is the same "hold the referee's truth until the animation that justifies it
-  has played" pattern as the life pips above. **Purely cosmetic** — every
+  has played" pattern as the health bars above. **Purely cosmetic** — every
   simulation still runs on `state.planets`, so what a shot does is never
   decided by where the art has slid to.
 
@@ -353,11 +356,11 @@ referee stores `hit` as reported, rather than re-deriving it (§8). The
 non-shooting phone receives the same `angle`/`strength` in the next
 broadcast and independently re-runs the identical deterministic
 simulation purely to draw its own copy of the missile's flight — never to
-decide the outcome, which has already arrived as `hit`/the new lives
-count. Any tiny floating-point difference between two phones' replays is
+decide the outcome, which has already arrived as `hit`/the new health
+values. Any tiny floating-point difference between two phones' replays is
 therefore only ever cosmetic.
 
-### 2.4 The shot clock
+### 2.4 The shot clock, and what it costs
 
 Every turn opens with `resolvesAt = now + flightMs + GRAVITY_SHOT_TIMEOUT_MS`
 (**13s**) and a referee alarm at that deadline. **The clock starts when the
@@ -366,12 +369,32 @@ long the shooter's phone will spend animating the shot it just sent, clamped by
 the referee to `GRAVITY_MAX_FLIGHT_MS` (**10s** — the missile's own maximum
 onscreen life at the playback rate above), so a client cannot claim its way to
 a longer turn. Without that hold-back the opponent spent their turn watching
-somebody else's missile and then lost a life to a shot they never had time to
-aim. Run it out and **the missile goes off in
-your own hands**: the shooter loses one of their OWN lives, which can end the
-match on the spot, and the turn passes. It is a shot clock, not merely a
-backstop against a phone that went quiet — which is why it is short enough to
-feel like one, and why dithering now costs something.
+somebody else's missile and then lost health to a shot they never had time to
+aim. Run it out and **the missile goes off in your own hands**: the shooter's
+own health drops by `GRAVITY_MIN_HIT_DAMAGE`, which can end the match on the
+spot, and the turn passes. It is a shot clock, not merely a backstop against a
+phone that went quiet — which is why it is short enough to feel like one, and
+why dithering now costs something.
+
+**The same `flightMs` that holds the clock back also decides the hit's own
+damage** — a follow-up ask, not part of the original brief: the longer a
+missile was watched crossing the board, the harder it lands.
+
+| Flight time | Damage |
+| --- | --- |
+| At or below `GRAVITY_FAST_FLIGHT_MS` (3s) | `GRAVITY_MIN_HIT_DAMAGE` — a sixth of `GRAVITY_MAX_HEALTH` |
+| At or above `GRAVITY_SLOW_FLIGHT_MS` (5s) | `GRAVITY_MAX_HIT_DAMAGE` — a third of `GRAVITY_MAX_HEALTH` |
+| Between the two | linear |
+
+`gravityHitDamage()` (`shared/protocol.ts`) is the one formula both the
+referee (deciding a real hit) and the shot-clock timeout (the self-inflicted
+floor, `GRAVITY_MIN_HIT_DAMAGE`) call. A fast, straight shot is not free of
+damage — the floor is not zero — it is simply not rewarded for arriving
+sooner than it has to; a slow, patient lob earns the ceiling and nothing more
+for lingering past it. `flightMs` is the same value `onGravityShot` already
+clamps to `GRAVITY_MAX_FLIGHT_MS` before either use, so a crafted client
+cannot claim more damage than the shot clock itself would let the shooter
+hold the turn for (§8).
 
 **The last few seconds blink.** From 9s into a turn, the shooter's own ship
 starts pulsing — a slow blink (2 per second) that speeds up linearly as
@@ -393,10 +416,10 @@ aimed this", and **clients do not animate it flying**. Since the launch speed
 has a floor (§2.3), simulating an unaimed shot would send a real missile
 straight up the centre line and — with a ship-sized hitbox —
 visibly connect, while the referee's own `hit: false` meant nothing happened.
-Instead the blast is drawn on the shooter's own ship, the life pips follow it
-immediately (there is no flight to hold the news back for), and if it was
-their last life the same impact-then-explosion send-off plays as for a
-winning shot (§4).
+Instead the blast is drawn on the shooter's own ship, the health bar follows it
+immediately (there is no flight to hold the news back for), and if it emptied
+their health the same impact-then-explosion send-off plays as for a winning
+shot (§4).
 
 A phone that has genuinely gone quiet is still covered: the turn always passes
 either way, so nothing stalls.
@@ -413,13 +436,15 @@ Only `classic` at launch.
 
 - **Lobby**: shared template. No host setting beyond `mode`.
 - **Round**: a `<canvas>` board — three planets, two ships, a turn indicator,
-  a row of five life-pips per ship (same idiom Pass the Bomb/Steady Hand
-  already use). Touching above your own ship on your turn shows the fading
-  dashed aim preview (§2.2); releasing plays the missile's flight, followed by
-  `impact_missile.gif` **wherever the flight actually ended** — on the
-  opponent's ship for a hit, or on whichever planet swallowed it for a
-  miss-by-absorption — and, on the life-ending hit, `explosion.gif` straight
-  after (both reused from UFO Hunt's own art, copied into this game's own
+  a health bar per ship (the same `role="meter"` idiom UFO Hunt's own shared
+  saucer health uses — `UfoScreen.tsx`'s `.ufohunt__health` — one bar per ship
+  here instead of one shared bar). Touching above your own ship on your turn
+  shows the fading dashed aim preview (§2.2); releasing plays the missile's
+  flight, followed by `impact_missile.gif` **wherever the flight actually
+  ended** — on the opponent's ship for a hit, or on whichever planet
+  swallowed it for a miss-by-absorption — and, on the health-emptying hit,
+  `explosion.gif` straight after (both reused from UFO Hunt's own art, copied
+  into this game's own
   `art/` folder). A planet's own absorption radius is its drawn radius (unlike
   a ship's, which is bigger than its sprite — §2.3), so that impact needs no
   extra geometry to land on the hull: the point the simulation stopped at
@@ -434,10 +459,10 @@ Only `classic` at launch.
   `core/avatarColor.ts` and `core/art/tint.ts`,
   [illustrations.md §4](../../design/illustrations.md).
 
-  **The life pips never spoil a shot still in flight.** The referee decides
-  a hit and broadcasts the new life count the instant a `gravity-shot`
+  **The health bars never spoil a shot still in flight.** The referee decides
+  a hit and broadcasts the new health values the instant a `gravity-shot`
   arrives — seconds before either phone's own missile animation finishes —
-  so each client holds the previous life count on screen until its own
+  so each client holds the previous health on screen until its own
   flight animation ends, the same `displayed<value>` pattern Tap Fighter's
   round-win pips use for the identical reason.
 
@@ -481,7 +506,7 @@ to fire. No sensors, no permissions, nothing to fall back from.
   roundId, startsAt,
   seats: [PlayerId, PlayerId],   // both entries the same id in solo (§2)
   planets: [{ x, y, r, art }, { x, y, r, art }],
-  lives: [number, number],       // indexed by seat, not by seats[]'s player id
+  health: [number, number],      // 0-GRAVITY_MAX_HEALTH, indexed by seat, not by seats[]'s player id
   turn: 0 | 1,
   resolvesAt: number,
   lastShot: { shooter: 0 | 1, angle: number, strength: number, hit: boolean, timedOut: boolean } | null,
@@ -493,8 +518,8 @@ to fire. No sensors, no permissions, nothing to fall back from.
 
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
-| `gravity-shot` | client → server | `{roundId, angle, strength, hit, flightMs}` | This turn's shot, its own claimed outcome — trusted as reported (§8) — and how long it will be on screen, which holds the next shot clock back (§2.4, clamped to `GRAVITY_MAX_FLIGHT_MS`) |
-| `gravity` | server → both | see above | The planets (sent once, then echoed unchanged), lives, whose turn it is, and the last shot's numbers for the receiver's own cosmetic replay (§2.3) |
+| `gravity-shot` | client → server | `{roundId, angle, strength, hit, flightMs}` | This turn's shot, its own claimed outcome — trusted as reported (§8) — and how long it will be on screen, which both holds the next shot clock back and decides this hit's own damage (§2.4, clamped to `GRAVITY_MAX_FLIGHT_MS`) |
+| `gravity` | server → both | see above | The planets (sent once, then echoed unchanged), health, whose turn it is, and the last shot's numbers for the receiver's own cosmetic replay (§2.3) |
 
 `gravity-shot` is only accepted from whoever `seats[turn]` actually is, and
 only before `resolvesAt` — a plain seat/deadline check, not anti-cheat. In
@@ -509,12 +534,12 @@ replay.
 | Case | Behaviour |
 | --- | --- |
 | A player leaves mid-match | The match ends immediately in the other player's favor — two fixed seats, the same rule Grid Attack/Neon Fall use, not Steady Hand's "continue without them" (which only applies at 3+ players) |
-| A shooter goes silent mid-turn | The shot clock runs out at `resolvesAt`: it costs them one of their own lives and the turn passes (§2.4) |
+| A shooter goes silent mid-turn | The shot clock runs out at `resolvesAt`: it costs them `GRAVITY_MIN_HIT_DAMAGE` of their own health and the turn passes (§2.4) |
 | A shot that would exit the visible screen but could still curve back | Not clipped — the simulation's own termination bounds are deliberately wider than the render viewport (§2.3); leaving the visible board costs it its 20s onscreen budget for a shorter 7s one, not the flight itself |
 | A missile enters a planet | Absorbed there — a plain miss, but `impact_missile.gif` still plays at the point it was absorbed (§4) |
 | A shot rolled with no sampled winning trajectory from either ship | Ships anyway, after the referee's own retries are exhausted (§2.1) — the fairness pass is a courtesy, never a block on starting the match |
-| Both ships would reach 0 lives on the same turn | Cannot happen — a shot only ever affects the one player who is not currently shooting |
-| A player refreshes mid-match | Same seat, same lives/turn — the match state lives on the referee, not the phone |
+| Both ships would reach 0 health on the same turn | Cannot happen — a shot only ever affects the one player who is not currently shooting |
+| A player refreshes mid-match | Same seat, same health/turn — the match state lives on the referee, not the phone |
 | A shot from the wrong seat, or after `resolvesAt` | Rejected |
 | A finger still down when `resolvesAt` passes | The client cancels the aim itself (§2.4) — the drag never becomes a shot the referee would reject anyway |
 
@@ -537,11 +562,15 @@ deciding `hit` server-side, a cheap change if this is ever revisited — but
 it is not what was asked for here.
 
 - **What the referee does do**: reject a shot from the wrong seat or after
-  its own deadline, and clamp `angle`/`strength` to finite, sane ranges —
-  cheap validity checks against a malformed payload, not verification of
-  the claimed outcome.
+  its own deadline, and clamp `angle`/`strength` (and `flightMs`, to
+  `GRAVITY_MAX_FLIGHT_MS`) to finite, sane ranges — cheap validity checks
+  against a malformed payload, not verification of the claimed outcome.
 - **What this costs**: a modified client can claim a hit on every turn and
-  win in two shots. Nothing here can tell the difference.
+  win in as few as three shots — `flightMs` decides only how much of a
+  claimed hit's damage lands (§2.4), so the exploit is the hit itself, not
+  the amount; a crafted flight cannot buy more than `GRAVITY_MAX_HIT_DAMAGE`
+  per turn, the same ceiling an honest slow shot already earns. Nothing here
+  can tell a claimed hit apart from a real one.
 - **Why anyway**: asked for directly, the same reasoning as Tiles Surfer's
   own §8 — and, same as there, a two-player game where each side can see
   the other's screen carries a real social check the technical one does
@@ -554,20 +583,21 @@ catalogue, same as Tiles Surfer and Tic-Tac-Tic-Tac-Toe.
 
 ## 10. Data & privacy
 
-Only each shot's own angle, strength, and claimed hit leave the phone —
-never a raw trajectory sample or a timestamp beyond the round's own
-deadlines. Room memory only, for the life of the match.
+Only each shot's own angle, strength, claimed hit and flight duration leave
+the phone — never a raw trajectory sample or a timestamp beyond the round's
+own deadlines. Room memory only, for the life of the match.
 
 ## 11. Accessibility
 
 Ships and planets read by shape and position, not colour alone; each
 player's own accent colour tints their own ship and aim preview, but the
-turn indicator and life pips are plain shapes/text, readable regardless.
+turn indicator and health bars are plain shapes/text, readable regardless.
 Reduced motion shortens the missile's own trail flourish and the impact
 GIFs' hold time, not the flight itself — the curving flight is the whole
 mechanic, the same honest limit Tiles Surfer's own falling tiles state
-about themselves. Life pips and the turn indicator are plain text/shape,
-readable by a screen reader like any other status bar in this catalogue.
+about themselves. Each health bar is `role="meter"` with its own
+`aria-valuenow`/`aria-label` (the same idiom UFO Hunt's saucer health uses),
+so a screen reader gets the percentage, not just a shape.
 
 ## 12. Open questions
 

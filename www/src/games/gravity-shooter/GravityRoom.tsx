@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { JSX } from 'preact';
 import type { GameCard } from '../../core/types';
 import {
-  GRAVITY_LIVES,
+  GRAVITY_MAX_HEALTH,
   GRAVITY_MAX_PLAYERS,
   GRAVITY_MIN_PLAYERS,
   type ServerMessage,
@@ -33,7 +33,7 @@ import './gravity-shooter.css';
  * Gravity Shooter's room screen. Spec: docs/specs/games/gravity-shooter.md
  *
  * The lobby is the shared template. The round screen has no `Scoreboard` —
- * there is no score, just each ship's own five lives (spec §4) — and its own
+ * there is no score, just each ship's own health bar (spec §4) — and its own
  * GIF burst overlay follows UFO Hunt's exact pattern (`UfoRoom.tsx`'s
  * `addBurst`): triggered once, positioned once, removed by a timeout.
  */
@@ -61,18 +61,18 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
   const game = gameRef.current;
 
   /*
-   * The referee's own lives, held back from the screen until the shot that
-   * changed them has actually been watched — the referee decides a hit (and
-   * broadcasts the new count) the instant a `gravity-shot` arrives, seconds
+   * The referee's own health, held back from the screen until the shot that
+   * changed it has actually been watched — the referee decides a hit (and
+   * broadcasts the new health) the instant a `gravity-shot` arrives, seconds
    * before the missile's own flight finishes animating on either phone. Read
-   * straight from `state.lives`, the pips gave the result away mid-flight.
-   * Reset only when a fresh match starts; every life lost within one is
+   * straight from `state.health`, the bar would give the result away mid-flight.
+   * Reset only when a fresh match starts; every hit taken within one is
    * revealed by `onFlightEnd` below, exactly when the flight is done.
    *
    * Indexed by seat, not player id — solo mode puts the same player in both
    * seats (see shared/protocol.ts's own `GravityShooterState` docblock).
    */
-  const [displayedLives, setDisplayedLives] = useState<[number, number]>([GRAVITY_LIVES, GRAVITY_LIVES]);
+  const [displayedHealth, setDisplayedHealth] = useState<[number, number]>([GRAVITY_MAX_HEALTH, GRAVITY_MAX_HEALTH]);
   /** The match-ending GIF sequence is still playing — see `onFlightEnd`. */
   const [finaleRunning, setFinaleRunning] = useState(false);
   const [dying, setDying] = useState<DyingShip | null>(null);
@@ -91,10 +91,10 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
       game.apply(msg);
       /**
        * A turn that ran out the shot clock (spec §2.4): the referee marks it
-       * with a zero-strength `lastShot` and takes a life off the SHOOTER. There
+       * with a zero-strength `lastShot` and takes health off the SHOOTER. There
        * is no flight to watch, so unlike a real shot there is nothing to hold
        * the news back for — the blast goes off on their own ship right now, and
-       * the pips follow it immediately rather than waiting for an
+       * the bar follows it immediately rather than waiting for an
        * `onFlightEnd` that will never come.
        */
       if (msg.t === 'gravity' && msg.d.lastShot?.timedOut && msg.d.shots !== blownUpAt.current) {
@@ -102,7 +102,7 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
         const victim = msg.d.lastShot.shooter;
         const at = viewTransform(game.mySeat ?? 0, shipPosition(victim));
         addBurst('missile', at);
-        setDisplayedLives(msg.d.lives);
+        setDisplayedHealth(msg.d.health);
         // A shot clock that ends the match earns the same send-off a winning
         // shot gets, rather than cutting straight to the results panel.
         if (msg.d.phase === 'done') {
@@ -129,7 +129,7 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
   }, [game, client, myId]);
 
   useEffect(() => {
-    if (game.state) setDisplayedLives(game.state.lives);
+    if (game.state) setDisplayedHealth(game.state.health);
     // A fresh match starts with nothing exploding and both ships intact.
     setFinaleRunning(false);
     setDying(null);
@@ -173,7 +173,7 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
       }
       // The flight this phone has been watching is over — only now does the
       // outcome it decided become visible.
-      if (game.state) setDisplayedLives(game.state.lives);
+      if (game.state) setDisplayedHealth(game.state.health);
     },
     [game, addBurst],
   );
@@ -222,9 +222,9 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
 
   if (state && (state.phase === 'running' || stillAnimating)) {
     const mySeat = game.mySeat;
-    const myLives = mySeat !== null ? displayedLives[mySeat] : 0;
+    const myHealth = mySeat !== null ? displayedHealth[mySeat] : 0;
     const otherSeatIndex = mySeat === 0 ? 1 : 0;
-    const opponentLives = mySeat !== null ? displayedLives[otherSeatIndex] : 0;
+    const opponentHealth = mySeat !== null ? displayedHealth[otherSeatIndex] : 0;
     const isMyTurn = game.isMyTurn;
 
     return (
@@ -241,9 +241,7 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
           concept={card.concept}
           rules={card.rules}
         />
-        <p class="gravity__lives gravity__lives--them" aria-label={text({ en: 'Their lives', fr: 'Vies adverses' })}>
-          {pips(opponentLives)}
-        </p>
+        <HealthBar health={opponentHealth} mirrored label={text({ en: 'Their health', fr: 'Vie adverse' })} />
         <div class="gravity__board">
           <GravityCanvas
             game={game}
@@ -262,9 +260,7 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
             />
           ))}
         </div>
-        <p class="gravity__lives gravity__lives--me" aria-label={text({ en: 'Your lives', fr: 'Vos vies' })}>
-          {pips(myLives)}
-        </p>
+        <HealthBar health={myHealth} label={text({ en: 'Your health', fr: 'Votre vie' })} />
       </div>
     );
   }
@@ -286,11 +282,24 @@ function GravityRoomInner({ game: card, code }: { game: GameCard; code: string }
   );
 }
 
-function pips(lives: number): JSX.Element {
+/**
+ * One ship's own health bar — the same `role="meter"` idiom UFO Hunt's shared
+ * saucer health uses (`UfoScreen.tsx`'s `.ufohunt__health`), one per ship
+ * instead of one shared bar. `mirrored` fills right-to-left, so the two bars
+ * empty toward each other the way the two ships face each other on the board.
+ */
+function HealthBar({ health, mirrored = false, label }: { health: number; mirrored?: boolean; label: string }): JSX.Element {
+  const pct = Math.max(0, Math.min(1, health / GRAVITY_MAX_HEALTH));
   return (
-    <span aria-hidden="true">
-      {'●'.repeat(Math.max(0, lives))}
-      {'○'.repeat(Math.max(0, GRAVITY_LIVES - lives))}
-    </span>
+    <div
+      class={`gravity__health${mirrored ? ' gravity__health--them' : ' gravity__health--me'}`}
+      role="meter"
+      aria-valuenow={Math.round(pct * 100)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-label={label}
+    >
+      <div class="gravity__health-fill" style={{ width: `${(pct * 100).toFixed(1)}%` }} />
+    </div>
   );
 }

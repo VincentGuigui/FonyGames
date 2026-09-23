@@ -1,5 +1,9 @@
 import {
-  GRAVITY_LIVES,
+  GRAVITY_MAX_HEALTH,
+  GRAVITY_MIN_HIT_DAMAGE,
+  GRAVITY_MAX_HIT_DAMAGE,
+  GRAVITY_FAST_FLIGHT_MS,
+  GRAVITY_SLOW_FLIGHT_MS,
   GRAVITY_MIN_LANDING_SHOTS,
   GRAVITY_PLANET_COUNT,
   GRAVITY_PLANET_MIN_GAP,
@@ -14,6 +18,7 @@ import {
   GRAVITY_SHOT_TIMEOUT_MS,
   GRAVITY_STAR_R_MAX,
   GRAVITY_STAR_R_MIN,
+  gravityHitDamage,
   type GravityPlanet,
   type ServerMessage,
 } from '../shared/protocol';
@@ -39,7 +44,7 @@ import {
  * Two rules carry the whole game, and each fails silently if it is wrong:
  *
  * 1. **`hit` is trusted, never re-derived** (spec §8, by direct instruction) — but
- *    everything ELSE (whose turn it is, lives, the planets, a silent shooter's turn
+ *    everything ELSE (whose turn it is, health, the planets, a silent shooter's turn
  *    timing out) is the referee's own job, same as any other game here.
  * 2. **A turn always moves forward.** A shooter who never sends `gravity-shot` must
  *    not stall the match — the alarm has to force it, the same lesson Tap Fighter's
@@ -59,6 +64,11 @@ function check(label: string, cond: boolean, extra?: unknown): void {
 
 const A = 'p-a';
 const B = 'p-b';
+
+/** How many minimum-damage hits (`flightMs: 0`, the floor of the damage curve)
+ *  it takes to end a match — this file's own stand-in for the old fixed
+ *  "GRAVITY_LIVES", now that a hit's cost is a range rather than one number. */
+const HITS_TO_KILL = Math.ceil(GRAVITY_MAX_HEALTH / GRAVITY_MIN_HIT_DAMAGE);
 
 /** A tiny, fixed PRNG so every run rolls the planets the same way. */
 function seeded(seed: number): () => number {
@@ -114,7 +124,7 @@ async function starting(): Promise<void> {
   check('nor can three', (await startGravityShooter(harness().ctx, 1, [A, B, 'p-c'])) === false);
 
   const g = h.state();
-  check(`both start with ${GRAVITY_LIVES} lives`, g?.lives[0] === GRAVITY_LIVES && g?.lives[1] === GRAVITY_LIVES);
+  check(`both start at ${GRAVITY_MAX_HEALTH} health`, g?.health[0] === GRAVITY_MAX_HEALTH && g?.health[1] === GRAVITY_MAX_HEALTH);
   check('the host shoots first', g?.turn === 0, g?.turn);
   check('not solo', g?.solo === false);
   check('nothing has been shot yet', g?.lastShot === null);
@@ -152,15 +162,43 @@ async function shooting(): Promise<void> {
   check('and says nothing', h.last() === undefined);
 
   await onGravityShot(h.ctx, A, 1, 0.4, 0.6, false, 0);
-  check('a miss costs nothing', h.state()?.lives[1] === GRAVITY_LIVES);
+  check('a miss costs nothing', h.state()?.health[1] === GRAVITY_MAX_HEALTH);
   check('and the turn passes', h.state()?.turn === 1, h.state()?.turn);
   check('the shot is recorded for the other phone\'s own replay',
     h.state()?.lastShot?.shooter === 0 && h.state()?.lastShot?.angle === 0.4 && h.state()?.lastShot?.strength === 0.6);
 
   await onGravityShot(h.ctx, B, 1, 1.2, 0.9, true, 0);
-  check('a hit costs the opponent a life', h.state()?.lives[0] === GRAVITY_LIVES - 1, h.state()?.lives[0]);
+  check('a hit costs the opponent health, at the floor for a flight this short',
+    h.state()?.health[0] === GRAVITY_MAX_HEALTH - GRAVITY_MIN_HIT_DAMAGE, h.state()?.health[0]);
   check('and the turn passes back', h.state()?.turn === 0, h.state()?.turn);
   check('the match is not over yet', h.state()?.phase === 'running');
+}
+
+/**
+ * The follow-up to issue #34: the same flight duration that already holds the
+ * next shot clock also decides how hard the hit lands (spec §2.4 follow-up).
+ */
+async function damageScaling(): Promise<void> {
+  console.log('\na longer flight lands harder');
+
+  check('at or below the fast threshold, the floor',
+    gravityHitDamage(0) === GRAVITY_MIN_HIT_DAMAGE && gravityHitDamage(GRAVITY_FAST_FLIGHT_MS) === GRAVITY_MIN_HIT_DAMAGE);
+  check('at or beyond the slow threshold, the ceiling — and no more for lingering past it',
+    gravityHitDamage(GRAVITY_SLOW_FLIGHT_MS) === GRAVITY_MAX_HIT_DAMAGE
+      && gravityHitDamage(GRAVITY_SLOW_FLIGHT_MS * 3) === GRAVITY_MAX_HIT_DAMAGE);
+
+  const midpoint = (GRAVITY_FAST_FLIGHT_MS + GRAVITY_SLOW_FLIGHT_MS) / 2;
+  const expectedMid = (GRAVITY_MIN_HIT_DAMAGE + GRAVITY_MAX_HIT_DAMAGE) / 2;
+  check('linear between the two thresholds', Math.abs(gravityHitDamage(midpoint) - expectedMid) < 1e-9, gravityHitDamage(midpoint));
+  check('never below the floor', gravityHitDamage(-1000) === GRAVITY_MIN_HIT_DAMAGE, gravityHitDamage(-1000));
+
+  // Wired through the referee itself, not just the pure function — a slow,
+  // patient shot costs the full ceiling.
+  const h = harness();
+  await startGravityShooter(h.ctx, 1, [A, B]);
+  await onGravityShot(h.ctx, A, 1, 0, 1, true, GRAVITY_SLOW_FLIGHT_MS);
+  check('a slow hit through the referee costs the ceiling',
+    h.state()?.health[1] === GRAVITY_MAX_HEALTH - GRAVITY_MAX_HIT_DAMAGE, h.state()?.health[1]);
 }
 
 async function movingPlanets(): Promise<void> {
@@ -204,7 +242,7 @@ async function movingPlanets(): Promise<void> {
   // that flight and its explosion against the board it was fired on.
   const e = harness();
   await startGravityShooter(e.ctx, 1, [A, B]);
-  for (let i = 0; i < GRAVITY_LIVES - 1; i++) {
+  for (let i = 0; i < HITS_TO_KILL - 1; i++) {
     await onGravityShot(e.ctx, A, 1, 0, 1, true, 0);
     await onGravityShot(e.ctx, B, 1, 0, 1, false, 0);
   }
@@ -226,13 +264,13 @@ async function garbage(): Promise<void> {
   check('a non-finite strength is clamped to zero', shot?.strength === 0, shot?.strength);
   // The claimed hit itself is still trusted, by direct instruction (spec §8) —
   // only the numbers a replay would otherwise choke on are sanitised.
-  check('but the claimed hit is still trusted', h.state()?.lives[1] === GRAVITY_LIVES - 1, h.state()?.lives[1]);
+  check('but the claimed hit is still trusted', h.state()?.health[1] === GRAVITY_MAX_HEALTH - GRAVITY_MIN_HIT_DAMAGE, h.state()?.health[1]);
 
   await onGravityShot(h.ctx, 'nobody', 1, 0.1, 0.1, true, 0);
   check('a stranger changes nothing', h.state()?.turn === 1, h.state()?.turn);
 
   await onGravityShot(h.ctx, B, 99, 0.1, 0.1, true, 0);
-  check('a stale round changes nothing', h.state()?.lives[0] === GRAVITY_LIVES);
+  check('a stale round changes nothing', h.state()?.health[0] === GRAVITY_MAX_HEALTH);
 }
 
 async function timeout(): Promise<void> {
@@ -251,8 +289,9 @@ async function timeout(): Promise<void> {
   check('the turn passes once the deadline is up', h.state()?.turn === 1, h.state()?.turn);
   check('marked as nobody-aimed-this, not a real miss', h.state()?.lastShot?.hit === false && h.state()?.lastShot?.strength === 0);
   // The dawdler pays for it themselves — the opponent is untouched.
-  check('the shooter loses one of their OWN lives', h.state()?.lives[0] === GRAVITY_LIVES - 1, h.state()?.lives[0]);
-  check('and the opponent loses nothing', h.state()?.lives[1] === GRAVITY_LIVES, h.state()?.lives[1]);
+  check('the shooter loses their OWN health, at the floor of the damage curve',
+    h.state()?.health[0] === GRAVITY_MAX_HEALTH - GRAVITY_MIN_HIT_DAMAGE, h.state()?.health[0]);
+  check('and the opponent loses nothing', h.state()?.health[1] === GRAVITY_MAX_HEALTH, h.state()?.health[1]);
   check('and a fresh deadline is set', (h.state()?.resolvesAt ?? 0) > firstDeadline);
 
   // A shot that arrives at or after its own deadline is too late — the tick
@@ -260,13 +299,14 @@ async function timeout(): Promise<void> {
   h.advance(GRAVITY_SHOT_TIMEOUT_MS + 1);
   await onGravityShot(h.ctx, B, 1, 0.1, 0.1, true, 0);
   check('a shot after its own deadline is ignored', h.state()?.turn === 1, h.state()?.turn);
-  check('and it costs the opponent nothing', h.state()?.lives[0] === GRAVITY_LIVES - 1, h.state()?.lives[0]);
+  check('and it costs the opponent nothing',
+    h.state()?.health[0] === GRAVITY_MAX_HEALTH - GRAVITY_MIN_HIT_DAMAGE, h.state()?.health[0]);
 
-  // Running the clock out on your last life ends the match, exactly as being
-  // shot on it would.
+  // Running the clock out until your health is spent ends the match, exactly
+  // as being shot down would.
   const e = harness();
   await startGravityShooter(e.ctx, 1, [A, B]);
-  for (let i = 0; i < GRAVITY_LIVES; i++) {
+  for (let i = 0; i < HITS_TO_KILL; i++) {
     // Seat 0 dawdles; seat 1 answers instantly, so the clock only ever runs
     // out on seat 0.
     e.advance(GRAVITY_SHOT_TIMEOUT_MS + 1);
@@ -274,9 +314,9 @@ async function timeout(): Promise<void> {
     if (e.state()?.phase !== 'running') break;
     await onGravityShot(e.ctx, B, 1, 0.2, 0.5, false, 0);
   }
-  check('running the clock out on the last life ends the match', e.state()?.phase === 'done', e.state()?.phase);
+  check('running the clock out until health is spent ends the match', e.state()?.phase === 'done', e.state()?.phase);
   check('and hands the win to the other seat', e.state()?.winner === 1, e.state()?.winner);
-  check('with the dawdler on zero', e.state()?.lives[0] === 0, e.state()?.lives[0]);
+  check('with the dawdler on zero', e.state()?.health[0] === 0, e.state()?.health[0]);
 }
 
 /**
@@ -299,8 +339,8 @@ async function flightHoldsTheClock(): Promise<void> {
   h.advance(flight);
   await tick(h.ctx);
   check('nothing has timed out while the missile was flying', h.state()?.turn === 1, h.state()?.turn);
-  check('and the opponent still has every life they started with',
-    h.state()?.lives[1] === GRAVITY_LIVES, h.state()?.lives[1]);
+  check('and the opponent still has every point of health they started with',
+    h.state()?.health[1] === GRAVITY_MAX_HEALTH, h.state()?.health[1]);
   check('with the whole clock left to aim in',
     (h.state()?.resolvesAt ?? 0) - h.now === GRAVITY_SHOT_TIMEOUT_MS, (h.state()?.resolvesAt ?? 0) - h.now);
 
@@ -321,26 +361,27 @@ async function flightHoldsTheClock(): Promise<void> {
 }
 
 async function ending(): Promise<void> {
-  console.log('\nfive lives, and it is over');
+  console.log('\nzero health, and it is over');
 
   const h = harness();
   await startGravityShooter(h.ctx, 1, [A, B]);
 
-  for (let i = 0; i < GRAVITY_LIVES - 1; i++) {
+  for (let i = 0; i < HITS_TO_KILL - 1; i++) {
     await onGravityShot(h.ctx, A, 1, 0, 1, true, 0);
     await onGravityShot(h.ctx, B, 1, 0, 1, false, 0);
   }
-  check('one life left', h.state()?.lives[1] === 1, h.state()?.lives[1]);
+  check('nearly dead but still standing',
+    (h.state()?.health[1] ?? -1) > 0 && (h.state()?.health[1] ?? Infinity) <= GRAVITY_MIN_HIT_DAMAGE, h.state()?.health[1]);
   check('still running', h.state()?.phase === 'running');
 
   await onGravityShot(h.ctx, A, 1, 0, 1, true, 0);
-  check('the fifth hit ends it', h.state()?.phase === 'done', h.state()?.phase);
+  check(`the ${HITS_TO_KILL}th hit ends it`, h.state()?.phase === 'done', h.state()?.phase);
   check('the shooter wins', h.state()?.winner === 0, h.state()?.winner);
-  check('the loser is out of lives', h.state()?.lives[1] === 0);
+  check('the loser is out of health', h.state()?.health[1] === 0);
 
   // Nothing moves after the end.
   await onGravityShot(h.ctx, B, 1, 0, 1, true, 0);
-  check('a shot after the end does nothing', h.state()?.lives[0] === GRAVITY_LIVES);
+  check('a shot after the end does nothing', h.state()?.health[0] === GRAVITY_MAX_HEALTH);
 }
 
 async function walkout(): Promise<void> {
@@ -374,7 +415,7 @@ async function solo(): Promise<void> {
   await onGravityShot(h.ctx, A, 1, 0.2, 0.5, true, 0);
   check('the same player fires again, now for seat 1', h.state()?.turn === 0, h.state()?.turn);
   check('this shot is seat 1\'s', h.state()?.lastShot?.shooter === 1);
-  check('and it cost seat 0 a life', h.state()?.lives[0] === GRAVITY_LIVES - 1, h.state()?.lives[0]);
+  check('and it cost seat 0 health', h.state()?.health[0] === GRAVITY_MAX_HEALTH - GRAVITY_MIN_HIT_DAMAGE, h.state()?.health[0]);
 }
 
 async function deadlines(): Promise<void> {
@@ -385,7 +426,7 @@ async function deadlines(): Promise<void> {
   check('while running, at the current shot\'s own deadline',
     nextDeadline(h.state() as Gravity) === h.state()?.resolvesAt, nextDeadline(h.state() as Gravity));
 
-  for (let i = 0; i < GRAVITY_LIVES; i++) {
+  for (let i = 0; i < HITS_TO_KILL; i++) {
     await onGravityShot(h.ctx, A, 1, 0, 1, true, 0);
     await onGravityShot(h.ctx, B, 1, 0, 1, false, 0);
   }
@@ -500,7 +541,7 @@ async function geometry(): Promise<void> {
   check('and from seat 1', !seatCanReachOpponent(blocked, 1, GRAVITY_STAR_R_MIN));
 }
 
-for (const t of [starting, shooting, movingPlanets, garbage, timeout, flightHoldsTheClock, ending, walkout, deadlines, solo, geometry]) {
+for (const t of [starting, shooting, damageScaling, movingPlanets, garbage, timeout, flightHoldsTheClock, ending, walkout, deadlines, solo, geometry]) {
   await t();
 }
 

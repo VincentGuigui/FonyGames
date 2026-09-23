@@ -126,7 +126,7 @@ function aiming(): void {
     t: 'gravity', s: 1,
     d: {
       roundId: 7, startsAt: 0, seats: ['a', 'b'], planets: boardTrio(), starRadius: 0.08, shots: 0,
-      lives: [5, 5], turn: 0, resolvesAt: 90_000, lastShot: null, winner: null, phase: 'running', solo: false,
+      health: [100, 100], turn: 0, resolvesAt: 90_000, lastShot: null, winner: null, phase: 'running', solo: false,
     },
   });
   game.beginAim();
@@ -396,7 +396,7 @@ function replayUsesTheBoardTheShotWasFiredOn(): void {
     s: 1,
     d: {
       roundId: 7, startsAt: 0, seats: ['a', 'b'], planets, starRadius: 0, shots: 1,
-      lives: [5, 5], turn: 1, resolvesAt: 0, lastShot, winner: null, phase: 'running', solo: false,
+      health: [100, 100], turn: 1, resolvesAt: 0, lastShot, winner: null, phase: 'running', solo: false,
     },
   });
 
@@ -440,7 +440,7 @@ function movingBoardIsHeldThenEased(): void {
     s: 1,
     d: {
       roundId: 3, startsAt: 0, seats: ['a', 'b'], planets, starRadius: planets === fired ? 0.08 : 0.14, shots: 2,
-      lives: [5, 5], turn: 1, resolvesAt: 0, lastShot, winner: null, phase: 'running', solo: false,
+      health: [100, 100], turn: 1, resolvesAt: 0, lastShot, winner: null, phase: 'running', solo: false,
     },
   });
 
@@ -562,7 +562,7 @@ function timedOutTurnIsNotAFlight(): void {
     s: 1,
     d: {
       roundId: 4, startsAt: 0, seats: ['a', 'b'], planets, starRadius: 0, shots: 1,
-      lives: [5, 5], turn: 1, resolvesAt: 0, lastShot, winner: null, phase: 'running', solo: false,
+      health: [100, 100], turn: 1, resolvesAt: 0, lastShot, winner: null, phase: 'running', solo: false,
     },
   });
   game.apply(frame(null));
@@ -616,7 +616,7 @@ function shotClockCountdown(): void {
     s: 1,
     d: {
       roundId: 1, startsAt: 0, seats: ['a', 'a'], planets: boardTrio(), starRadius: 0, shots: 0,
-      lives: [5, 5], turn: 0, resolvesAt, lastShot: null, winner: null, phase: 'running', solo: true,
+      health: [100, 100], turn: 0, resolvesAt, lastShot: null, winner: null, phase: 'running', solo: true,
     },
   });
   game.apply(frame(10_000));

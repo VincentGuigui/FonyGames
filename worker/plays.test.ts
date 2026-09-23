@@ -199,7 +199,7 @@ console.log('\na round somebody won counts');
       planets: [{ x: 0.3, y: 0.36, r: 0.05, art: 0 }, { x: 0.28, y: 0.64, r: 0.08, art: 1 }, { x: 0.72, y: 0.5, r: 0.12, art: 2 }],
       starRadius: 0.1,
       shots: 0,
-      lives: [5, 0], turn: 0, resolvesAt: 1, lastShot: null, winner, phase, solo: false,
+      health: [100, 0], turn: 0, resolvesAt: 1, lastShot: null, winner, phase, solo: false,
     },
   });
   won(gravity('done', 0), 'gravity shooter: the last ship standing');
@@ -241,7 +241,7 @@ console.log('\nnothing mid-round counts');
         planets: [{ x: 0.3, y: 0.36, r: 0.05, art: 0 }, { x: 0.28, y: 0.64, r: 0.08, art: 1 }, { x: 0.72, y: 0.5, r: 0.12, art: 2 }],
         starRadius: 0.1,
       shots: 0,
-        lives: [5, 5], turn: 0, resolvesAt: 1, lastShot: null, winner: null, phase: 'running', solo: false,
+        health: [100, 100], turn: 0, resolvesAt: 1, lastShot: null, winner: null, phase: 'running', solo: false,
       },
     },
     { t: 'error', d: { code: 'rate-limited', message: 'Slow down.' } },

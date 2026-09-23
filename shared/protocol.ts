@@ -1111,7 +1111,7 @@ export type GravityShooterState = {
    *
    * In solo mode (`solo: true`) both entries are the same player id — the
    * one connected player takes both seats in turn — which is exactly why
-   * every other per-side field below (`lives`, `turn`, `GravityShot.shooter`,
+   * every other per-side field below (`health`, `turn`, `GravityShot.shooter`,
    * `winner`) is keyed by SEAT rather than by this id: a player id cannot
    * tell the two ships apart when there is only one of it.
    */
@@ -1133,7 +1133,10 @@ export type GravityShooterState = {
   starRadius: number;
   /** Resolved shots so far, timeouts included — what the planet re-roll counts. */
   shots: number;
-  lives: [number, number];
+  /** 0-`GRAVITY_MAX_HEALTH`, one per seat. A hit's own damage scales with how
+   *  long the missile was in flight (`gravityHitDamage`); the match ends the
+   *  instant either reaches 0. */
+  health: [number, number];
   turn: 0 | 1;
   /** Deadline for the current turn's `gravity-shot` — a silent shooter is
    *  resolved as a miss here rather than stalling the match (spec §2.4). */
@@ -1363,7 +1366,7 @@ export type ServerMessage =
   | { t: 'abduct'; s: number; d: AbductState }
   /** Tiles Surfer: everyone's last-reported numbers, fully public — spec §6. */
   | { t: 'tiles'; s: number; d: TilesSurferState }
-  /** Gravity Shooter: the whole match — planets, lives, turn, phase, winner. */
+  /** Gravity Shooter: the whole match — planets, health, turn, phase, winner. */
   | { t: 'gravity'; s: number; d: GravityShooterState }
   /** Asteroid Race: everyone's last-reported run, fully public — spec §6. */
   | { t: 'asteroid'; s: number; d: AsteroidRaceState }
@@ -2756,7 +2759,8 @@ export const TILES_MAX_PLAYERS = PLAYERS['tiles-surfer'][1];
 /* Gravity Shooter (docs/specs/games/gravity-shooter.md)                */
 /* ------------------------------------------------------------------ */
 
-export const GRAVITY_LIVES = 5;
+/** A ship's health bar starts full (spec §2.4) — a percentage, not a life count. */
+export const GRAVITY_MAX_HEALTH = 100;
 
 /** Middle band a planet's own `y` is rolled into, so both sit between the
  *  two ships rather than crowding either one (spec §2.1). */
@@ -2946,8 +2950,9 @@ export const GRAVITY_MIN_LANDING_SHOTS = 3;
 
 /**
  * How long a player has to take their shot (spec §2.4). Dawdle past it and the
- * missile goes off in their own hands: the shooter loses one of their own
- * lives and the turn passes. It is a shot clock now, not just a backstop
+ * missile goes off in their own hands: the shooter's own health drops by
+ * `GRAVITY_MIN_HIT_DAMAGE` and the turn passes. It is a shot clock now, not
+ * just a backstop
  * against a phone that went quiet, which is why it is short enough to feel
  * like one. The last few seconds blink increasingly fast on the shooter's
  * own ship (`game.ts`'s own `GRAVITY_SHOT_BLINK_START_MS`) — a client-only
@@ -2968,6 +2973,34 @@ export const GRAVITY_SHOT_TIMEOUT_MS = 13_000;
  * referee needs, and that file's own test asserts the two still agree.
  */
 export const GRAVITY_MAX_FLIGHT_MS = 10_000;
+
+/**
+ * The same flight duration decides damage, not just the shot clock (follow-up
+ * after issue #34): a shot the shooter watched for longer had more room to
+ * line up, so it lands harder. Below `GRAVITY_FAST_FLIGHT_MS` a hit still
+ * deals the floor, `GRAVITY_MIN_HIT_DAMAGE` — a fast, straight shot is not
+ * free of damage, just not rewarded for being quick — and at or beyond
+ * `GRAVITY_SLOW_FLIGHT_MS` it deals the ceiling, `GRAVITY_MAX_HIT_DAMAGE`,
+ * with no further reward for lingering past it.
+ */
+export const GRAVITY_FAST_FLIGHT_MS = 3_000;
+export const GRAVITY_SLOW_FLIGHT_MS = 5_000;
+export const GRAVITY_MIN_HIT_DAMAGE = GRAVITY_MAX_HEALTH / 6;
+export const GRAVITY_MAX_HIT_DAMAGE = GRAVITY_MAX_HEALTH / 3;
+
+/**
+ * A landed hit's damage: `GRAVITY_MIN_HIT_DAMAGE` at or below
+ * `GRAVITY_FAST_FLIGHT_MS`, `GRAVITY_MAX_HIT_DAMAGE` at or beyond
+ * `GRAVITY_SLOW_FLIGHT_MS`, linear between. `flightMs` is the same
+ * wall-clock duration `onGravityShot` already clamps to `GRAVITY_MAX_FLIGHT_MS`
+ * before this runs, so a claimed flight cannot buy more damage than the shot
+ * clock itself would allow the shooter to hold the turn for.
+ */
+export function gravityHitDamage(flightMs: number): number {
+  const span = GRAVITY_SLOW_FLIGHT_MS - GRAVITY_FAST_FLIGHT_MS;
+  const t = Math.max(0, Math.min(1, (flightMs - GRAVITY_FAST_FLIGHT_MS) / span));
+  return GRAVITY_MIN_HIT_DAMAGE + t * (GRAVITY_MAX_HIT_DAMAGE - GRAVITY_MIN_HIT_DAMAGE);
+}
 
 /** Derived from players.ts, so a card and its referee cannot disagree. */
 export const GRAVITY_MIN_PLAYERS = PLAYERS['gravity-shooter'][0];
