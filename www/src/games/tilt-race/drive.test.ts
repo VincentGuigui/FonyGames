@@ -1,6 +1,7 @@
 import type { Point } from '../../../../shared/tiltTrack';
 import {
   CAR_END_RADIUS,
+  TILT_HITBOX_SCALE,
   TILT_UPRIGHT_HEADING,
   carContact,
   carEnds,
@@ -363,11 +364,16 @@ function untilBump(from: Drive, frames = 120): { hit: Drive; before: Drive } {
  * radius has to fit inside `TRACK_HALF_WIDTH`. Past it there is NO position on
  * the road that holds the car — it is touching both rails at once.
  */
+/** The hitbox's own wheelbase — `TILT_WHEELBASE` scaled down with the rest
+ *  of the capsule (`TILT_HITBOX_SCALE`), not the sprite's own full length. */
+const HITBOX_WHEELBASE = TILT_WHEELBASE * TILT_HITBOX_SCALE;
+const HALF_WB = HITBOX_WHEELBASE / 2;
+
 const WEDGE_ANGLE = (() => {
   // A capsule turned θ off the road reaches `halfWheelbase·sinθ + radius`
   // across it, and that has to fit inside `TRACK_HALF_WIDTH`.
   const room = TRACK_HALF_WIDTH - CAR_END_RADIUS;
-  const reach = TILT_WHEELBASE / 2;
+  const reach = HALF_WB;
   const ratio = room / reach;
   return ratio >= 1 ? Math.PI / 2 : Math.asin(ratio);
 })();
@@ -379,23 +385,26 @@ function theBody(): void {
   check('a pose has a front and a rear', !!front && !!rear);
   // Heading 0 is +x, so the two points are separated along x.
   check(
-    `they sit a wheelbase apart (${Math.hypot(front.x - rear.x, front.y - rear.y).toFixed(1)})`,
-    Math.abs(Math.hypot(front.x - rear.x, front.y - rear.y) - TILT_WHEELBASE) < 1e-9,
+    `they sit the hitbox's own wheelbase apart (${Math.hypot(front.x - rear.x, front.y - rear.y).toFixed(1)})`,
+    Math.abs(Math.hypot(front.x - rear.x, front.y - rear.y) - HITBOX_WHEELBASE) < 1e-9,
   );
   check('and the front one is the one in front', front.x > rear.x);
   check(
-    `each carries half the car's width (${CAR_END_RADIUS.toFixed(1)})`,
-    Math.abs(CAR_END_RADIUS - TILT_CAR_WIDTH / 2) < 1e-9,
+    `each carries half the hitbox's own width (${CAR_END_RADIUS.toFixed(1)})`,
+    Math.abs(CAR_END_RADIUS - (TILT_CAR_WIDTH * TILT_HITBOX_SCALE) / 2) < 1e-9,
   );
   /*
-   * The capsule the two points describe is the drawn body: wheelbase plus a
-   * radius at each end is the sprite's own length, and twice the radius is its
-   * width. That is the whole reason the wheelbase is `LENGTH - WIDTH`.
+   * The capsule the two points describe is the drawn body scaled down by
+   * `TILT_HITBOX_SCALE`, not the sprite's own full size: wheelbase plus a
+   * radius at each end is `TILT_HITBOX_SCALE` of the sprite's own length, and
+   * twice the radius is `TILT_HITBOX_SCALE` of its width — a uniform shrink
+   * in both dimensions, a strip of forgiveness at the rail rather than a
+   * narrower or a shorter car.
    */
   check(
-    `the capsule is exactly the drawn body (${(TILT_WHEELBASE + 2 * CAR_END_RADIUS).toFixed(0)} x ${(2 * CAR_END_RADIUS).toFixed(0)})`,
-    Math.abs(TILT_WHEELBASE + 2 * CAR_END_RADIUS - TILT_CAR_LENGTH) < 1e-9 &&
-      Math.abs(2 * CAR_END_RADIUS - TILT_CAR_WIDTH) < 1e-9,
+    `the capsule is ${(TILT_HITBOX_SCALE * 100).toFixed(0)}% of the drawn body (${(HITBOX_WHEELBASE + 2 * CAR_END_RADIUS).toFixed(1)} x ${(2 * CAR_END_RADIUS).toFixed(1)})`,
+    Math.abs(HITBOX_WHEELBASE + 2 * CAR_END_RADIUS - TILT_CAR_LENGTH * TILT_HITBOX_SCALE) < 1e-9 &&
+      Math.abs(2 * CAR_END_RADIUS - TILT_CAR_WIDTH * TILT_HITBOX_SCALE) < 1e-9,
   );
   check('and it is longer than it is wide, like the sprite', TILT_CAR_LENGTH > TILT_CAR_WIDTH);
 
@@ -790,9 +799,9 @@ function rearWheelDrive(): void {
    * put, which is why `settle` cannot fail.
    */
   check(
-    `a capsule fits at every angle on the centreline (worst reach ${(TILT_WHEELBASE / 2 + CAR_END_RADIUS).toFixed(1)} of ${TRACK_HALF_WIDTH})`,
-    TILT_WHEELBASE / 2 + CAR_END_RADIUS <= TRACK_HALF_WIDTH,
-    { reach: TILT_WHEELBASE / 2 + CAR_END_RADIUS, room: TRACK_HALF_WIDTH },
+    `a capsule fits at every angle on the centreline (worst reach ${(HALF_WB + CAR_END_RADIUS).toFixed(1)} of ${TRACK_HALF_WIDTH})`,
+    HALF_WB + CAR_END_RADIUS <= TRACK_HALF_WIDTH,
+    { reach: HALF_WB + CAR_END_RADIUS, room: TRACK_HALF_WIDTH },
   );
   check(
     'so square across the road is a legal pose now, not a wedge',

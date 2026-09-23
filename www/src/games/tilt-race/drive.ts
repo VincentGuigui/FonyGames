@@ -139,14 +139,28 @@ export function startDrive(track: Track, startS = 0): Drive {
 }
 
 /**
- * The radius of each of the car's two points, world units — half the car's
- * width, so the two discs plus the hull between them is a capsule
- * `TILT_CAR_LENGTH` long and `TILT_CAR_WIDTH` wide (`TILT_WHEELBASE`).
+ * The hitbox is drawn 10% smaller than the sprite, in both dimensions — a
+ * strip of visual forgiveness at the rail: a graze against the very edge of
+ * the drawn car costs nothing until the smaller capsule underneath it
+ * actually reaches the wall. Scaling `TILT_CAR_WIDTH` and `TILT_WHEELBASE`
+ * by the same factor is what keeps the shrink uniform rather than making the
+ * hitbox disproportionately narrower or shorter than the sprite it sits
+ * inside (see `CAR_END_RADIUS`/`HALF_WB` below).
  */
-export const CAR_END_RADIUS = TILT_CAR_WIDTH / 2;
+export const TILT_HITBOX_SCALE = 0.9;
 
-/** Half the gap between the two points — where each sits from the centre. */
-const HALF_WB = TILT_WHEELBASE / 2;
+/**
+ * The radius of each of the car's two points, world units — half the
+ * hitbox's own width, so the two discs plus the hull between them make a
+ * capsule `TILT_HITBOX_SCALE` of `TILT_CAR_LENGTH` long and of
+ * `TILT_CAR_WIDTH` wide, not the sprite's own full size.
+ */
+export const CAR_END_RADIUS = (TILT_CAR_WIDTH * TILT_HITBOX_SCALE) / 2;
+
+/** Half the gap between the two points — where each sits from the centre,
+ *  scaled down with the radius so the capsule's length shrinks by the same
+ *  10% as its width. */
+const HALF_WB = (TILT_WHEELBASE * TILT_HITBOX_SCALE) / 2;
 
 /**
  * The car's two points: nose first, tail second.

@@ -104,11 +104,16 @@ number this constant tracks any more.
 ### 2.3 The body, and what a guardrail does to it
 
 **The car is two points, not a box round its centre.** A front point and a
-rear point, `TILT_WHEELBASE` apart (39 units), each carrying a disc of half the
-car's width — a capsule `TILT_CAR_LENGTH` × `TILT_CAR_WIDTH` (70 × 31, the
-sprite's own 225/512 aspect). `TrackCanvas` draws the sprite at those same two
-constants centred on the same midpoint, so the body and the picture cannot
-drift apart: what the player sees touch a rail is what touched it.
+rear point, each carrying a disc of half the hitbox's own width — a capsule
+`TILT_HITBOX_SCALE` (0.9) of `TILT_CAR_LENGTH` × `TILT_CAR_WIDTH` (70 × 31,
+the sprite's own 225/512 aspect), i.e. 63 × 27.9, the two points 35.1 units
+apart (`TILT_WHEELBASE × TILT_HITBOX_SCALE`). `TrackCanvas` still draws the
+sprite at the full, unscaled `TILT_CAR_LENGTH`/`TILT_CAR_WIDTH`, centred on the
+same midpoint: the hitbox sits a uniform 10% inside the drawn body in every
+direction, a strip of forgiveness at the rail so a graze against the very edge
+of the picture costs nothing until the smaller capsule underneath it actually
+touches — never the other way round, since a hitbox bigger than what the
+player sees would cost speed for a hit nobody watching could explain.
 
 Two points rather than one centre, because **a car does not pivot about its
 middle**, and rather than four corners, because the question the physics
@@ -121,7 +126,7 @@ the nose going one way and the tail the other — so every turn of the wrist
 crabbed the whole car sideways out of its lane and swept the tail into rails it
 was nowhere near. In reverse the pivot swaps ends, because backing a car up is
 the tail that swings. Measured: one frame of a turned wrist moves the leading
-end 19.3 units and the trailing end 0.1 (`thePivot` in `drive.test.ts`).
+end 17.4 units and the trailing end 0.1 (`thePivot` in `drive.test.ts`).
 
 This is also what made the autopilot's lap drop from 125 s and a long tally of
 rail touches to **54 s and none at all** — not a physics tuning, just a car that
@@ -131,7 +136,7 @@ goes where it is pointed instead of shouldering its way round every corner.
 corners out at the diagonal, so past about 0.92 rad (53°) across the road there
 was no legal pose at all — the body was against both rails at once and the
 physics had to keep working in a state with no answer. A capsule's reach across
-the road is `halfWheelbase·sinθ + radius`, topping out at 19.5 + 15.5 = 35
+the road is `halfWheelbase·sinθ + radius`, topping out at 17.6 + 14.0 = 31.5
 against the 36 the road gives, so **a car on the centreline fits at every angle,
 sideways included**. A car can still be pinned against a rail; it just always
 has somewhere legal to be put.
@@ -146,7 +151,7 @@ forwards, the tail in reverse. Only that one pays:
   owed is the overlap: the tail is put back on the road and the body swings
   round the nose, at the same speed, in the same direction of travel, with no
   bump reported and the spool untouched. Measured: 170 u/s in, 170 u/s out, the
-  tail lifted 11 units back onto the road while the nose moved 3.6
+  tail lifted 10 units back onto the road while the nose moved 3.5
   (`theFreeEnd` in `drive.test.ts`). That swing is the two-point body earning
   its keep — a tail that clips a wall steps the car out, exactly as it would on
   tarmac, instead of braking it.
@@ -179,8 +184,8 @@ turned by the wall's reaction at the nose against the thrust behind it: the tail
 comes round until the car lies flush. Pushing the nose off the wall instead —
 the obvious reading — leaves the car permanently angled and never actually
 sliding, which is what issue #42 kept reporting. Measured: a car hitting at
-0.69 rad closes to 0.10 rad of the rail within a second, its tail coming in from
-14 units of clearance to 3.6 while the nose stays on the wall.
+0.70 rad closes to 0.10 rad of the rail within a second, its tail coming in from
+19.8 units of clearance to 3.2 while the nose stays on the wall.
 
 This is the one thing in the game allowed to sit on top of the phone's own
 heading, and it is deliberately a **debt, not a second steering input**:
@@ -365,8 +370,8 @@ case something else was meant.
 - **Backgrounded tab**: stops simulating and reporting; on return it rejoins at
   the referee's clock, having lost the time. Dimmed on the rail while silent.
 - **Car pinned against a rail**: it crabs along and squares itself up as it
-  goes (§2.3), so this is a slow patch rather than a dead end — measured at 116
-  units in the first second from a 0.69 rad hit, closing to 0.07 rad of the
+  goes (§2.3), so this is a slow patch rather than a dead end — measured at 118
+  units in the first second from a 0.70 rad hit, closing to 0.02 rad of the
   rail. There is no "wedged with no legal pose" case any more: the two-point
   body fits on the centreline at every angle, sideways included. Only a nose
   driven **exactly** square into a wall has nothing to turn it, and reverse is
