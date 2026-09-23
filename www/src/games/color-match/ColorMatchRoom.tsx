@@ -17,7 +17,7 @@ import { StatusBar } from '../../core/ui/StatusBar';
 import { WideScoreboard } from '../../core/ui/WideScoreboard';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
-import { useGameText } from '../../core/i18n/gameText';
+import { useGameText, type GameText } from '../../core/i18n/gameText';
 import { ColorWheel } from './ColorWheel';
 import { neutralFor } from './wheel';
 import './color-match.css';
@@ -43,6 +43,21 @@ const PIE_C = 2 * Math.PI * 5;
 
 function css(rgb: Rgb): string {
   return `rgb(${rgb[0]} ${rgb[1]} ${rgb[2]})`;
+}
+
+/**
+ * The reaction multiplier's own five tiers, worded instead of shown as
+ * arithmetic — `reactionMultiplier` already earns points from exactly these
+ * bands (`COLOR_REACTION_MULTIPLIERS`), so this is a label on the same
+ * number, not a second scale. `null` at the middle tier: a reaction that
+ * earned neither bonus nor penalty says nothing rather than "on time".
+ */
+function speedTag(k: number, text: GameText): { word: string; cls: 'cmatch__bonus' | 'cmatch__malus' } | null {
+  if (k >= 1.5) return { word: text({ en: 'very fast', fr: 'très rapide' }), cls: 'cmatch__bonus' };
+  if (k > 1) return { word: text({ en: 'fast', fr: 'rapide' }), cls: 'cmatch__bonus' };
+  if (k === 1) return null;
+  if (k > 0.5) return { word: text({ en: 'slow', fr: 'lent' }), cls: 'cmatch__malus' };
+  return { word: text({ en: 'very slow', fr: 'très lent' }), cls: 'cmatch__malus' };
 }
 
 function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
@@ -166,51 +181,50 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
         </div>
 
         {/*
-          The verdict panel. Its footprint never changes: both lines are always
-          in the DOM and both reserve their own height, so the wheel does not
-          jump down the page the moment a score appears. What varies is what
-          they say, and whether the second one is visible at all.
+          The verdict panel. Its footprint never changes: `min-height` reserves
+          room for the tallest of its two states (the prompt, or the three-line
+          result), so the wheel never jumps down the page the moment a score
+          appears. `aria-live` sits on this outer div, which stays mounted
+          either way — a screen reader announces the swap regardless of
+          whether the children underneath it are replaced.
         */}
         <div
           class={`cmatch__verdict${revealing ? ` cmatch__verdict--${(mine?.score ?? 0) > 0 ? 'hit' : 'miss'}` : ' cmatch__verdict--quiet'}`}
           aria-live="polite"
         >
-          <p class="cmatch__score">
-            {revealing ? (
-              <>
-                <strong class="cmatch__points">{mine?.score ?? 0}</strong>
-                {text({ en: 'points', fr: 'points' })}
-              </>
-            ) : (
-              text({ en: 'Find it', fr: 'Trouvez-la' })
-            )}
-          </p>
-          {/* Accuracy, how long it took, and whether the clock helped or hurt.
-              The multiplier itself is not shown (it is arithmetic nobody reads
-              mid-round); the word and its colour are the whole message. */}
-          <p class="cmatch__breakdown" style={{ visibility: revealing ? 'visible' : 'hidden' }}>
-            {text({ en: 'accuracy', fr: 'précision' })} <strong>{mine?.accuracy ?? 0}</strong>
-            {mine ? (
-              <>
-                {' · '}
-                {text({ en: `${(mine.reactionMs / 1000).toFixed(1)}s`, fr: `${(mine.reactionMs / 1000).toFixed(1)} s` })}
-                {(() => {
-                  const k = reactionMultiplier(mine.reactionMs, colorActionMs(state.level));
-                  if (k === 1) return null;
-                  return (
-                    <>
-                      {' · '}
-                      <span class={k > 1 ? 'cmatch__bonus' : 'cmatch__malus'}>
-                        {k > 1 ? text({ en: 'bonus', fr: 'bonus' }) : text({ en: 'malus', fr: 'malus' })}
-                      </span>
-                    </>
-                  );
-                })()}
-              </>
-            ) : (
-              <>{' · '}{text({ en: 'no answer', fr: 'aucune réponse' })}</>
-            )}
-          </p>
+          {revealing ? (
+            <>
+              <p class="cmatch__precision">
+                {text({ en: 'Precision:', fr: 'Précision :' })}{' '}
+                {mine?.accuracy === 100 ? (
+                  <strong class="cmatch__perfect">{text({ en: 'Perfect', fr: 'Parfait' })}</strong>
+                ) : (
+                  <strong>{mine?.accuracy ?? 0} %</strong>
+                )}
+              </p>
+              {/* The reaction time, and — in place of the old bare bonus/malus —
+                  the word its own tier earns (issue #38's multiplier, worded). */}
+              <p class="cmatch__speed">
+                {text({ en: 'Speed:', fr: 'Vitesse :' })}{' '}
+                {mine ? (
+                  <>
+                    <strong>{(mine.reactionMs / 1000).toFixed(1)} {text({ en: 'sec', fr: 's' })}</strong>
+                    {(() => {
+                      const tag = speedTag(reactionMultiplier(mine.reactionMs, colorActionMs(state.level)), text);
+                      return tag && <span class={tag.cls}> {tag.word}</span>;
+                    })()}
+                  </>
+                ) : (
+                  text({ en: 'no answer', fr: 'aucune réponse' })
+                )}
+              </p>
+              <p class="cmatch__points-line">
+                + <strong class="cmatch__points">{mine?.score ?? 0}</strong> {text({ en: 'Points', fr: 'Points' })}
+              </p>
+            </>
+          ) : (
+            <p class="cmatch__prompt">{text({ en: 'Find it', fr: 'Trouvez-la' })}</p>
+          )}
         </div>
 
         <div class="cmatch__board">

@@ -33,55 +33,84 @@
   height: 44px;
 }
 
+/* A fixed height whatever it holds, so the panel is the same size all round —
+   the prompt is one centred line, the result is three, and a panel that grew
+   on reveal would shove the wheel down the page mid-level. Each row below is
+   itself a fixed height with `overflow: hidden`, so a locale's longer word
+   (French speed words run wider than English) clips rather than wrapping the
+   row taller. */
 .cmatch__verdict {
   margin: 0;
+  min-height: 4.9rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
   text-align: center;
-  font-size: 1.3rem;
-  font-weight: 700;
   color: var(--text);
 }
 
 .cmatch__verdict--quiet {
+  font-size: 1.3rem;
   font-weight: 500;
   color: var(--text-dim);
 }
 
-/* Both lines are a fixed height whatever they hold, so the panel is the same
-   size all round: the prompt is 1.3rem and the points are 2.2rem, and a panel
-   that grew on reveal would shove the wheel down the page mid-level. Flex
-   rather than a line box, because two inline fonts of different sizes on one
-   line union their extents and can outgrow the line-height they were given. */
-.cmatch__score {
+.cmatch__prompt {
   margin: 0;
-  height: 2.7rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-/* What the points are made of, one line under them: accuracy out of 100 and
-   the reaction time with the multiplier it earned (issue #38). */
-.cmatch__breakdown {
-  margin: 0.15rem 0 0;
+.cmatch__precision {
+  margin: 0;
+  height: 1.5rem;
+  line-height: 1.5rem;
+  overflow: hidden;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+/* Green whether it is the "Perfect" word or an ordinary percentage — accuracy
+   is never a bad-news number, only more or less exact. */
+.cmatch__precision strong {
+  color: var(--text);
+}
+
+.cmatch__perfect {
+  color: #22c55e;
+}
+
+/* The reaction time and, in place of the old bonus/malus pair, a five-word
+   scale from the same tiers `reactionMultiplier` already earns points from —
+   very fast/fast at one end, slow/very slow at the other, nothing in the
+   middle third of the window. */
+.cmatch__speed {
+  margin: 0;
+  height: 1.2rem;
+  line-height: 1.2rem;
+  overflow: hidden;
   font-size: 0.85rem;
   font-weight: 500;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
-  height: 1.2rem;
-  line-height: 1.2rem;
-  overflow: hidden;
 }
 
-.cmatch__breakdown strong {
+.cmatch__speed strong {
   color: var(--text);
 }
 
-/* The number is the feedback; the word is a unit. */
-.cmatch__points {
-  font-size: 2.2rem;
-  line-height: 1;
+.cmatch__points-line {
+  margin: 0;
+  height: 2rem;
+  line-height: 2rem;
+  overflow: hidden;
+  font-size: 1.3rem;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  margin-right: 0.25em;
+}
+
+.cmatch__points {
+  margin-right: 0.2em;
 }
 
 .cmatch__verdict--hit .cmatch__points {
@@ -93,8 +122,6 @@
   color: var(--text-dim);
 }
 
-/* Whether the clock helped or hurt, as a word rather than a multiplier — the
-   number was arithmetic nobody reads with two seconds left on the pie. */
 .cmatch__bonus {
   color: #22c55e;
   font-weight: 700;
