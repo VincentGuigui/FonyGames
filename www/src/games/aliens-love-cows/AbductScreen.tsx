@@ -15,7 +15,7 @@ import { cowGridSlot, ufoDriftAt, ufoHoverAt, type AbductView } from './game';
 import cowArt from './art/cow.png?url&no-inline';
 import barnArt from './art/barn.png?url&no-inline';
 import barnDestroyedArt from './art/barn_destroyed.png?url&no-inline';
-import ufoArt from './art/ufo.svg?url&no-inline';
+import ufoArt from './art/ufo.png?url&no-inline';
 
 /**
  * The round screen: five barns, everyone's cow, one drifting UFO.
