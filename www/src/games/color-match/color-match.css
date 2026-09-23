@@ -154,6 +154,40 @@
   opacity: 0.92;
 }
 
+/* The lock-in button and the "3 of 5 in" tally, same idea Color Hunt's own
+   button already uses (issue #45) — reused here rather than a second design. */
+.cmatch__confirm {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.cmatch__lock {
+  flex: 1;
+  padding: var(--space-3);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--game-accent);
+  color: #06202a;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.cmatch__lock:disabled {
+  background: rgb(255 255 255 / 0.16);
+  color: var(--text-dim);
+}
+
+.cmatch__incount {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
 /* Said before anyone commits to a run, not after (§11). */
 .cmatch__warning {
   margin: 0;

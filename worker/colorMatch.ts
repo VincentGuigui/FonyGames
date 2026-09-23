@@ -62,6 +62,8 @@ export type ColorMatch = {
   used: string[];
   /** Consecutive levels nobody scored a point on (spec §2.1). */
   barren: number;
+  /** Who has locked this level's pick (spec §6). Cleared with every level. */
+  confirmed: PlayerId[];
   solo: boolean;
   winner: PlayerId | null;
 };
@@ -112,6 +114,7 @@ function armLevel(ctx: Ctx, s: ColorMatch, level: number): void {
   s.revealAt = s.picksDueAt + COLOR_SCORE_HOLD_MS;
   s.levelEndsAt = now + levelMs(level);
   s.picks = {};
+  s.confirmed = [];
 }
 
 /** Host pressed start. Returns false when the room is not eligible. */
@@ -144,6 +147,7 @@ export async function startColorMatch(
     totals,
     used: [],
     barren: 0,
+    confirmed: [],
     solo: solo || connected.length <= 1,
     winner: null,
   };
@@ -177,6 +181,9 @@ export async function onColorPick(
   // Past the deadline plus its grace, nothing counts. The referee has not
   // scored yet at that point, so this is the only thing keeping the window shut.
   if (ctx.now() > s.picksDueAt + COLOR_PICK_GRACE_MS) return;
+  // A locked pick is locked: dragging the wheel further must not quietly
+  // change it (spec §6).
+  if (s.confirmed.includes(playerId)) return;
 
   const rgb = asRgb(rawRgb);
   if (!rgb) return;
@@ -188,6 +195,35 @@ export async function onColorPick(
   const reactionMs = Math.max(0, ctx.now() - (s.picksDueAt - colorActionMs(s.level)));
   s.picks[playerId] = { rgb, reactionMs, accuracy: 0, score: 0 };
   await ctx.save(s);
+}
+
+/**
+ * One phone locks its pick. Once everyone still playing has, the level scores
+ * immediately rather than running the clock down for nobody (spec §6, the
+ * same idea Color Hunt's own "Lock it in" button applies, issue #45).
+ *
+ * Not confirming is not a penalty: the deadline auto-confirms whatever pick a
+ * phone last sent, which is exactly what `tick` already scores.
+ */
+export async function onColorConfirm(ctx: Ctx, playerId: PlayerId, roundId: number, level: number): Promise<void> {
+  const s = await ctx.load();
+  if (!s || s.roundId !== roundId || s.phase !== 'pick' || s.level !== level) return;
+  if (!(playerId in s.totals)) return;
+  if (s.confirmed.includes(playerId)) return;
+  if (!(playerId in s.picks)) return;
+
+  s.confirmed.push(playerId);
+  if (s.confirmed.length >= Object.keys(s.totals).length) {
+    // Everyone is in: bring the deadline to now and let the alarm score it, so
+    // there is one scoring path rather than two.
+    s.picksDueAt = ctx.now();
+    await ctx.save(s);
+    broadcast(ctx, s);
+    await ctx.setAlarm(nextDeadline(s));
+    return;
+  }
+  await ctx.save(s);
+  broadcast(ctx, s);
 }
 
 /**
@@ -272,8 +308,13 @@ function score(s: ColorMatch): void {
 export async function onPlayerGone(ctx: Ctx, playerId: PlayerId): Promise<void> {
   const s = await ctx.load();
   if (!s || s.phase === 'done') return;
-  if (!(playerId in s.picks)) return;
   delete s.picks[playerId];
+  /*
+   * A phone that has gone counts as locked in. It cannot pick again, and the
+   * all-confirmed shortcut is measured against everyone in `totals` — leaving
+   * them out would hold the level open until the clock ran down for nobody.
+   */
+  if (playerId in s.totals && !s.confirmed.includes(playerId)) s.confirmed.push(playerId);
   await ctx.save(s);
 }
 
@@ -323,6 +364,7 @@ export function toState(s: ColorMatch): ColorMatchState {
     totals: { ...s.totals },
     picks,
     barren: s.barren,
+    confirmed: [...s.confirmed],
     winner: s.winner,
   };
 }

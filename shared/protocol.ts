@@ -287,6 +287,10 @@ export type ClientMessage =
    * #40 brightness is a ring on the wheel, not a second field alongside it.
    */
   | { t: 'color-pick'; d: { roundId: number; level: number; rgb: [number, number, number]; at: number } }
+  /** Lock this level's pick. When everyone playing has, the level scores at
+   *  once instead of waiting out the clock (spec §6, issue #45's own idea,
+   *  reused here). */
+  | { t: 'color-confirm'; d: { roundId: number; level: number } }
   /**
    * Math-o-matic: which of the four buttons this phone tapped.
    *
@@ -780,6 +784,10 @@ export type ColorMatchState = {
   picks: Record<PlayerId, { rgb: [number, number, number]; accuracy: number; reactionMs: number; score: number }>;
   /** Consecutive levels nobody scored on. At `COLOR_BARREN_ROUNDS` the run ends. */
   barren: number;
+  /** Who has locked this level's pick, so the phone can show "3 of 5 in" and
+   *  grey out its own button — carries no colour, so it is safe on the wire
+   *  even mid-`pick` while `picks` itself stays hidden. */
+  confirmed: PlayerId[];
   winner: PlayerId | null;
 };
 
@@ -2118,6 +2126,7 @@ const CLIENT_TYPES = new Set([
   'gravity-shot',
   'asteroid-report',
   'color-pick',
+  'color-confirm',
   'hunt-find',
   'hunt-confirm',
   'math-answer',

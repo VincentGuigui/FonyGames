@@ -474,8 +474,9 @@ per player per level, and no per-frame traffic at all.
 
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
-| `color-match` | server → all | `ColorMatchState { roundId, level, target: [r,g,b], phase, picksDueAt, revealAt, endsAt, totals, picks, barren, winner }` | The whole level's state, sent on every phase change. `picks` is empty during `pick` — nobody's guess goes out while the window is still open — and filled once it closes |
+| `color-match` | server → all | `ColorMatchState { roundId, level, target: [r,g,b], phase, picksDueAt, revealAt, endsAt, totals, picks, barren, confirmed, winner }` | The whole level's state, sent on every phase change. `picks` is empty during `pick` — nobody's guess goes out while the window is still open — and filled once it closes |
 | `color-pick` | client → server | `{ roundId, level, rgb: [r,g,b], at }` | This phone's pick. Last one before `picksDueAt` wins; later ones are dropped. **Since issue #40** this is the whole colour — no separate `lum` field, because there is no separate control left to carry one |
+| `color-confirm` | client → server | `{ roundId, level }` | Lock this level's pick (see below) |
 
 **Latency:** the phase boundaries are absolute server times rendered through
 `client.now()`, so 100–300 ms of lag costs a player a sliver of their three
@@ -483,6 +484,24 @@ seconds and nothing else. A pick that arrives up to `COLOR_PICK_GRACE_MS` late
 is still counted — the referee waits that long before scoring, the same grace
 Tiles Surfer's own report window allows — so a slow phone loses points to its
 own lag only when it is genuinely slow, not when it is merely far away.
+
+**Locking a pick.** A phone can tap **Lock it in** to commit its current
+colour rather than waiting out the clock (`color-confirm`) — the same idea
+Color Hunt's own "Lock it in" button applies (issue #45), reused here rather
+than invented twice. A locked pick cannot be changed by dragging the wheel
+further.
+
+When everyone still playing has locked in, the level's `picksDueAt` is pulled
+to now and it scores immediately — the clock exists to stop a level hanging,
+not to make a room that is ready wait. Not confirming costs nothing: the
+deadline auto-confirms whatever pick that phone last sent, which is what the
+referee scored before the button existed. A phone that leaves counts as
+locked in, or it would hold the level open for a player who is gone.
+
+The tally ("3 of 5 in") is on the wire as `confirmed`, so every phone can see
+who the room is waiting for — a bare list of ids, so it carries nothing about
+anyone's actual colour and is safe to broadcast even while `picks` itself
+stays hidden during `pick`.
 
 ## 7. Failure & edge cases
 

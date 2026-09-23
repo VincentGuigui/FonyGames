@@ -103,6 +103,20 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
     [state?.roundId, state?.level, state?.phase],
   );
 
+  /*
+   * Lock this level's pick — the same idea Color Hunt's own "Lock it in"
+   * button applies (issue #45), reused here. The current colour goes with it:
+   * a phone that never dragged the wheel still has a pick on the wire to
+   * confirm, the same reason Color Hunt resends its own last reading first.
+   */
+  const onConfirm = useCallback(() => {
+    const s = state;
+    const c = clientRef.current;
+    if (!s || !c || s.phase !== 'pick') return;
+    c.send({ t: 'color-pick', d: { roundId: s.roundId, level: s.level, rgb: [pick[0], pick[1], pick[2]], at: c.now() } });
+    c.send({ t: 'color-confirm', d: { roundId: s.roundId, level: s.level } });
+  }, [state?.roundId, state?.level, state?.phase, pick]);
+
   // The pie, written straight into the DOM. One rAF loop, no re-render.
   const pieRef = useRef<SVGCircleElement>(null);
   useEffect(() => {
@@ -156,6 +170,7 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
     const revealing = state.phase === 'reveal';
     const mine = myId ? state.picks[myId] : undefined;
     const ladder = Object.entries(state.totals).map(([id, total]) => ({ id, avatar: avatarOf(id), name: nameOf(id), value: total }));
+    const locked = myId !== undefined && state.confirmed.includes(myId);
 
     return (
       <div class="cmatch" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
@@ -232,10 +247,24 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
             rung={rung}
             value={revealing ? target : pick}
             onPick={onPick}
-            disabled={revealing}
+            disabled={revealing || locked}
             label={text({ en: 'Colour wheel', fr: 'Roue chromatique' })}
           />
         </div>
+
+        {!revealing && (
+          <div class="cmatch__confirm">
+            <button type="button" class="cmatch__lock" disabled={locked} onClick={onConfirm}>
+              {locked ? text({ en: 'Locked in', fr: 'Validé' }) : text({ en: 'Lock it in', fr: 'Valider' })}
+            </button>
+            <p class="cmatch__incount" aria-live="polite">
+              {text({
+                en: `${state.confirmed.length} of ${Object.keys(state.totals).length} in`,
+                fr: `${state.confirmed.length} sur ${Object.keys(state.totals).length} validé${state.confirmed.length > 1 ? 's' : ''}`,
+              })}
+            </p>
+          </div>
+        )}
 
         <WideScoreboard
           rows={ladder}

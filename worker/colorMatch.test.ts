@@ -1,6 +1,7 @@
 import {
   levelMs,
   nextDeadline,
+  onColorConfirm,
   onColorPick,
   onPlayerGone,
   startColorMatch,
@@ -308,6 +309,67 @@ async function leaving(): Promise<void> {
   check('and the run carries on', h.state.phase === 'pick');
 }
 
+async function confirming(): Promise<void> {
+  console.log('\nlocking a pick ends the level early (§6, reusing Color Hunt\'s own issue #45)');
+
+  const h = harness();
+  await startColorMatch(h.ctx, 1, [A, B]);
+  const due = h.state.picksDueAt;
+
+  check('nobody is locked in to start with', h.state.confirmed.length === 0);
+  await onColorConfirm(h.ctx, A, 1, 1);
+  check('confirming without a pick does nothing', h.state.confirmed.length === 0, h.state.confirmed);
+
+  await onColorPick(h.ctx, A, 1, 1, [...h.state.target], 0);
+  await onColorConfirm(h.ctx, A, 1, 1);
+  check('with a pick, it locks', h.state.confirmed.includes(A), h.state.confirmed);
+  await onColorConfirm(h.ctx, A, 1, 1);
+  check('confirming twice does not double up', h.state.confirmed.length === 1);
+  check('one of two is not everyone, so the clock stands', h.state.picksDueAt === due, { was: due, now: h.state.picksDueAt });
+  check('and it is on the wire for the other phones', toState(h.state).confirmed.includes(A));
+
+  // A locked pick is locked.
+  await onColorPick(h.ctx, A, 1, 1, [1, 2, 3], 0);
+  check('a locked pick cannot be changed', h.state.picks[A]?.rgb[0] !== 1, h.state.picks[A]);
+
+  await onColorPick(h.ctx, B, 1, 1, [10, 10, 10], 0);
+  await onColorConfirm(h.ctx, B, 1, 1);
+  check('everyone in brings the deadline to now', h.state.picksDueAt <= 1_000_000, h.state.picksDueAt);
+
+  await h.step();
+  check('and the level scores on it', h.state.phase === 'reveal', h.state.phase);
+  // Both picks landed instantly, exactly the same shape `scoring()` above
+  // already pins down: 100 accuracy, worth half again for being early.
+  check('the exact pick still got its points', h.state.totals[A] === 150, h.state.totals);
+
+  await h.step();
+  check('the new level starts unlocked', h.state.confirmed.length === 0, h.state.confirmed);
+  check('and the ladder moved on', h.state.level === 2, h.state.level);
+}
+
+async function confirmTimeout(): Promise<void> {
+  console.log('\nnot confirming is not a penalty (§6)');
+
+  const h = harness();
+  await startColorMatch(h.ctx, 1, [A, B]);
+  await onColorPick(h.ctx, A, 1, 1, [...h.state.target], 0);
+  // Nobody confirms; the clock runs out on its own.
+  await h.step();
+  check('the deadline auto-confirms whatever was picked', h.state.totals[A] === 150, h.state.totals);
+}
+
+async function leaverDoesNotHoldTheLevel(): Promise<void> {
+  console.log('\na phone that leaves does not hold the level open (§6)');
+
+  const h = harness();
+  await startColorMatch(h.ctx, 1, [A, B]);
+  await onColorPick(h.ctx, A, 1, 1, [...h.state.target], 0);
+  await onColorConfirm(h.ctx, A, 1, 1);
+  check('one of two is in, clock still running', h.state.picksDueAt > 1_000_000);
+  await onPlayerGone(h.ctx, B);
+  check('the one who left counts as in', h.state.confirmed.includes(B), h.state.confirmed);
+}
+
 async function noRepeats(): Promise<void> {
   console.log('\na session never asks twice for the same colour (§2.3b)');
 
@@ -375,6 +437,9 @@ async function main(): Promise<void> {
   await winning();
   await cheating();
   await leaving();
+  await confirming();
+  await confirmTimeout();
+  await leaverDoesNotHoldTheLevel();
   await noRepeats();
   await timing();
   await phases();
