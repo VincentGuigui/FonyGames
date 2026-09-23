@@ -1,6 +1,7 @@
 /* Must be first: CSS @import is only valid before any rule. The shared join form
  * (core/ui/JoinByCode.tsx) is used by the hub and by every game's chooser. */
 @import '../core/ui/join.css';
+@import '../core/ui/game-illustration.css';
 
 /* Lobby. Spec: docs/multiplayer.md §3 · Rules: docs/design/ui-guidelines.md */
 
@@ -957,12 +958,17 @@ a.btn {
 
 .game-switcher__card-art {
   grid-row: span 2;
+  width: 5rem;
+  border-radius: .35rem;
+  overflow: hidden;
+  background: var(--color-surface-2);
+}
+
+/* Before the registry has loaded: the slug's first letter, same box. */
+.game-switcher__card-art--letter {
   display: grid;
   place-items: center;
-  width: 5rem;
   height: 3.75rem;
-  border-radius: .35rem;
-  background: var(--color-surface-2);
   color: var(--color-accent);
   font-size: 2rem;
   font-weight: 900;

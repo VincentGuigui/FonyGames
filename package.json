@@ -64,7 +64,7 @@
     "test:outlines": "node www/src/games/outlines.mjs --check",
     "test:cards": "node www/src/games/cards.test.mjs",
     "test:over": "node www/src/games/gameover.test.mjs",
-    "test:over-ui": "esbuild www/src/core/ui/gameover.test.tsx --bundle --format=esm --platform=node --jsx=automatic --jsx-import-source=preact --external:preact --external:preact-render-to-string --outfile=node_modules/.cache/overui.test.mjs --log-level=warning && node node_modules/.cache/overui.test.mjs",
+    "test:over-ui": "esbuild www/src/core/ui/gameover.test.tsx --bundle --format=esm --platform=node --jsx=automatic --jsx-import-source=preact --external:preact --external:preact-render-to-string --loader:.svg=dataurl --outfile=node_modules/.cache/overui.test.mjs --log-level=warning && node node_modules/.cache/overui.test.mjs",
     "test:sprites": "esbuild www/src/core/art/sprites.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/sprites.test.mjs --log-level=warning && node node_modules/.cache/sprites.test.mjs",
     "test:tint": "esbuild www/src/core/art/tint.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/tint.test.mjs --log-level=warning && node node_modules/.cache/tint.test.mjs",
     "test:bump": "esbuild www/src/core/sensors/bump.test.ts --bundle --format=esm --platform=node --outfile=node_modules/.cache/bumpsensor.test.mjs --log-level=warning && node node_modules/.cache/bumpsensor.test.mjs",

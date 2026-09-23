@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import type { GameArt } from '../core/types';
+import type { GameArt } from '../types';
 
 /**
  * A card's illustration. Spec: docs/specs/hub.md §2 · style: ui-guidelines.md §6
@@ -8,6 +8,11 @@ import type { GameArt } from '../core/types';
  * and illustrations are budgeted *out* of the hub's payload
  * (docs/architecture.md §4). Hand-written paths here would be ~410 lines and 54% of the
  * hub chunk; this is a wrapper around a file per game instead.
+ *
+ * Shared with `lobby/GameSwitcher.tsx` — its "bring everyone to another game" list is
+ * the same promise the hub's own grid makes, one illustration and one catchy sentence
+ * per card, and a second implementation of this wrapper would be free to drift from
+ * the first the moment either one changed.
  *
  * The accent tint is painted **here** rather than inside the SVG so that one paint
  * does two jobs: it is the placeholder that holds the space before the file arrives

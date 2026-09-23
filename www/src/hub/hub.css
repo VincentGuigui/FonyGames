@@ -1,6 +1,7 @@
 /* Must be first: CSS @import is only valid before any rule. The shared join form
  * (core/ui/JoinByCode.tsx) is used by the hub and by every game's chooser. */
 @import '../core/ui/join.css';
+@import '../core/ui/game-illustration.css';
 
 /* Hub layout. Rules: docs/design/ui-guidelines.md · Spec: docs/specs/hub.md */
 
@@ -164,20 +165,6 @@
 .game-card__art {
   position: relative;
   background: var(--color-surface-2);
-}
-
-.game-illustration {
-  display: block;
-  width: 100%;
-  height: auto;
-  /*
-   * Fixed ratio so the grid never reflows while art loads — which is now a real
-   * guarantee rather than an aspiration: the illustration is a lazily-loaded file
-   * (specs/hub.md §2), and the <img> also carries intrinsic width/height in case
-   * this stylesheet arrives late. The accent tint behind it is set inline by
-   * GameIllustration.tsx, so the same paint is the placeholder and the backdrop.
-   */
-  aspect-ratio: 4 / 3;
 }
 
 /*

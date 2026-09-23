@@ -1,6 +1,6 @@
 import type { JSX } from 'preact';
 import type { GameCard, GameInput } from '../core/types';
-import { GameIllustration } from './GameIllustration';
+import { GameIllustration } from '../core/ui/GameIllustration';
 import { cardState, DEFAULT_FLAG, type GameFlag } from '../../../shared/flags';
 import { useT } from '../core/i18n/strings';
 
