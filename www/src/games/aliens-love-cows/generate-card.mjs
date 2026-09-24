@@ -205,9 +205,13 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${CARD_W} ${CA
     ${cow.markup}
   </g>
 
-  <!-- Ground fields either side. -->
-  <path d="M0 80 Q30 74 40 80 L40 90 L0 90 Z" fill="#166534" opacity="0.6"/>
-  <path d="M80 80 Q100 74 120 80 L120 90 L80 90 Z" fill="#166534" opacity="0.6"/>
+  <!-- Ground: one field, not two — a flat run behind the barn joins the two
+       hills (each still its own Q curve, unchanged) into a single closed
+       shape reaching every x from 0 to 120. Two separate paths used to
+       leave x 40-80 with no fill at all below the barn's own footprint: the
+       barn covers most of it, but not all the way down to y 90, so a strip
+       of bare background showed through right under the barn. -->
+  <path d="M0 80 Q30 74 40 80 L80 80 Q100 74 120 80 L120 90 L0 90 Z" fill="#166534" opacity="0.6"/>
 </svg>
 `;
 
