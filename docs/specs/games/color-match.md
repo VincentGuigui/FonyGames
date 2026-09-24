@@ -498,10 +498,11 @@ deadline auto-confirms whatever pick that phone last sent, which is what the
 referee scored before the button existed. A phone that leaves counts as
 locked in, or it would hold the level open for a player who is gone.
 
-The tally ("3 of 5 in") is on the wire as `confirmed`, so every phone can see
-who the room is waiting for — a bare list of ids, so it carries nothing about
-anyone's actual colour and is safe to broadcast even while `picks` itself
-stays hidden during `pick`.
+Who has locked in is on the wire as `confirmed` — a bare list of ids, so it
+carries nothing about anyone's actual colour and is safe to broadcast even
+while `picks` itself stays hidden during `pick` — but the phone does not
+surface a "3 of 5 in" tally to the player; only the button's own state
+changes.
 
 ## 7. Failure & edge cases
 

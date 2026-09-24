@@ -99,8 +99,9 @@ auto-confirms whatever pick that phone last sent, which is what the referee
 scored before the button existed. A phone that leaves counts as locked in, or
 it would hold the round open for a player who is gone.
 
-The tally ("3 of 5 in") is on the wire as `confirmed`, so every phone can see
-who the room is waiting for.
+Who has locked in is on the wire as `confirmed`, but the phone does not
+surface a "3 of 5 in" tally to the player; only the button's own state
+changes.
 
 ## 3. Modes / variations
 

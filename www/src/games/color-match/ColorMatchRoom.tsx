@@ -253,17 +253,9 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
         </div>
 
         {!revealing && (
-          <div class="cmatch__confirm">
-            <button type="button" class="cmatch__lock" disabled={locked} onClick={onConfirm}>
-              {locked ? text({ en: 'Locked in', fr: 'Validé' }) : text({ en: 'Lock it in', fr: 'Valider' })}
-            </button>
-            <p class="cmatch__incount" aria-live="polite">
-              {text({
-                en: `${state.confirmed.length} of ${Object.keys(state.totals).length} in`,
-                fr: `${state.confirmed.length} sur ${Object.keys(state.totals).length} validé${state.confirmed.length > 1 ? 's' : ''}`,
-              })}
-            </p>
-          </div>
+          <button type="button" class="cmatch__lock" disabled={locked} onClick={onConfirm}>
+            {locked ? text({ en: 'Locked in', fr: 'Validé' }) : text({ en: 'Lock it in', fr: 'Valider' })}
+          </button>
         )}
 
         <WideScoreboard

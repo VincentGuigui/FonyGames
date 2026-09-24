@@ -301,24 +301,17 @@ function ColorHuntRoomInner({ game: card, code }: { game: GameCard; code: string
 
         {(() => {
           const locked = myId !== undefined && state.confirmed.includes(myId);
-          const inCount = state.confirmed.length;
-          const total = Object.keys(state.totals).length;
           return (
-            <div class="chunt__confirm">
-              <button
-                type="button"
-                class="chunt__lock"
-                disabled={locked || !cameraOn}
-                onClick={confirm}
-              >
-                {locked
-                  ? text({ en: 'Locked in', fr: 'Validé' })
-                  : text({ en: 'Lock it in', fr: 'Valider' })}
-              </button>
-              <p class="chunt__incount" aria-live="polite">
-                {text({ en: `${inCount} of ${total} in`, fr: `${inCount} sur ${total} validé${inCount > 1 ? 's' : ''}` })}
-              </p>
-            </div>
+            <button
+              type="button"
+              class="chunt__lock"
+              disabled={locked || !cameraOn}
+              onClick={confirm}
+            >
+              {locked
+                ? text({ en: 'Locked in', fr: 'Validé' })
+                : text({ en: 'Lock it in', fr: 'Valider' })}
+            </button>
           );
         })()}
 
