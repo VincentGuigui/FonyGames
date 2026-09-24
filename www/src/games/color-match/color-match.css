@@ -158,6 +158,14 @@
    (lobby.css) — the same chrome Ready/Start already wear, not a bespoke
    design. `--game-accent`, set on `.cmatch` above, is what colours it. */
 
+/* During `reveal` the button has nothing to do, but it stays mounted at its
+   own fixed height (`.btn`'s own `min-height`) rather than being unmounted or
+   `display: none` — either would shrink `.cmatch`'s flex column and resize
+   the wheel above on every phase change, which is exactly what this avoids. */
+.cmatch__lock--hidden {
+  visibility: hidden;
+}
+
 /* Said before anyone commits to a run, not after (§11). */
 .cmatch__warning {
   margin: 0;

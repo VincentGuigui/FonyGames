@@ -252,11 +252,14 @@ function ColorMatchRoomInner({ game: card, code }: { game: GameCard; code: strin
           />
         </div>
 
-        {!revealing && (
-          <button type="button" class="btn btn--primary btn--big" disabled={locked} onClick={onConfirm}>
-            {locked ? text({ en: 'Locked in', fr: 'Validé' }) : text({ en: 'Lock it in', fr: 'Valider' })}
-          </button>
-        )}
+        <button
+          type="button"
+          class={`btn btn--primary btn--big cmatch__lock${revealing ? ' cmatch__lock--hidden' : ''}`}
+          disabled={locked || revealing}
+          onClick={onConfirm}
+        >
+          {locked ? text({ en: 'Locked in', fr: 'Validé' }) : text({ en: 'Lock it in', fr: 'Valider' })}
+        </button>
 
         <WideScoreboard
           rows={ladder}
