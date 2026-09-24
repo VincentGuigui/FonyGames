@@ -125,10 +125,16 @@ Only `classic` at launch.
   the screen (fewer once one is destroyed, §2.1) and every still-in,
   connected player's cow lined up along the bottom edge when unplaced. A
   cow taken out in an earlier round is never drawn again (§2.2). **Your own
-  cow is drawn at full opacity; everyone else's sits at 70%** — the UFO, cow
-  and barn art are the maintainer's own pixel-art files (`art/ufo.png`,
-  `art/cow.png`, `art/barn.png`), used as given rather than redrawn (spec
-  §12). During
+  cow is drawn at full opacity; everyone else's sits at 70%** — the cow and
+  barn art are the maintainer's own pixel-art files (`art/cow.png`,
+  `art/barn.png`), used as given rather than redrawn (spec §12). The UFO
+  itself is animated: `art/ufo_anim.png` is a 4-frame sheet (256×140 each,
+  1024×140 total), cycled by `game.ts`'s `ufoAnimFrame` at one of three
+  speeds depending on the beat below — 2 fps drifting during pick, 4 fps
+  once the reveal starts building suspense, 16 fps once the beam is
+  actually on — off the wall clock rather than elapsed-since-the-beat-
+  started, so the animation keeps running smoothly across a phase change
+  instead of resetting to frame 0 every time its own pace does. During
   **waiting**, a banner sits between the UFO and the barns reading *"Hide
   your cow behind a barn!"*, wrapping rather than overflowing on a narrow
   phone; once every still-in player has a barn, the same banner switches to

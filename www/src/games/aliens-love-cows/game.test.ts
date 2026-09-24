@@ -5,8 +5,10 @@ import {
   leaderOf,
   ranking,
   scoreOf,
+  ufoAnimFrame,
   ufoDriftAt,
   ufoHoverAt,
+  UFO_ANIM_FRAMES,
   type AbductState,
   type AbductView,
 } from './game';
@@ -170,6 +172,27 @@ function cowGrid(): void {
   }
 }
 
+function ufoAnim(): void {
+  console.log('\nufoAnimFrame: the sprite sheet\'s own pace, off the wall clock');
+
+  check('frame 0 at the very start', ufoAnimFrame(0, 2) === 0);
+  check('at 2 fps, still frame 0 just under 500ms', ufoAnimFrame(499, 2) === 0);
+  check('and frame 1 right at 500ms', ufoAnimFrame(500, 2) === 1);
+  check('a full cycle at 2 fps is 2 seconds, back to frame 0', ufoAnimFrame(2_000, 2) === 0);
+  check('every frame is inside the sheet', [0, 1, 2, 3].every((i) => i < UFO_ANIM_FRAMES));
+
+  check('the same instant always gives the same frame', ufoAnimFrame(1_234, 4) === ufoAnimFrame(1_234, 4));
+  check('a higher fps cycles faster',
+    ufoAnimFrame(125, 16) !== ufoAnimFrame(0, 16) && ufoAnimFrame(125, 2) === ufoAnimFrame(0, 2));
+
+  // The wall clock, not a per-beat elapsed time: two different fps values fed
+  // the same instant do not have to agree, but neither ever resets to 0 just
+  // because the caller switched tiers mid-animation.
+  const sawEveryFrame = new Set<number>();
+  for (let t = 0; t < 4_000; t += 25) sawEveryFrame.add(ufoAnimFrame(t, 4));
+  check('a long enough run visits every frame in the sheet', sawEveryFrame.size === UFO_ANIM_FRAMES, [...sawEveryFrame]);
+}
+
 function barnCenters(): void {
   console.log('\nbarnCenterAt: interpolates real (unevenly-spaced) measured centres');
 
@@ -191,6 +214,7 @@ scoring();
 drift();
 hover();
 cowGrid();
+ufoAnim();
 barnCenters();
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);

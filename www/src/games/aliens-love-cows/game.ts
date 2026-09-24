@@ -153,6 +153,24 @@ export function cowGridSlot(index: number, count: number): { col: number; row: n
  * `coneTop`) — this function only interpolates between them for the UFO's
  * continuous drift/hover/transit path, and clamps `i` to the barn row itself.
  */
+/** Frames in the UFO's own sprite sheet (art/ufo_anim.png: 4 frames of
+ *  256×140 laid out horizontally in one 1024×140 file, spec §4). */
+export const UFO_ANIM_FRAMES = 4;
+
+/**
+ * Which frame of that sheet to show at a given wall-clock time, cycling at
+ * `fps` frames a second.
+ *
+ * Driven off the wall clock rather than elapsed-since-this-beat-started —
+ * the same choice `ufoDriftAt`/`ufoHoverAt` make one level up — so the
+ * animation keeps running smoothly across a phase change (only the fps
+ * argument moves) instead of snapping back to frame 0 every time the UFO's
+ * own pace does.
+ */
+export function ufoAnimFrame(nowMs: number, fps: number): number {
+  return Math.floor((nowMs * fps) / 1000) % UFO_ANIM_FRAMES;
+}
+
 export function barnCenterAt(centers: readonly number[], i: number): number {
   const clamped = Math.max(0, Math.min(centers.length - 1, i));
   const lo = Math.floor(clamped);

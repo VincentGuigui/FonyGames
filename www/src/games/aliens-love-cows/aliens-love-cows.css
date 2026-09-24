@@ -52,18 +52,40 @@
  * `style.left`/`style.top` (AbductScreen.tsx) — no CSS transition here, since
  * the JS side already computes the eased hover→transit→locked path itself
  * (spec §4); a transition on top of that would fight it and lag behind.
+ *
+ * `transition: none` is load-bearing, not decorative: `theme.css`'s own
+ * `*, *::before, *::after { transition-duration: var(--duration) }` leaves
+ * `transition-property` at its initial `all`, so without this override every
+ * `left`/`top` write above would still animate over that duration — the
+ * "no CSS transition" this comment already promised, silently broken.
  */
 .abduct__ufo {
   position: absolute;
   width: 22%;
   max-width: 120px;
   transform: translateX(-50%);
+  transition: none;
 }
 
-.abduct__ufo img {
+/* One frame of art/ufo_anim.png (4 frames of 256×140, laid out horizontally
+ * in one 1024×140 sheet) — `background-size: 400% 100%` scales the whole
+ * sheet to 4× this element's own width, so it reads as one frame wide; the
+ * raf loop above picks the frame by moving `background-position-x` in
+ * thirds. The image itself is set inline (AbductScreen.tsx): a CSS file
+ * cannot reference a Vite-processed asset URL, only the JS side that
+ * imported it can.
+ *
+ * `transition: none` for the same reason `.abduct__ufo` above needs it:
+ * without it, `theme.css`'s global rule cross-fades every frame swap into
+ * the next over `var(--duration)` instead of cutting between them, which on
+ * a 4-frame sheet reads as a warped blur rather than an animation. */
+.abduct__ufo-sprite {
   width: 100%;
-  display: block;
+  aspect-ratio: 256 / 140;
+  background-repeat: no-repeat;
+  background-size: 400% 100%;
   filter: drop-shadow(0 4px 10px rgb(0 0 0 / 0.4));
+  transition: none;
 }
 
 /*

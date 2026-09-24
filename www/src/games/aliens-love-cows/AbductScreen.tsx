@@ -11,11 +11,11 @@ import {
 import { StatusBar } from '../../core/ui/StatusBar';
 import { Scoreboard, type ScoreRow } from '../../core/ui/Scoreboard';
 import { useGameText } from '../../core/i18n/gameText';
-import { barnCenterAt, cowGridSlot, ufoDriftAt, ufoHoverAt, type AbductView } from './game';
+import { barnCenterAt, cowGridSlot, ufoAnimFrame, ufoDriftAt, ufoHoverAt, UFO_ANIM_FRAMES, type AbductView } from './game';
 import cowArt from './art/cow.png?url&no-inline';
 import barnArt from './art/barn.png?url&no-inline';
 import barnDestroyedArt from './art/barn_destroyed.png?url&no-inline';
-import ufoArt from './art/ufo.png?url&no-inline';
+import ufoAnimArt from './art/ufo_anim.png?url&no-inline';
 
 /**
  * The round screen: five barns, everyone's cow, one drifting UFO.
@@ -55,6 +55,13 @@ const ABDUCT_STAGGER_MS = 350;
 /** Sky altitude while drifting/hovering, versus parked low over the target. */
 const UFO_TOP_HOVER = 8;
 const UFO_TOP_LOCKED = 34;
+
+/** The sprite sheet's own pace, one tier per beat: a lazy drift while nobody
+ *  has committed to anything yet, quicker once the reveal starts building
+ *  suspense, and fastest once the beam is actually on. */
+const UFO_ANIM_FPS_DRIFT = 2;
+const UFO_ANIM_FPS_SUSPENSE = 4;
+const UFO_ANIM_FPS_BEAM = 16;
 
 function easeOutCubic(t: number): number {
   return 1 - (1 - t) ** 3;
@@ -98,6 +105,7 @@ export function AbductScreen({
    * `UFO_TOP_LOCKED` itself until that first measurement lands. */
   const [coneTop, setConeTop] = useState(UFO_TOP_LOCKED);
   const ufoRef = useRef<HTMLDivElement>(null);
+  const ufoSpriteRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const barnRefs = useRef<(HTMLButtonElement | null)[]>([]);
   /* Each barn's own screen centre, as a stage-percent — `.abduct__barns` lays
@@ -171,12 +179,25 @@ export function AbductScreen({
       }
     };
 
+    /* The sheet's own frame, off the wall clock (`ufoAnimFrame` in game.ts) —
+     * only `fps` changes between the three beats below, so the animation
+     * keeps running smoothly across a phase change rather than resetting to
+     * frame 0 every time the UFO's own pace does. */
+    const setAnimFps = (fps: number): void => {
+      const el = ufoSpriteRef.current;
+      if (el) {
+        const spriteFrame = ufoAnimFrame(now(), fps);
+        el.style.backgroundPositionX = `${(spriteFrame / (UFO_ANIM_FRAMES - 1)) * 100}%`;
+      }
+    };
+
     const frame = (): void => {
       raf = requestAnimationFrame(frame);
       const centers = barnCentersRef.current;
 
       if (waiting || countdown) {
         place(barnCenterAt(centers, ufoDriftAt(now() - driftStartedAt) * (ABDUCT_BARN_COUNT - 1)), UFO_TOP_HOVER);
+        setAnimFps(UFO_ANIM_FPS_DRIFT);
         return;
       }
 
@@ -184,15 +205,18 @@ export function AbductScreen({
       const elapsed = now() - revealStartedAt;
       if (elapsed < ABDUCT_HOVER_MS) {
         place(barnCenterAt(centers, ufoHoverAt(elapsed) * (ABDUCT_BARN_COUNT - 1)), UFO_TOP_HOVER);
+        setAnimFps(UFO_ANIM_FPS_SUSPENSE);
         return;
       }
       if (elapsed < ABDUCT_LOCK_AT_MS) {
         const t = easeOutCubic((elapsed - ABDUCT_HOVER_MS) / ABDUCT_TRANSIT_MS);
         const from = ufoHoverAt(ABDUCT_HOVER_MS) * (ABDUCT_BARN_COUNT - 1);
         place(barnCenterAt(centers, from + (target - from) * t), UFO_TOP_HOVER + (UFO_TOP_LOCKED - UFO_TOP_HOVER) * t);
+        setAnimFps(UFO_ANIM_FPS_SUSPENSE);
         return;
       }
       place(barnCenterAt(centers, target), UFO_TOP_LOCKED);
+      setAnimFps(UFO_ANIM_FPS_BEAM);
       if (!wasLocked) {
         wasLocked = true;
         setLocked(true);
@@ -279,7 +303,7 @@ export function AbductScreen({
           style={{ left: '50%', top: `${UFO_TOP_HOVER}%` }}
           aria-hidden="true"
         >
-          <img src={ufoArt} alt="" />
+          <div ref={ufoSpriteRef} class="abduct__ufo-sprite" style={{ backgroundImage: `url(${ufoAnimArt})` }} />
         </div>
 
         <div class="abduct__barns">
