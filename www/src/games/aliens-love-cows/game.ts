@@ -111,9 +111,14 @@ export function ufoDriftAt(elapsedMs: number): number {
  * (spec §4) — "hovers faster above all barns" before it commits to flying in
  * on the real target. Same shape as `ufoDriftAt`, just a shorter period; still
  * pure decoration, still nothing a client needs to agree on with another.
+ *
+ * `periodMs` is a parameter rather than a constant baked in here: the caller
+ * owns how many bounces the sweep makes across its own `ABDUCT_HOVER_MS`
+ * (`AbductScreen.tsx`'s `ABDUCT_HOVER_PERIOD_MS`), so the two numbers can
+ * never drift out of sync with each other.
  */
-export function ufoHoverAt(elapsedMs: number): number {
-  return triangleWave(elapsedMs, 1_100, 0.12);
+export function ufoHoverAt(elapsedMs: number, periodMs: number): number {
+  return triangleWave(elapsedMs, periodMs, 0.12);
 }
 
 /**

@@ -50,9 +50,11 @@ when it is over, not a round count.
 3. **Revealing (`ABDUCT_REVEAL_MS`, 5 s).** The countdown's own deadline is
    when the already-drawn target first reaches the wire (spec §8) — nothing
    new is decided here, only shown. The client plays it in three beats: the
-   UFO keeps sweeping the whole row, faster than it drifted before, for
-   about 2 s; then flies to the target and drops to a low altitude just
-   above it, over about 0.7 s; then sits there, cone open, pulling up every
+   UFO keeps sweeping the whole row, faster than it drifted before and
+   descending most of the way toward its abduction altitude as it goes,
+   for about 2 s in exactly 3 out-and-back bounces; then flies to the
+   target and drops the rest of the way, over about 0.7 s; then sits there,
+   cone open, pulling up every
    cow caught underneath it one at a time for whatever is left of the
    window (§4). A phone that missed the broadcast for any reason still ends
    up with the same final numbers when it reconnects (spec §6) — nothing
@@ -150,11 +152,19 @@ Only `classic` at launch.
   pinned to one side (worked through for every count from 1 to 8, `game.ts`'s
   `cowGridSlot`). The UFO drifts slowly and unpredictably above the barns
   the whole time — pure decoration (§8) — never a hint at the real pick,
-  which is already drawn internally but has not reached the wire yet.
+  which is already drawn internally but has not reached the wire yet. The
+  drift is one continuous motion across **waiting** and **countdown**
+  both: the elapsed time it is driven from is anchored to when `waiting`
+  itself opened, not recomputed per phase, so the UFO does not visibly
+  jump the instant the countdown starts (`AbductScreen.tsx`'s
+  `driftStartedAt`).
 - **Reveal**: three beats, all presentational (§2). First the UFO's own
-  drift speeds up, sweeping the whole row for about 2 s. Then it flies to
-  the real target and drops to a low altitude just above it over about
-  0.7 s — the UFO and its light cone (white-yellow, 50% opacity) share
+  drift speeds up into exactly 3 out-and-back bounces across the whole
+  row over about 2 s, descending most of the way toward its abduction
+  altitude as it goes (`ABDUCT_HOVER_DESCENT`, 80% of the distance —
+  "almost" there, not parked yet). Then it flies to the real target and
+  drops the rest of the way over about 0.7 s — the UFO and its light cone
+  (white-yellow, 50% opacity) share
   exactly the target barn's own horizontal position, and the cone's own
   top sits just below the UFO's own hull, not overlapping it: its locked
   altitude plus the UFO's real rendered height, measured from the DOM at

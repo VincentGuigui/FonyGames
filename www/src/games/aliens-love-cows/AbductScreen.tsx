@@ -49,12 +49,25 @@ const ABDUCT_HOVER_MS = 2_000;
 const ABDUCT_TRANSIT_MS = 700;
 const ABDUCT_LOCK_AT_MS = ABDUCT_HOVER_MS + ABDUCT_TRANSIT_MS;
 
+/** How many full out-and-back bounces the hover sweep makes across its own
+ *  `ABDUCT_HOVER_MS` — the period fed to `ufoHoverAt` is derived from this,
+ *  not hardcoded, so the two numbers can never drift apart (game.test.ts
+ *  pins the count down directly). */
+const ABDUCT_HOVER_BOUNCES = 3;
+const ABDUCT_HOVER_PERIOD_MS = ABDUCT_HOVER_MS / ABDUCT_HOVER_BOUNCES;
+
 /** How far apart, in stage-height percent, each abducted cow's rise starts. */
 const ABDUCT_STAGGER_MS = 350;
 
 /** Sky altitude while drifting/hovering, versus parked low over the target. */
 const UFO_TOP_HOVER = 8;
 const UFO_TOP_LOCKED = 34;
+
+/** How much of the hover→locked descent the hover beat itself covers —
+ *  "almost" the abduction altitude, not all the way: the transit beat still
+ *  owns the final approach and the exact horizontal lock onto the target. */
+const ABDUCT_HOVER_DESCENT = 0.8;
+const UFO_TOP_HOVER_END = UFO_TOP_HOVER + (UFO_TOP_LOCKED - UFO_TOP_HOVER) * ABDUCT_HOVER_DESCENT;
 
 /** The sprite sheet's own pace, one tier per beat: a lazy drift while nobody
  *  has committed to anything yet, quicker once the reveal starts building
@@ -148,7 +161,16 @@ export function AbductScreen({
   const revealing = state.phase === 'revealing';
   const fleeing = state.phase === 'fleeing';
   const canPick = waiting || countdown;
-  const driftStartedAt = state.deadlineAt - (waiting ? ABDUCT_WAIT_MS : countdown ? ABDUCT_COUNTDOWN_MS : 0);
+  /* Anchored to when `waiting` itself began, not to whichever phase is
+   * current: `countdown`'s own `deadlineAt` is `waiting`'s end plus
+   * `ABDUCT_COUNTDOWN_MS` (worker/aliensLoveCows.ts), so subtracting only
+   * `ABDUCT_COUNTDOWN_MS` here recovered a instant `ABDUCT_WAIT_MS` later
+   * than `waiting`'s own start — a discontinuity in `now() - driftStartedAt`
+   * the moment countdown opened, which read as the UFO's drift jumping back
+   * to an earlier point in its cycle. Subtracting both durations recovers
+   * the same T0 in either phase, so the drift is one continuous motion
+   * across the boundary. */
+  const driftStartedAt = state.deadlineAt - (waiting ? ABDUCT_WAIT_MS : countdown ? ABDUCT_COUNTDOWN_MS + ABDUCT_WAIT_MS : 0);
   const revealStartedAt = state.deadlineAt - ABDUCT_REVEAL_MS;
   const amOut = myId != null && state.out.includes(myId);
 
@@ -204,14 +226,18 @@ export function AbductScreen({
       const target = state.target ?? 0;
       const elapsed = now() - revealStartedAt;
       if (elapsed < ABDUCT_HOVER_MS) {
-        place(barnCenterAt(centers, ufoHoverAt(elapsed) * (ABDUCT_BARN_COUNT - 1)), UFO_TOP_HOVER);
+        const descend = easeOutCubic(elapsed / ABDUCT_HOVER_MS);
+        place(
+          barnCenterAt(centers, ufoHoverAt(elapsed, ABDUCT_HOVER_PERIOD_MS) * (ABDUCT_BARN_COUNT - 1)),
+          UFO_TOP_HOVER + (UFO_TOP_HOVER_END - UFO_TOP_HOVER) * descend,
+        );
         setAnimFps(UFO_ANIM_FPS_SUSPENSE);
         return;
       }
       if (elapsed < ABDUCT_LOCK_AT_MS) {
         const t = easeOutCubic((elapsed - ABDUCT_HOVER_MS) / ABDUCT_TRANSIT_MS);
-        const from = ufoHoverAt(ABDUCT_HOVER_MS) * (ABDUCT_BARN_COUNT - 1);
-        place(barnCenterAt(centers, from + (target - from) * t), UFO_TOP_HOVER + (UFO_TOP_LOCKED - UFO_TOP_HOVER) * t);
+        const from = ufoHoverAt(ABDUCT_HOVER_MS, ABDUCT_HOVER_PERIOD_MS) * (ABDUCT_BARN_COUNT - 1);
+        place(barnCenterAt(centers, from + (target - from) * t), UFO_TOP_HOVER_END + (UFO_TOP_LOCKED - UFO_TOP_HOVER_END) * t);
         setAnimFps(UFO_ANIM_FPS_SUSPENSE);
         return;
       }

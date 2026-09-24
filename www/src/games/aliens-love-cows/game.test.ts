@@ -124,21 +124,43 @@ function drift(): void {
   check('it does move over time', ufoDriftAt(0) !== ufoDriftAt(1_000));
 }
 
+/** AbductScreen.tsx's own `ABDUCT_HOVER_MS / ABDUCT_HOVER_BOUNCES` — mirrored
+ *  here rather than imported, the same way this file already keeps its own
+ *  copy of shapes it does not own (that constant lives beside the JSX it
+ *  drives, not in this DOM-free module). */
+const HOVER_PERIOD_MS = 2_000 / 3;
+
 function hover(): void {
   console.log('\nufoHoverAt: the reveal\'s own faster sweep, same bounds, different pace');
 
   let min = Infinity;
   let max = -Infinity;
   for (let t = 0; t < 20_000; t += 25) {
-    const x = ufoHoverAt(t);
+    const x = ufoHoverAt(t, HOVER_PERIOD_MS);
     min = Math.min(min, x);
     max = Math.max(max, x);
   }
   check('never reaches the leftmost barn', min > 0, min);
   check('never reaches the rightmost barn', max < 1, max);
-  check('the same instant always gives the same spot', ufoHoverAt(1_234) === ufoHoverAt(1_234));
+  check('the same instant always gives the same spot', ufoHoverAt(1_234, HOVER_PERIOD_MS) === ufoHoverAt(1_234, HOVER_PERIOD_MS));
   check('it sweeps faster than the choosing-phase drift',
-    Math.abs(ufoHoverAt(500) - ufoHoverAt(0)) > Math.abs(ufoDriftAt(500) - ufoDriftAt(0)));
+    Math.abs(ufoHoverAt(500, HOVER_PERIOD_MS) - ufoHoverAt(0, HOVER_PERIOD_MS)) > Math.abs(ufoDriftAt(500) - ufoDriftAt(0)));
+
+  // Exactly 3 bounces across the reveal's own 2s hover beat (a "bounce" being
+  // one full out-and-back: margin -> 1-margin -> margin) — the number the
+  // maintainer asked for, not however many a hardcoded period happened to fit.
+  let peaks = 0;
+  let rising = true;
+  let prev = ufoHoverAt(0, HOVER_PERIOD_MS);
+  for (let t = 5; t <= 2_000; t += 5) {
+    const x = ufoHoverAt(t, HOVER_PERIOD_MS);
+    if (rising && x < prev) { peaks++; rising = false; }
+    else if (!rising && x > prev) { rising = true; }
+    prev = x;
+  }
+  check('exactly 3 bounces over the 2s hover beat', peaks === 3, peaks);
+  check('and it is back at its own starting point when the beat ends',
+    Math.abs(ufoHoverAt(2_000, HOVER_PERIOD_MS) - ufoHoverAt(0, HOVER_PERIOD_MS)) < 1e-6);
 }
 
 function cowGrid(): void {
