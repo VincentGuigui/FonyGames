@@ -101,5 +101,10 @@ Rules:
 - A game mechanic **should** declare a touch fallback. Where one is deliberately
   not offered, the game's spec must say so explicitly and name who that excludes.
 - Focus states visible; buttons are `<button>`; the hub grid is a list.
-- No flashing above 3 Hz.
+- No flashing above 3 Hz. **One exception is allowed by explicit maintainer
+  decision** — Blink Tapper's own blink ramps to 30 Hz
+  ([blink-tapper.md](../specs/games/blink-tapper.md) §9) — and it carries its
+  own seizure-risk warning in the primer and the lobby. It is an exception,
+  not a precedent; any other mechanic that wants to flash past this ceiling
+  needs the same explicit yes.
 - Sound is never required to play — every audio cue has a visual twin.
