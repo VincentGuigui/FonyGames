@@ -109,7 +109,11 @@ The round screen is portrait, one light or up to four laid out for an even
 glance — one centred and big; two side by side; three as two over one; four as
 a 2×2 grid — each a plain circle that switches between a dim and a lit fill,
 with no transition (a fade would smear one blink into the next). A tap flashes
-a green or red ring on the light it landed on. Above them: the running net score, big. In `unlimited`,
+a green or red ring on the light it landed on.
+
+The results show each player's points and their accuracy — hits as a share
+of everything scored, hits and misses together. A player who scored nothing
+shows no accuracy rather than 0%. Above them: the running net score, big. In `unlimited`,
 misses remaining before elimination ("7 misses left") next to it; in a timed
 round, the seconds left instead.
 

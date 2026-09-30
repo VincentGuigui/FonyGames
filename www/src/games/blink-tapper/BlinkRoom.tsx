@@ -12,7 +12,7 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { advance, blinkScore, litLight, newBlinker, tapLight, type Blinker } from '../../../../shared/blink';
+import { advance, blinkAccuracy, blinkScore, litLight, newBlinker, tapLight, type Blinker } from '../../../../shared/blink';
 import { useGameRoom } from '../../core/room/useRoom';
 import { useSoloTesting } from '../../core/useSolo';
 import { RoomGate } from '../../lobby/RoomGate';
@@ -175,7 +175,11 @@ function BlinkRoomInner({ game: card, code }: { game: GameCard; code: string }):
         avatar: avatarOf(id),
         name: nameOf(id),
         value: f
-          ? text({ en: `${f.score} pts · ${f.hits} hit · ${f.misses} missed`, fr: `${f.score} pts · ${f.hits} touchés · ${f.misses} ratés` })
+          ? (() => {
+              const acc = blinkAccuracy(f);
+              const pct = acc === null ? '—' : `${acc}%`;
+              return text({ en: `${f.score} pts · ${pct} accuracy`, fr: `${f.score} pts · ${pct} de précision` });
+            })()
           : text({ en: 'no score', fr: 'pas de score' }),
         out: f === null,
       }));

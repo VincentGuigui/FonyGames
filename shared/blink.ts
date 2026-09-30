@@ -84,6 +84,13 @@ export function blinkScore(b: Pick<Blinker, 'hits' | 'misses'>): number {
   return b.hits - b.misses;
 }
 
+/** Share of taps and blinks that were hits, as a whole percent; null when
+ *  there was nothing to score, which is not the same as 0%. */
+export function blinkAccuracy(f: Pick<Blinker, 'hits' | 'misses'>): number | null {
+  const total = f.hits + f.misses;
+  return total > 0 ? Math.round((f.hits / total) * 100) : null;
+}
+
 /**
  * Score every blink that has gone dark by `t`.
  *

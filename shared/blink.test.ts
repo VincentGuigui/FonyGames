@@ -6,6 +6,7 @@ import {
 } from './protocol';
 import {
   advance,
+  blinkAccuracy,
   blinkRate,
   blinkScore,
   blinksAt,
@@ -116,6 +117,11 @@ function scoring(): void {
   check(`mashing every frame loses (${blinkScore(mashed)})`, blinkScore(mashed) < 0, mashed);
 
   check('score is hits minus misses', blinkScore({ hits: 7, misses: 3 }) === 4);
+  check('accuracy is hits over everything scored', blinkAccuracy({ hits: 7, misses: 3 }) === 70);
+  check('rounded to a whole percent', blinkAccuracy({ hits: 2, misses: 1 }) === 67);
+  check('a perfect round is 100%', blinkAccuracy({ hits: 237, misses: 0 }) === 100);
+  check('all misses is 0%', blinkAccuracy({ hits: 0, misses: 10 }) === 0);
+  check('nothing scored has no accuracy rather than 0%', blinkAccuracy({ hits: 0, misses: 0 }) === null);
 }
 
 /** A thumb hammering the one light every `everyMs`, lit or not. */
