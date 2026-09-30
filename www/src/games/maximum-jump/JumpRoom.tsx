@@ -8,6 +8,7 @@ import {
   MAXJUMP_MAX_SPEED,
   MAXJUMP_MIN_PLAYERS,
   MAXJUMP_RUNUP_CAP_MS,
+  MAXJUMP_TIMING_WINDOW_MS,
   type MaximumJumpState,
   type ServerMessage,
 } from '../../../../shared/protocol';
@@ -22,7 +23,7 @@ import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
 import { useGameText } from '../../core/i18n/gameText';
 import { JumpCanvas } from './JumpCanvas';
-import { pressJump, pressLeg, runFor, startAttempt, stepFlight, stepMs, tapRate, type Attempt, type Leg } from './jump';
+import { pressJump, pressLeg, runFor, startAttempt, stepFlight, stepMs, tapRate, timingGain, type Attempt, type Leg } from './jump';
 import './maximum-jump.css';
 
 /**
@@ -132,13 +133,34 @@ function JumpRoomInner({ game: card, code }: { game: GameCard; code: string }): 
     }
   }, []);
 
-  /** Fill the next leg's button up to the beat, and empty the other one. */
+  /**
+   * Fill the next leg's button up to the window, then light it up for real.
+   *
+   * The fill alone used to BE the only cue, clamped at 100% the instant the
+   * beat passed and staying there — so a late player saw a "full" button long
+   * after `timingGain` had already decayed to nothing, no different from one
+   * lit at the perfect instant. The fill now only leads up to the window
+   * opening; `--hot` is the actual light-up, on for exactly as long as a
+   * press here would still be worth something, and `--missed` marks the
+   * window that just closed unpressed, so the two states a fill bar cannot
+   * tell apart (early enough to still count on the low end vs. too late to
+   * count at all on the high end) get their own honest signal.
+   */
   const showBeat = useCallback((a: Attempt) => {
     const span = stepMs(a.speed);
-    const left = Math.max(0, Math.min(1, a.lastLeg === null ? 1 : 1 - (a.beatAt - a.t) / span));
     const due: Leg = a.lastLeg === 'left' ? 'right' : 'left';
+    const errMs = a.t - a.beatAt;
+    const hot = a.lastLeg === null || timingGain(errMs) > 0;
+    const missed = a.lastLeg !== null && errMs > MAXJUMP_TIMING_WINDOW_MS;
+    const leadIn = a.lastLeg === null
+      ? 1
+      : Math.max(0, Math.min(1, 1 - (a.beatAt - MAXJUMP_TIMING_WINDOW_MS - a.t) / span));
     for (const leg of ['left', 'right'] as const) {
-      legButtons.current[leg]?.style.setProperty('--beat', `${(leg === due ? left : 0) * 100}%`);
+      const el = legButtons.current[leg];
+      if (!el) continue;
+      el.style.setProperty('--beat', `${(leg === due ? leadIn : 0) * 100}%`);
+      el.classList.toggle('maxjump__btn--hot', leg === due && hot);
+      el.classList.toggle('maxjump__btn--missed', leg === due && missed);
     }
   }, []);
 

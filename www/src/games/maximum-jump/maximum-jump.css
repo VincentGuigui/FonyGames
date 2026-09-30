@@ -105,6 +105,29 @@
   pointer-events: none;
 }
 
+/* The actual light-up: on for exactly as long as a press here is still worth
+   something (`timingGain(a.t - a.beatAt) > 0`, JumpRoom.tsx's own `showBeat`),
+   not a fill that stays pinned at 100% long after the window has shut. No
+   transition — this is set straight from the frame loop like `--beat` above,
+   so it has to read as instant, not ease in. */
+.maxjump__btn--hot {
+  border-color: var(--game-accent);
+  background: var(--game-accent);
+  color: #06202a;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--game-accent) 45%, transparent);
+}
+
+.maxjump__btn--hot::before {
+  background: transparent;
+}
+
+/* The window just closed unpressed — dimmed and off-colour, so it reads as
+   "that one's gone" rather than looking identical to "still counts." */
+.maxjump__btn--missed {
+  border-color: color-mix(in srgb, var(--color-text) 30%, transparent);
+  opacity: 0.55;
+}
+
 .maxjump__btn > span {
   position: relative;
 }

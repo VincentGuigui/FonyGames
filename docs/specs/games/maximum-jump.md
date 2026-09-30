@@ -120,12 +120,16 @@ air — the distance so far, counting up.
 Three controls, all thumb-reachable in landscape: left leg bottom-left, right
 leg bottom-right, jump bottom-centre.
 
-**The next leg's button fills up to the beat.** The run-up is timing against the
-end of the previous leg's animation (§2.1), and at sprite size on a phone the
-animation is not a cue anyone can act on. The fill carries the same information
-at thumb size: full is the beat, and a press there is worth a whole increment.
-Nothing forces the player to wait for it — going early is allowed and simply
-buys less.
+**The next leg's button lights up for the beat.** The run-up is timing against
+the end of the previous leg's animation (§2.1), and at sprite size on a phone
+the animation is not a cue anyone can act on. A fill leads up to the window —
+the same information at thumb size — and the button then lights up solid for
+exactly as long as a press is still worth something (§2.1's timing window),
+before dimming to mark a beat that closed unpressed. A fill alone used to stay
+at 100% long after the window had shut, reading as "still on time" well past
+when it no longer was; the lit and dimmed states are the honest version of
+that cue. Nothing forces the player to wait for it — going early is allowed
+and simply buys less.
 
 ## 5. Inputs & sensors
 
