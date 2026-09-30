@@ -33,7 +33,16 @@ function delta(a: number, b: number): number {
  * A phone lying flat has no screen-plane gravity direction, so its reading is
  * dropped: resting on a table must not drift a count upwards. A step past
  * `RHINO_MAX_STEP` is a glitch — a real phone cannot turn most of a circle
- * between two samples — and is dropped without breaking the chain.
+ * between two samples — and is dropped without breaking the chain: `last`
+ * stays exactly where it was, rather than jumping to the glitchy reading.
+ *
+ * That distinction is not cosmetic. Moving `last` to a rejected reading used
+ * to mean the *next* real sample was measured from noise instead of from the
+ * last known-good angle — which can silently turn an ordinary small rotation
+ * into a huge bogus swing the moment it lands back under the threshold (a
+ * glitch at 0.95π followed by a real +0.3 rad step used to bank roughly
+ * -2.68 rad, not +0.3). Keeping `last` still means a glitch can only ever
+ * cost the spin it corrupted, never poison the one after it.
  */
 export function feed(s: Spinner, gamma: number | null, beta: number | null): Spinner {
   const down = downVector(gamma, beta);
@@ -43,7 +52,7 @@ export function feed(s: Spinner, gamma: number | null, beta: number | null): Spi
   if (s.last === null) return { last: angle, swept: s.swept };
 
   const step = delta(s.last, angle);
-  if (Math.abs(step) > RHINO_MAX_STEP) return { last: angle, swept: s.swept };
+  if (Math.abs(step) > RHINO_MAX_STEP) return s;
   return { last: angle, swept: s.swept + step };
 }
 

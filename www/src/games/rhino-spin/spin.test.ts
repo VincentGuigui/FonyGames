@@ -95,6 +95,17 @@ function glitches(): void {
   const before = jumpy.swept;
   jumpy = feedAngle(jumpy, Math.PI * 0.95);
   check('a near-half-turn jump between samples is dropped', jumpy.swept === before, jumpy);
+  check('and it does not move the last known-good angle either', jumpy.last === 0, jumpy);
+
+  // The chain survives a glitch: the very next real sample is still measured
+  // from the last known-good angle, not from the noise that was dropped —
+  // a glitch used to become the new baseline, so an ordinary small step right
+  // after one could bank as a huge bogus swing instead of its own real size.
+  let chain: Spinner = { last: 0, swept: 0 };
+  chain = feedAngle(chain, Math.PI * 0.95); // the glitch, dropped
+  chain = feedAngle(chain, 0.3); // an ordinary small step from the ORIGINAL last (0)
+  check(`a real step right after a glitch still counts as itself (${chain.swept.toFixed(3)})`,
+    Math.abs(chain.swept - 0.3) < 1e-9, chain);
 }
 
 function dizzy(): void {

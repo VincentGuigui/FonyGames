@@ -46,8 +46,13 @@ accumulated, so a turn past ±π keeps counting instead of snapping. A spin is
 `2π` of accumulated sweep in **either** direction — `|total| / 2π`, floored.
 
 A sample whose step exceeds `RHINO_MAX_STEP` is dropped as a sensor glitch
-rather than counted as
-most of a turn.
+rather than counted as most of a turn — and dropping it never moves the
+"last known-good angle" the next sample is measured against, only the
+glitchy reading itself is discarded. Doing otherwise let a single noisy
+reading become the new baseline, which could turn an ordinary small
+rotation right after it into a huge bogus swing instead of losing just the
+one bad sample (`spin.ts`'s own reasoning: an unreliable sample costs at
+most itself).
 
 ## 3. Modes / variations
 
