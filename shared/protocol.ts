@@ -122,6 +122,9 @@ export type ClientMessage =
          * `normaliseOptions` in shared/mathQuestion.ts rather than trusted.
          */
         math?: { ops?: string[]; digits?: number[]; operators?: number[] };
+        /** Blink Tapper's light count and duration — options, not a mode
+         *  (blink-tapper.md §3), sanitised by `normaliseBlinkOptions`. */
+        blink?: { lights?: number; duration?: number };
         /**
          * Solo test mode — start with one player, for looking at a game rather than
          * playing it. Set by a browser that has signed into the admin centre; the
@@ -376,6 +379,8 @@ export type ClientMessage =
   /** One finished long-jump attempt: the top speed reached and the ground
    *  covered, and nothing about how either was arrived at (maximum-jump.md §6). */
   | { t: 'jump-result'; d: { roundId: number; attempt: number; speed: number; distance: number } }
+  /** Blink Tapper: this phone's whole round, sent once when it ends (spec §6). */
+  | { t: 'blink-final'; d: { roundId: number; hits: number; misses: number } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
@@ -1391,6 +1396,7 @@ export type ServerMessage =
   | { t: 'color-hunt'; s: number; d: ColorHuntState }
   | { t: 'rhino-spin'; s: number; d: RhinoSpinState }
   | { t: 'maximum-jump'; s: number; d: MaximumJumpState }
+  | { t: 'blink-tapper'; s: number; d: BlinkTapperState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
    * Tap Tap Music: sent to **one player only** — their own cleared
@@ -2139,6 +2145,7 @@ const CLIENT_TYPES = new Set([
   'crowd-move',
   'rhino-spins',
   'jump-result',
+  'blink-final',
   'switch-game',
 ]);
 
@@ -3851,6 +3858,60 @@ export type MaximumJumpState = {
   startsAt: number;
   endsAt: number;
   jumpers: Record<PlayerId, MaximumJumpAttempt>;
+  solo: boolean;
+  winner: PlayerId | null;
+};
+
+/* ── Blink Tapper ────────────────────────────────────────────────────────────
+ * Spec: docs/specs/games/blink-tapper.md
+ *
+ * The blinking and the scoring run entirely on the phone; the referee sees one
+ * report per phone, at the end (spec §6). The cadence maths both sides share is
+ * shared/blink.ts.
+ */
+
+export const BLINK_MIN_PLAYERS = PLAYERS['blink-tapper'][0];
+export const BLINK_MAX_PLAYERS = PLAYERS['blink-tapper'][1];
+
+/** Blinks a second at the start and at the top of the ramp, and how long the
+ *  ramp takes; the rate climbs linearly between them, then holds (spec §2.1). */
+export const BLINK_START_RATE = 0.5;
+export const BLINK_MAX_RATE = 30;
+export const BLINK_RAMP_MS = 60_000;
+
+/** The share of each blink the light is on for. */
+export const BLINK_ON_FRACTION = 0.5;
+
+/** The host's two options (spec §3). A duration of 0 is `unlimited`, which
+ *  ends a phone's round at `BLINK_MISS_LIMIT` misses instead of on a clock. */
+export const BLINK_LIGHT_CHOICES = [1, 2, 3, 4] as const;
+export const BLINK_DURATION_CHOICES = [30_000, 60_000, 100_000, 0] as const;
+export const BLINK_DEFAULT_LIGHTS = 1;
+export const BLINK_DEFAULT_DURATION = 60_000;
+export const BLINK_MISS_LIMIT = 10;
+
+/** 3·2·1 before the first blink. */
+export const BLINK_COUNTDOWN_MS = 3000;
+
+/** How long the referee waits past a round's expected end for a report that is
+ *  still on its way, and the room-wide cap on an `unlimited` round for a phone
+ *  that has simply gone silent (spec §7). */
+export const BLINK_REPORT_GRACE_MS = 5000;
+export const BLINK_UNLIMITED_CAP_MS = 180_000;
+
+export type BlinkOptions = { lights: number; duration: number };
+
+export type BlinkFinal = { hits: number; misses: number; score: number };
+
+export type BlinkTapperState = {
+  roundId: number;
+  phase: 'playing' | 'done';
+  /** Server time of the first blink. */
+  startsAt: number;
+  endsAt: number;
+  options: BlinkOptions;
+  /** Everyone in the round; `null` until their phone has reported. */
+  finals: Record<PlayerId, BlinkFinal | null>;
   solo: boolean;
   winner: PlayerId | null;
 };

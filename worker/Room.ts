@@ -214,6 +214,16 @@ import {
   type Ctx as JumpCtx,
 } from './maximumJump';
 import {
+  nextDeadline as blinkDeadline,
+  onBlinkFinal,
+  onPlayerGone as blinkPlayerGone,
+  startBlinkTapper,
+  tick as blinkTick,
+  toState as blinkToState,
+  type BlinkTapper,
+  type Ctx as BlinkCtx,
+} from './blinkTapper';
+import {
   nextDeadline as huntColorDeadline,
   onHuntConfirm,
   onHuntFind,
@@ -492,7 +502,7 @@ export class Room extends DurableObject<Env> {
         });
         return;
       case 'start':
-        await this.#onStart(ws, msg.d.mode, msg.d.drag, msg.d.roles, msg.d.symbols, msg.d.math, msg.d.solo === true);
+        await this.#onStart(ws, msg.d.mode, msg.d.drag, msg.d.roles, msg.d.symbols, msg.d.math, msg.d.blink, msg.d.solo === true);
         return;
       case 'tap':
         await this.#onTap(ws, msg.d);
@@ -609,6 +619,11 @@ export class Room extends DurableObject<Env> {
       case 'jump-result': {
         const id = this.#idOf(ws);
         if (id) await onJumpResult(this.#jumpCtx(), id, msg.d.roundId, msg.d.attempt, msg.d.speed, msg.d.distance);
+        return;
+      }
+      case 'blink-final': {
+        const id = this.#idOf(ws);
+        if (id) await onBlinkFinal(this.#blinkCtx(), id, msg.d.roundId, msg.d.hits, msg.d.misses);
         return;
       }
       case 'scream-alive': {
@@ -909,6 +924,12 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const blinking = await this.#blink();
+    if (blinking && blinking.phase === 'playing' && Date.now() >= blinkDeadline(blinking)) {
+      await blinkTick(this.#blinkCtx());
+      await this.#rearm();
+      return;
+    }
     const hunting = await this.#colorHunt();
     if (hunting && hunting.phase === 'hunt' && Date.now() >= huntColorDeadline(hunting)) {
       await huntColorTick(this.#huntColorCtx());
@@ -995,6 +1016,9 @@ export class Room extends DurableObject<Env> {
      * trusted (math-o-matic.md §3).
      */
     math?: unknown,
+    /** Blink Tapper's light count and duration, sanitised by the referee
+     *  (`normaliseBlinkOptions`) for the same reason as `math` above. */
+    blink?: unknown,
     /**
      * Solo test mode. Relaxes the minimum player count and the "last one standing"
      * end condition, and nothing else — `enoughToStart` in shared/players.ts lists
@@ -1060,6 +1084,8 @@ export class Room extends DurableObject<Env> {
     if (spinning && spinning.phase !== 'done') return;
     const jumping = await this.#jump();
     if (jumping && jumping.phase !== 'done') return;
+    const blinking = await this.#blink();
+    if (blinking && blinking.phase !== 'done') return;
     const colorHunting = await this.#colorHunt();
     if (colorHunting && colorHunting.phase !== 'done') return;
     const tttt = await this.#tttt();
@@ -1101,6 +1127,7 @@ export class Room extends DurableObject<Env> {
       || mode === 'crowd'
       || mode === 'rhino'
       || mode === 'jump'
+      || mode === 'blink'
     ) {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
@@ -1134,6 +1161,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'crowd') started = await startCrowdRace(this.#crowdCtx(), roundId, ids, solo);
       else if (mode === 'rhino') started = await startRhinoSpin(this.#rhinoCtx(), roundId, ids, solo);
       else if (mode === 'jump') started = await startMaximumJump(this.#jumpCtx(), roundId, ids, solo);
+      else if (mode === 'blink') started = await startBlinkTapper(this.#blinkCtx(), roundId, ids, blink, solo);
       // `direct` is the default because it needs no explanation: grab your icon
       // and it follows your finger. `capped` is the deliberate choice.
       else started = await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct', solo);
@@ -1205,7 +1233,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'scream', 'dark', 'tttt', 'fighter', 'crowd', 'rhino', 'jump', 'roundId', 'scores']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'scream', 'dark', 'tttt', 'fighter', 'crowd', 'rhino', 'jump', 'blink', 'roundId', 'scores']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -1649,6 +1677,21 @@ export class Room extends DurableObject<Env> {
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#jump(),
       save: (s) => this.ctx.storage.put('jump', s),
+      setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #blink(): Promise<BlinkTapper | null> {
+    return (await this.ctx.storage.get<BlinkTapper>('blink')) ?? null;
+  }
+
+  #blinkCtx(): BlinkCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#blink(),
+      save: (s) => this.ctx.storage.put('blink', s),
       setAlarm: () => this.#rearm(),
     };
   }
@@ -2114,6 +2157,13 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'maximum-jump', s: this.#nextSeq(), d: jumpToState(jumping) });
     }
 
+    /* Blink Tapper: the options, the first blink's time and whichever finals
+       are in — a rejoining phone picks the schedule back up from startsAt. */
+    const blinking = await this.#blink();
+    if (blinking && blinking.phase !== 'done') {
+      this.#send(ws, { t: 'blink-tapper', s: this.#nextSeq(), d: blinkToState(blinking) });
+    }
+
     await this.#broadcastPresence(ws);
   }
 
@@ -2214,6 +2264,9 @@ export class Room extends DurableObject<Env> {
     // Maximum Jump keeps their best too, and writes off the attempts they
     // had left so the room is not held open for jumps nobody will take.
     await jumpPlayerGone(this.#jumpCtx(), id);
+    // Blink Tapper keeps a reported score; an unreported one stops holding the
+    // round open (spec §7).
+    await blinkPlayerGone(this.#blinkCtx(), id);
     // Neon Fall is the same shape as Grid Attack: two fixed seats, and a phone
     // leaving means one of the roles is simply gone — there is no game left.
     await neonPlayerGone(this.#neonCtx(), id);
@@ -2353,6 +2406,9 @@ export class Room extends DurableObject<Env> {
 
     const jumping = await this.#jump();
     if (jumping?.phase === 'jumping') return jumpDeadline(jumping);
+
+    const blinking = await this.#blink();
+    if (blinking?.phase === 'playing') return blinkDeadline(blinking);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);

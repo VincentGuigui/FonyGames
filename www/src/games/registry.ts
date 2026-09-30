@@ -29,6 +29,7 @@ import { CARD as DARK_CARD } from './together-in-the-dark/card';
 import { CARD as CROWD_RACE_CARD } from './crowd-race/card';
 import { CARD as RHINO_SPIN_CARD } from './rhino-spin/card';
 import { CARD as MAXIMUM_JUMP_CARD } from './maximum-jump/card';
+import { CARD as BLINK_TAPPER_CARD } from './blink-tapper/card';
 import type { GameCard } from '../core/types';
 
 /**
@@ -76,6 +77,7 @@ export const GAMES: GameCard[] = [
   CROWD_RACE_CARD,
   RHINO_SPIN_CARD,
   MAXIMUM_JUMP_CARD,
+  BLINK_TAPPER_CARD,
 ];
 
 /** Display order by status. One entry per value of `GameCard['status']`. */

@@ -9,7 +9,7 @@
 | **Round length** | 30 s / 60 s / 100 s, or unlimited (ends at 10 misses) |
 | **Inputs** | touch |
 | **Accent colour** | `#FFC400` |
-| **Status** | 📝 draft — awaiting approval |
+| **Status** | 🎮 beta |
 
 ## 1. Pitch
 
@@ -31,15 +31,17 @@ wins.
 3. **Tap while it's on** and it goes dark early: +1, and the light waits out
    the rest of this cycle before the next blink starts.
 4. **Let it go dark on its own** and that blink counts as a miss: −1.
-5. With more than one light (§3), each blink lands on the next light in a
+5. **Tap a dark light, or the wrong one**, and that is a miss too: −1. Without
+   it a thumb mashing every light would score every blink.
+6. With more than one light (§3), each blink lands on the next light in a
    fixed rotation, one at a time — never two lit together.
-6. The round ends at the chosen duration, or — in `unlimited` — the moment a
+7. The round ends at the chosen duration, or — in `unlimited` — the moment a
    player reaches 10 misses (§7).
 
 **Win condition:** highest net score (hits minus misses) when the round ends.
-Ties share the place.
-**Scoring:** +1 for a tap while lit, −1 for a blink that goes dark untapped.
-Nothing else scores.
+A tie at the top is unranked.
+**Scoring:** +1 for a tap on the lit light, −1 for a blink that goes dark
+untapped and −1 for a tap on a dark or wrong light. Nothing else scores.
 
 ### 2.1 Cadence — the one thing that isn't a constant fight over tuning
 
@@ -49,7 +51,8 @@ The blink **rate** (not the interval) climbs linearly:
 rate(t) = BLINK_START_RATE + (BLINK_MAX_RATE - BLINK_START_RATE) · min(t, BLINK_RAMP_MS) / BLINK_RAMP_MS
 ```
 
-`BLINK_START_RATE` = 0.5/s (one blink every two seconds), `BLINK_MAX_RATE` =
+`BLINK_START_RATE` = 0.5/s (one blink every two seconds — the first one is
+~1.4 s in practice, because the rate starts climbing at once), `BLINK_MAX_RATE` =
 30/s, `BLINK_RAMP_MS` = 60 000. Past the ramp, the rate holds flat at 30/s —
 this is the literal reading of the issue ("linearly increases until 30 blinks
 per second after 60 sec and stay at this pace"), and it is well past human
@@ -62,7 +65,11 @@ interval currently is.
 Rate rather than interval is what climbs linearly because it is what makes
 the anti-cheat bound in §8 a closed-form integral instead of a per-sample
 simulation: the number of blinks a phone could possibly have shown by elapsed
-time `t` is `∫ rate`, computable on the referee with nothing but `t`.
+time `t` is `∫ rate`, computable on the referee with nothing but `t`. The same
+integral is how the phone plays: its integer part is the blink under way, its
+fraction how far through that blink the light is (`shared/blink.ts`). Blinks
+are scored **by index, not by frames seen** — at 30 a second a blink is two
+frames long, and one a phone never drew has still gone by.
 
 ## 3. Modes / variations
 
@@ -82,6 +89,9 @@ read-only for everyone else:
 | Number of lights | 1–4 | 1 |
 | Round duration | 30 s / 60 s / 100 s / unlimited | 60 s |
 
+On the wire a duration of 0 is `unlimited`. Anything else that arrives falls
+back to the default rather than to a neighbour (`normaliseBlinkOptions`).
+
 More lights does not change the cadence in §2.1 at all — it only spreads the
 same blinks across more positions, so each individual light blinks less often
 while the player has more places to watch at once. That trade is the entire
@@ -92,10 +102,14 @@ reason the option exists.
 Lobby (with the options panel) → primer (safety, §9) → countdown → round →
 results.
 
+The lobby carries the flashing warning (§9) and the options panel, above
+Start.
+
 The round screen is portrait, one light or up to four laid out for an even
-glance (single centred; two side by side; three or four in a grid — exact
-layout is a design pass, §12 Q4), each a plain circle that switches between a
-dim and a lit fill. Above them: the running net score, big. In `unlimited`,
+glance — one centred and big; two side by side; three as two over one; four as
+a 2×2 grid — each a plain circle that switches between a dim and a lit fill,
+with no transition (a fade would smear one blink into the next). A tap flashes
+a green or red ring on the light it landed on. Above them: the running net score, big. In `unlimited`,
 misses remaining before elimination ("7 misses left") next to it; in a timed
 round, the seconds left instead.
 
@@ -118,21 +132,21 @@ goes.
 
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
-| `start` | client → server | `{ mode: 'classic', solo, options: { lights, duration } }` | Host starts; carries the lobby's own option choices |
-| `blink-start` | server → all | `{ roundId, options, startAt }` | The shared clock every phone schedules its own blinks against |
-| `blink-final` | phone → room | `{ roundId, hits, misses, score }` | Sent once, when this phone's own round ends |
-| `blink-tapper` | room → phones | `{ roundId, finals: {id: {hits, misses, score}}, phase, winner }` | The ladder as final reports arrive, and the room's own phase/winner once it can be decided |
+| `start` | client → server | `{ mode: 'blink', solo, blink: { lights, duration } }` | Host starts; carries the lobby's own option choices |
+| `blink-tapper` | server → all | `{ roundId, phase, startsAt, endsAt, options, finals: {id: {hits, misses, score} \| null}, solo, winner }` | Sent at start — `startsAt` is the shared clock every phone schedules its blinks against — and again as each final arrives |
+| `blink-final` | phone → room | `{ roundId, hits, misses }` | Sent once, when this phone's own round ends; the referee computes the score |
 
-The referee owns nothing about the blinking itself — only `startAt`, the
+The referee owns nothing about the blinking itself — only `startsAt`, the
 options every phone must schedule against, and the ladder of finals as they
 arrive. It ends the round once every connected phone has reported or
 `BLINK_REPORT_GRACE_MS` has passed since the round's expected end
-(`startAt` + duration for a timed round; see §7 for `unlimited`).
+(`startsAt` + duration for a timed round, `startsAt` +
+`BLINK_UNLIMITED_CAP_MS` for `unlimited`, §7).
 
 **Latency tolerance:** nothing here is frame-perfect between players — each
 phone only ever races its own clock, never another phone's tap — so the
 100–300 ms budget in [../../multiplayer.md](../../multiplayer.md) §6 is spent
-entirely on `startAt` agreeing closely enough that two phones' *rates* line up,
+entirely on `startsAt` agreeing closely enough that two phones' *rates* line up,
 not on any single tap.
 
 ## 7. Failure & edge cases
@@ -142,28 +156,29 @@ not on any single tap.
   else exactly as if they had never joined it.
 - **Host leaves**: promoted silently, standard flow.
 - **Too few players**: one is a legitimate round (1–8); solo has no winner.
-- **Backgrounded tab**: the schedule is anchored to `startAt`, a shared
+- **Backgrounded tab**: the schedule is anchored to `startsAt`, a shared
   timestamp, not to the phone's own render loop — so a phone that comes back
   from the background has simply missed every blink that passed while hidden,
   the same as Maximum Jump's "the attempt in flight is lost" (its own spec
   §7). The round does not wait for it.
-- **`unlimited` and a player who is never tapped at all**: every blink past
+- **`unlimited` and a player who never taps at all**: every blink past
   the on-window is a miss, so 10 misses arrives in well under a minute even at
   the starting cadence (10 × 2 s at the slowest, far sooner once it has
-  ramped) — there is no realistic way to leave a phone lit forever, so no
-  extra safety cap is needed beyond `BLINK_REPORT_GRACE_MS` for a phone that
-  has simply gone silent (disconnected, not just unlucky).
+  ramped) — so a phone left alone ends its own round within seconds. The
+  room still needs an alarm for a phone that has gone *silent* (disconnected,
+  not unlucky), and `BLINK_UNLIMITED_CAP_MS` (3 min) is that: past the top of
+  the ramp nobody survives long, so no honest round comes near it.
 - **`unlimited` and different players hitting 10 misses at different times**:
   expected and fine — each phone ends and reports independently; the round
   itself ends once every connected phone has either reported or timed out.
 - **Nobody taps anything, ever**: everyone finishes at or below zero, still a
   legitimate result — whoever is least negative wins.
-- **Ties**: share the place, the same call every other game in the catalogue
-  makes.
+- **Ties**: a tie at the top is unranked — no winner — the same call every
+  other game in the catalogue makes.
 
 ## 8. Anti-cheat
 
-The phone reports its own `hits`/`misses`/`score` once, so the referee bounds
+The phone reports its own `hits` and `misses` once, so the referee bounds
 the claim by what the cadence in §2.1 could possibly have produced — a closed
 form, not a simulation:
 
@@ -173,13 +188,16 @@ blinksByElapsed(t) = BLINK_START_RATE·t + (BLINK_MAX_RATE - BLINK_START_RATE)·
 ```
 
 (the integral of `rate(t)` from §2.1, split at the ramp). For an elapsed time
-`t = now - startAt`, the referee clamps every claim to:
+`t = now - startsAt`, the referee clamps every claim to:
 
-- `hits + misses ≤ blinksByElapsed(t)` — cannot claim more attempts than
-  blinks could have occurred,
-- `score == hits − misses` — the two numbers must actually add up,
-- in `unlimited`, `misses ≤ 10` and the phone's own elapsed time at report
-  must not exceed what 10 misses at the cadence's own pace would take.
+- `hits ≤ ⌊blinksByElapsed(t)⌋ + 1` — no more hits than blinks had started
+  (`maxHits`), with `t` capped at the round's own length,
+- the score is the referee's own `hits − misses`, never sent by the phone,
+- in `unlimited`, `misses ≤ 10` — the limit that ended it.
+
+Misses have no upper bound: a tap on a dark light is a miss and taps are
+unbounded, and the only phone an inflated miss count hurts is the one sending
+it.
 
 A report over the bound is **clamped, not rejected** — the same call Asteroid
 Race's §8 makes, so a phone whose clock drifts a little is trimmed rather than
@@ -246,8 +264,9 @@ No sound is required or offered; there is nothing to say about hearing here.
 3. **`BLINK_ON_FRACTION` = 0.5 is this spec's own invention** — the issue says
    nothing about how long a light stays lit relative to its own interval.
    Untested on real thumbs at any speed, let alone near the top of the ramp.
-4. **Layout for two, three and four lights** is undecided — a design pass, not
-   a blocker for approval.
+4. **Guests see the options panel at its defaults, not the host's picks** —
+   the same as Math-o-matic's panel: the choice only reaches other phones in
+   the `start` frame. Worth a lobby message of its own if it confuses a room.
 5. **Does `unlimited` need a shared "misses remaining" ladder** so players can
    see how close everyone else is to being out, or is each phone's own count
    enough? Nothing in the issue says the ladder is live during play, and §6

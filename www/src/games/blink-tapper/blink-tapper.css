@@ -1,0 +1,189 @@
+/*
+ * Blink Tapper. Spec: docs/specs/games/blink-tapper.md §4
+ * Shared chrome (StatusBar, lobby) is styled by core; this file owns the lights
+ * and the lobby options.
+ */
+
+.blink {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--color-bg);
+}
+
+.blink > .statusbar {
+  flex: 0 0 auto;
+  padding: max(0.75rem, env(safe-area-inset-top)) 1rem 0;
+}
+
+.blink__score {
+  margin: 0.4rem 0 0;
+  text-align: center;
+  font-size: var(--font-title);
+  color: var(--color-text-dim);
+}
+
+.blink__score b {
+  font-size: 2.6rem;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.blink__board {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.blink__board--2,
+.blink__board--3,
+.blink__board--4 {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* Three lights: two on top, one centred below. */
+.blink__board--3 .blink__light:last-child {
+  grid-column: 1 / -1;
+}
+
+.blink__light {
+  --size: min(70vw, 45dvh);
+  width: var(--size);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--game-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--color-text) 8%, var(--color-bg));
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: pointer;
+}
+
+.blink__board--2 .blink__light,
+.blink__board--3 .blink__light,
+.blink__board--4 .blink__light {
+  --size: min(40vw, 28dvh);
+}
+
+/* Set straight from the frame loop, so no transition: at 30 blinks a second a
+   fade would smear every blink into the next. */
+.blink__light--on {
+  border-color: var(--game-accent);
+  background: var(--game-accent);
+  box-shadow: 0 0 2.5rem color-mix(in srgb, var(--game-accent) 70%, transparent);
+}
+
+.blink__light:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* What the last tap was worth, on the light itself. */
+.blink__light--hit {
+  animation: blink-hit 220ms ease-out;
+}
+
+.blink__light--miss {
+  animation: blink-miss 220ms ease-out;
+}
+
+@keyframes blink-hit {
+  from { outline: 6px solid #22C55E; outline-offset: 4px; }
+  to { outline: 0 solid transparent; outline-offset: 14px; }
+}
+
+@keyframes blink-miss {
+  from { outline: 6px solid #EF4444; outline-offset: 4px; }
+  to { outline: 0 solid transparent; outline-offset: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blink__light--hit,
+  .blink__light--miss {
+    animation: none;
+  }
+}
+
+.blink__countdown,
+.blink__verdict {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  pointer-events: none;
+  font-weight: 800;
+  background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+}
+
+.blink__countdown {
+  font-size: clamp(4rem, 22vh, 10rem);
+  color: var(--game-accent);
+}
+
+.blink__verdict {
+  padding: 0 1rem;
+  text-align: center;
+  font-size: clamp(1.4rem, 6vw, 2.4rem);
+  color: var(--color-text);
+}
+
+.blink-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.blink-options__group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.blink-options__group:disabled {
+  opacity: 0.7;
+}
+
+.blink-options__legend {
+  padding: 0 0 var(--space-1);
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.blink-options__row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.blink-options__stop {
+  flex: 1 1 0;
+  min-height: 2.75rem;
+  font: inherit;
+  font-size: var(--font-title);
+  font-weight: 700;
+  color: var(--color-text-dim);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.blink-options__stop--on {
+  color: var(--color-on-accent);
+  background: var(--game-accent, var(--color-accent));
+  border-color: var(--game-accent, var(--color-accent));
+}
+
+.blink-options__stop:disabled {
+  cursor: default;
+}
+
+.blink-options__readout {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
