@@ -1,7 +1,7 @@
 import { isRoomCode, normaliseRoomCode } from '../www/src/core/room/code';
 import { gameSlug, originAllowed } from './router';
 import { Room } from './Room';
-import { flagGateDisabled, makeFlagsReader, timedFetch, type FlagsReader } from './flags';
+import { flagGateDisabled, sharedFlags } from './flags';
 import { isPlayable, type FlagState } from '../shared/flags';
 
 export { Room };
@@ -43,26 +43,6 @@ export type Env = {
    */
   DISABLE_FLAG_GATE?: string;
 };
-
-/**
- * One reader per isolate, built lazily and kept — the whole point is a cache that
- * outlives a request. Keyed by URL so a config change cannot be served by a reader
- * still holding the previous host's answers.
- */
-let reader: FlagsReader | null = null;
-let readerUrl: string | undefined;
-
-function flags(env: Env): FlagsReader {
-  if (reader === null || readerUrl !== env.FLAGS_URL) {
-    readerUrl = env.FLAGS_URL;
-    reader = makeFlagsReader({
-      url: env.FLAGS_URL,
-      now: () => Date.now(),
-      fetcher: timedFetch,
-    });
-  }
-  return reader;
-}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -135,7 +115,7 @@ export default {
      * has no business asking flags.json's opinion when it is not going to act on it.
      */
     const state: FlagState =
-      !game || flagGateDisabled(env.DISABLE_FLAG_GATE) ? 'active' : await flags(env).stateOf(game);
+      !game || flagGateDisabled(env.DISABLE_FLAG_GATE) ? 'active' : await sharedFlags(env).stateOf(game);
 
     // The whole reason for Durable Objects: this name always resolves to the
     // same object, anywhere in the world, with no routing table of our own.

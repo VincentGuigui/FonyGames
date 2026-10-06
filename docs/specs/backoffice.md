@@ -119,6 +119,15 @@ enforced in **two places**:
 | Hub | Presentation — hides or greys the card |
 | **Worker** | **Enforcement** — refuses to open a room for a non-active game (except on dev, above) |
 
+The gate runs once, when a room is **opened**, for the game named on that
+connection — so the room holds the other two ways in shut:
+
+- **`start` must name the room's own game** (`gameOfMode` in
+  `shared/players.ts`). A room opened with no game, or as an active game, cannot
+  start a disabled one by sending its mode.
+- **`switch-game` checks the target's flag**, because a switch opens the target
+  for a room that is already occupied, which the connect-time gate exempts.
+
 A third layer sits in front of both, purely for the experience of following a
 stale or maliciously-shared link: `useRoom` (`www/src/core/room/useRoom.ts`)
 checks `checkSlugPlayable` (`flagGate.ts`) the moment a game screen mounts with

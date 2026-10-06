@@ -72,6 +72,30 @@ export const PLAYERS = {
 
 export type GameSlug = keyof typeof PLAYERS;
 
+/**
+ * Which game a `start` mode belongs to. The room refuses a mode that is not its
+ * own game's, so the flag gate at connect time cannot be walked around by
+ * opening a room as one game and starting another (backoffice.md §2b).
+ *
+ * Tap Duel is the fall-through: any mode not listed here starts a duel.
+ */
+const GAME_OF_MODE: Record<string, GameSlug> = {
+  bomb: 'pass-the-bomb', steady: 'steady-hand', rush: 'shake-rush', hunt: 'ghost-hunt',
+  spill: 'spill', siege: 'goat-siege', sling: 'sling-puck', chase: 'cat-and-mouse',
+  grid: 'grid-attack', squash: 'squash-mosquitoes', neon: 'neon-fall', taptap: 'tap-tap-music',
+  taps100: 'hundred-taps', ufo: 'ufo-hunt', abduct: 'aliens-love-cows', tiles: 'tiles-surfer',
+  gravity: 'gravity-shooter', asteroid: 'asteroid-race', 'color-match': 'color-match',
+  'color-hunt': 'color-hunt', math: 'math-o-matic', tilt: 'tilt-race', scream: 'scream-meter',
+  dark: 'together-in-the-dark', tttt: 'tic-tac-tic-tac-toe', fighter: 'tap-fighter',
+  crowd: 'crowd-race', rhino: 'rhino-spin', jump: 'maximum-jump', blink: 'blink-tapper',
+};
+
+export const MODE_GAMES: readonly GameSlug[] = Object.values(GAME_OF_MODE);
+
+export function gameOfMode(mode: string): GameSlug {
+  return GAME_OF_MODE[mode] ?? 'tap-duel';
+}
+
 /** Routes with implemented game pages; idea/soon cards cannot be switch targets. */
 export const BUILT_GAMES = [
   'tap-duel', 'tap-fighter', 'spill', 'pass-the-bomb', 'goat-siege', 'sling-puck',

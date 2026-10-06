@@ -170,3 +170,19 @@ export function makeFlagsReader(deps: FlagsDeps): FlagsReader {
     },
   };
 }
+
+/**
+ * One reader per Worker isolate, shared by the room-open gate and the Room's own
+ * `switch-game` check so both see the same 60 s copy. Rebuilt when the URL changes,
+ * which only a test or a redeploy does.
+ */
+let shared: FlagsReader | null = null;
+let sharedUrl: string | undefined;
+
+export function sharedFlags(env: { FLAGS_URL?: string | undefined }): FlagsReader {
+  if (shared === null || sharedUrl !== env.FLAGS_URL) {
+    sharedUrl = env.FLAGS_URL;
+    shared = makeFlagsReader({ url: env.FLAGS_URL, now: () => Date.now(), fetcher: timedFetch });
+  }
+  return shared;
+}

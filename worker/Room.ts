@@ -23,7 +23,9 @@ import {
   type RoomSnapshot,
   type ServerMessage,
 } from '../shared/protocol';
-import { enoughToStart, canSwitchToGame, PLAYERS } from '../shared/players';
+import { enoughToStart, canSwitchToGame, gameOfMode, PLAYERS } from '../shared/players';
+import { isPlayable } from '../shared/flags';
+import { flagGateDisabled, sharedFlags } from './flags';
 import { guestsReady } from '../shared/readiness';
 import { playsUrl, reportPlay, roundKey } from './plays';
 /*
@@ -1030,6 +1032,15 @@ export class Room extends DurableObject<Env> {
     const hostId = (await this.ctx.storage.get<PlayerId>('hostId')) ?? null;
     if (!id || id !== hostId) return; // only the host starts rounds
 
+    // The flag gate ran when this room was opened, for the game named then. A mode
+    // that is not that game would start one the gate never saw, so it is refused —
+    // and a room opened with no game at all has nothing to start.
+    const roomGame = (await this.ctx.storage.get<string>('game')) ?? null;
+    if (roomGame === null || gameOfMode(mode) !== roomGame) {
+      this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'That game does not belong to this room.' } });
+      return;
+    }
+
     const duel = await this.#duel();
     if (duel && duel.phase !== 'done') return; // one round at a time
     const bomb = await this.#bomb();
@@ -1231,6 +1242,12 @@ export class Room extends DurableObject<Env> {
     const connected = [...players.values()].filter((player) => player.connected);
     if (!canSwitchToGame(game, connected.length)) {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'This game cannot fit everyone in the room.' } });
+      return;
+    }
+    // Switching opens the target game for a room that is already occupied, which the
+    // connect-time gate exempts — so the target's flag is checked here instead.
+    if (!flagGateDisabled(this.env.DISABLE_FLAG_GATE) && !isPlayable(await sharedFlags(this.env).stateOf(game))) {
+      this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'Game unavailable' } });
       return;
     }
     for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'scream', 'dark', 'tttt', 'fighter', 'crowd', 'rhino', 'jump', 'blink', 'roundId', 'scores']) {
