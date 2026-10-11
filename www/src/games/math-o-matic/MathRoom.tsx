@@ -9,7 +9,7 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { MATH_DEFAULT_OPTIONS, type MathOptions } from '../../../../shared/mathQuestion';
+import { MATH_LOBBY_OPTIONS, type MathOptions } from '../../../../shared/mathQuestion';
 import { useGameRoom } from '../../core/room/useRoom';
 import { useSoloTesting } from '../../core/useSolo';
 import { RoomGate } from '../../lobby/RoomGate';
@@ -45,7 +45,7 @@ function MathRoomInner({ game: card, code }: { game: GameCard; code: string }): 
   const text = useGameText();
   const solo = useSoloTesting();
   const [state, setState] = useState<MathState | null>(null);
-  const [options, setOptions] = useState<MathOptions>(MATH_DEFAULT_OPTIONS);
+  const [options, setOptions] = useState<MathOptions>(MATH_LOBBY_OPTIONS);
 
   const onGame = useCallback((msg: ServerMessage) => {
     if (msg.t === 'math') setState(msg.d);

@@ -28,8 +28,7 @@ Everyone sees the same question and the same four answer buttons. Tap the one
 you believe. A wrong tap costs a life; three lives each, and the last player
 still standing takes the round.
 
-1. Host picks the calculus options in the lobby (§3) — all on by default — and
-   starts.
+1. Host picks the calculus options in the lobby (§3) and starts.
 2. The **referee** rolls a question and four answers, one correct, and
    broadcasts them to everyone including the host (§6, §8).
 3. Every player taps an answer, or doesn't. A player who has already answered
@@ -58,25 +57,26 @@ travel in the `start` payload rather than in the mode slug.
 | `classic` | Four answers, one is right | baseline |
 | `sudden-death` | One life each. Blink and you are out | `MATH_LIVES` = 1 |
 
-**Host options**, all enabled by default, and **all three are sets** — the same
-control three times over:
+**Host options.** Operators is a set; digits and operations per sum are each
+**one choice**, picked by tapping a stop, so neither can be empty:
 
 | Option | Values | Default |
 | --- | --- | --- |
-| Operations | any subset of `+ − × ÷` | all four |
-| Operand length | any subset of 1, 2, 3, 4, 5 digits | all five |
-| Operators per question | any subset of 1, 2, 3 | all three |
+| Operators | any subset of `+ − × ÷` | all four |
+| Digits per number | one of 1, 2, 3, 4, 5 | 2 |
+| Operations per sum | one of 1, 2, 3 | 1 |
 
-The last two were a two-ended range first, and that was wrong twice over. It
-made one panel hold two kinds of control — two nudged from the ends, one ticked
-— and it could not express "two or four digits, never three", which is a
-perfectly reasonable room. Tapping a stop toggles it, the last one on refuses
-to go, and `normaliseOptions` intersects whatever arrives with what the game
-offers rather than clamping it onto a neighbour.
+The two single choices were a set each at first, which could say "two or four
+digits, never three" but made a room's difficulty a blur and put a different
+control behind each row of the panel. One tap now says exactly how hard the
+room is. The wire and the generator still take a set — a one-element set is a
+legal one, and `normaliseOptions` intersects whatever arrives with what the game
+offers rather than clamping it onto a neighbour — so nothing downstream of the
+panel changed.
 
-It also sharpens the one relaxation the generator is allowed (§12 Q6): a room
-that ticks 1 and 3 operators and cannot manage three drops to one, which is a
-count it *asked for*, where a 1–3 range only ever meant "somewhere in here".
+An operation count the digits cannot reach — three multiplications at five
+digits — still relaxes to the largest that fits (§12 Q6), which is a count the
+generator walks down from, never one it invents.
 
 Rules the generator owes the options, so a legal setting can never produce an
 illegal question:
@@ -90,7 +90,7 @@ illegal question:
 - **Standard precedence**, and it is shown: `2 + 3 × 4` renders with the `×`
   tighter than the `+`. Multi-operator questions are the setting most likely
   to need brackets instead — §12 Q3.
-- **Turning every operation off is not a legal state**; the last one cannot be
+- **Turning every operator off is not a legal state**; the last one cannot be
   unticked, the same way the lobby will not let you start alone.
 
 ## 4. Screens
@@ -216,11 +216,9 @@ the room's own lifetime. No text the player types, because there is none.
    exactly, so a new one appearing is a regression rather than a surprise.
    Whether the lobby should instead *grey out* those combinations is the open
    part.
-2. **Five digits × three operators is arithmetic homework**, not a party game.
-   It is legal because the issue asked for those widths, and the default is all
-   of them. A narrower default — say 1, 2 and 3 digits ticked — is probably the
-   friendlier first experience, and is now one entry in a list rather than a
-   range's ceiling.
+2. **Five digits × three operations is arithmetic homework**, not a party game.
+   It is legal because the issue asked for those widths, and a host has to
+   choose it on purpose: the lobby opens on 2 digits and 1 operation.
 3. **`sudden-death` is declared and not built.** One life each, `MATH_LIVES`
    = 1, and nothing else changes; it is a one-line mode whose only real
    question is whether a room of eight enjoys being three-quarters eliminated

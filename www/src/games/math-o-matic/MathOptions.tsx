@@ -51,7 +51,7 @@ export function MathOptionsPanel({
   return (
     <div class="math-options">
       <fieldset class="math-options__group" disabled={!editable}>
-        <legend class="math-options__legend">{text({ en: 'Operations', fr: 'Opérations' })}</legend>
+        <legend class="math-options__legend">{text({ en: 'Operators', fr: 'Opérateurs' })}</legend>
         <div class="math-options__ops">
           {MATH_OPS.map((op) => {
             const on = value.ops.includes(op);
@@ -74,19 +74,21 @@ export function MathOptionsPanel({
         </div>
       </fieldset>
 
-      <Stops
+      <Choice
         legend={text({ en: 'Digits per number', fr: 'Chiffres par nombre' })}
-        value={value.digits}
+        value={value.digits[0]}
         choices={MATH_DIGIT_CHOICES}
         editable={editable}
-        onChange={(digits) => onChange({ ...value, digits })}
+        onChange={(n) => onChange({ ...value, digits: [n] })}
+        describe={(n) => text({ en: `${n}-digit numbers`, fr: `nombres à ${n} chiffre${n > 1 ? 's' : ''}` })}
       />
-      <Stops
-        legend={text({ en: 'Operators per sum', fr: 'Opérateurs par calcul' })}
-        value={value.operators}
+      <Choice
+        legend={text({ en: 'Operations per sum', fr: 'Opérations par calcul' })}
+        value={value.operators[0]}
         choices={MATH_OPERATOR_CHOICES}
         editable={editable}
-        onChange={(operators) => onChange({ ...value, operators })}
+        onChange={(n) => onChange({ ...value, operators: [n] })}
+        describe={(n) => text({ en: `${n} operation${n > 1 ? 's' : ''} per sum`, fr: `${n} opération${n > 1 ? 's' : ''} par calcul` })}
       />
 
       {!editable && (
@@ -97,63 +99,44 @@ export function MathOptionsPanel({
 }
 
 /**
- * A set of stops, ticked one by one — the same control as the operations row
- * above it, and for the same reason.
- *
- * It was a two-ended range first, and that was the odd one out: three controls
- * on one panel, two of them nudged from the ends and one of them ticked. It
- * also could not say "two or four digits, never three", which is a perfectly
- * reasonable room. Tapping a stop toggles it; the last one on refuses to go,
- * exactly as the last operation does.
+ * One of a few numbers, exactly one at a time: tapping a stop selects it and
+ * there is nothing to untick, so it can never be empty. Digits and operations
+ * per sum are single choices (spec §3); operators are the one set.
  */
-function Stops({
+function Choice({
   legend,
   value,
   choices,
   editable,
   onChange,
+  describe,
 }: {
   legend: string;
-  value: readonly number[];
+  value: number | undefined;
   choices: readonly number[];
   editable: boolean;
-  onChange: (next: readonly number[]) => void;
+  onChange: (next: number) => void;
+  describe: (n: number) => string;
 }): JSX.Element {
-  const text = useGameText();
-  const on = (n: number): boolean => value.includes(n);
-
   return (
     <fieldset class="math-options__group" disabled={!editable}>
       <legend class="math-options__legend">{legend}</legend>
-      <div class="math-options__range" role="group" aria-label={legend}>
+      <div class="math-options__range" role="radiogroup" aria-label={legend}>
         {choices.map((n) => (
           <button
             key={n}
             type="button"
-            class={`math-options__stop ${on(n) ? 'math-options__stop--on' : ''}`}
-            aria-pressed={on(n)}
-            // The last one on is not removable, so it says so rather than
-            // shrugging.
-            disabled={!editable || (on(n) && value.length === 1)}
-            onClick={() => {
-              // Kept in the game's own order rather than tap order, so the
-              // readout below reads left to right.
-              const next = on(n) ? value.filter((v) => v !== n) : choices.filter((v) => v === n || value.includes(v));
-              if (next.length === 0) return;
-              onChange(next);
-            }}
+            role="radio"
+            class={`math-options__stop ${value === n ? 'math-options__stop--on' : ''}`}
+            aria-checked={value === n}
+            disabled={!editable}
+            onClick={() => onChange(n)}
           >
             {n}
           </button>
         ))}
       </div>
-      <p class="math-options__readout">
-        {value.length === 1
-          ? text({ en: `exactly ${value[0]}`, fr: `exactement ${value[0]}` })
-          : value.length === choices.length
-            ? text({ en: 'any', fr: 'au choix' })
-            : value.join(', ')}
-      </p>
+      <p class="math-options__readout">{value === undefined ? '' : describe(value)}</p>
     </fieldset>
   );
 }

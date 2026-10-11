@@ -57,6 +57,16 @@ export const MATH_DEFAULT_OPTIONS: MathOptions = {
   operators: MATH_OPERATOR_CHOICES,
 };
 
+/**
+ * What the lobby opens on: every operator, but one width and one operation
+ * count, because those two are single choices in the lobby (spec §3).
+ */
+export const MATH_LOBBY_OPTIONS: MathOptions = {
+  ops: MATH_OPS,
+  digits: [2],
+  operators: [1],
+};
+
 /** How many answers a question offers. One is right (spec §2). */
 export const MATH_CHOICES = 4;
 

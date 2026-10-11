@@ -24,6 +24,7 @@ import {
   MATH_OPS,
   digitBounds,
   generateQuestion,
+  MATH_LOBBY_OPTIONS,
   leftToRight,
   normaliseOptions,
   symbol,
@@ -436,6 +437,17 @@ relaxingIsAlwaysLegal();
 precedenceTrap();
 answersLookPlausible();
 deterministic();
+
+function lobbyDefaults(): void {
+  console.log('\nthe lobby opens on one width and one operation count (§3)');
+  check('one width', MATH_LOBBY_OPTIONS.digits.length === 1);
+  check('one operation count', MATH_LOBBY_OPTIONS.operators.length === 1);
+  check('every operator on', MATH_LOBBY_OPTIONS.ops.length === 4);
+  check('and normalisation keeps it as it is', JSON.stringify(normaliseOptions(MATH_LOBBY_OPTIONS)) === JSON.stringify(MATH_LOBBY_OPTIONS));
+  const q = generateQuestion(MATH_LOBBY_OPTIONS, seeded(7));
+  check(`it plays: ${q.text}`, q.answers.length === 4 && q.correct >= 0 && /^\d{1,2} [+−×÷] \d{1,2}$/.test(q.text), q.text);
+}
+lobbyDefaults();
 
 if (failures > 0) throw new Error(`${failures} check(s) failed`);
 console.log('\nall passed');
