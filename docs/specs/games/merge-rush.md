@@ -9,7 +9,7 @@
 | **Round length** | 2 min |
 | **Inputs** | touch |
 | **Accent colour** | `#F472B6` |
-| **Status** | 📝 draft |
+| **Status** | 🎮 beta |
 
 ## 1. Pitch
 
@@ -95,12 +95,14 @@ themselves happen on the phone.
   can still win; they stop holding the round open.
 - **Host leaves**: promoted silently.
 - **Too few players**: one is a legitimate round (1–8); solo has no winner.
-- **Backgrounded tab**: the round clock is the server's, so a phone that comes
-  back has lost the time but not its board.
+- **Backgrounded tab or reload**: the round clock is the server's, so a phone
+  that comes back has lost the time but not its board — it resumes from the
+  referee's copy, and the next spawn lands where it would have, because every
+  spawn is a function of the seed and the move count.
 - **Everyone stuck**: the round ends early.
 - **Nobody moves**: everyone scores 0, no winner.
 - **A board that fills up with no merge available** is stuck, not lost — the
-  score stands.
+  score stands, and the phone shows that it is waiting for the others.
 
 ## 8. Anti-cheat
 

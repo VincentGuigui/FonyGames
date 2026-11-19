@@ -54,7 +54,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Rhino Spin](games/rhino-spin.md) | *Throw your phone. Count the spins. Mind the ceiling* | motion | 1–8 | 🎮 beta — motion-only, no fallback, and the one throwing mechanic in the catalogue (AGENTS.md §7); the spin count untested on a real throw ([#49](https://github.com/VincentGuigui/FonyGames/issues/49)) |
 | [Maximum Jump](games/maximum-jump.md) | *Sprint, hit the line, fly. Longest jump wins* | touch | 1–8 | 🎮 beta — the run-up rhythm, the take-off band and the drag term untested on real thumbs ([#48](https://github.com/VincentGuigui/FonyGames/issues/48)) |
 | [Blink Tapper](games/blink-tapper.md) | *Catch the blink. Miss it and lose the point* | touch | 1–8 | 🎮 beta — flashes past the 3 Hz ceiling by explicit exception ([ui-guidelines.md](../design/ui-guidelines.md) §7); the ramp and the on-fraction untested on real thumbs |
-| [Merge Rush](games/merge-rush.md) | *Slide, merge, climb. Out-score the whole room* | touch | 1–8 | 📝 draft |
+| [Merge Rush](games/merge-rush.md) | *Slide, merge, climb. Out-score the whole room* | touch | 1–8 | 🎮 beta — the 2-minute round, the spawn mix and the palette untested on real thumbs |
 
 ### Idea notes (not yet specs)
 

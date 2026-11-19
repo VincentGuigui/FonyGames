@@ -1,0 +1,142 @@
+/*
+ * Merge Rush. Spec: docs/specs/games/merge-rush.md §4
+ * Shared chrome (StatusBar, lobby) is styled by core; this file owns the board,
+ * the thumbnail strip and the arrows. Tile colours come from colors.ts.
+ */
+
+.merge {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 100dvh;
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  background: var(--color-bg);
+}
+
+.merge > .statusbar {
+  flex: 0 0 auto;
+  padding: max(0.75rem, env(safe-area-inset-top)) 1rem 0;
+}
+
+/* The other players: a 32×32 px board each, wrapping if there are many. */
+.merge__strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0;
+  padding: 0 1rem;
+  list-style: none;
+}
+
+.merge__rival {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.merge__thumb {
+  display: block;
+  width: 32px;
+  height: 32px;
+  border-radius: 3px;
+}
+
+.merge__rival-meta {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--font-small);
+  line-height: 1.15;
+  color: var(--color-text-dim);
+}
+
+.merge__rival-meta b {
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.merge__score {
+  margin: 0;
+  font-size: var(--font-title);
+  color: var(--color-text-dim);
+}
+
+.merge__score b {
+  font-size: 2.4rem;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.merge__board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  width: min(92vw, 62dvh, 28rem);
+  aspect-ratio: 1;
+  padding: 8px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-text) 8%, var(--color-bg));
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.merge__tile {
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.1rem, 7vw, 2rem);
+}
+
+.merge__tile--d3 { font-size: clamp(1rem, 6vw, 1.7rem); }
+.merge__tile--d4 { font-size: clamp(0.85rem, 5vw, 1.4rem); }
+.merge__tile--d5,
+.merge__tile--d6 { font-size: clamp(0.7rem, 4vw, 1.1rem); }
+
+.merge__pad {
+  display: grid;
+  grid-template-columns: repeat(4, 3.2rem);
+  gap: var(--space-2);
+}
+
+.merge__arrow {
+  min-height: 2.75rem;
+  font: inherit;
+  font-size: var(--font-title);
+  font-weight: 700;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.merge__arrow:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.merge__overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 0 1rem;
+  text-align: center;
+  pointer-events: none;
+  font-size: clamp(1.4rem, 6vw, 2.2rem);
+  font-weight: 800;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+}
+
+.merge__overlay--count {
+  font-size: clamp(4rem, 22vh, 10rem);
+  color: var(--game-accent);
+}

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 90" width="120" height="90">
+  <!--
+    Merge Rush — hub card illustration.
+    Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
+
+    A 4x4 board of coloured tiles, a few already merged into brighter ones,
+    with an arrow sweeping across the top. The colours are the game's own
+    tileColor ramp at 2, 4, 8, 16 and 32. Literal hexes: this loads through
+    an img element with no access to the page's CSS.
+  -->
+  <rect x="14" y="3" width="19" height="19" rx="3" fill="#2CA2DD"/>
+  <rect x="36" y="3" width="19" height="19" rx="3" fill="#2C3EDD"/>
+  <rect x="58" y="3" width="19" height="19" rx="3" fill="#2A2F3D" fill-opacity="0.55"/>
+  <rect x="80" y="3" width="19" height="19" rx="3" fill="#7F2CDD"/>
+  <rect x="14" y="25" width="19" height="19" rx="3" fill="#2A2F3D" fill-opacity="0.55"/>
+  <rect x="36" y="25" width="19" height="19" rx="3" fill="#2CA2DD"/>
+  <rect x="58" y="25" width="19" height="19" rx="3" fill="#DD2CD7"/>
+  <rect x="80" y="25" width="19" height="19" rx="3" fill="#2A2F3D" fill-opacity="0.55"/>
+  <rect x="14" y="47" width="19" height="19" rx="3" fill="#2C3EDD"/>
+  <rect x="36" y="47" width="19" height="19" rx="3" fill="#2A2F3D" fill-opacity="0.55"/>
+  <rect x="58" y="47" width="19" height="19" rx="3" fill="#7F2CDD"/>
+  <rect x="80" y="47" width="19" height="19" rx="3" fill="#2CA2DD"/>
+  <rect x="14" y="69" width="19" height="19" rx="3" fill="#DD2C73"/>
+  <rect x="36" y="69" width="19" height="19" rx="3" fill="#2CA2DD"/>
+  <rect x="58" y="69" width="19" height="19" rx="3" fill="#2A2F3D" fill-opacity="0.55"/>
+  <rect x="80" y="69" width="19" height="19" rx="3" fill="#2C3EDD"/>
+  <g stroke="#F472B6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M6 45 H12"/>
+    <path d="M8 38 L14 45 L8 52"/>
+  </g>
+</svg>

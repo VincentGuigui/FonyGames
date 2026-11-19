@@ -226,6 +226,16 @@ import {
   type Ctx as BlinkCtx,
 } from './blinkTapper';
 import {
+  nextDeadline as mergeDeadline,
+  onMergeBoard,
+  onPlayerGone as mergePlayerGone,
+  startMergeRush,
+  tick as mergeTick,
+  toState as mergeToState,
+  type MergeRush,
+  type Ctx as MergeCtx,
+} from './mergeRush';
+import {
   nextDeadline as huntColorDeadline,
   onHuntConfirm,
   onHuntFind,
@@ -623,6 +633,11 @@ export class Room extends DurableObject<Env> {
         if (id) await onJumpResult(this.#jumpCtx(), id, msg.d.roundId, msg.d.attempt, msg.d.speed, msg.d.distance);
         return;
       }
+      case 'merge-board': {
+        const id = this.#idOf(ws);
+        if (id) await onMergeBoard(this.#mergeCtx(), id, msg.d.roundId, msg.d.board, msg.d.score, msg.d.moves, msg.d.over);
+        return;
+      }
       case 'blink-final': {
         const id = this.#idOf(ws);
         if (id) await onBlinkFinal(this.#blinkCtx(), id, msg.d.roundId, msg.d.hits, msg.d.misses);
@@ -932,6 +947,12 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const merging = await this.#merge();
+    if (merging && merging.phase === 'playing' && Date.now() >= mergeDeadline(merging)) {
+      await mergeTick(this.#mergeCtx());
+      await this.#rearm();
+      return;
+    }
     const hunting = await this.#colorHunt();
     if (hunting && hunting.phase === 'hunt' && Date.now() >= huntColorDeadline(hunting)) {
       await huntColorTick(this.#huntColorCtx());
@@ -1097,6 +1118,8 @@ export class Room extends DurableObject<Env> {
     if (jumping && jumping.phase !== 'done') return;
     const blinking = await this.#blink();
     if (blinking && blinking.phase !== 'done') return;
+    const merging = await this.#merge();
+    if (merging && merging.phase !== 'done') return;
     const colorHunting = await this.#colorHunt();
     if (colorHunting && colorHunting.phase !== 'done') return;
     const tttt = await this.#tttt();
@@ -1139,6 +1162,7 @@ export class Room extends DurableObject<Env> {
       || mode === 'rhino'
       || mode === 'jump'
       || mode === 'blink'
+      || mode === 'merge'
     ) {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
@@ -1173,6 +1197,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'rhino') started = await startRhinoSpin(this.#rhinoCtx(), roundId, ids, solo);
       else if (mode === 'jump') started = await startMaximumJump(this.#jumpCtx(), roundId, ids, solo);
       else if (mode === 'blink') started = await startBlinkTapper(this.#blinkCtx(), roundId, ids, blink, solo);
+      else if (mode === 'merge') started = await startMergeRush(this.#mergeCtx(), roundId, ids, solo);
       // `direct` is the default because it needs no explanation: grab your icon
       // and it follows your finger. `capped` is the deliberate choice.
       else started = await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct', solo);
@@ -1250,7 +1275,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'Game unavailable' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'scream', 'dark', 'tttt', 'fighter', 'crowd', 'rhino', 'jump', 'blink', 'roundId', 'scores']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'scream', 'dark', 'tttt', 'fighter', 'crowd', 'rhino', 'jump', 'blink', 'merge', 'roundId', 'scores']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -1710,6 +1735,22 @@ export class Room extends DurableObject<Env> {
       load: () => this.#blink(),
       save: (s) => this.ctx.storage.put('blink', s),
       setAlarm: () => this.#rearm(),
+    };
+  }
+
+  async #merge(): Promise<MergeRush | null> {
+    return (await this.ctx.storage.get<MergeRush>('merge')) ?? null;
+  }
+
+  #mergeCtx(): MergeCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#merge(),
+      save: (s) => this.ctx.storage.put('merge', s),
+      setAlarm: () => this.#rearm(),
+      random: () => Math.random(),
     };
   }
 
@@ -2181,6 +2222,13 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'blink-tapper', s: this.#nextSeq(), d: blinkToState(blinking) });
     }
 
+    /* Merge Rush: everyone's last accepted board, so a phone that rejoins sees the
+       strip straight away and rebuilds its own board from the seed's start. */
+    const merging = await this.#merge();
+    if (merging && merging.phase !== 'done') {
+      this.#send(ws, { t: 'merge-rush', s: this.#nextSeq(), d: mergeToState(merging) });
+    }
+
     await this.#broadcastPresence(ws);
   }
 
@@ -2284,6 +2332,8 @@ export class Room extends DurableObject<Env> {
     // Blink Tapper keeps a reported score; an unreported one stops holding the
     // round open (spec §7).
     await blinkPlayerGone(this.#blinkCtx(), id);
+    // Merge Rush keeps their last board on the strip; it can still win.
+    await mergePlayerGone(this.#mergeCtx(), id);
     // Neon Fall is the same shape as Grid Attack: two fixed seats, and a phone
     // leaving means one of the roles is simply gone — there is no game left.
     await neonPlayerGone(this.#neonCtx(), id);
@@ -2426,6 +2476,9 @@ export class Room extends DurableObject<Env> {
 
     const blinking = await this.#blink();
     if (blinking?.phase === 'playing') return blinkDeadline(blinking);
+
+    const merging = await this.#merge();
+    if (merging?.phase === 'playing') return mergeDeadline(merging);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);

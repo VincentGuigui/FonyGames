@@ -381,6 +381,8 @@ export type ClientMessage =
   | { t: 'jump-result'; d: { roundId: number; attempt: number; speed: number; distance: number } }
   /** Blink Tapper: this phone's whole round, sent once when it ends (spec §6). */
   | { t: 'blink-final'; d: { roundId: number; hits: number; misses: number } }
+  /** Merge Rush: this phone's board, throttled, and once more when it ends (spec §6). */
+  | { t: 'merge-board'; d: { roundId: number; board: number[]; score: number; moves: number; over: boolean } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
@@ -1397,6 +1399,7 @@ export type ServerMessage =
   | { t: 'rhino-spin'; s: number; d: RhinoSpinState }
   | { t: 'maximum-jump'; s: number; d: MaximumJumpState }
   | { t: 'blink-tapper'; s: number; d: BlinkTapperState }
+  | { t: 'merge-rush'; s: number; d: MergeRushState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
    * Tap Tap Music: sent to **one player only** — their own cleared
@@ -2146,6 +2149,7 @@ const CLIENT_TYPES = new Set([
   'rhino-spins',
   'jump-result',
   'blink-final',
+  'merge-board',
   'switch-game',
 ]);
 
@@ -3912,6 +3916,57 @@ export type BlinkTapperState = {
   options: BlinkOptions;
   /** Everyone in the round; `null` until their phone has reported. */
   finals: Record<PlayerId, BlinkFinal | null>;
+  solo: boolean;
+  winner: PlayerId | null;
+};
+
+/* ── Merge Rush ──────────────────────────────────────────────────────────────
+ * Spec: docs/specs/games/merge-rush.md
+ *
+ * The moves happen on the phone; the referee owns the seed, the clock and the
+ * winner, and bounds what a phone claims (spec §8). The rules both sides share
+ * are shared/merge.ts.
+ */
+
+export const MERGE_MIN_PLAYERS = PLAYERS['merge-rush'][0];
+export const MERGE_MAX_PLAYERS = PLAYERS['merge-rush'][1];
+
+/** The board is `MERGE_SIZE` × `MERGE_SIZE`; a cell holds an exponent, 0 empty. */
+export const MERGE_SIZE = 4;
+export const MERGE_CELLS = MERGE_SIZE * MERGE_SIZE;
+/** The largest exponent a cell can hold: 2^17 is the most a 4×4 board can build. */
+export const MERGE_MAX_EXPONENT = 17;
+
+export const MERGE_ROUND_MS = 120_000;
+export const MERGE_COUNTDOWN_MS = 3000;
+/** How long past the round the referee waits for the final reports. */
+export const MERGE_REPORT_GRACE_MS = 4000;
+/** The least time between two board reports from one phone. */
+export const MERGE_REPORT_MS = 250;
+/** More moves a second than this is not a thumb (spec §8). */
+export const MERGE_MAX_MOVES_PER_S = 12;
+/** The share of spawns that are a 4 rather than a 2. */
+export const MERGE_FOUR_CHANCE = 0.1;
+/** The shortest swipe that counts as a move, in CSS pixels. */
+export const MERGE_SWIPE_PX = 24;
+
+export type MergeEntry = {
+  /** `MERGE_CELLS` exponents, row by row. */
+  board: number[];
+  score: number;
+  moves: number;
+  /** No move left: the score stands and the phone stops reporting. */
+  over: boolean;
+};
+
+export type MergeRushState = {
+  roundId: number;
+  phase: 'playing' | 'done';
+  startsAt: number;
+  endsAt: number;
+  /** Every phone builds the starting board and every spawn from this. */
+  seed: number;
+  boards: Record<PlayerId, MergeEntry>;
   solo: boolean;
   winner: PlayerId | null;
 };
