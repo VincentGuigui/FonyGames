@@ -59,13 +59,24 @@ number (2, 4, 8, …; 0 is an empty cell) and returns a CSS colour.
 
 Lobby → countdown → round → results. The round screen, portrait, top to bottom:
 
-- **Score and time**: your score, big, and the seconds left in the status bar.
-- **The thumbnails**: one per *other* player, each a **32×32 px** canvas — the
-  4×4 board as 8 px colour squares, no numbers — with their avatar and score
-  beside it. Your own board is not thumbnailed; it is the big one below.
+- **The clock**, in the status bar, at twice its usual size. It turns **orange**
+  with `30 s` left and **red, blinking once a second,** with `15 s` left
+  (`timer.ts`; under reduced motion it stays red and does not blink).
+- **Your score**, big.
 - **Your board**: a 4×4 grid filling the width, each tile its colour and its
-  number. Swiping anywhere on it moves.
+  number. Tiles **slide** to their new cell over about 110 ms rather than
+  jumping; a merged tile pops in as the pair lands, and a new tile scales in.
+  Swiping anywhere on the board moves.
 - **Four arrow buttons** under the board, for anyone who cannot swipe.
+- **The other players**, pinned to the bottom of the screen: one block each,
+  centred, top to bottom — their avatar, their score, and a **32×32 px**
+  canvas of their board as 8 px colour squares, no numbers. Your own board is
+  not thumbnailed; it is the big one above.
+
+Sliding is drawn from `tiles.ts`, which follows the same move as
+`shared/merge.ts` tile by tile only to know where each tile travelled from and
+to; it never decides a result, and its test checks it agrees with the rules over
+whole games.
 
 ## 5. Inputs & sensors
 
@@ -135,7 +146,7 @@ A 16-number board and two counters per report. Nothing stored past the room.
   number. The thumbnails are colour-only by design, and are a convenience —
   nothing in the game depends on reading one.
 - **No sound**, nothing to say about hearing.
-- **Reduced motion**: tiles do not animate; the board simply updates.
+- **Reduced motion**: tiles do not slide, pop or scale; the board simply updates, and the red clock does not blink.
 
 ## 12. Open questions
 

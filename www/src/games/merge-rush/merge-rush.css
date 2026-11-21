@@ -5,6 +5,8 @@
  */
 
 .merge {
+  --slide: 110ms;
+  --gap: 8px;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -20,41 +22,24 @@
   padding: max(0.75rem, env(safe-area-inset-top)) 1rem 0;
 }
 
-/* The other players: a 32×32 px board each, wrapping if there are many. */
-.merge__strip {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-2) var(--space-3);
-  margin: 0;
-  padding: 0 1rem;
-  list-style: none;
+/* The clock: twice the status bar's own size, orange at 30 s and red and
+   blinking at 15 s. The attribute is set from timer.ts. */
+.merge .statusbar__status {
+  font-size: calc(var(--font-small) * 2);
+  line-height: 1;
 }
 
-.merge__rival {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+.merge[data-tone='warn'] .statusbar__status {
+  color: #fb923c;
 }
 
-.merge__thumb {
-  display: block;
-  width: 32px;
-  height: 32px;
-  border-radius: 3px;
+.merge[data-tone='urgent'] .statusbar__status {
+  color: #ef4444;
+  animation: merge-blink 1s steps(1, end) infinite;
 }
 
-.merge__rival-meta {
-  display: flex;
-  flex-direction: column;
-  font-size: var(--font-small);
-  line-height: 1.15;
-  color: var(--color-text-dim);
-}
-
-.merge__rival-meta b {
-  color: var(--color-text);
-  font-variant-numeric: tabular-nums;
+@keyframes merge-blink {
+  50% { opacity: 0.25; }
 }
 
 .merge__score {
@@ -70,12 +55,13 @@
 }
 
 .merge__board {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  width: min(92vw, 62dvh, 28rem);
+  gap: var(--gap);
+  width: min(92vw, 56dvh, 28rem);
   aspect-ratio: 1;
-  padding: 8px;
+  padding: var(--gap);
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--color-text) 8%, var(--color-bg));
   touch-action: none;
@@ -83,13 +69,55 @@
   user-select: none;
 }
 
+.merge__cell {
+  border-radius: var(--radius);
+  background: #1c202b;
+}
+
+/* Tiles sit over the cells and slide between them: a translate, so the
+   browser moves them rather than redrawing them. `100%` is a tile's own size. */
+.merge__tiles {
+  position: absolute;
+  inset: var(--gap);
+}
+
 .merge__tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc((100% - 3 * var(--gap)) / 4);
+  height: calc((100% - 3 * var(--gap)) / 4);
   display: grid;
   place-items: center;
   border-radius: var(--radius);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   font-size: clamp(1.1rem, 7vw, 2rem);
+  transform: translate(calc(var(--c) * (100% + var(--gap))), calc(var(--r) * (100% + var(--gap))));
+  transition: transform var(--slide) ease-out;
+  z-index: 1;
+}
+
+.merge__tile--gone { z-index: 0; }
+.merge__tile--merge { z-index: 2; animation: merge-pop 180ms ease-out var(--slide) backwards; }
+.merge__tile--spawn { animation: merge-spawn 160ms ease-out var(--slide) backwards; }
+
+@keyframes merge-pop {
+  from { scale: 0.6; }
+  60% { scale: 1.12; }
+  to { scale: 1; }
+}
+
+@keyframes merge-spawn {
+  from { scale: 0; }
+  to { scale: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .merge__tile { transition: none; }
+  .merge__tile--merge,
+  .merge__tile--spawn { animation: none; }
+  .merge[data-tone='urgent'] .statusbar__status { animation: none; }
 }
 
 .merge__tile--d3 { font-size: clamp(1rem, 6vw, 1.7rem); }
@@ -119,6 +147,45 @@
 .merge__arrow:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+/* The other players, pinned to the bottom: one block each, avatar over score
+   over a 32×32 px board, all centred. */
+.merge__strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
+  gap: var(--space-2) var(--space-4);
+  margin: auto 0 0;
+  padding: var(--space-3) 1rem 0;
+  list-style: none;
+}
+
+.merge__rival {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 2.5rem;
+}
+
+.merge__rival-avatar {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.merge__rival-score {
+  font-size: var(--font-small);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.merge__thumb {
+  display: block;
+  width: 32px;
+  height: 32px;
+  border-radius: 3px;
 }
 
 .merge__overlay {

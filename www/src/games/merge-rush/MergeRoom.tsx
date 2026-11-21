@@ -22,6 +22,8 @@ import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
 import { useGameText } from '../../core/i18n/gameText';
 import { tileColor, tileTextColor } from './colors';
+import { moveTiles, tilesFromBoard, type Tile } from './tiles';
+import { timerTone } from './timer';
 import './merge-rush.css';
 
 /**
@@ -49,6 +51,9 @@ function Thumb({ board }: { board: readonly number[] }): JSX.Element {
   }, [board]);
   return <canvas ref={ref} class="merge__thumb" width={32} height={32} aria-hidden="true" />;
 }
+
+/** How long a slide takes; merge-rush.css's `--slide` is the same number. */
+const SLIDE_MS = 110;
 
 const KEYS: Record<string, Dir> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 const ARROWS: { dir: Dir; glyph: string; en: string; fr: string }[] = [
@@ -80,6 +85,23 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
 
   const [game, setGame] = useState<Game | null>(null);
   const gameRef = useRef<Game | null>(null);
+  const [tiles, setTiles] = useState<Tile[]>([]);
+  const tilesRef = useRef<Tile[]>([]);
+  const nextTileId = useRef(1);
+  const clearGone = useRef<number | undefined>(undefined);
+
+  /** Show a new set of tiles; the ones that merged away are dropped once they land. */
+  const showTiles = useCallback((next: Tile[]) => {
+    tilesRef.current = next;
+    setTiles(next);
+    window.clearTimeout(clearGone.current);
+    if (next.some((t) => t.gone)) {
+      clearGone.current = window.setTimeout(() => {
+        tilesRef.current = tilesRef.current.filter((t) => !t.gone);
+        setTiles(tilesRef.current);
+      }, SLIDE_MS + 30);
+    }
+  }, []);
   const [over, setOver] = useState(false);
   const overRef = useRef(false);
   const [left, setLeft] = useState(Math.ceil(MERGE_ROUND_MS / 1000));
@@ -125,7 +147,10 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     overRef.current = mine?.over === true;
     setGame(g);
     setOver(overRef.current);
-  }, [roundId, seed, playing, myId, state]);
+    const built = tilesFromBoard(g.board, nextTileId.current);
+    nextTileId.current = built.nextId;
+    showTiles(built.tiles);
+  }, [roundId, seed, playing, myId, state, showTiles]);
 
   const finish = useCallback(() => {
     if (overRef.current) return;
@@ -157,12 +182,15 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     if (!r.moved) return;
     gameRef.current = r.game;
     setGame(r.game);
+    const moved = moveTiles(tilesRef.current, dir, r.game.board, nextTileId.current);
+    nextTileId.current = moved.nextId;
+    showTiles(moved.tiles);
     if (!canMove(r.game.board)) {
       finish();
       return;
     }
     report();
-  }, [seed, startsAt, finish, report]);
+  }, [seed, startsAt, finish, report, showTiles]);
 
   useEffect(() => {
     if (!playing) return;
@@ -242,7 +270,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const others = Object.entries(state.boards).filter(([id]) => id !== myId);
 
     return (
-      <div class="merge" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
+      <div class="merge" data-tone={timerTone(left)} style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
         <StatusBar
           status={text({ en: `${left} s`, fr: `${left} s` })}
           title={card.title}
@@ -250,20 +278,6 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
           rules={card.rules}
           screen={card.screen}
         />
-
-        {others.length > 0 && (
-          <ul class="merge__strip" aria-label={text({ en: 'The other players', fr: 'Les autres joueurs' })}>
-            {others.map(([id, e]) => (
-              <li key={id} class="merge__rival" title={nameOf(id)}>
-                <Thumb board={e.board} />
-                <span class="merge__rival-meta">
-                  <span aria-hidden="true">{avatarOf(id)}</span>
-                  <b>{e.score}</b>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
 
         <p class="merge__score">
           <b>{game?.score ?? 0}</b> {text({ en: 'points', fr: 'points' })}
@@ -274,22 +288,27 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
           onPointerDown={onDown}
           onPointerUp={onUp}
           onPointerCancel={() => { from.current = null; }}
-          role="grid"
+          role="group"
           aria-label={text({ en: 'Your board', fr: 'Votre plateau' })}
         >
-          {board.map((e, i) => {
-            const v = tileValue(e);
-            return (
-              <div
-                key={i}
-                role="gridcell"
-                class={`merge__tile merge__tile--d${String(v).length}`}
-                style={{ background: tileColor(v), color: tileTextColor(v) }}
-              >
-                {v > 0 ? v : ''}
-              </div>
-            );
-          })}
+          {Array.from({ length: MERGE_SIZE * MERGE_SIZE }, (_, i) => (
+            <div key={i} class="merge__cell" />
+          ))}
+          <div class="merge__tiles">
+            {tiles.map((t) => {
+              const v = tileValue(t.exp);
+              return (
+                <div
+                  key={t.id}
+                  class={`merge__tile merge__tile--d${String(v).length}${t.born ? ` merge__tile--${t.born}` : ''}${t.gone ? ' merge__tile--gone' : ''}`}
+                  style={{ '--r': t.r, '--c': t.c, background: tileColor(v), color: tileTextColor(v) } as JSX.CSSProperties}
+                  aria-label={t.gone ? undefined : String(v)}
+                >
+                  {v}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         <div class="merge__pad">
@@ -306,6 +325,18 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
             </button>
           ))}
         </div>
+
+        {others.length > 0 && (
+          <ul class="merge__strip" aria-label={text({ en: 'The other players', fr: 'Les autres joueurs' })}>
+            {others.map(([id, e]) => (
+              <li key={id} class="merge__rival" title={nameOf(id)}>
+                <span class="merge__rival-avatar" aria-hidden="true">{avatarOf(id)}</span>
+                <b class="merge__rival-score">{e.score}</b>
+                <Thumb board={e.board} />
+              </li>
+            ))}
+          </ul>
+        )}
 
         {countdown > 0 && <p class="merge__overlay merge__overlay--count" aria-live="assertive">{countdown}</p>}
         {over && (
