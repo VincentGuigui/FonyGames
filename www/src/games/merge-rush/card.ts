@@ -16,8 +16,8 @@ export const CARD: GameCard = {
   concept: 'Slide the tiles, merge equal numbers, and watch everyone else’s board climb beside yours.',
   rules: [
     'Swipe to slide every tile. Two equal tiles merge into their double.',
-    'Everyone starts on the same board. A merge scores the new tile.',
-    'Two minutes, or until you run out of moves. Highest score wins.',
+    'Everyone starts on the same board. Tap a thumbnail to watch that player live.',
+    'Time Attack: best score in two minutes. Race: first to the tile. Highlander: merge down to one.',
   ],
   art: { src: art, alt: 'A four-by-four board of coloured tiles, some merged into brighter ones, an arrow sweeping across it' },
   fr: {
@@ -25,16 +25,20 @@ export const CARD: GameCard = {
     concept: 'Faites glisser les tuiles, fusionnez les nombres égaux et regardez les plateaux des autres grimper à côté du vôtre.',
     rules: [
       'Glissez pour déplacer toutes les tuiles. Deux tuiles égales fusionnent en leur double.',
-      'Tout le monde part du même plateau. Une fusion rapporte la nouvelle tuile.',
-      'Deux minutes, ou jusqu’à ce qu’il n’y ait plus de coup. Le meilleur score gagne.',
+      'Tout le monde part du même plateau. Touchez une miniature pour suivre ce joueur en direct.',
+      'Contre-la-montre : meilleur score en deux minutes. Course : le premier à la tuile. Highlander : fusionnez jusqu’à une seule.',
     ],
     art: { alt: 'Un plateau de quatre par quatre de tuiles colorées, certaines fusionnées en tuiles plus vives, une flèche qui le traverse' },
   },
   accent: '#F472B6',
   players: PLAYERS['merge-rush'],
-  duration: '2 min',
+  duration: '2–3 min',
   inputs: ['touch'],
   tags: ['party', 'arcade', 'strategy'],
-  modes: [],
+  modes: [
+    { id: 'time-attack', name: 'Time Attack', blurb: 'Two minutes, highest score wins' },
+    { id: 'race', name: 'Race to 2048', blurb: 'First to make the tile wins — 256 up to 8192' },
+    { id: 'highlander', name: 'Highlander', blurb: 'There can be only one: merge the puzzle down to one tile' },
+  ],
   status: 'live',
 };

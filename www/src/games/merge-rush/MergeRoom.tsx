@@ -4,15 +4,17 @@ import type { GameCard } from '../../core/types';
 import {
   MERGE_MAX_PLAYERS,
   MERGE_MIN_PLAYERS,
+  MERGE_DEFAULT_TARGET,
   MERGE_REPORT_MS,
-  MERGE_ROUND_MS,
   MERGE_SIZE,
   MERGE_SWIPE_PX,
+  type MergeEntry,
+  type MergeOptions,
   type MergeRushState,
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { bestLevel, canMove, newGame, step, tileValue, type Dir, type Game } from '../../../../shared/merge';
+import { bestLevel, bestTile, canMove, compareEntries, hasWon, step, tileValue, tilesLeft, type Dir, type Game } from '../../../../shared/merge';
 import { useGameRoom } from '../../core/room/useRoom';
 import { useSoloTesting } from '../../core/useSolo';
 import { RoomGate } from '../../lobby/RoomGate';
@@ -24,6 +26,8 @@ import { useGameText } from '../../core/i18n/gameText';
 import { tileColor, tileTextColor } from './colors';
 import { moveTiles, tilesFromBoard, type Tile } from './tiles';
 import { timerTone } from './timer';
+import { MergeOptionsPanel } from './MergeOptions';
+import { modeName } from './modes';
 import './merge-rush.css';
 
 /**
@@ -55,6 +59,22 @@ function Thumb({ board }: { board: readonly number[] }): JSX.Element {
 /** How long a slide takes; merge-rush.css's `--slide` is the same number. */
 const SLIDE_MS = 110;
 
+/** Another player's board, full size and live, while you watch it (spec §4). */
+function Spy({ board }: { board: readonly number[] }): JSX.Element {
+  return (
+    <div class="merge__spy-board">
+      {board.map((e, i) => {
+        const v = tileValue(e);
+        return (
+          <div key={i} class={`merge__spy-cell merge__tile--d${String(v).length}`} style={{ background: tileColor(v), color: tileTextColor(v) }}>
+            {v > 0 ? v : ''}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const KEYS: Record<string, Dir> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
 const ARROWS: { dir: Dir; glyph: string; en: string; fr: string }[] = [
   { dir: 'left', glyph: '←', en: 'Slide left', fr: 'Glisser à gauche' },
@@ -68,6 +88,10 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   const text = useGameText();
   const solo = useSoloTesting();
   const [state, setState] = useState<MergeRushState | null>(null);
+  const [options, setOptions] = useState<MergeOptions>({ mode: 'time-attack', target: MERGE_DEFAULT_TARGET });
+  const [spy, setSpy] = useState<string | null>(null);
+  const spyRef = useRef<string | null>(null);
+  spyRef.current = spy;
 
   const onGame = useCallback((msg: ServerMessage) => {
     if (msg.t === 'merge-rush') setState(msg.d);
@@ -82,6 +106,10 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   const seed = state?.seed;
   const startsAt = state?.startsAt ?? 0;
   const playing = state?.phase === 'playing';
+  const mode = state?.mode ?? 'time-attack';
+  const target = state?.target ?? 0;
+  const roundMs = state?.roundMs ?? 0;
+  const startBoard = state?.start;
 
   const [game, setGame] = useState<Game | null>(null);
   const gameRef = useRef<Game | null>(null);
@@ -104,7 +132,8 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   }, []);
   const [over, setOver] = useState(false);
   const overRef = useRef(false);
-  const [left, setLeft] = useState(Math.ceil(MERGE_ROUND_MS / 1000));
+  /** Seconds left on a countdown; seconds gone in a race, which counts up. */
+  const [clock, setClock] = useState(0);
   const [countdown, setCountdown] = useState(0);
 
   const sentAt = useRef(0);
@@ -133,16 +162,16 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     pending.current = window.setTimeout(() => send(false), wait);
   }, [send]);
 
-  // The board for a round, built once from the room's seed. A phone that comes
-  // back mid-round resumes from the referee's copy: every spawn is a function of
-  // the seed and the move count, so the next one lands exactly where it would have.
+  // The board for a round, built once from the room's starting board. A phone that
+  // comes back mid-round resumes from the referee's copy: every spawn is a function
+  // of the seed and the move count, so the next one lands exactly where it would have.
   const builtFor = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (roundId === undefined || seed === undefined || !playing || myId === undefined) return;
+    if (roundId === undefined || startBoard === undefined || !playing || myId === undefined) return;
     if (builtFor.current === roundId) return;
     builtFor.current = roundId;
     const mine = state?.boards[myId];
-    const g: Game = mine && mine.moves > 0 ? { board: mine.board, score: mine.score, moves: mine.moves } : newGame(seed);
+    const g: Game = mine && mine.moves > 0 ? { board: mine.board, score: mine.score, moves: mine.moves } : { board: startBoard, score: 0, moves: 0 };
     gameRef.current = g;
     overRef.current = mine?.over === true;
     setGame(g);
@@ -150,7 +179,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const built = tilesFromBoard(g.board, nextTileId.current);
     nextTileId.current = built.nextId;
     showTiles(built.tiles);
-  }, [roundId, seed, playing, myId, state, showTiles]);
+  }, [roundId, startBoard, playing, myId, state, showTiles]);
 
   const finish = useCallback(() => {
     if (overRef.current) return;
@@ -166,35 +195,59 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
       const now = clientRef.current?.now() ?? Date.now();
       const into = now - startsAt;
       setCountdown(into < 0 ? Math.ceil(-into / 1000) : 0);
-      setLeft(Math.max(0, Math.ceil((MERGE_ROUND_MS - Math.max(0, into)) / 1000)));
-      if (into >= MERGE_ROUND_MS) finish();
+      if (roundMs > 0) {
+        setClock(Math.max(0, Math.ceil((roundMs - Math.max(0, into)) / 1000)));
+        if (into >= roundMs) finish();
+      } else {
+        setClock(Math.max(0, Math.floor(into / 1000)));
+      }
     };
     tick();
     const id = window.setInterval(tick, 200);
     return () => window.clearInterval(id);
-  }, [playing, startsAt, finish]);
+  }, [playing, startsAt, roundMs, finish]);
 
   const move = useCallback((dir: Dir) => {
     const g = gameRef.current;
     const now = clientRef.current?.now() ?? Date.now();
-    if (!g || seed === undefined || overRef.current || now < startsAt) return;
-    const r = step(g, dir, seed);
+    if (!g || seed === undefined || overRef.current || now < startsAt || spyRef.current) return;
+    const r = step(g, dir, seed, mode !== 'highlander');
     if (!r.moved) return;
     gameRef.current = r.game;
     setGame(r.game);
     const moved = moveTiles(tilesRef.current, dir, r.game.board, nextTileId.current);
     nextTileId.current = moved.nextId;
     showTiles(moved.tiles);
-    if (!canMove(r.game.board)) {
+    // Reaching the goal is sent at once, not on the throttle: in a race the
+    // first report to arrive wins.
+    if (hasWon(mode, target, r.game.board) || !canMove(r.game.board)) {
       finish();
       return;
     }
     report();
-  }, [seed, startsAt, finish, report, showTiles]);
+  }, [seed, startsAt, mode, target, finish, report, showTiles]);
+
+  /** Highlander only: the puzzle back to its start. Moves keep counting. */
+  const restart = useCallback(() => {
+    const g = gameRef.current;
+    if (!g || !startBoard || overRef.current) return;
+    const next: Game = { board: startBoard, score: g.score, moves: g.moves };
+    gameRef.current = next;
+    setGame(next);
+    const built = tilesFromBoard(next.board, nextTileId.current);
+    nextTileId.current = built.nextId;
+    showTiles(built.tiles);
+    report();
+  }, [startBoard, showTiles, report]);
 
   useEffect(() => {
     if (!playing) return;
     const onKey = (e: KeyboardEvent): void => {
+      if (spyRef.current) {
+        if (e.key === 'Escape' || KEYS[e.key]) e.preventDefault();
+        if (e.key === 'Escape') setSpy(null);
+        return;
+      }
       const dir = KEYS[e.key];
       if (!dir) return;
       e.preventDefault();
@@ -225,24 +278,51 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   const avatarOf = (id: string): string => players.find((p) => p.id === id)?.avatar ?? '🙂';
 
   const start = useCallback(() => {
-    clientRef.current?.send({ t: 'start', d: { mode: 'merge', solo } });
-  }, [solo]);
+    clientRef.current?.send({ t: 'start', d: { mode: 'merge', solo, merge: { ...options } } });
+  }, [solo, options]);
 
   const canStart = room.isHost && enoughToStart(room.connected, [MERGE_MIN_PLAYERS, MERGE_MAX_PLAYERS], solo);
 
+  /** The number beside a player in the strip and on the results: what the mode is won on. */
+  const standing = (e: MergeEntry, m: typeof mode): { en: string; fr: string } => {
+    if (m === 'highlander') {
+      const left = tilesLeft(e.board);
+      return { en: `${left} ${left === 1 ? 'tile' : 'tiles'}`, fr: `${left} ${left === 1 ? 'tuile' : 'tuiles'}` };
+    }
+    if (m === 'race') return { en: String(bestTile(e.board)), fr: String(bestTile(e.board)) };
+    return { en: String(e.score), fr: String(e.score) };
+  };
+
   if (state && state.phase === 'done') {
+    const ahead = compareEntries(state.mode);
     const rows = Object.entries(state.boards)
-      .sort((a, b) => b[1].score - a[1].score)
-      .map(([id, e]) => ({
-        id,
-        avatar: avatarOf(id),
-        name: nameOf(id),
-        value: text({
-          en: `${e.score} pts · lvl ${bestLevel(e.board)}`,
-          fr: `${e.score} pts · niv. ${bestLevel(e.board)}`,
-        }),
-        out: false,
-      }));
+      .sort((a, b) => (a[0] === state.winner ? -1 : b[0] === state.winner ? 1 : ahead(a[1], b[1])))
+      .map(([id, e]) => {
+        const left = tilesLeft(e.board);
+        return {
+          id,
+          avatar: avatarOf(id),
+          name: nameOf(id),
+          value: text(
+            state.mode === 'highlander'
+              ? {
+                  en: `${left} ${left === 1 ? 'tile' : 'tiles'} · ${e.moves} moves`,
+                  fr: `${left} ${left === 1 ? 'tuile' : 'tuiles'} · ${e.moves} coups`,
+                }
+              : { en: `${e.score} pts · lvl ${bestLevel(e.board)}`, fr: `${e.score} pts · niv. ${bestLevel(e.board)}` },
+          ),
+          out: false,
+        };
+      });
+    const note =
+      state.mode === 'highlander'
+        ? { en: 'First down to one tile wins; otherwise the fewest tiles left.', fr: 'Le premier à une seule tuile gagne ; sinon, le moins de tuiles restantes.' }
+        : state.mode === 'race'
+          ? {
+              en: `First to make ${tileValue(state.target)} wins. Level n is the 2ⁿ tile.`,
+              fr: `Le premier à faire ${tileValue(state.target)} gagne. Niveau n = la tuile 2ⁿ.`,
+            }
+          : { en: 'A merge scores the tile it makes. Level n is the 2ⁿ tile.', fr: 'Une fusion rapporte la tuile qu’elle crée. Niveau n = la tuile 2ⁿ.' };
     return (
       <GameOverScreen
         room={room}
@@ -252,11 +332,9 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         title={card.title}
         concept={card.concept}
         rules={card.rules}
+        status={text(modeName(state.mode, state.target))}
         headline={state.solo ? text({ en: 'Well played!', fr: 'Bravo !' }) : undefined}
-        note={text({
-          en: 'A merge scores the tile it makes. Level n is the 2ⁿ tile.',
-          fr: 'Une fusion rapporte la tuile qu’elle crée. Niveau n = la tuile 2ⁿ.',
-        })}
+        note={text(note)}
         rows={rows}
         me={myId}
         winner={state.winner}
@@ -269,11 +347,15 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   if (state) {
     const board = game?.board ?? state.boards[myId ?? '']?.board ?? [];
     const others = Object.entries(state.boards).filter(([id]) => id !== myId);
+    const watched = spy ? state.boards[spy] : undefined;
+    const mm = `${Math.floor(clock / 60)}:${String(clock % 60).padStart(2, '0')}`;
+    const clockText = roundMs > 0 ? `${clock} s` : mm;
+    const solvedOrWon = hasWon(mode, target, board);
 
     return (
-      <div class="merge" data-tone={timerTone(left)} style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
+      <div class="merge" data-tone={roundMs > 0 ? timerTone(clock) : 'calm'} style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
         <StatusBar
-          status={text({ en: `${left} s`, fr: `${left} s` })}
+          status={text({ en: clockText, fr: clockText })}
           title={card.title}
           concept={card.concept}
           rules={card.rules}
@@ -281,7 +363,19 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         />
 
         <p class="merge__score">
-          <b>{game?.score ?? 0}</b> {text({ en: 'points', fr: 'points' })}
+          {mode === 'highlander' ? (
+            <>
+              <b>{tilesLeft(board)}</b> {tilesLeft(board) === 1 ? text({ en: 'tile left', fr: 'tuile restante' }) : text({ en: 'tiles left', fr: 'tuiles restantes' })}
+            </>
+          ) : (
+            <>
+              <b>{game?.score ?? 0}</b> {text({ en: 'points', fr: 'points' })}
+            </>
+          )}
+        </p>
+        <p class="merge__goal">
+          {text(modeName(mode, target))}
+          {mode === 'race' && ` · ${text({ en: 'best', fr: 'record' })} ${bestTile(board)}`}
         </p>
 
         <div
@@ -312,7 +406,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
           </div>
         </div>
 
-        <div class="merge__pad">
+        <div class={`merge__pad${mode === 'highlander' ? ' merge__pad--restart' : ''}`}>
           {ARROWS.map((a) => (
             <button
               key={a.dir}
@@ -325,15 +419,33 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
               {a.glyph}
             </button>
           ))}
+          {mode === 'highlander' && (
+            <button
+              type="button"
+              class="merge__arrow merge__restart"
+              aria-label={text({ en: 'Start the puzzle again', fr: 'Recommencer le puzzle' })}
+              disabled={over || countdown > 0}
+              onClick={restart}
+            >
+              ↺
+            </button>
+          )}
         </div>
 
         {others.length > 0 && (
           <ul class="merge__strip" aria-label={text({ en: 'The other players', fr: 'Les autres joueurs' })}>
             {others.map(([id, e]) => (
-              <li key={id} class="merge__rival" title={nameOf(id)}>
-                <span class="merge__rival-avatar" aria-hidden="true">{avatarOf(id)}</span>
-                <b class="merge__rival-score">{e.score}</b>
-                <Thumb board={e.board} />
+              <li key={id}>
+                <button
+                  type="button"
+                  class="merge__rival"
+                  aria-label={text({ en: `Watch ${nameOf(id)}’s board`, fr: `Voir le plateau de ${nameOf(id)}` })}
+                  onClick={() => setSpy(id)}
+                >
+                  <span class="merge__rival-avatar" aria-hidden="true">{avatarOf(id)}</span>
+                  <b class="merge__rival-score">{text(standing(e, mode))}</b>
+                  <Thumb board={e.board} />
+                </button>
               </li>
             ))}
           </ul>
@@ -342,13 +454,35 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         {countdown > 0 && <p class="merge__overlay merge__overlay--count" aria-live="assertive">{countdown}</p>}
         {over && (
           <p class="merge__overlay" aria-live="polite">
-            {canMove(board)
-              ? text({ en: 'Time. Waiting for the rest.', fr: 'Temps écoulé. On attend les autres.' })
-              : text({ en: 'No moves left. Waiting for the rest.', fr: 'Plus de coup. On attend les autres.' })}
+            {solvedOrWon
+              ? mode === 'highlander'
+                ? text({ en: 'Solved!', fr: 'Résolu !' })
+                : text({ en: `You made ${tileValue(target)}!`, fr: `Vous avez fait ${tileValue(target)} !` })
+              : canMove(board)
+                ? text({ en: 'Time. Waiting for the rest.', fr: 'Temps écoulé. On attend les autres.' })
+                : text({ en: 'No moves left. Waiting for the rest.', fr: 'Plus de coup. On attend les autres.' })}
           </p>
         )}
+
+        {spy && watched && (
+          <div
+            class="merge__spy"
+            role="dialog"
+            aria-label={text({ en: `${nameOf(spy)}’s board`, fr: `Plateau de ${nameOf(spy)}` })}
+            onClick={() => setSpy(null)}
+          >
+            <p class="merge__spy-who">
+              <span aria-hidden="true">{avatarOf(spy)}</span> {nameOf(spy)} · <b>{text(standing(watched, mode))}</b>
+            </p>
+            <Spy board={watched.board} />
+            <p class="merge__spy-hint">{text({ en: 'Tap anywhere to close', fr: 'Touchez n’importe où pour fermer' })}</p>
+          </div>
+        )}
+
         <p class="visually-hidden" aria-live="polite">
-          {text({ en: `${game?.score ?? 0} points`, fr: `${game?.score ?? 0} points` })}
+          {mode === 'highlander'
+            ? text({ en: `${tilesLeft(board)} tiles left`, fr: `${tilesLeft(board)} tuiles restantes` })
+            : text({ en: `${game?.score ?? 0} points`, fr: `${game?.score ?? 0} points` })}
         </p>
       </div>
     );
@@ -367,6 +501,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
       canStart={canStart}
       startLabel={t.common.startRound}
       onStart={start}
+      extras={<MergeOptionsPanel value={options} onChange={setOptions} editable={room.isHost} />}
     />
   );
 }

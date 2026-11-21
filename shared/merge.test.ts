@@ -1,9 +1,17 @@
-import { MERGE_CELLS, MERGE_MAX_EXPONENT } from './protocol';
+import { MERGE_CELLS, MERGE_HIGHLANDER_MS, MERGE_MAX_EXPONENT, MERGE_ROUND_MS } from './protocol';
 import {
   DIRS,
   bestLevel,
   bestTile,
   canMove,
+  compareEntries,
+  hasWon,
+  normaliseMergeOptions,
+  puzzle,
+  PUZZLE_MIN_DEPTH,
+  roundMsFor,
+  solveDepth,
+  tilesLeft,
   isBoard,
   mass,
   maxMass,
@@ -173,10 +181,76 @@ function bounds(): void {
   check('an empty board is level 0', bestLevel(new Array(16).fill(0)) === 0);
 }
 
+function modes(): void {
+  console.log('\nthree ways to play (§3)');
+  check('nothing chosen is Time Attack', JSON.stringify(normaliseMergeOptions(undefined)) === '{"mode":"time-attack","target":0}');
+  check('a race keeps its target', JSON.stringify(normaliseMergeOptions({ mode: 'race', target: 9 })) === '{"mode":"race","target":9}');
+  check('a race with no target races to 2048', normaliseMergeOptions({ mode: 'race' }).target === 11);
+  check('a target off the list is 2048 too', normaliseMergeOptions({ mode: 'race', target: 14 }).target === 11);
+  check('only a race has a target', normaliseMergeOptions({ mode: 'highlander', target: 9 }).target === 0);
+  check('an unknown mode is Time Attack', normaliseMergeOptions({ mode: 'blitz' }).mode === 'time-attack');
+  check('Time Attack runs two minutes, Highlander three, a race counts up', roundMsFor('time-attack') === MERGE_ROUND_MS && roundMsFor('highlander') === MERGE_HIGHLANDER_MS && roundMsFor('race') === 0);
+
+  const b512 = rows([512, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 2]);
+  check('a race is won by the target tile', hasWon('race', 9, b512));
+  check('or anything bigger', hasWon('race', 8, b512));
+  check('not by a smaller one', !hasWon('race', 10, b512));
+  check('Highlander is won by one tile left', hasWon('highlander', 0, rows([0, 0, 0, 0], [0, 64, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0])));
+  check('not by two', !hasWon('highlander', 0, b512));
+  check('Time Attack is never won early', !hasWon('time-attack', 0, b512));
+
+  console.log('\nwho is ahead, by each mode\'s measure (§2)');
+  const e = (score: number, moves: number, board: Board) => ({ score, moves, board });
+  const big = rows([256, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]);
+  const small = rows([64, 64, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]);
+  check('Time Attack: the higher score', compareEntries('time-attack')(e(900, 50, small), e(800, 10, big)) < 0);
+  check('a race: the bigger tile, whatever the score', compareEntries('race')(e(100, 50, big), e(900, 10, small)) < 0);
+  check('a race on the same tile: the higher score', compareEntries('race')(e(900, 50, big), e(100, 10, big)) < 0);
+  check('Highlander: fewer tiles left', compareEntries('highlander')(e(0, 90, big), e(500, 10, small)) < 0);
+  check('every mode: fewer moves breaks a tie', compareEntries('time-attack')(e(100, 9, big), e(100, 10, big)) < 0);
+  check('a dead heat keeps the order it was given in', compareEntries('time-attack')(e(100, 9, big), e(100, 9, big)) === 0);
+}
+
+function highlander(): void {
+  console.log('\nHighlander: a puzzle that is proved solvable (§3)');
+  check('one tile is solved', solveDepth(rows([0, 0, 0, 0], [0, 8, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0])) === 0);
+  check('two equal tiles in a row take one move', solveDepth(rows([2, 2, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0])) === 1);
+  check('two unequal tiles never merge', solveDepth(rows([2, 4, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0])) === null);
+
+  let ok = 0;
+  let slowest = 0;
+  let deepest = 0;
+  const n = 120;
+  for (let seed = 1; seed <= n; seed++) {
+    const t0 = performance.now();
+    const p = puzzle(seed * 2654435761);
+    slowest = Math.max(slowest, performance.now() - t0);
+    const d = solveDepth(p);
+    const m = mass(p);
+    const tiles = tilesLeft(p);
+    if (d !== null && d >= PUZZLE_MIN_DEPTH && (m & (m - 1)) === 0 && tiles >= 5 && tiles <= 7) ok++;
+    deepest = Math.max(deepest, d ?? 0);
+  }
+  check(`${n} puzzles: every one solvable, at least ${PUZZLE_MIN_DEPTH} moves deep, 5-7 tiles adding to a power of two (${ok}/${n})`, ok === n);
+  check(`the deepest needs ${deepest} moves`, deepest >= PUZZLE_MIN_DEPTH);
+  check(`and the slowest took ${slowest.toFixed(0)} ms to build`, slowest < 2000);
+  check('the same seed is the same puzzle', puzzle(42).join() === puzzle(42).join());
+  check('a different seed is a different one', puzzle(42).join() !== puzzle(43).join());
+  check('the fallback board is solvable too', solveDepth([1, 0, 0, 1, 0, 2, 0, 0, 0, 0, 3, 0, 4, 0, 0, 5]) !== null);
+
+  const p = puzzle(7);
+  const s = step({ board: p, score: 0, moves: 0 }, 'left', 7, false);
+  const sl = slide(p, 'left');
+  check('with spawns off, a move is the slide and nothing else', !sl.moved || same(s.game.board, sl.board));
+  check('so the total never changes', !sl.moved || mass(s.game.board) === mass(p));
+}
+
 sliding();
 moving();
 sameLuck();
 bounds();
+modes();
+highlander();
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);
 console.log(`\nall ${checks} passed`);

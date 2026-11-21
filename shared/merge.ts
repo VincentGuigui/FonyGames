@@ -1,9 +1,16 @@
 import {
   MERGE_CELLS,
+  MERGE_DEFAULT_TARGET,
   MERGE_FOUR_CHANCE,
+  MERGE_HIGHLANDER_MS,
   MERGE_MAX_EXPONENT,
   MERGE_MAX_MOVES_PER_S,
+  MERGE_MODES,
+  MERGE_ROUND_MS,
   MERGE_SIZE,
+  MERGE_TARGETS,
+  type MergeMode,
+  type MergeOptions,
 } from './protocol';
 
 /**
@@ -104,12 +111,15 @@ export function slide(board: Board, dir: Dir): { board: Board; gained: number; m
   return { board: next, gained, moved: next.some((e, i) => e !== board[i]) };
 }
 
-/** One move: slide, score, and — only if something moved — the next spawn. */
-export function step(game: Game, dir: Dir, seed: number): { game: Game; moved: boolean } {
+/**
+ * One move: slide, score, and — only if something moved — the next spawn.
+ * Highlander passes `spawns: false`: nothing new ever appears on its board.
+ */
+export function step(game: Game, dir: Dir, seed: number, spawns = true): { game: Game; moved: boolean } {
   const s = slide(game.board, dir);
   if (!s.moved) return { game, moved: false };
   // Two spawns start the board and every move spawns exactly one.
-  const board = spawn(s.board, seed, 2 + game.moves);
+  const board = spawns ? spawn(s.board, seed, 2 + game.moves) : s.board;
   return { game: { board, score: game.score + s.gained, moves: game.moves + 1 }, moved: true };
 }
 
@@ -168,4 +178,123 @@ export function maxMass(startMass: number, moves: number): number {
  */
 export function maxScore(startMass: number, moves: number): number {
   return MERGE_MAX_EXPONENT * maxMass(startMass, moves);
+}
+
+/* ── Modes (spec §3) ─────────────────────────────────────────────────────── */
+
+export function tilesLeft(board: Board): number {
+  return board.filter((e) => e > 0).length;
+}
+
+/** The host's choice, from whatever arrived; anything unknown is the default. */
+export function normaliseMergeOptions(raw: unknown): MergeOptions {
+  const o = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
+  const mode = (MERGE_MODES as readonly unknown[]).includes(o['mode']) ? (o['mode'] as MergeMode) : 'time-attack';
+  const target = (MERGE_TARGETS as readonly unknown[]).includes(o['target']) ? (o['target'] as number) : MERGE_DEFAULT_TARGET;
+  return { mode, target: mode === 'race' ? target : 0 };
+}
+
+/** The countdown a mode runs on; 0 for a race, which has none. */
+export function roundMsFor(mode: MergeMode): number {
+  return mode === 'time-attack' ? MERGE_ROUND_MS : mode === 'highlander' ? MERGE_HIGHLANDER_MS : 0;
+}
+
+/** Has this board won the round outright: the target tile in a race, one tile in Highlander. */
+export function hasWon(mode: MergeMode, target: number, board: Board): boolean {
+  if (mode === 'race') return bestLevel(board) >= target;
+  if (mode === 'highlander') return tilesLeft(board) === 1;
+  return false;
+}
+
+export type Ranked = { score: number; moves: number; board: Board };
+
+/**
+ * Who is ahead, by each mode's own measure; a full tie keeps the order it was
+ * given in, which is join order. Time Attack is the score; a race is the
+ * biggest tile, then the score; Highlander is the fewest tiles left. Fewer
+ * moves breaks every tie.
+ */
+export function compareEntries(mode: MergeMode): (a: Ranked, b: Ranked) => number {
+  return (a, b) => {
+    if (mode === 'highlander') {
+      const t = tilesLeft(a.board) - tilesLeft(b.board);
+      if (t !== 0) return t;
+    } else {
+      if (mode === 'race') {
+        const l = bestLevel(b.board) - bestLevel(a.board);
+        if (l !== 0) return l;
+      }
+      if (b.score !== a.score) return b.score - a.score;
+    }
+    return a.moves - b.moves;
+  };
+}
+
+/**
+ * The fewest moves that bring a board down to one tile with nothing spawning,
+ * or null if that cannot be done within `maxStates` boards. Breadth first, so
+ * the first one-tile board found is the shortest solution.
+ */
+export function solveDepth(start: Board, maxStates = 20_000): number | null {
+  if (tilesLeft(start) === 1) return 0;
+  const seen = new Set<string>([start.join(',')]);
+  let frontier: Board[] = [start];
+  for (let depth = 1; frontier.length > 0; depth++) {
+    const next: Board[] = [];
+    for (const board of frontier) {
+      for (const dir of DIRS) {
+        const s = slide(board, dir);
+        if (!s.moved) continue;
+        if (tilesLeft(s.board) === 1) return depth;
+        const key = s.board.join(',');
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (seen.size > maxStates) return null;
+        next.push(s.board);
+      }
+    }
+    frontier = next;
+  }
+  return null;
+}
+
+/** The fewest moves a Highlander puzzle may be solved in, so it is a puzzle. */
+export const PUZZLE_MIN_DEPTH = 6;
+
+/**
+ * Highlander's board: tiles that add up to one power of two, placed so the
+ * board can be merged down to that one tile — proved by solving it, not hoped.
+ *
+ * Built by splitting a single tile in halves until there are enough pieces,
+ * which keeps the total a power of two by construction; the solver then rejects
+ * any placement that cannot be finished, or finishes too quickly to be a puzzle.
+ */
+export function puzzle(seed: number): Board {
+  for (let attempt = 0; attempt < 400; attempt++) {
+    const random = mulberry32(Math.imul(seed ^ 0x2545f491, 1) + Math.imul(attempt + 1, 0x27d4eb2d));
+    const top = 5 + Math.floor(random() * 2);
+    const count = 5 + Math.floor(random() * 3);
+    const pieces = [top];
+    while (pieces.length < count) {
+      const splittable = pieces.map((e, i) => (e >= 2 ? i : -1)).filter((i) => i >= 0);
+      if (splittable.length === 0) break;
+      const at = splittable[Math.floor(random() * splittable.length)] as number;
+      const e = pieces[at] as number;
+      pieces.splice(at, 1, e - 1, e - 1);
+    }
+    const cells = Array.from({ length: MERGE_CELLS }, (_, i) => i);
+    for (let i = cells.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [cells[i], cells[j]] = [cells[j] as number, cells[i] as number];
+    }
+    const board = new Array<number>(MERGE_CELLS).fill(0);
+    pieces.forEach((e, i) => {
+      board[cells[i] as number] = e;
+    });
+    const depth = solveDepth(board);
+    if (depth !== null && depth >= PUZZLE_MIN_DEPTH) return board;
+  }
+  // Never reached in practice (the tests sweep hundreds of seeds); a known
+  // solvable board rather than an endless loop if it ever were.
+  return [1, 0, 0, 1, 0, 2, 0, 0, 0, 0, 3, 0, 4, 0, 0, 5];
 }

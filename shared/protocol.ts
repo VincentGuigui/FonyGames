@@ -125,6 +125,9 @@ export type ClientMessage =
         /** Blink Tapper's light count and duration — options, not a mode
          *  (blink-tapper.md §3), sanitised by `normaliseBlinkOptions`. */
         blink?: { lights?: number; duration?: number };
+        /** Merge Rush's mode and, for a race, the target tile's exponent
+         *  (merge-rush.md §3), sanitised by `normaliseMergeOptions`. */
+        merge?: { mode?: string; target?: number };
         /**
          * Solo test mode — start with one player, for looking at a game rather than
          * playing it. Set by a browser that has signed into the admin centre; the
@@ -3937,7 +3940,20 @@ export const MERGE_CELLS = MERGE_SIZE * MERGE_SIZE;
 /** The largest exponent a cell can hold: 2^17 is the most a 4×4 board can build. */
 export const MERGE_MAX_EXPONENT = 17;
 
+/** The three ways to play (spec §3). */
+export const MERGE_MODES = ['time-attack', 'race', 'highlander'] as const;
+export type MergeMode = (typeof MERGE_MODES)[number];
+
+/** A race's target tiles, as exponents: 256 up to 8192. */
+export const MERGE_TARGETS = [8, 9, 10, 11, 12, 13] as const;
+export const MERGE_DEFAULT_TARGET = 11;
+
+/** Time Attack's clock. */
 export const MERGE_ROUND_MS = 120_000;
+/** Highlander's clock: long enough to solve the puzzle and restart it once or twice. */
+export const MERGE_HIGHLANDER_MS = 180_000;
+/** A race has no clock of its own; this only stops a room that never gets there. */
+export const MERGE_RACE_CAP_MS = 30 * 60_000;
 export const MERGE_COUNTDOWN_MS = 3000;
 /** How long past the round the referee waits for the final reports. */
 export const MERGE_REPORT_GRACE_MS = 4000;
@@ -3959,11 +3975,20 @@ export type MergeEntry = {
   over: boolean;
 };
 
+export type MergeOptions = { mode: MergeMode; target: number };
+
 export type MergeRushState = {
   roundId: number;
   phase: 'playing' | 'done';
   startsAt: number;
   endsAt: number;
+  mode: MergeMode;
+  /** A race's target exponent; 0 in the other modes. */
+  target: number;
+  /** The countdown phones show; 0 for a race, which counts up instead. */
+  roundMs: number;
+  /** The board every player starts on — a puzzle in Highlander. */
+  start: number[];
   /** Every phone builds the starting board and every spawn from this. */
   seed: number;
   boards: Record<PlayerId, MergeEntry>;

@@ -48,6 +48,12 @@
   color: var(--color-text-dim);
 }
 
+.merge__goal {
+  margin: calc(-1 * var(--space-2)) 0 0;
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
 .merge__score b {
   font-size: 2.4rem;
   color: var(--color-text);
@@ -131,6 +137,14 @@
   gap: var(--space-2);
 }
 
+.merge__pad--restart {
+  grid-template-columns: repeat(5, 3.2rem);
+}
+
+.merge__restart {
+  color: var(--game-accent);
+}
+
 .merge__arrow {
   min-height: 2.75rem;
   font: inherit;
@@ -168,6 +182,18 @@
   align-items: center;
   gap: 2px;
   min-width: 2.5rem;
+  padding: 2px 4px;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-radius: var(--radius);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.merge__rival:focus-visible {
+  outline: 2px solid var(--game-accent);
 }
 
 .merge__rival-avatar {
@@ -206,4 +232,138 @@
 .merge__overlay--count {
   font-size: clamp(4rem, 22vh, 10rem);
   color: var(--game-accent);
+}
+
+/* Watching another player: their board, full size and live, over everything.
+   A tap anywhere closes it. */
+.merge__spy {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: 1rem;
+  background: var(--color-bg);
+  cursor: pointer;
+}
+
+.merge__spy-who {
+  margin: 0;
+  font-size: var(--font-title);
+  color: var(--color-text);
+}
+
+.merge__spy-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--gap);
+  width: min(86vw, 56dvh, 26rem);
+  aspect-ratio: 1;
+  padding: var(--gap);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--color-text) 8%, var(--color-bg));
+}
+
+.merge__spy-cell {
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.1rem, 7vw, 2rem);
+}
+
+.merge__spy-hint {
+  margin: 0;
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+/* The lobby's mode picker. */
+.merge-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.merge-options__group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.merge-options__group:disabled {
+  opacity: 0.7;
+}
+
+.merge-options__legend {
+  padding: 0 0 var(--space-1);
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.merge-options__modes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.merge-options__mode {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  text-align: left;
+  color: var(--color-text-dim);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.merge-options__mode b {
+  color: var(--color-text);
+}
+
+.merge-options__mode span {
+  font-size: var(--font-small);
+}
+
+.merge-options__mode--on {
+  border-color: var(--game-accent, var(--color-accent));
+  background: color-mix(in srgb, var(--game-accent, var(--color-accent)) 18%, var(--color-surface));
+}
+
+.merge-options__targets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.merge-options__stop {
+  min-height: 2.75rem;
+  font: inherit;
+  font-size: var(--font-title);
+  font-weight: 700;
+  color: var(--color-text-dim);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.merge-options__stop--on {
+  color: var(--color-on-accent);
+  background: var(--game-accent, var(--color-accent));
+  border-color: var(--game-accent, var(--color-accent));
+}
+
+.merge-options__mode:disabled,
+.merge-options__stop:disabled {
+  cursor: default;
 }

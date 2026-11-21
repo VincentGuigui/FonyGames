@@ -2,21 +2,36 @@ import {
   MERGE_COUNTDOWN_MS,
   MERGE_MAX_PLAYERS,
   MERGE_MIN_PLAYERS,
+  MERGE_RACE_CAP_MS,
   MERGE_REPORT_GRACE_MS,
-  MERGE_ROUND_MS,
   type MergeEntry,
+  type MergeMode,
   type MergeRushState,
   type PlayerId,
   type ServerMessage,
 } from '../shared/protocol';
 import { enoughToStart } from '../shared/players';
-import { isBoard, mass, maxMass, maxMoves, maxScore, startBoard } from '../shared/merge';
+import {
+  compareEntries,
+  hasWon,
+  isBoard,
+  mass,
+  maxMass,
+  maxMoves,
+  maxScore,
+  normaliseMergeOptions,
+  puzzle,
+  roundMsFor,
+  startBoard,
+} from '../shared/merge';
 
 /**
  * Merge Rush. Spec: docs/specs/games/merge-rush.md
  *
- * The moves happen on the phones. This file owns the seed, the clock and the
- * winner, and the bound on what a phone claims about its own board (spec §8).
+ * The moves happen on the phones. This file owns the seed, the starting board,
+ * the clock and the winner, and the bound on what a phone claims about its own
+ * board (spec §8). A race and Highlander are won outright by the first phone
+ * whose accepted board meets the goal; Time Attack only ever ends on the clock.
  */
 
 export type MergeRush = {
@@ -25,6 +40,10 @@ export type MergeRush = {
   /** The last moment a report is waited for. */
   endsAt: number;
   seed: number;
+  mode: MergeMode;
+  target: number;
+  roundMs: number;
+  start: number[];
   boards: Record<PlayerId, MergeEntry>;
   /** Players who left: no longer waited for, but their last board stands. */
   gone: PlayerId[];
@@ -47,17 +66,25 @@ export function nextDeadline(s: MergeRush): number {
   return s.phase === 'playing' ? s.endsAt : Infinity;
 }
 
+/** How long a round can honestly run, ms after its start. */
+function playable(s: Pick<MergeRush, 'roundMs'>): number {
+  return s.roundMs > 0 ? s.roundMs : MERGE_RACE_CAP_MS;
+}
+
 export async function startMergeRush(
   ctx: Ctx,
   roundId: number,
   connected: PlayerId[],
+  rawOptions: unknown,
   solo = false,
 ): Promise<boolean> {
   if (!enoughToStart(connected.length, [MERGE_MIN_PLAYERS, MERGE_MAX_PLAYERS], solo)) return false;
 
+  const { mode, target } = normaliseMergeOptions(rawOptions);
   const seed = Math.floor(ctx.random() * 0x1_0000_0000) >>> 0;
   const startsAt = ctx.now() + MERGE_COUNTDOWN_MS;
-  const begin = startBoard(seed);
+  const roundMs = roundMsFor(mode);
+  const begin = mode === 'highlander' ? puzzle(seed) : startBoard(seed);
   const boards: Record<PlayerId, MergeEntry> = {};
   // Seeded with the starting board, so a thumbnail exists before its owner moves.
   for (const id of connected) boards[id] = { board: [...begin], score: 0, moves: 0, over: false };
@@ -65,8 +92,12 @@ export async function startMergeRush(
   const s: MergeRush = {
     roundId,
     startsAt,
-    endsAt: startsAt + MERGE_ROUND_MS + MERGE_REPORT_GRACE_MS,
+    endsAt: startsAt + playable({ roundMs }) + MERGE_REPORT_GRACE_MS,
     seed,
+    mode,
+    target,
+    roundMs,
+    start: [...begin],
     boards,
     gone: [],
     solo: solo || connected.length <= 1,
@@ -87,7 +118,8 @@ function whole(n: unknown): number {
 /**
  * One phone's board. Score and moves are **clipped** to what the rules allow and
  * never go down; a board that cannot exist is ignored and the last one kept.
- * Once a phone says it is over, it stays over.
+ * Once a phone says it is over, it stays over. In Highlander nothing ever
+ * spawns, so a board is only believed if it holds exactly the mass it started with.
  */
 export async function onMergeBoard(
   ctx: Ctx,
@@ -103,15 +135,20 @@ export async function onMergeBoard(
   const e = s.boards[playerId];
   if (!e || e.over) return;
 
-  const elapsed = Math.min(Math.max(0, ctx.now() - s.startsAt), MERGE_ROUND_MS);
-  const startMass = mass(startBoard(s.seed));
+  const elapsed = Math.min(Math.max(0, ctx.now() - s.startsAt), playable(s));
+  const startMass = mass(s.start);
   const m = Math.max(e.moves, Math.min(whole(moves), maxMoves(elapsed)));
+  const fixed = s.mode === 'highlander';
 
-  if (isBoard(board) && mass(board) <= maxMass(startMass, m)) e.board = board;
+  if (isBoard(board) && (fixed ? mass(board) === startMass : mass(board) <= maxMass(startMass, m))) e.board = board;
   e.moves = m;
-  e.score = Math.max(e.score, Math.min(whole(score), maxScore(startMass, m)));
+  e.score = Math.max(e.score, Math.min(whole(score), maxScore(startMass, fixed ? 0 : m)));
   e.over = over === true;
 
+  if (hasWon(s.mode, s.target, e.board)) {
+    await finish(ctx, s, playerId);
+    return;
+  }
   if (everyoneDone(s)) {
     await finish(ctx, s);
     return;
@@ -147,17 +184,20 @@ export async function onPlayerGone(ctx: Ctx, playerId: PlayerId): Promise<void> 
 }
 
 /**
- * Highest score wins, always — a round with a score has a winner, and so does a
- * solo one. A tie goes to whoever got there in fewer moves, then to whoever
- * joined first.
+ * There is always a winner, solo included: the phone that met the goal first,
+ * or else whoever is ahead by the mode's own measure (`compareEntries`), with a
+ * dead heat going to whoever joined first.
  */
-async function finish(ctx: Ctx, s: MergeRush): Promise<void> {
-  let winner: PlayerId | null = null;
-  let best: MergeEntry | null = null;
-  for (const [id, e] of Object.entries(s.boards)) {
-    if (best === null || e.score > best.score || (e.score === best.score && e.moves < best.moves)) {
-      winner = id;
-      best = e;
+async function finish(ctx: Ctx, s: MergeRush, outright: PlayerId | null = null): Promise<void> {
+  let winner: PlayerId | null = outright;
+  if (winner === null) {
+    const ahead = compareEntries(s.mode);
+    let best: MergeEntry | null = null;
+    for (const [id, e] of Object.entries(s.boards)) {
+      if (best === null || ahead(e, best) < 0) {
+        winner = id;
+        best = e;
+      }
     }
   }
   s.phase = 'done';
@@ -175,6 +215,10 @@ export function toState(s: MergeRush): MergeRushState {
     startsAt: s.startsAt,
     endsAt: s.endsAt,
     seed: s.seed,
+    mode: s.mode,
+    target: s.target,
+    roundMs: s.roundMs,
+    start: [...s.start],
     boards,
     solo: s.solo,
     winner: s.winner,

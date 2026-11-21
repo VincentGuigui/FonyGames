@@ -514,7 +514,7 @@ export class Room extends DurableObject<Env> {
         });
         return;
       case 'start':
-        await this.#onStart(ws, msg.d.mode, msg.d.drag, msg.d.roles, msg.d.symbols, msg.d.math, msg.d.blink, msg.d.solo === true);
+        await this.#onStart(ws, msg.d.mode, msg.d.drag, msg.d.roles, msg.d.symbols, msg.d.math, msg.d.blink, msg.d.merge, msg.d.solo === true);
         return;
       case 'tap':
         await this.#onTap(ws, msg.d);
@@ -1042,6 +1042,8 @@ export class Room extends DurableObject<Env> {
     /** Blink Tapper's light count and duration, sanitised by the referee
      *  (`normaliseBlinkOptions`) for the same reason as `math` above. */
     blink?: unknown,
+    /** Merge Rush's mode and race target, sanitised by `normaliseMergeOptions`. */
+    merge?: unknown,
     /**
      * Solo test mode. Relaxes the minimum player count and the "last one standing"
      * end condition, and nothing else — `enoughToStart` in shared/players.ts lists
@@ -1197,7 +1199,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'rhino') started = await startRhinoSpin(this.#rhinoCtx(), roundId, ids, solo);
       else if (mode === 'jump') started = await startMaximumJump(this.#jumpCtx(), roundId, ids, solo);
       else if (mode === 'blink') started = await startBlinkTapper(this.#blinkCtx(), roundId, ids, blink, solo);
-      else if (mode === 'merge') started = await startMergeRush(this.#mergeCtx(), roundId, ids, solo);
+      else if (mode === 'merge') started = await startMergeRush(this.#mergeCtx(), roundId, ids, merge, solo);
       // `direct` is the default because it needs no explanation: grab your icon
       // and it follows your finger. `capped` is the deliberate choice.
       else started = await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct', solo);
