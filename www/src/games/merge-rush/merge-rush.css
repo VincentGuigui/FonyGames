@@ -99,8 +99,12 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   font-size: clamp(1.1rem, 7vw, 2rem);
-  transform: translate(calc(var(--c) * (100% + var(--gap))), calc(var(--r) * (100% + var(--gap))));
-  transition: transform var(--slide) ease-out;
+  /* The position is the `translate` property, not `transform`: CSS applies
+     `translate`, then `rotate`, then `scale` — so the jolt and the spawn grow
+     around the tile's own centre wherever the tile sits. In `transform` the
+     scale ran around the board's top-left corner and pushed tiles off their cell. */
+  translate: calc(var(--c) * (100% + var(--gap))) calc(var(--r) * (100% + var(--gap)));
+  transition: translate var(--slide) ease-out;
   z-index: 1;
 }
 
