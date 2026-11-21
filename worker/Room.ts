@@ -5,6 +5,7 @@ import {
   FIRE_MAX_MS,
   FIRE_MIN_MS,
   HOST_GRACE_MS,
+  LOBBY_OPTIONS_MAX_CHARS,
   MAX_FRAME_BYTES,
   MAX_PLAYERS,
   RATE_LIMIT_MSGS,
@@ -506,6 +507,9 @@ export class Room extends DurableObject<Env> {
         return;
       case 'set-ready':
         await this.#onSetReady(ws, msg.d);
+        return;
+      case 'lobby-options':
+        await this.#onLobbyOptions(ws, msg.d.options);
         return;
       case 'ping':
         this.#send(ws, {
@@ -1277,7 +1281,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'Game unavailable' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'scream', 'dark', 'tttt', 'fighter', 'crowd', 'rhino', 'jump', 'blink', 'merge', 'roundId', 'scores']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'scream', 'dark', 'tttt', 'fighter', 'crowd', 'rhino', 'jump', 'blink', 'merge', 'roundId', 'scores', 'lobbyOptions']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -2272,6 +2276,21 @@ export class Room extends DurableObject<Env> {
     await this.#broadcastPresence();
   }
 
+  /**
+   * The host's lobby panel, shared with the room. Only the host may set it and
+   * the room does not interpret it — it only bounds it to a small plain object —
+   * because what each game's panel means is that game's business.
+   */
+  async #onLobbyOptions(ws: WebSocket, options: unknown): Promise<void> {
+    const id = this.#idOf(ws);
+    const hostId = await this.ctx.storage.get<PlayerId>('hostId');
+    if (!id || !hostId || id !== hostId) return;
+    if (typeof options !== 'object' || options === null || Array.isArray(options)) return;
+    if (JSON.stringify(options).length > LOBBY_OPTIONS_MAX_CHARS) return;
+    await this.ctx.storage.put('lobbyOptions', options);
+    await this.#broadcastPresence();
+  }
+
   async #onGone(ws: WebSocket): Promise<void> {
     const id = this.#idOf(ws);
     if (!id) return;
@@ -2523,7 +2542,8 @@ export class Room extends DurableObject<Env> {
       connected,
       ready,
     }));
-    return { code, players: list, hostId };
+    const options = await this.ctx.storage.get<unknown>('lobbyOptions');
+    return options === undefined ? { code, players: list, hostId } : { code, players: list, hostId, options };
   }
 
   #idOf(ws: WebSocket): PlayerId | null {

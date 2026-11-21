@@ -59,6 +59,16 @@ Rules:
   after a one-line explanation of why (see
   [device-capabilities.md](device-capabilities.md)).
 - "Play again" must never require re-sharing the link.
+- **The host's lobby options are visible to everyone, live.** A game's options
+  panel (Math-o-matic's sums, Blink Tapper's lights, Merge Rush's mode) is
+  editable by the host and read-only for the rest, and what the host picks
+  travels to the room as a host-only `lobby-options` message, comes back to
+  every phone inside the presence snapshot (`RoomSnapshot.options`), and is
+  there for a player who joins late. The room does not interpret it — it only
+  keeps it a small plain object (`LOBBY_OPTIONS_MAX_CHARS`) — each game
+  sanitises it when it reads it, through `useLobbyOptions`. It is cleared when
+  the host switches game. The `start` payload still carries the host's choice,
+  so what the referee uses never depends on what a guest was shown.
 
 ## 4. Transport
 

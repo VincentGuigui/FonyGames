@@ -97,7 +97,9 @@ illegal question:
 
 Standard flow (lobby → countdown → round → results), with one addition: the
 lobby carries the **options panel**, host-only, and every other player sees it
-read-only so nobody is surprised by five-digit division.
+read-only — showing the host's picks as they make them, not the panel's
+defaults ([multiplayer.md](../../multiplayer.md) §3) — so nobody is surprised by
+five-digit division.
 
 The round screen, portrait, top to bottom:
 

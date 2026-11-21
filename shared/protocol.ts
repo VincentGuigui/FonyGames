@@ -32,7 +32,17 @@ export type RoomSnapshot = {
   code: string;
   players: Player[];
   hostId: PlayerId | null;
+  /**
+   * What the host has picked in the lobby — a game's own options panel — so the
+   * other players see the choice before Start rather than the panel's defaults.
+   * Opaque to the room: each game sanitises it when it reads it.
+   */
+  options?: unknown;
 };
+
+/** The most a host's lobby options may weigh on the wire, as JSON. A panel is a
+ *  handful of small values; anything bigger is not one. */
+export const LOBBY_OPTIONS_MAX_CHARS = 512;
 
 export type TttState = {
   roundId: number;
@@ -92,6 +102,8 @@ export type ClientMessage =
    * connected non-host player has sent `ready: true`.
    */
   | { t: 'set-ready'; d: { ready: boolean } }
+  /** Host only: the lobby options panel's current value, shown to everyone. */
+  | { t: 'lobby-options'; d: { options: unknown } }
   /** Round-trip used to estimate the client's offset from server time. */
   | { t: 'ping'; d: { at: number } }
   /**
@@ -2107,6 +2119,7 @@ const CLIENT_TYPES = new Set([
   'join',
   'set-profile',
   'set-ready',
+  'lobby-options',
   'ping',
   'start',
   'tap',

@@ -14,8 +14,9 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { bestLevel, bestTile, canMove, compareEntries, hasWon, step, tileValue, tilesLeft, type Dir, type Game } from '../../../../shared/merge';
+import { bestLevel, bestTile, canMove, compareEntries, hasWon, normaliseMergeOptions, step, tileValue, tilesLeft, type Dir, type Game } from '../../../../shared/merge';
 import { useGameRoom } from '../../core/room/useRoom';
+import { useLobbyOptions } from '../../core/room/useLobbyOptions';
 import { useSoloTesting } from '../../core/useSolo';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
@@ -59,6 +60,16 @@ function Thumb({ board }: { board: readonly number[] }): JSX.Element {
 /** How long a slide takes; merge-rush.css's `--slide` is the same number. */
 const SLIDE_MS = 110;
 
+const DEFAULT_MERGE_PANEL: MergeOptions = { mode: 'time-attack', target: MERGE_DEFAULT_TARGET };
+
+/** What the host's panel shows: a race's target is kept even in other modes, so
+ *  switching back to a race does not forget it. */
+function normaliseMergeOptionsForPanel(raw: unknown): MergeOptions {
+  const o = normaliseMergeOptions(raw);
+  const target = typeof raw === 'object' && raw !== null ? normaliseMergeOptions({ mode: 'race', target: (raw as Record<string, unknown>)['target'] }).target : DEFAULT_MERGE_PANEL.target;
+  return { mode: o.mode, target };
+}
+
 /** Another player's board, full size and live, while you watch it (spec §4). */
 function Spy({ board }: { board: readonly number[] }): JSX.Element {
   return (
@@ -88,7 +99,6 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   const text = useGameText();
   const solo = useSoloTesting();
   const [state, setState] = useState<MergeRushState | null>(null);
-  const [options, setOptions] = useState<MergeOptions>({ mode: 'time-attack', target: MERGE_DEFAULT_TARGET });
   const [spy, setSpy] = useState<string | null>(null);
   const spyRef = useRef<string | null>(null);
   spyRef.current = spy;
@@ -101,6 +111,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   const clientRef = useRef(room.client);
   clientRef.current = room.client;
   const myId = room.me?.id;
+  const [options, setOptions] = useLobbyOptions<MergeOptions>(room, normaliseMergeOptionsForPanel, DEFAULT_MERGE_PANEL);
 
   const roundId = state?.roundId;
   const seed = state?.seed;

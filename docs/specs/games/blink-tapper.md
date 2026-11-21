@@ -82,7 +82,8 @@ the same call Math-o-matic's spec makes — and travel in the `start` payload
 rather than the mode slug.
 
 **Host options**, set in the lobby before Ready/Start, host-only to edit and
-read-only for everyone else:
+read-only for everyone else, who see the host's picks as they are made
+([multiplayer.md](../../multiplayer.md) §3):
 
 | Option | Values | Default |
 | --- | --- | --- |
@@ -268,10 +269,7 @@ No sound is required or offered; there is nothing to say about hearing here.
 3. **`BLINK_ON_FRACTION` = 0.5 is this spec's own invention** — the issue says
    nothing about how long a light stays lit relative to its own interval.
    Untested on real thumbs at any speed, let alone near the top of the ramp.
-4. **Guests see the options panel at its defaults, not the host's picks** —
-   the same as Math-o-matic's panel: the choice only reaches other phones in
-   the `start` frame. Worth a lobby message of its own if it confuses a room.
-5. **Does `unlimited` need a shared "misses remaining" ladder** so players can
+4. **Does `unlimited` need a shared "misses remaining" ladder** so players can
    see how close everyone else is to being out, or is each phone's own count
    enough? Nothing in the issue says the ladder is live during play, and §6
    deliberately keeps the referee silent until the end — a live miss ladder

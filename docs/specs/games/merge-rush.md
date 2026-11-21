@@ -58,7 +58,8 @@ number (2, 4, 8, …; 0 is an empty cell) and returns a CSS colour.
 
 ## 3. Modes / variations
 
-Picked by the host in the lobby, read-only for everyone else, and sent in the
+Picked by the host in the lobby, read-only for everyone else — who see the
+host's pick as it is made ([multiplayer.md](../../multiplayer.md) §3) — and sent in the
 `start` payload (`normaliseMergeOptions` sanitises it). Names are given in
 both languages because they are the lobby's buttons.
 

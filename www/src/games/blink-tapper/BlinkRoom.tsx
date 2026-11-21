@@ -12,8 +12,9 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { advance, blinkAccuracy, blinkScore, litLight, newBlinker, tapLight, type Blinker } from '../../../../shared/blink';
+import { advance, blinkAccuracy, normaliseBlinkOptions, blinkScore, litLight, newBlinker, tapLight, type Blinker } from '../../../../shared/blink';
 import { useGameRoom } from '../../core/room/useRoom';
+import { useLobbyOptions } from '../../core/room/useLobbyOptions';
 import { useSoloTesting } from '../../core/useSolo';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
@@ -47,13 +48,16 @@ function BlinkRoomInner({ game: card, code }: { game: GameCard; code: string }):
   const text = useGameText();
   const solo = useSoloTesting();
   const [state, setState] = useState<BlinkTapperState | null>(null);
-  const [options, setOptions] = useState<BlinkOptions>({ lights: BLINK_DEFAULT_LIGHTS, duration: BLINK_DEFAULT_DURATION });
 
   const onGame = useCallback((msg: ServerMessage) => {
     if (msg.t === 'blink-tapper') setState(msg.d);
   }, []);
 
   const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);
+  const [options, setOptions] = useLobbyOptions<BlinkOptions>(room, normaliseBlinkOptions, {
+    lights: BLINK_DEFAULT_LIGHTS,
+    duration: BLINK_DEFAULT_DURATION,
+  });
   const clientRef = useRef(room.client);
   clientRef.current = room.client;
   const myId = room.me?.id;
