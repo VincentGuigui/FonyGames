@@ -417,7 +417,17 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
                 <div
                   key={t.id}
                   class={`merge__tile merge__tile--d${String(v).length}${t.born ? ` merge__tile--${t.born}` : ''}${t.gone ? ' merge__tile--gone' : ''}`}
-                  style={{ '--r': t.r, '--c': t.c, background: tileColor(v), color: tileTextColor(v) } as JSX.CSSProperties}
+                  style={
+                    {
+                      '--r': t.r,
+                      '--c': t.c,
+                      background: tileColor(v),
+                      color: tileTextColor(v),
+                      // A merged tile starts as the colour of the pair it came from and
+                      // settles into its own.
+                      ...(t.born === 'merge' ? { '--from': tileColor(v / 2), '--from-text': tileTextColor(v / 2) } : {}),
+                    } as JSX.CSSProperties
+                  }
                   aria-label={t.gone ? undefined : String(v)}
                 >
                   {v}

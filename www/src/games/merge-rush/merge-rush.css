@@ -105,13 +105,29 @@
 }
 
 .merge__tile--gone { z-index: 0; }
-.merge__tile--merge { z-index: 2; animation: merge-pop 180ms ease-out var(--slide) backwards; }
+.merge__tile--merge {
+  z-index: 2;
+  animation:
+    merge-jolt 320ms ease-out var(--slide) backwards,
+    merge-tint 260ms ease-out var(--slide) backwards;
+}
 .merge__tile--spawn { animation: merge-spawn 160ms ease-out var(--slide) backwards; }
 
-@keyframes merge-pop {
-  from { scale: 0.6; }
-  60% { scale: 1.12; }
-  to { scale: 1; }
+/* A start, not a pop: it overshoots, rings back past 1 and settles, with a
+   little twist. `scale` and `rotate` are separate properties, so the translate
+   that places the tile is untouched. */
+@keyframes merge-jolt {
+  0% { scale: 0.8; rotate: 0deg; }
+  35% { scale: 1.28; rotate: -5deg; }
+  60% { scale: 0.94; rotate: 3deg; }
+  80% { scale: 1.06; rotate: -1deg; }
+  100% { scale: 1; rotate: 0deg; }
+}
+
+/* From the colour of the pair that merged to the new tile's own, which is the
+   tile's inline background — so only the start is named. */
+@keyframes merge-tint {
+  from { background: var(--from); color: var(--from-text); }
 }
 
 @keyframes merge-spawn {

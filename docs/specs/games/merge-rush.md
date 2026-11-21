@@ -107,7 +107,10 @@ Lobby → countdown → round → results. The round screen, portrait, top to bo
 - **Your score**, big.
 - **Your board**: a 4×4 grid filling the width, each tile its colour and its
   number. Tiles **slide** to their new cell over about 110 ms rather than
-  jumping; a merged tile pops in as the pair lands, and a new tile scales in.
+  jumping. A merged tile arrives in the colour of the pair it came from, settles
+into its own over about a quarter of a second, and gives a jolt as it does — it
+overshoots to 1.28× with a small twist, rings back past 1 and settles — while a
+new tile scales in.
   Swiping anywhere on the board moves.
 - **Four arrow buttons** under the board, for anyone who cannot swipe, and in
   Highlander a fifth, **↺**, that puts the puzzle back as it started.
@@ -217,7 +220,7 @@ A 16-number board and two counters per report. Nothing stored past the room.
   number. The thumbnails are colour-only by design, and are a convenience —
   nothing in the game depends on reading one.
 - **No sound**, nothing to say about hearing.
-- **Reduced motion**: tiles do not slide, pop or scale; the board simply updates, and the red clock does not blink.
+- **Reduced motion**: tiles do not slide, jolt, change colour or scale; the board simply updates, and the red clock does not blink.
 
 ## 12. Open questions
 
