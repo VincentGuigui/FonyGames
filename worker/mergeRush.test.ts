@@ -3,6 +3,7 @@ import {
   MERGE_HIGHLANDER_MS,
   MERGE_MAX_PLAYERS,
   MERGE_RACE_CAP_MS,
+  MERGE_TARGET_ENDLESS,
   MERGE_REPORT_GRACE_MS,
   MERGE_ROUND_MS,
   type ServerMessage,
@@ -254,15 +255,15 @@ async function modes(): Promise<void> {
   check('Time Attack runs two minutes', ta.state().roundMs === MERGE_ROUND_MS && ta.state().mode === 'time-attack' && ta.state().target === 0);
 
   const race = harness();
-  await startMergeRush(race.ctx, 1, [A, B], { mode: 'race', target: 8 });
+  await startMergeRush(race.ctx, 1, [A, B], { mode: 'race', target: 9 });
   const r = race.state();
-  check('a race keeps its target and has no countdown', r.mode === 'race' && r.target === 8 && r.roundMs === 0);
+  check('a race keeps its target and has no countdown', r.mode === 'race' && r.target === 9 && r.roundMs === 0);
   check('its only clock is the cap', nextDeadline(r) === r.startsAt + MERGE_RACE_CAP_MS + MERGE_REPORT_GRACE_MS);
   check('and it starts from the seed\'s board', JSON.stringify(r.start) === JSON.stringify(startBoard(r.seed)));
-  // A 256 tile is legal after 70 moves: the board can hold up to start + 4 × 70.
-  const g = { board: [8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], score: 2000, moves: 70 };
+  // A 512 tile is legal after 130 moves: the board can hold up to start + 4 × 130.
+  const g = { board: [9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], score: 4000, moves: 130 };
   race.advance(MERGE_COUNTDOWN_MS + 60_000);
-  await onMergeBoard(race.ctx, A, 1, [7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 900, 40, false);
+  await onMergeBoard(race.ctx, A, 1, [8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1], 900, 70, false);
   check('a tile short of the target wins nothing yet', race.state().phase === 'playing');
   await onMergeBoard(race.ctx, B, 1, g.board, g.score, g.moves, false);
   check('the first phone to make the target tile wins at once', race.state().phase === 'done' && race.state().winner === B);
@@ -276,6 +277,20 @@ async function modes(): Promise<void> {
   await onMergeBoard(slow.ctx, B, 1, sg.board, sg.score, sg.moves, false);
   check('a race nobody finishes ends on its cap', await tick(slow.ctx));
   check('and goes to the bigger tile', slow.state().winner === (Math.max(...sg.board) >= Math.max(...sh.board) ? B : A));
+
+  const end = harness();
+  await startMergeRush(end.ctx, 1, [A, B], { mode: 'race', target: MERGE_TARGET_ENDLESS });
+  check('an endless race keeps its target and has no countdown', end.state().target === MERGE_TARGET_ENDLESS && end.state().roundMs === 0);
+  const eg = played(end.state().seed, 120);
+  const small = played(end.state().seed, 40);
+  end.advance(MERGE_COUNTDOWN_MS + 60_000);
+  await onMergeBoard(end.ctx, A, 1, eg.board, eg.score, eg.moves, false);
+  check('a big tile does not end an endless race', end.state().phase === 'playing');
+  await onMergeBoard(end.ctx, A, 1, eg.board, eg.score, eg.moves, true);
+  check('one player stuck does not end it either', end.state().phase === 'playing');
+  await onMergeBoard(end.ctx, B, 1, small.board, small.score, small.moves, true);
+  check('it ends when everyone is stuck', end.state().phase === 'done');
+  check('and the biggest tile wins', end.state().winner === (Math.max(...eg.board) >= Math.max(...small.board) ? A : B), { a: Math.max(...eg.board), b: Math.max(...small.board) });
 
   const hl = harness();
   await startMergeRush(hl.ctx, 1, [A, B, C], { mode: 'highlander' });

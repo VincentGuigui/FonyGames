@@ -5,6 +5,7 @@ import {
   MERGE_MAX_PLAYERS,
   MERGE_MIN_PLAYERS,
   MERGE_DEFAULT_TARGET,
+  MERGE_TARGET_ENDLESS,
   MERGE_REPORT_MS,
   MERGE_SIZE,
   MERGE_SWIPE_PX,
@@ -28,7 +29,7 @@ import { tileColor, tileTextColor } from './colors';
 import { moveTiles, tilesFromBoard, type Tile } from './tiles';
 import { formatDuration, timerTone } from './timer';
 import { MergeOptionsPanel } from './MergeOptions';
-import { modeName } from './modes';
+import { modeName, targetLabel } from './modes';
 import './merge-rush.css';
 
 /**
@@ -333,10 +334,15 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
             fr: 'Le premier à une seule tuile gagne ; sinon, le moins de tuiles restantes. Le temps compte chaque recommencement.',
           }
         : state.mode === 'race'
-          ? {
-              en: `First to make ${tileValue(state.target)} wins. Level n is the 2ⁿ tile.`,
-              fr: `Le premier à faire ${tileValue(state.target)} gagne. Niveau n = la tuile 2ⁿ.`,
-            }
+          ? state.target === MERGE_TARGET_ENDLESS
+            ? {
+                en: 'No finish line: the biggest tile when everyone is stuck wins. Level n is the 2ⁿ tile.',
+                fr: 'Pas de ligne d’arrivée : la plus grosse tuile quand tout le monde est bloqué gagne. Niveau n = la tuile 2ⁿ.',
+              }
+            : {
+                en: `First to make ${targetLabel(state.target)} wins. Level n is the 2ⁿ tile.`,
+                fr: `Le premier à faire ${targetLabel(state.target)} gagne. Niveau n = la tuile 2ⁿ.`,
+              }
           : { en: 'A merge scores the tile it makes. Level n is the 2ⁿ tile.', fr: 'Une fusion rapporte la tuile qu’elle crée. Niveau n = la tuile 2ⁿ.' };
     return (
       <GameOverScreen
@@ -472,7 +478,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
             {solvedOrWon
               ? mode === 'highlander'
                 ? text({ en: 'Solved!', fr: 'Résolu !' })
-                : text({ en: `You made ${tileValue(target)}!`, fr: `Vous avez fait ${tileValue(target)} !` })
+                : text({ en: `You made ${targetLabel(target)}!`, fr: `Vous avez fait ${targetLabel(target)} !` })
               : canMove(board)
                 ? text({ en: 'Time. Waiting for the rest.', fr: 'Temps écoulé. On attend les autres.' })
                 : text({ en: 'No moves left. Waiting for the rest.', fr: 'Plus de coup. On attend les autres.' })}

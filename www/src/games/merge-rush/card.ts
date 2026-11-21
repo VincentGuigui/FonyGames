@@ -37,7 +37,7 @@ export const CARD: GameCard = {
   tags: ['party', 'arcade', 'strategy'],
   modes: [
     { id: 'time-attack', name: 'Time Attack', blurb: 'Two minutes, highest score wins' },
-    { id: 'race', name: 'Race to 2048', blurb: 'First to make the tile wins — 256 up to 8192' },
+    { id: 'race', name: 'Race to 2048', blurb: 'First to make the tile wins — 512 up to 8192, or endless' },
     { id: 'highlander', name: 'Highlander', blurb: 'There can be only one: merge the puzzle down to one tile' },
   ],
   status: 'live',

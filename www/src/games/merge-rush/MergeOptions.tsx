@@ -1,8 +1,7 @@
 import type { JSX } from 'preact';
 import { MERGE_MODES, MERGE_TARGETS, type MergeMode, type MergeOptions } from '../../../../shared/protocol';
-import { tileValue } from '../../../../shared/merge';
 import { useGameText } from '../../core/i18n/gameText';
-import { modeBlurb, modeName } from './modes';
+import { modeBlurb, modeName, targetLabel } from './modes';
 
 /**
  * The host's mode, in the lobby. Spec: docs/specs/games/merge-rush.md §3
@@ -38,7 +37,7 @@ export function MergeOptionsPanel({
               onClick={() => pick(mode)}
             >
               <b>{text(modeName(mode, value.target))}</b>
-              <span>{text(modeBlurb(mode))}</span>
+              <span>{text(modeBlurb(mode, value.target))}</span>
             </button>
           ))}
         </div>
@@ -58,7 +57,7 @@ export function MergeOptionsPanel({
                 disabled={!editable}
                 onClick={() => onChange({ mode: 'race', target: t })}
               >
-                {tileValue(t)}
+                {targetLabel(t)}
               </button>
             ))}
           </div>

@@ -1,4 +1,4 @@
-import { MERGE_CELLS, MERGE_HIGHLANDER_MS, MERGE_MAX_EXPONENT, MERGE_ROUND_MS } from './protocol';
+import { MERGE_CELLS, MERGE_HIGHLANDER_MS, MERGE_MAX_EXPONENT, MERGE_ROUND_MS, MERGE_TARGETS, MERGE_TARGET_ENDLESS } from './protocol';
 import {
   DIRS,
   bestLevel,
@@ -187,6 +187,10 @@ function modes(): void {
   check('a race keeps its target', JSON.stringify(normaliseMergeOptions({ mode: 'race', target: 9 })) === '{"mode":"race","target":9}');
   check('a race with no target races to 2048', normaliseMergeOptions({ mode: 'race' }).target === 11);
   check('a target off the list is 2048 too', normaliseMergeOptions({ mode: 'race', target: 14 }).target === 11);
+  check('256 is no longer on the list', !(MERGE_TARGETS as readonly number[]).includes(8) && normaliseMergeOptions({ mode: 'race', target: 8 }).target === 11);
+  check('the list is 512 up to 8192, then endless', MERGE_TARGETS.join() === `9,10,11,12,13,${MERGE_TARGET_ENDLESS}`);
+  check('endless is a legal race target', normaliseMergeOptions({ mode: 'race', target: MERGE_TARGET_ENDLESS }).target === MERGE_TARGET_ENDLESS);
+  check('endless is out of reach of any board', MERGE_TARGET_ENDLESS > MERGE_MAX_EXPONENT);
   check('only a race has a target', normaliseMergeOptions({ mode: 'highlander', target: 9 }).target === 0);
   check('an unknown mode is Time Attack', normaliseMergeOptions({ mode: 'blitz' }).mode === 'time-attack');
   check('Time Attack runs two minutes, Highlander three, a race counts up', roundMsFor('time-attack') === MERGE_ROUND_MS && roundMsFor('highlander') === MERGE_HIGHLANDER_MS && roundMsFor('race') === 0);
@@ -194,6 +198,9 @@ function modes(): void {
   const b512 = rows([512, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 2]);
   check('a race is won by the target tile', hasWon('race', 9, b512));
   check('or anything bigger', hasWon('race', 8, b512));
+  const huge = new Array<number>(16).fill(0);
+  huge[0] = MERGE_MAX_EXPONENT;
+  check('an endless race is never won, whatever is on the board', !hasWon('race', MERGE_TARGET_ENDLESS, huge));
   check('not by a smaller one', !hasWon('race', 10, b512));
   check('Highlander is won by one tile left', hasWon('highlander', 0, rows([0, 0, 0, 0], [0, 64, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0])));
   check('not by two', !hasWon('highlander', 0, b512));

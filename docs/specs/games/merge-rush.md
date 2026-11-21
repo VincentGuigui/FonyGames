@@ -66,13 +66,19 @@ both languages because they are the lobby's buttons.
 | Mode | Name (EN / FR) | Blurb | Goal | Clock | When the goal is not met |
 | --- | --- | --- | --- | --- | --- |
 | `time-attack` | Time Attack / Contre-la-montre | Two minutes, highest score wins | — | 2 min countdown | Highest score |
-| `race` | Race to 2048 / Course à 2048 | First to make the tile wins | First accepted board with the target tile | Counts up; 30 min cap | Biggest tile, then score |
+| `race` | Race to 2048 / Course à 2048 (Endless race / Course sans fin) | First to make the tile wins | First accepted board with the target tile | Counts up; 30 min cap | Biggest tile, then score |
 | `highlander` | Highlander / Highlander | There can be only one: merge the puzzle down to one tile | First accepted board with one tile | 3 min countdown | Fewest tiles left |
 
-**Race.** The target is the host's pick of 256, 512, 1024, 2048 (the default),
-4096 or 8192, and the name follows it ("Race to 512"). It is won by the first
+**Race.** The target is the host's pick of 512, 1024, 2048 (the default), 4096,
+8192 or **∞**, and the name follows it ("Race to 512"). It is won by the first
 report to **arrive** with the tile on the board — the same arrival rule Asteroid
 Race uses for a finish — and the round ends for everyone at once.
+
+**Endless** (∞) is a race with no finish line: its target is an exponent no board
+can reach (`MERGE_TARGET_ENDLESS`), so nobody ever wins it outright. Everyone
+plays until they are stuck, the round ends when the last one is, and the biggest
+tile — then the score — wins. 256 was dropped from the list: it ended a race in
+well under a minute.
 
 **Highlander** ("Il ne doit en rester qu'une" in French) is the film's line, and
 the mode is exactly that. Every player gets the same puzzle: 5–7 tiles adding
@@ -167,7 +173,8 @@ player costs nothing on the wire: the board is already in every frame.
   spawn is a function of the seed and the move count.
 - **Everyone stuck**: the round ends early.
 - **A race nobody can finish** — everyone stuck short of the tile, or a room
-  racing to 8192 — ends on the 30 min cap, won by the biggest tile.
+  racing to 8192 — ends when the last player is stuck, or on the 30 min cap,
+  won by the biggest tile. An endless race always ends this way.
 - **A Highlander puzzle boxed in** — two unequal tiles that can no longer meet —
   is what **↺** is for; the solver only promises the puzzle *can* be finished
   from its start.

@@ -3957,8 +3957,14 @@ export const MERGE_MAX_EXPONENT = 17;
 export const MERGE_MODES = ['time-attack', 'race', 'highlander'] as const;
 export type MergeMode = (typeof MERGE_MODES)[number];
 
-/** A race's target tiles, as exponents: 256 up to 8192. */
-export const MERGE_TARGETS = [8, 9, 10, 11, 12, 13] as const;
+/**
+ * "Endless": a race with no finish line. It is an exponent no board can reach
+ * (`MERGE_MAX_EXPONENT` is 17), so nobody ever makes it, and the race ends only
+ * when everyone is stuck.
+ */
+export const MERGE_TARGET_ENDLESS = 99;
+/** A race's target tiles, as exponents: 512 up to 8192, or endless. */
+export const MERGE_TARGETS = [9, 10, 11, 12, 13, MERGE_TARGET_ENDLESS] as const;
 export const MERGE_DEFAULT_TARGET = 11;
 
 /** Time Attack's clock. */
