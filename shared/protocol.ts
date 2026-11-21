@@ -137,7 +137,7 @@ export type ClientMessage =
         /** Blink Tapper's light count and duration — options, not a mode
          *  (blink-tapper.md §3), sanitised by `normaliseBlinkOptions`. */
         blink?: { lights?: number; duration?: number };
-        /** Merge Rush's mode and, for a race, the target tile's exponent
+        /** Double Fusion's mode and, for a race, the target tile's exponent
          *  (merge-rush.md §3), sanitised by `normaliseMergeOptions`. */
         merge?: { mode?: string; target?: number };
         /**
@@ -396,7 +396,7 @@ export type ClientMessage =
   | { t: 'jump-result'; d: { roundId: number; attempt: number; speed: number; distance: number } }
   /** Blink Tapper: this phone's whole round, sent once when it ends (spec §6). */
   | { t: 'blink-final'; d: { roundId: number; hits: number; misses: number } }
-  /** Merge Rush: this phone's board, throttled, and once more when it ends (spec §6). */
+  /** Double Fusion: this phone's board, throttled, and once more when it ends (spec §6). */
   | { t: 'merge-board'; d: { roundId: number; board: number[]; score: number; moves: number; over: boolean } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
@@ -3936,7 +3936,7 @@ export type BlinkTapperState = {
   winner: PlayerId | null;
 };
 
-/* ── Merge Rush ──────────────────────────────────────────────────────────────
+/* ── Double Fusion ──────────────────────────────────────────────────────────────
  * Spec: docs/specs/games/merge-rush.md
  *
  * The moves happen on the phone; the referee owns the seed, the clock and the

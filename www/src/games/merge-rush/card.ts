@@ -3,7 +3,7 @@ import { PLAYERS } from '../../../../shared/players';
 import art from './art/card.svg?url&no-inline';
 
 /**
- * Merge Rush's hub card. Contract: docs/design/illustrations.md
+ * Double Fusion's hub card. Contract: docs/design/illustrations.md
  *
  * **This file is a leaf.** It may import only `core/types`, `shared/players`
  * and its own `art/` — the hub imports every card, so one import of this
@@ -11,7 +11,7 @@ import art from './art/card.svg?url&no-inline';
  */
 export const CARD: GameCard = {
   slug: 'merge-rush',
-  title: 'Merge Rush',
+  title: 'Double Fusion',
   pitch: 'Slide, merge, climb. Out-score the whole room',
   concept: 'Slide the tiles, merge equal numbers, and watch everyone else’s board climb beside yours.',
   rules: [

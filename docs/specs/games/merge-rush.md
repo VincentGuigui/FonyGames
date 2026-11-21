@@ -1,4 +1,4 @@
-# Merge Rush
+# Double Fusion
 
 | | |
 | --- | --- |
@@ -228,7 +228,9 @@ A 16-number board and two counters per report. Nothing stored past the room.
    the room together. A round normally ends on the clock rather than on
    everyone getting stuck.
 2. **The name.** "2048" is a trademark-adjacent title in the wild, so this is
-   Merge Rush. Easy to change before launch.
+   **Double Fusion** (it was Merge Rush at first). The slug stays `merge-rush` —
+   the URL, the flag key and every shared link — because renaming it would
+   break links already in group chats; the title is all a player reads.
 3. **The palette.** `tileColor` starts as an evenly spaced hue ramp so every
    doubling is distinguishable from its neighbours; whether it reads at 8 px is
    the thumbnail test.

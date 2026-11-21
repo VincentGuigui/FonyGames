@@ -33,7 +33,7 @@ import { modeName, targetLabel } from './modes';
 import './merge-rush.css';
 
 /**
- * Merge Rush's room screen. Spec: docs/specs/games/merge-rush.md §4
+ * Double Fusion's room screen. Spec: docs/specs/games/merge-rush.md §4
  *
  * The rules are `shared/merge.ts` run from the room's seed; this holds them
  * together with the swipe, the thumbnails and the one thing that reaches

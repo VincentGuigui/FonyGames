@@ -12,7 +12,7 @@ import { mass, maxMoves, maxScore, newGame, puzzle, slide, solveDepth, startBoar
 import { nextDeadline, onMergeBoard, onPlayerGone, startMergeRush, tick, toState, type Ctx, type MergeRush } from './mergeRush';
 
 /**
- * Merge Rush's referee. Spec: docs/specs/games/merge-rush.md §6-§8
+ * Double Fusion's referee. Spec: docs/specs/games/merge-rush.md §6-§8
  *
  * The moves happen on the phones. What is asserted here is what this file owns:
  * the shared seed, what it believes of a report, the clock and the winner.

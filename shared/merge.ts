@@ -14,7 +14,7 @@ import {
 } from './protocol';
 
 /**
- * Merge Rush's rules. Spec: docs/specs/games/merge-rush.md §2
+ * Double Fusion's rules. Spec: docs/specs/games/merge-rush.md §2
  *
  * Shared by the phone, which plays the round, and the referee, which bounds
  * the one board it is told about — so the bound in spec §8 is the game's own

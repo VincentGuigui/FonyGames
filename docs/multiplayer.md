@@ -60,7 +60,7 @@ Rules:
   [device-capabilities.md](device-capabilities.md)).
 - "Play again" must never require re-sharing the link.
 - **The host's lobby options are visible to everyone, live.** A game's options
-  panel (Math-o-matic's sums, Blink Tapper's lights, Merge Rush's mode) is
+  panel (Math-o-matic's sums, Blink Tapper's lights, Double Fusion's mode) is
   editable by the host and read-only for the rest, and what the host picks
   travels to the room as a host-only `lobby-options` message, comes back to
   every phone inside the presence snapshot (`RoomSnapshot.options`), and is

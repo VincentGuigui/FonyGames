@@ -26,7 +26,7 @@ import {
 } from '../shared/merge';
 
 /**
- * Merge Rush. Spec: docs/specs/games/merge-rush.md
+ * Double Fusion. Spec: docs/specs/games/merge-rush.md
  *
  * The moves happen on the phones. This file owns the seed, the starting board,
  * the clock and the winner, and the bound on what a phone claims about its own

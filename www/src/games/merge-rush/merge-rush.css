@@ -1,5 +1,5 @@
 /*
- * Merge Rush. Spec: docs/specs/games/merge-rush.md §4
+ * Double Fusion. Spec: docs/specs/games/merge-rush.md §4
  * Shared chrome (StatusBar, lobby) is styled by core; this file owns the board,
  * the thumbnail strip and the arrows. Tile colours come from colors.ts.
  */

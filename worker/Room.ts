@@ -1046,7 +1046,7 @@ export class Room extends DurableObject<Env> {
     /** Blink Tapper's light count and duration, sanitised by the referee
      *  (`normaliseBlinkOptions`) for the same reason as `math` above. */
     blink?: unknown,
-    /** Merge Rush's mode and race target, sanitised by `normaliseMergeOptions`. */
+    /** Double Fusion's mode and race target, sanitised by `normaliseMergeOptions`. */
     merge?: unknown,
     /**
      * Solo test mode. Relaxes the minimum player count and the "last one standing"
@@ -2228,7 +2228,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'blink-tapper', s: this.#nextSeq(), d: blinkToState(blinking) });
     }
 
-    /* Merge Rush: everyone's last accepted board, so a phone that rejoins sees the
+    /* Double Fusion: everyone's last accepted board, so a phone that rejoins sees the
        strip straight away and rebuilds its own board from the seed's start. */
     const merging = await this.#merge();
     if (merging && merging.phase !== 'done') {
@@ -2353,7 +2353,7 @@ export class Room extends DurableObject<Env> {
     // Blink Tapper keeps a reported score; an unreported one stops holding the
     // round open (spec §7).
     await blinkPlayerGone(this.#blinkCtx(), id);
-    // Merge Rush keeps their last board on the strip; it can still win.
+    // Double Fusion keeps their last board on the strip; it can still win.
     await mergePlayerGone(this.#mergeCtx(), id);
     // Neon Fall is the same shape as Grid Attack: two fixed seats, and a phone
     // leaving means one of the roles is simply gone — there is no game left.
