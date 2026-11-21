@@ -3986,6 +3986,12 @@ export type MergeEntry = {
   moves: number;
   /** No move left: the score stands and the phone stops reporting. */
   over: boolean;
+  /**
+   * Highlander only: ms from the start of the round to the report that arrived
+   * with the puzzle down to one tile, on the referee's clock — so every restart
+   * is inside it.
+   */
+  solvedMs?: number;
 };
 
 export type MergeOptions = { mode: MergeMode; target: number };

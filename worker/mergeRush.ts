@@ -146,6 +146,7 @@ export async function onMergeBoard(
   e.over = over === true;
 
   if (hasWon(s.mode, s.target, e.board)) {
+    if (s.mode === 'highlander') e.solvedMs = Math.max(0, ctx.now() - s.startsAt);
     await finish(ctx, s, playerId);
     return;
   }

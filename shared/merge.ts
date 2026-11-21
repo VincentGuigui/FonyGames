@@ -206,19 +206,21 @@ export function hasWon(mode: MergeMode, target: number, board: Board): boolean {
   return false;
 }
 
-export type Ranked = { score: number; moves: number; board: Board };
+export type Ranked = { score: number; moves: number; board: Board; solvedMs?: number | undefined };
 
 /**
  * Who is ahead, by each mode's own measure; a full tie keeps the order it was
  * given in, which is join order. Time Attack is the score; a race is the
- * biggest tile, then the score; Highlander is the fewest tiles left. Fewer
- * moves breaks every tie.
+ * biggest tile, then the score; Highlander is the fewest tiles left, then the
+ * quicker solve. Fewer moves breaks every tie.
  */
 export function compareEntries(mode: MergeMode): (a: Ranked, b: Ranked) => number {
   return (a, b) => {
     if (mode === 'highlander') {
       const t = tilesLeft(a.board) - tilesLeft(b.board);
       if (t !== 0) return t;
+      // Two players on one tile: the quicker solve, restarts and all.
+      if (a.solvedMs !== undefined && b.solvedMs !== undefined && a.solvedMs !== b.solvedMs) return a.solvedMs - b.solvedMs;
     } else {
       if (mode === 'race') {
         const l = bestLevel(b.board) - bestLevel(a.board);

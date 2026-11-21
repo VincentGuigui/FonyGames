@@ -26,7 +26,7 @@ import { useT } from '../../core/i18n/strings';
 import { useGameText } from '../../core/i18n/gameText';
 import { tileColor, tileTextColor } from './colors';
 import { moveTiles, tilesFromBoard, type Tile } from './tiles';
-import { timerTone } from './timer';
+import { formatDuration, timerTone } from './timer';
 import { MergeOptionsPanel } from './MergeOptions';
 import { modeName } from './modes';
 import './merge-rush.css';
@@ -314,12 +314,13 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
           id,
           avatar: avatarOf(id),
           name: nameOf(id),
+          // Whoever solved it is shown their time; a solved board is always one tile,
+          // so the count is only worth printing for a player who did not finish.
           value: text(
             state.mode === 'highlander'
-              ? {
-                  en: `${left} ${left === 1 ? 'tile' : 'tiles'} · ${e.moves} moves`,
-                  fr: `${left} ${left === 1 ? 'tuile' : 'tuiles'} · ${e.moves} coups`,
-                }
+              ? e.solvedMs !== undefined
+                ? { en: formatDuration(e.solvedMs), fr: formatDuration(e.solvedMs) }
+                : { en: `${left} ${left === 1 ? 'tile' : 'tiles'} left`, fr: `${left} ${left === 1 ? 'tuile restante' : 'tuiles restantes'}` }
               : { en: `${e.score} pts · lvl ${bestLevel(e.board)}`, fr: `${e.score} pts · niv. ${bestLevel(e.board)}` },
           ),
           out: false,
@@ -327,7 +328,10 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
       });
     const note =
       state.mode === 'highlander'
-        ? { en: 'First down to one tile wins; otherwise the fewest tiles left.', fr: 'Le premier à une seule tuile gagne ; sinon, le moins de tuiles restantes.' }
+        ? {
+            en: 'First down to one tile wins; otherwise the fewest tiles left. The time counts every restart.',
+            fr: 'Le premier à une seule tuile gagne ; sinon, le moins de tuiles restantes. Le temps compte chaque recommencement.',
+          }
         : state.mode === 'race'
           ? {
               en: `First to make ${tileValue(state.target)} wins. Level n is the 2ⁿ tile.`,

@@ -84,6 +84,13 @@ is proved solvable, never hoped. A player who boxes themselves in taps **↺** t
 put the puzzle back as it started; the clock keeps running and the moves keep
 counting.
 
+**The duration is what decides Highlander.** It is measured by the referee from
+the start of the round to the report that arrives with the puzzle down to one
+tile (`solvedMs`), so **every restart is inside it** — the clock does not stop
+for ↺. The first to arrive ends the round, which makes the winner the fastest
+solver by construction; if two ever reached one tile, the quicker `solvedMs`
+ranks first.
+
 ## 4. Screens
 
 Lobby → countdown → round → results. The round screen, portrait, top to bottom:
@@ -119,7 +126,9 @@ whole games.
 
 The results list each player as `score pts · lvl n` (French `niv. n`), where the
 level is the exponent of their best tile — a 128 is level 7 — so the line stays
-short. Highlander lists `n tiles · m moves` instead.
+short. Highlander lists the **solver's time** instead (`m:ss.t`) — a solved board
+is always one tile, so the count would say nothing — and `n tiles left` only for
+a player who did not finish.
 
 ## 5. Inputs & sensors
 

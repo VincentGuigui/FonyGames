@@ -299,6 +299,19 @@ async function modes(): Promise<void> {
   const win = solved(h.start);
   await onMergeBoard(hl.ctx, B, 1, win.board, 0, win.moves, true);
   check(`the first phone down to one tile wins (${win.moves} moves)`, hl.state().phase === 'done' && hl.state().winner === B);
+  check('and its duration is the referee\'s clock from the round start', hl.state().boards[B]?.solvedMs === 40_000, hl.state().boards[B]);
+  check('while a player who did not finish has none', hl.state().boards[C]?.solvedMs === undefined && hl.state().boards[A]?.solvedMs === undefined);
+  check('the duration reaches the room', toState(hl.state()).boards[B]?.solvedMs === 40_000);
+
+  const rs = harness();
+  await startMergeRush(rs.ctx, 1, [A, B], { mode: 'highlander' });
+  const p0 = rs.state().start;
+  const ans = solved(p0);
+  rs.advance(MERGE_COUNTDOWN_MS + 20_000);
+  await onMergeBoard(rs.ctx, A, 1, p0, 0, 3, false);
+  rs.advance(35_000);
+  await onMergeBoard(rs.ctx, A, 1, ans.board, 0, ans.moves + 6, true);
+  check('a restart does not stop the clock: the time is the whole 55 s', rs.state().boards[A]?.solvedMs === 55_000, rs.state().boards[A]);
 
   const cap = harness();
   await startMergeRush(cap.ctx, 1, [A, B], { mode: 'highlander' });

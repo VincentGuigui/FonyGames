@@ -206,6 +206,9 @@ function modes(): void {
   check('Time Attack: the higher score', compareEntries('time-attack')(e(900, 50, small), e(800, 10, big)) < 0);
   check('a race: the bigger tile, whatever the score', compareEntries('race')(e(100, 50, big), e(900, 10, small)) < 0);
   check('a race on the same tile: the higher score', compareEntries('race')(e(900, 50, big), e(100, 10, big)) < 0);
+  const one = rows([0, 0, 0, 0], [0, 64, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]);
+  check('Highlander, both on one tile: the quicker solve', compareEntries('highlander')({ ...e(0, 90, one), solvedMs: 40_000 }, { ...e(0, 10, one), solvedMs: 55_000 }) < 0);
+  check('and a solve beats an unsolved board', compareEntries('highlander')({ ...e(0, 90, one), solvedMs: 99_000 }, e(0, 10, big.map((x, i) => (i === 5 ? 1 : x)))) < 0);
   check('Highlander: fewer tiles left', compareEntries('highlander')(e(0, 90, big), e(500, 10, small)) < 0);
   check('every mode: fewer moves breaks a tie', compareEntries('time-attack')(e(100, 9, big), e(100, 10, big)) < 0);
   check('a dead heat keeps the order it was given in', compareEntries('time-attack')(e(100, 9, big), e(100, 9, big)) === 0);
