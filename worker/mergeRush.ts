@@ -1,5 +1,6 @@
 import {
   MERGE_COUNTDOWN_MS,
+  MERGE_CRESCENDO_LEVELS,
   MERGE_MAX_PLAYERS,
   MERGE_MIN_PLAYERS,
   MERGE_RACE_CAP_MS,
@@ -13,6 +14,7 @@ import {
 import { enoughToStart } from '../shared/players';
 import {
   compareEntries,
+  crescendoPuzzle,
   hasWon,
   isBoard,
   mass,
@@ -23,6 +25,7 @@ import {
   puzzle,
   roundMsFor,
   startBoard,
+  tilesLeft,
 } from '../shared/merge';
 
 /**
@@ -31,7 +34,8 @@ import {
  * The moves happen on the phones. This file owns the seed, the starting board,
  * the clock and the winner, and the bound on what a phone claims about its own
  * board (spec §8). A race and Highlander are won outright by the first phone
- * whose accepted board meets the goal; Time Attack only ever ends on the clock.
+ * whose accepted board meets the goal, and Crescendo by the first to finish every
+ * level; otherwise a round ends on its clock.
  */
 
 export type MergeRush = {
@@ -84,7 +88,8 @@ export async function startMergeRush(
   const seed = Math.floor(ctx.random() * 0x1_0000_0000) >>> 0;
   const startsAt = ctx.now() + MERGE_COUNTDOWN_MS;
   const roundMs = roundMsFor(mode);
-  const begin = mode === 'highlander' ? puzzle(seed) : startBoard(seed);
+  const begin =
+    mode === 'highlander' ? puzzle(seed) : mode === 'crescendo' ? crescendoPuzzle(seed, 1).board : startBoard(seed);
   const boards: Record<PlayerId, MergeEntry> = {};
   // Seeded with the starting board, so a thumbnail exists before its owner moves.
   for (const id of connected) boards[id] = { board: [...begin], score: 0, moves: 0, over: false };
@@ -129,6 +134,7 @@ export async function onMergeBoard(
   score: unknown,
   moves: unknown,
   over: unknown,
+  level?: unknown,
 ): Promise<void> {
   const s = await ctx.load();
   if (!s || s.roundId !== roundId || s.phase !== 'playing') return;
@@ -136,6 +142,10 @@ export async function onMergeBoard(
   if (!e || e.over) return;
 
   const elapsed = Math.min(Math.max(0, ctx.now() - s.startsAt), playable(s));
+  if (s.mode === 'crescendo') {
+    await onCrescendo(ctx, s, playerId, e, board, moves, level, elapsed);
+    return;
+  }
   const startMass = mass(s.start);
   const m = Math.max(e.moves, Math.min(whole(moves), maxMoves(elapsed)));
   const fixed = s.mode === 'highlander';
@@ -153,6 +163,45 @@ export async function onMergeBoard(
   if (everyoneDone(s)) {
     await finish(ctx, s);
     return;
+  }
+  await ctx.save(s);
+  broadcast(ctx, s);
+}
+
+/**
+ * A Crescendo report is about one level: the one this player is on. Its board
+ * is believed only if it holds exactly that level's mass — nothing spawns — and
+ * a board down to one tile finishes the level. Levels count one at a time, so
+ * a phone cannot skip ahead, and the fifteenth wins the round outright.
+ */
+async function onCrescendo(
+  ctx: Ctx,
+  s: MergeRush,
+  playerId: PlayerId,
+  e: MergeEntry,
+  board: unknown,
+  moves: unknown,
+  level: unknown,
+  elapsed: number,
+): Promise<void> {
+  const done = e.level ?? 0;
+  const on = whole(level);
+  if (on !== done + 1 || on > MERGE_CRESCENDO_LEVELS) return;
+  if (!isBoard(board) || mass(board) !== mass(crescendoPuzzle(s.seed, on).board)) return;
+
+  e.moves = Math.max(e.moves, Math.min(whole(moves), maxMoves(elapsed)));
+  e.board = board;
+  if (tilesLeft(board) === 1) {
+    e.level = on;
+    e.score = on;
+    e.levelMs = Math.max(0, ctx.now() - s.startsAt);
+    if (on === MERGE_CRESCENDO_LEVELS) {
+      e.over = true;
+      await finish(ctx, s, playerId);
+      return;
+    }
+    // What the strip shows until their next report: the level they are now on.
+    e.board = [...crescendoPuzzle(s.seed, on + 1).board];
   }
   await ctx.save(s);
   broadcast(ctx, s);

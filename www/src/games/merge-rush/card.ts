@@ -17,7 +17,7 @@ export const CARD: GameCard = {
   rules: [
     'Swipe to slide every tile. Two equal tiles merge into their double.',
     'Everyone starts on the same board. Tap a thumbnail to watch that player live.',
-    'Time Attack: best score in two minutes. Race: first to the tile. Highlander: merge down to one.',
+    'Crescendo: puzzles that grow a tile a level. Race: first to the tile. Highlander: merge down to one.',
   ],
   art: { src: art, alt: 'A four-by-four board of coloured tiles, some merged into brighter ones, an arrow sweeping across it' },
   fr: {
@@ -26,17 +26,17 @@ export const CARD: GameCard = {
     rules: [
       'Glissez pour déplacer toutes les tuiles. Deux tuiles égales fusionnent en leur double.',
       'Tout le monde part du même plateau. Touchez une miniature pour suivre ce joueur en direct.',
-      'Contre-la-montre : meilleur score en deux minutes. Course : le premier à la tuile. Highlander : fusionnez jusqu’à une seule.',
+      'Crescendo : des puzzles qui gagnent une tuile par niveau. Course : le premier à la tuile. Highlander : fusionnez jusqu’à une seule.',
     ],
     art: { alt: 'Un plateau de quatre par quatre de tuiles colorées, certaines fusionnées en tuiles plus vives, une flèche qui le traverse' },
   },
   accent: '#F472B6',
   players: PLAYERS['merge-rush'],
-  duration: '2–3 min',
+  duration: '3 min',
   inputs: ['touch'],
   tags: ['party', 'arcade', 'strategy'],
   modes: [
-    { id: 'time-attack', name: 'Time Attack', blurb: 'Two minutes, highest score wins' },
+    { id: 'crescendo', name: 'Crescendo', blurb: 'Level after level, one more tile each time: most levels wins' },
     { id: 'race', name: 'Race to 2048', blurb: 'First to make the tile wins — 512 up to 8192, or endless' },
     { id: 'highlander', name: 'Highlander', blurb: 'There can be only one: merge the puzzle down to one tile' },
   ],

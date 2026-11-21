@@ -249,6 +249,10 @@
   background: color-mix(in srgb, var(--color-bg) 72%, transparent);
 }
 
+.merge__overlay--level {
+  color: var(--game-accent);
+}
+
 .merge__overlay--count {
   font-size: clamp(4rem, 22vh, 10rem);
   color: var(--game-accent);

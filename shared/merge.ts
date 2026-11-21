@@ -6,7 +6,7 @@ import {
   MERGE_MAX_EXPONENT,
   MERGE_MAX_MOVES_PER_S,
   MERGE_MODES,
-  MERGE_ROUND_MS,
+  MERGE_CRESCENDO_MS,
   MERGE_SIZE,
   MERGE_TARGETS,
   type MergeMode,
@@ -189,34 +189,46 @@ export function tilesLeft(board: Board): number {
 /** The host's choice, from whatever arrived; anything unknown is the default. */
 export function normaliseMergeOptions(raw: unknown): MergeOptions {
   const o = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
-  const mode = (MERGE_MODES as readonly unknown[]).includes(o['mode']) ? (o['mode'] as MergeMode) : 'time-attack';
+  const mode = (MERGE_MODES as readonly unknown[]).includes(o['mode']) ? (o['mode'] as MergeMode) : 'crescendo';
   const target = (MERGE_TARGETS as readonly unknown[]).includes(o['target']) ? (o['target'] as number) : MERGE_DEFAULT_TARGET;
   return { mode, target: mode === 'race' ? target : 0 };
 }
 
 /** The countdown a mode runs on; 0 for a race, which has none. */
 export function roundMsFor(mode: MergeMode): number {
-  return mode === 'time-attack' ? MERGE_ROUND_MS : mode === 'highlander' ? MERGE_HIGHLANDER_MS : 0;
+  return mode === 'crescendo' ? MERGE_CRESCENDO_MS : mode === 'highlander' ? MERGE_HIGHLANDER_MS : 0;
 }
 
-/** Has this board won the round outright: the target tile in a race, one tile in Highlander. */
+/** Has this board won the round outright: the target tile in a race, one tile in
+ *  Highlander. Crescendo is won on levels, which the referee counts itself. */
 export function hasWon(mode: MergeMode, target: number, board: Board): boolean {
   if (mode === 'race') return bestLevel(board) >= target;
   if (mode === 'highlander') return tilesLeft(board) === 1;
   return false;
 }
 
-export type Ranked = { score: number; moves: number; board: Board; solvedMs?: number | undefined };
+export type Ranked = {
+  score: number;
+  moves: number;
+  board: Board;
+  solvedMs?: number | undefined;
+  level?: number | undefined;
+  levelMs?: number | undefined;
+};
 
 /**
  * Who is ahead, by each mode's own measure; a full tie keeps the order it was
- * given in, which is join order. Time Attack is the score; a race is the
- * biggest tile, then the score; Highlander is the fewest tiles left, then the
- * quicker solve. Fewer moves breaks every tie.
+ * given in, which is join order. Crescendo is the levels finished, then who got
+ * there first; a race is the biggest tile, then the score; Highlander is the
+ * fewest tiles left, then the quicker solve. Fewer moves breaks every tie.
  */
 export function compareEntries(mode: MergeMode): (a: Ranked, b: Ranked) => number {
   return (a, b) => {
-    if (mode === 'highlander') {
+    if (mode === 'crescendo') {
+      const l = (b.level ?? 0) - (a.level ?? 0);
+      if (l !== 0) return l;
+      if (a.levelMs !== undefined && b.levelMs !== undefined && a.levelMs !== b.levelMs) return a.levelMs - b.levelMs;
+    } else if (mode === 'highlander') {
       const t = tilesLeft(a.board) - tilesLeft(b.board);
       if (t !== 0) return t;
       // Two players on one tile: the quicker solve, restarts and all.
@@ -299,4 +311,99 @@ export function puzzle(seed: number): Board {
   // Never reached in practice (the tests sweep hundreds of seeds); a known
   // solvable board rather than an endless loop if it ever were.
   return [1, 0, 0, 1, 0, 2, 0, 0, 0, 0, 3, 0, 4, 0, 0, 5];
+}
+
+/* ── Crescendo (spec §3) ─────────────────────────────────────────────────── */
+
+/** The eight ways to turn or mirror the board, as matrices on centred coordinates. */
+const SYMMETRIES: readonly (readonly [number, number, number, number])[] = [
+  [1, 0, 0, 1], [0, -1, 1, 0], [-1, 0, 0, -1], [0, 1, -1, 0],
+  [-1, 0, 0, 1], [0, 1, 1, 0], [1, 0, 0, -1], [0, -1, -1, 0],
+];
+const VECTORS: Record<Dir, readonly [number, number]> = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
+
+/** Fisher–Yates: the same order on every engine. A `sort` with a random
+ *  comparator is not — each browser sorts differently, so two phones would
+ *  deal two different "same" puzzles. */
+function shuffled<T>(items: readonly T[], random: () => number): T[] {
+  const out = items.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [out[i], out[j]] = [out[j] as T, out[i] as T];
+  }
+  return out;
+}
+
+function turn(m: readonly [number, number, number, number], x: number, y: number): [number, number] {
+  return [m[0] * x + m[1] * y, m[2] * x + m[3] * y];
+}
+
+/**
+ * Crescendo level `level`: a board of `level + 1` tiles that merges down to one
+ * with nothing spawning — solvable by construction, and returned with a
+ * solution so a test can prove it.
+ *
+ * Built upright first. Each row in use holds a descending chain that ends in a
+ * pair — 16 8 4 4 — which collapses to one tile against the left wall; the
+ * rows' results are themselves such a chain down the first column, which
+ * collapses upwards. Gaps inside a row change nothing, so tiles are spread over
+ * random cells of their row, and the whole board is then turned or mirrored at
+ * random, so the pattern is not the same picture every level.
+ */
+export function crescendoPuzzle(seed: number, level: number): { board: Board; solution: Dir[] } {
+  const random = mulberry32(Math.imul(seed ^ 0x6a09e667, 1) + Math.imul(level + 7, 0x3c6ef372));
+  const n = Math.min(MERGE_CELLS, Math.max(2, level + 1));
+  const pick = (k: number): number => Math.floor(random() * k);
+
+  // How many rows, and how many tiles in each (1–4).
+  const minRows = Math.ceil(n / MERGE_SIZE);
+  const rowsUsed = minRows + pick(Math.min(MERGE_SIZE, n) - minRows + 1);
+  const lengths = new Array<number>(rowsUsed).fill(1);
+  for (let left = n - rowsUsed; left > 0; ) {
+    const i = pick(rowsUsed);
+    if ((lengths[i] as number) < MERGE_SIZE) {
+      lengths[i] = (lengths[i] as number) + 1;
+      left--;
+    }
+  }
+  const rows = shuffled([0, 1, 2, 3], random).slice(0, rowsUsed).sort((a, b) => a - b);
+
+  // The first column's chain, top first: K, K-1, … with the last one repeated.
+  const fall = (i: number): number => (rowsUsed === 1 ? 0 : Math.min(i, rowsUsed - 2));
+  let k = 1;
+  lengths.forEach((m, i) => {
+    k = Math.max(k, m + fall(i));
+  });
+  k += pick(2);
+  const column = lengths.map((_, i) => k - fall(i));
+
+  const board = new Array<number>(MERGE_CELLS).fill(0);
+  rows.forEach((r, i) => {
+    const m = lengths[i] as number;
+    const c = column[i] as number;
+    const chain = m === 1 ? [c] : [...Array.from({ length: m - 1 }, (_, j) => c - 1 - j), c - m + 1];
+    const cols = shuffled([0, 1, 2, 3], random).slice(0, m).sort((a, b) => a - b);
+    cols.forEach((col, j) => {
+      board[r * MERGE_SIZE + col] = chain[j] as number;
+    });
+  });
+  // At least one move left even when every row is a single tile: until then a
+  // row's tile may sit in any column, and the column chain needs them all at the wall.
+  const upright: Dir[] = [
+    ...new Array<Dir>(Math.max(1, Math.max(...lengths) - 1)).fill('left'),
+    ...new Array<Dir>(Math.max(0, rowsUsed - 1)).fill('up'),
+  ];
+
+  const m = SYMMETRIES[pick(SYMMETRIES.length)] as readonly [number, number, number, number];
+  const turned = new Array<number>(MERGE_CELLS).fill(0);
+  board.forEach((e, i) => {
+    if (e === 0) return;
+    const [x, y] = turn(m, (i % MERGE_SIZE) - 1.5, Math.floor(i / MERGE_SIZE) - 1.5);
+    turned[(y + 1.5) * MERGE_SIZE + (x + 1.5)] = e;
+  });
+  const solution = upright.map((d) => {
+    const [x, y] = turn(m, ...(VECTORS[d] as [number, number]));
+    return DIRS.find((v) => VECTORS[v][0] === x && VECTORS[v][1] === y) as Dir;
+  });
+  return { board: turned, solution };
 }

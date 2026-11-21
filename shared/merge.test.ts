@@ -1,10 +1,11 @@
-import { MERGE_CELLS, MERGE_HIGHLANDER_MS, MERGE_MAX_EXPONENT, MERGE_ROUND_MS, MERGE_TARGETS, MERGE_TARGET_ENDLESS } from './protocol';
+import { MERGE_CELLS, MERGE_CRESCENDO_LEVELS, MERGE_CRESCENDO_MS, MERGE_HIGHLANDER_MS, MERGE_MAX_EXPONENT, MERGE_TARGETS, MERGE_TARGET_ENDLESS } from './protocol';
 import {
   DIRS,
   bestLevel,
   bestTile,
   canMove,
   compareEntries,
+  crescendoPuzzle,
   hasWon,
   normaliseMergeOptions,
   puzzle,
@@ -183,7 +184,8 @@ function bounds(): void {
 
 function modes(): void {
   console.log('\nthree ways to play (§3)');
-  check('nothing chosen is Time Attack', JSON.stringify(normaliseMergeOptions(undefined)) === '{"mode":"time-attack","target":0}');
+  check('nothing chosen is Crescendo', JSON.stringify(normaliseMergeOptions(undefined)) === '{"mode":"crescendo","target":0}');
+  check('Time Attack is gone: it falls back to Crescendo', normaliseMergeOptions({ mode: 'time-attack' }).mode === 'crescendo');
   check('a race keeps its target', JSON.stringify(normaliseMergeOptions({ mode: 'race', target: 9 })) === '{"mode":"race","target":9}');
   check('a race with no target races to 2048', normaliseMergeOptions({ mode: 'race' }).target === 11);
   check('a target off the list is 2048 too', normaliseMergeOptions({ mode: 'race', target: 14 }).target === 11);
@@ -192,8 +194,8 @@ function modes(): void {
   check('endless is a legal race target', normaliseMergeOptions({ mode: 'race', target: MERGE_TARGET_ENDLESS }).target === MERGE_TARGET_ENDLESS);
   check('endless is out of reach of any board', MERGE_TARGET_ENDLESS > MERGE_MAX_EXPONENT);
   check('only a race has a target', normaliseMergeOptions({ mode: 'highlander', target: 9 }).target === 0);
-  check('an unknown mode is Time Attack', normaliseMergeOptions({ mode: 'blitz' }).mode === 'time-attack');
-  check('Time Attack runs two minutes, Highlander three, a race counts up', roundMsFor('time-attack') === MERGE_ROUND_MS && roundMsFor('highlander') === MERGE_HIGHLANDER_MS && roundMsFor('race') === 0);
+  check('an unknown mode is Crescendo', normaliseMergeOptions({ mode: 'blitz' }).mode === 'crescendo');
+  check('Crescendo and Highlander run three minutes, a race counts up', roundMsFor('crescendo') === MERGE_CRESCENDO_MS && roundMsFor('highlander') === MERGE_HIGHLANDER_MS && roundMsFor('race') === 0);
 
   const b512 = rows([512, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 2]);
   check('a race is won by the target tile', hasWon('race', 9, b512));
@@ -204,21 +206,23 @@ function modes(): void {
   check('not by a smaller one', !hasWon('race', 10, b512));
   check('Highlander is won by one tile left', hasWon('highlander', 0, rows([0, 0, 0, 0], [0, 64, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0])));
   check('not by two', !hasWon('highlander', 0, b512));
-  check('Time Attack is never won early', !hasWon('time-attack', 0, b512));
+  check('Crescendo is never won by a board alone — the referee counts levels', !hasWon('crescendo', 0, rows([0, 0, 0, 0], [0, 64, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0])));
 
   console.log('\nwho is ahead, by each mode\'s measure (§2)');
   const e = (score: number, moves: number, board: Board) => ({ score, moves, board });
   const big = rows([256, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]);
   const small = rows([64, 64, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]);
-  check('Time Attack: the higher score', compareEntries('time-attack')(e(900, 50, small), e(800, 10, big)) < 0);
+  check('Crescendo: more levels, whatever the score', compareEntries('crescendo')({ ...e(1, 90, small), level: 4 }, { ...e(900, 10, big), level: 3 }) < 0);
+  check('Crescendo, same levels: who got there first', compareEntries('crescendo')({ ...e(0, 90, small), level: 4, levelMs: 50_000 }, { ...e(0, 10, big), level: 4, levelMs: 70_000 }) < 0);
+  check('no level at all ranks behind one', compareEntries('crescendo')(e(0, 1, big), { ...e(0, 99, big), level: 1 }) > 0);
   check('a race: the bigger tile, whatever the score', compareEntries('race')(e(100, 50, big), e(900, 10, small)) < 0);
   check('a race on the same tile: the higher score', compareEntries('race')(e(900, 50, big), e(100, 10, big)) < 0);
   const one = rows([0, 0, 0, 0], [0, 64, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]);
   check('Highlander, both on one tile: the quicker solve', compareEntries('highlander')({ ...e(0, 90, one), solvedMs: 40_000 }, { ...e(0, 10, one), solvedMs: 55_000 }) < 0);
   check('and a solve beats an unsolved board', compareEntries('highlander')({ ...e(0, 90, one), solvedMs: 99_000 }, e(0, 10, big.map((x, i) => (i === 5 ? 1 : x)))) < 0);
   check('Highlander: fewer tiles left', compareEntries('highlander')(e(0, 90, big), e(500, 10, small)) < 0);
-  check('every mode: fewer moves breaks a tie', compareEntries('time-attack')(e(100, 9, big), e(100, 10, big)) < 0);
-  check('a dead heat keeps the order it was given in', compareEntries('time-attack')(e(100, 9, big), e(100, 9, big)) === 0);
+  check('every mode: fewer moves breaks a tie', compareEntries('race')(e(100, 9, big), e(100, 10, big)) < 0);
+  check('a dead heat keeps the order it was given in', compareEntries('race')(e(100, 9, big), e(100, 9, big)) === 0);
 }
 
 function highlander(): void {
@@ -255,7 +259,45 @@ function highlander(): void {
   check('so the total never changes', !sl.moved || mass(s.game.board) === mass(p));
 }
 
+function crescendo(): void {
+  console.log('\nCrescendo: level n is n + 1 tiles, always solvable (§3)');
+  let counts = true;
+  let powers = true;
+  let solves = true;
+  let firstBad = '';
+  let boards = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    for (let level = 1; level <= MERGE_CRESCENDO_LEVELS; level++) {
+      const { board, solution } = crescendoPuzzle(seed * 2654435761, level);
+      boards++;
+      if (tilesLeft(board) !== level + 1) { counts = false; firstBad ||= `count seed ${seed} level ${level}`; }
+      const m = mass(board);
+      if ((m & (m - 1)) !== 0) { powers = false; firstBad ||= `mass seed ${seed} level ${level}`; }
+      let b = board;
+      for (const d of solution) b = slide(b, d).board;
+      if (tilesLeft(b) !== 1) { solves = false; firstBad ||= `solve seed ${seed} level ${level}: ${board.join(',')} by ${solution.join(' ')}`; }
+    }
+  }
+  check(`${boards} levels: each has exactly level + 1 tiles`, counts, firstBad);
+  check('their tiles add up to one power of two', powers, firstBad);
+  check('and its own solution, played out, leaves one tile', solves, firstBad);
+  check('level 1 is two tiles', tilesLeft(crescendoPuzzle(5, 1).board) === 2);
+  check('level 15 is the full board', tilesLeft(crescendoPuzzle(5, 15).board) === 16);
+  check('a full-board level can still move', canMove(crescendoPuzzle(5, 15).board));
+  let small = 0;
+  for (let seed = 1; seed <= 40; seed++) for (let level = 1; level <= 6; level++) if (solveDepth(crescendoPuzzle(seed, level).board) !== null) small++;
+  check(`the solver agrees on the small ones (${small}/240)`, small === 240);
+  check('the same seed and level is the same puzzle', crescendoPuzzle(9, 7).board.join() === crescendoPuzzle(9, 7).board.join());
+  let differ = 0;
+  for (let level = 2; level <= 15; level++) if (crescendoPuzzle(9, level).board.join() !== crescendoPuzzle(10, level).board.join()) differ++;
+  check(`different seeds deal different puzzles (${differ}/14)`, differ >= 12);
+  let turned = new Set<string>();
+  for (let seed = 1; seed <= 40; seed++) turned.add(crescendoPuzzle(seed, 3).solution[0] as string);
+  check(`the opening move is not always the same direction (${[...turned].join(', ')})`, turned.size >= 3);
+}
+
 sliding();
+crescendo();
 moving();
 sameLuck();
 bounds();

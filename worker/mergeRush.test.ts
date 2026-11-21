@@ -5,10 +5,11 @@ import {
   MERGE_RACE_CAP_MS,
   MERGE_TARGET_ENDLESS,
   MERGE_REPORT_GRACE_MS,
-  MERGE_ROUND_MS,
+  MERGE_CRESCENDO_LEVELS,
+  MERGE_CRESCENDO_MS,
   type ServerMessage,
 } from '../shared/protocol';
-import { mass, maxMoves, maxScore, newGame, puzzle, slide, solveDepth, startBoard, step, tilesLeft, DIRS, type Board, type Dir, type Game } from '../shared/merge';
+import { crescendoPuzzle, mass, maxMoves, maxScore, newGame, puzzle, slide, solveDepth, startBoard, step, tilesLeft, DIRS, type Board, type Dir, type Game } from '../shared/merge';
 import { nextDeadline, onMergeBoard, onPlayerGone, startMergeRush, tick, toState, type Ctx, type MergeRush } from './mergeRush';
 
 /**
@@ -28,6 +29,11 @@ function check(label: string, cond: boolean, extra?: unknown): void {
     console.log(`  FAIL ${label}`, extra === undefined ? '' : JSON.stringify(extra));
   }
 }
+
+/** The bounds and clocks below hold for any spawning mode; a race to 8192 is one
+ *  that no test board ever finishes. */
+const SPAWN = { mode: 'race', target: 13 };
+const ROUND = MERGE_RACE_CAP_MS;
 
 const A = 'p-a';
 const B = 'p-b';
@@ -73,10 +79,10 @@ function played(seed: number, n: number): Game {
 async function starting(): Promise<void> {
   console.log('\nstarting a round (§2.1, §6)');
   const h = harness([0.5]);
-  check('two players start', await startMergeRush(h.ctx, 1, [A, B], {}));
+  check('two players start', await startMergeRush(h.ctx, 1, [A, B], SPAWN));
   const s = h.state();
   check('the first move is after the countdown', s.startsAt === h.now + MERGE_COUNTDOWN_MS);
-  check('the cap is the round plus the grace', nextDeadline(s) === s.startsAt + MERGE_ROUND_MS + MERGE_REPORT_GRACE_MS);
+  check('the cap is the round plus the grace', nextDeadline(s) === s.startsAt + ROUND + MERGE_REPORT_GRACE_MS);
   check('there is a seed', Number.isInteger(s.seed) && s.seed >= 0);
   const begin = JSON.stringify(startBoard(s.seed));
   check('everyone starts on the same board', JSON.stringify(s.boards[A]?.board) === begin && JSON.stringify(s.boards[B]?.board) === begin);
@@ -85,20 +91,20 @@ async function starting(): Promise<void> {
   check('and the room was told', h.sent.some((m) => m.t === 'merge-rush'));
 
   const other = harness([0.9]);
-  await startMergeRush(other.ctx, 1, [A, B], {});
+  await startMergeRush(other.ctx, 1, [A, B], SPAWN);
   check('a different draw is a different seed', other.state().seed !== s.seed);
 
   const alone = harness();
-  check('one player alone is a round', await startMergeRush(alone.ctx, 1, [A], {}));
+  check('one player alone is a round', await startMergeRush(alone.ctx, 1, [A], SPAWN));
   check('and a solo one', alone.state().solo);
   const crowd = Array.from({ length: MERGE_MAX_PLAYERS + 1 }, (_, i) => `p${i}`);
-  check('nine cannot start', !(await startMergeRush(harness().ctx, 1, crowd, {})));
+  check('nine cannot start', !(await startMergeRush(harness().ctx, 1, crowd, SPAWN)));
 }
 
 async function reporting(): Promise<void> {
   console.log('\na report is believed only as far as the rules allow (§8)');
   const h = harness();
-  await startMergeRush(h.ctx, 1, [A, B, C], {});
+  await startMergeRush(h.ctx, 1, [A, B, C], SPAWN);
   const seed = h.state().seed;
   const g = played(seed, 40);
   h.advance(MERGE_COUNTDOWN_MS + 30_000);
@@ -131,7 +137,7 @@ async function reporting(): Promise<void> {
   check('a stale round and a stranger are ignored', !('stranger' in h.state().boards));
 
   const early = harness();
-  await startMergeRush(early.ctx, 1, [A, B], {});
+  await startMergeRush(early.ctx, 1, [A, B], SPAWN);
   const gg = played(early.state().seed, 60);
   await onMergeBoard(early.ctx, A, 1, gg.board, gg.score, gg.moves, false);
   check('sixty moves before the first one are clipped to one', early.state().boards[A]?.moves === 1, early.state().boards[A]);
@@ -145,11 +151,11 @@ async function reporting(): Promise<void> {
 async function ending(): Promise<void> {
   console.log('\nhow a round ends (§2, §7)');
   const h = harness();
-  await startMergeRush(h.ctx, 1, [A, B], {});
+  await startMergeRush(h.ctx, 1, [A, B], SPAWN);
   const seed = h.state().seed;
   const hi = played(seed, 80);
   const lo = played(seed, 20);
-  h.advance(MERGE_COUNTDOWN_MS + MERGE_ROUND_MS);
+  h.advance(MERGE_COUNTDOWN_MS + ROUND);
   await onMergeBoard(h.ctx, A, 1, hi.board, hi.score, hi.moves, false);
   await onMergeBoard(h.ctx, B, 1, lo.board, lo.score, lo.moves, false);
   check('reports alone do not end a round that is still on the clock', h.state().phase === 'playing');
@@ -162,7 +168,7 @@ async function ending(): Promise<void> {
   check('a report after the end is ignored', h.state().boards[B]?.score === lo.score);
 
   const stuck = harness();
-  await startMergeRush(stuck.ctx, 1, [A, B], {});
+  await startMergeRush(stuck.ctx, 1, [A, B], SPAWN);
   stuck.advance(MERGE_COUNTDOWN_MS + 40_000);
   const s1 = played(stuck.state().seed, 30);
   await onMergeBoard(stuck.ctx, A, 1, s1.board, s1.score, s1.moves, true);
@@ -172,7 +178,7 @@ async function ending(): Promise<void> {
   check('a dead heat goes to the first to join', stuck.state().winner === A);
 
   const left = harness();
-  await startMergeRush(left.ctx, 1, [A, B], {});
+  await startMergeRush(left.ctx, 1, [A, B], SPAWN);
   left.advance(MERGE_COUNTDOWN_MS + 60_000);
   const keep = played(left.state().seed, 50);
   await onMergeBoard(left.ctx, A, 1, keep.board, keep.score, keep.moves, false);
@@ -183,7 +189,7 @@ async function ending(): Promise<void> {
   check('and the leaver\'s score still wins', left.state().winner === A && left.state().boards[A]?.score === keep.score);
 
   const solo = harness();
-  await startMergeRush(solo.ctx, 1, [A], {}, true);
+  await startMergeRush(solo.ctx, 1, [A], SPAWN, true);
   solo.advance(MERGE_COUNTDOWN_MS + 10_000);
   const one = played(solo.state().seed, 10);
   await onMergeBoard(solo.ctx, A, 1, one.board, one.score, one.moves, true);
@@ -191,8 +197,8 @@ async function ending(): Promise<void> {
   check('and the one player wins', solo.state().winner === A && solo.state().solo);
 
   const nobody = harness();
-  await startMergeRush(nobody.ctx, 1, [A, B], {});
-  nobody.advance(MERGE_COUNTDOWN_MS + MERGE_ROUND_MS + MERGE_REPORT_GRACE_MS);
+  await startMergeRush(nobody.ctx, 1, [A, B], SPAWN);
+  nobody.advance(MERGE_COUNTDOWN_MS + ROUND + MERGE_REPORT_GRACE_MS);
   await tick(nobody.ctx);
   check('nobody moving still ends with a winner: the first to join', nobody.state().phase === 'done' && nobody.state().winner === A);
 }
@@ -200,7 +206,7 @@ async function ending(): Promise<void> {
 async function tieBreaks(): Promise<void> {
   console.log('\nthe best score always wins (§2)');
   const h = harness();
-  await startMergeRush(h.ctx, 1, [A, B, C], {});
+  await startMergeRush(h.ctx, 1, [A, B, C], SPAWN);
   const seed = h.state().seed;
   const g = played(seed, 40);
   const slow = played(seed, 41);
@@ -213,7 +219,7 @@ async function tieBreaks(): Promise<void> {
   check('the one who needed fewer moves wins it', h.state().winner === B, { a: e[A]?.moves, b: e[B]?.moves, winner: h.state().winner });
 
   const z = harness();
-  await startMergeRush(z.ctx, 1, [A, B], {});
+  await startMergeRush(z.ctx, 1, [A, B], SPAWN);
   z.advance(MERGE_COUNTDOWN_MS + 30_000);
   const lo = played(z.state().seed, 10);
   const hi = played(z.state().seed, 70);
@@ -250,9 +256,67 @@ function solved(start: Board): { board: Board; moves: number } {
 
 async function modes(): Promise<void> {
   console.log('\nthe three modes (§3)');
-  const ta = harness();
-  await startMergeRush(ta.ctx, 1, [A, B], { mode: 'time-attack' });
-  check('Time Attack runs two minutes', ta.state().roundMs === MERGE_ROUND_MS && ta.state().mode === 'time-attack' && ta.state().target === 0);
+  const cr = harness();
+  await startMergeRush(cr.ctx, 1, [A, B, C], {});
+  const c = cr.state();
+  check('nothing chosen is Crescendo, three minutes', c.mode === 'crescendo' && c.roundMs === MERGE_CRESCENDO_MS);
+  check('everyone starts on level 1, two tiles', JSON.stringify(c.start) === JSON.stringify(crescendoPuzzle(c.seed, 1).board) && tilesLeft(c.start) === 2);
+  cr.advance(MERGE_COUNTDOWN_MS + 5_000);
+
+  const playLevel = async (who: string, level: number) => {
+    const { board, solution } = crescendoPuzzle(c.seed, level);
+    let b: Board = board;
+    for (const d of solution) b = slide(b, d).board;
+    await onMergeBoard(cr.ctx, who, 1, b, 0, (cr.state().boards[who]?.moves ?? 0) + solution.length, false, level);
+  };
+  await playLevel(A, 1);
+  check('a level brought down to one tile counts', cr.state().boards[A]?.level === 1 && cr.state().boards[A]?.score === 1);
+  check('and the strip moves on to the next level', JSON.stringify(cr.state().boards[A]?.board) === JSON.stringify(crescendoPuzzle(c.seed, 2).board));
+  check('the time it was reached is kept', cr.state().boards[A]?.levelMs === 5_000);
+
+  const skip = crescendoPuzzle(c.seed, 3);
+  let sb: Board = skip.board;
+  for (const d of skip.solution) sb = slide(sb, d).board;
+  await onMergeBoard(cr.ctx, A, 1, sb, 0, 20, false, 3);
+  check('a level cannot be skipped: level 3 before level 2 is ignored', cr.state().boards[A]?.level === 1);
+  await onMergeBoard(cr.ctx, A, 1, [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0, 20, false, 2);
+  check('nor is one tile that is not that level\'s own', cr.state().boards[A]?.level === 1);
+  await playLevel(A, 1);
+  check('a level already done does not count twice', cr.state().boards[A]?.level === 1);
+
+  cr.advance(10_000);
+  await playLevel(B, 1);
+  await playLevel(B, 2);
+  check('levels count one after another', cr.state().boards[B]?.level === 2);
+  cr.advance(MERGE_CRESCENDO_MS + MERGE_REPORT_GRACE_MS);
+  await tick(cr.ctx);
+  check('at the bell, the most levels wins', cr.state().phase === 'done' && cr.state().winner === B);
+
+  const tie = harness();
+  await startMergeRush(tie.ctx, 1, [A, B], {});
+  const tc = tie.state();
+  const lvl1 = crescendoPuzzle(tc.seed, 1);
+  let won: Board = lvl1.board;
+  for (const d of lvl1.solution) won = slide(won, d).board;
+  tie.advance(MERGE_COUNTDOWN_MS + 30_000);
+  await onMergeBoard(tie.ctx, B, 1, won, 0, 2, false, 1);
+  tie.advance(10_000);
+  await onMergeBoard(tie.ctx, A, 1, won, 0, 2, false, 1);
+  tie.advance(MERGE_CRESCENDO_MS);
+  await tick(tie.ctx);
+  check('same levels: the one who got there first wins', tie.state().winner === B);
+
+  const all = harness();
+  await startMergeRush(all.ctx, 1, [A, B], {});
+  const ac = all.state();
+  all.advance(MERGE_COUNTDOWN_MS + 150_000);
+  for (let level = 1; level <= MERGE_CRESCENDO_LEVELS; level++) {
+    const { board, solution } = crescendoPuzzle(ac.seed, level);
+    let b: Board = board;
+    for (const d of solution) b = slide(b, d).board;
+    await onMergeBoard(all.ctx, A, 1, b, 0, level * 8, false, level);
+  }
+  check(`all ${MERGE_CRESCENDO_LEVELS} levels win the round at once`, all.state().phase === 'done' && all.state().winner === A && all.state().boards[A]?.level === MERGE_CRESCENDO_LEVELS);
 
   const race = harness();
   await startMergeRush(race.ctx, 1, [A, B], { mode: 'race', target: 9 });
@@ -343,7 +407,7 @@ async function wire(): Promise<void> {
   console.log('\nwhat the room sees (§6, §10)');
   const h = harness();
   const ids = Array.from({ length: MERGE_MAX_PLAYERS }, (_, i) => `player-${i}`);
-  await startMergeRush(h.ctx, 1, ids, {});
+  await startMergeRush(h.ctx, 1, ids, SPAWN);
   const g = played(h.state().seed, 150);
   h.advance(MERGE_COUNTDOWN_MS + 100_000);
   for (const id of ids) await onMergeBoard(h.ctx, id, 1, g.board, g.score, g.moves, false);

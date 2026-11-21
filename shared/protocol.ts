@@ -397,7 +397,7 @@ export type ClientMessage =
   /** Blink Tapper: this phone's whole round, sent once when it ends (spec §6). */
   | { t: 'blink-final'; d: { roundId: number; hits: number; misses: number } }
   /** Double Fusion: this phone's board, throttled, and once more when it ends (spec §6). */
-  | { t: 'merge-board'; d: { roundId: number; board: number[]; score: number; moves: number; over: boolean } }
+  | { t: 'merge-board'; d: { roundId: number; board: number[]; score: number; moves: number; over: boolean; level?: number } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
@@ -3954,7 +3954,7 @@ export const MERGE_CELLS = MERGE_SIZE * MERGE_SIZE;
 export const MERGE_MAX_EXPONENT = 17;
 
 /** The three ways to play (spec §3). */
-export const MERGE_MODES = ['time-attack', 'race', 'highlander'] as const;
+export const MERGE_MODES = ['crescendo', 'race', 'highlander'] as const;
 export type MergeMode = (typeof MERGE_MODES)[number];
 
 /**
@@ -3967,8 +3967,10 @@ export const MERGE_TARGET_ENDLESS = 99;
 export const MERGE_TARGETS = [9, 10, 11, 12, 13, MERGE_TARGET_ENDLESS] as const;
 export const MERGE_DEFAULT_TARGET = 11;
 
-/** Time Attack's clock. */
-export const MERGE_ROUND_MS = 120_000;
+/** Crescendo: level n is a puzzle of n + 1 tiles, up to `MERGE_CRESCENDO_LEVELS`
+ *  (16 tiles, the full board), all inside one clock. */
+export const MERGE_CRESCENDO_LEVELS = 15;
+export const MERGE_CRESCENDO_MS = 180_000;
 /** Highlander's clock: long enough to solve the puzzle and restart it once or twice. */
 export const MERGE_HIGHLANDER_MS = 180_000;
 /** A race has no clock of its own; this only stops a room that never gets there. */
@@ -3998,6 +4000,10 @@ export type MergeEntry = {
    * is inside it.
    */
   solvedMs?: number;
+  /** Crescendo only: levels finished, and ms from the start of the round to the
+   *  last of them — the score, and what breaks a tie on it. */
+  level?: number;
+  levelMs?: number;
 };
 
 export type MergeOptions = { mode: MergeMode; target: number };

@@ -4,6 +4,7 @@ import type { GameCard } from '../../core/types';
 import {
   MERGE_MAX_PLAYERS,
   MERGE_MIN_PLAYERS,
+  MERGE_CRESCENDO_LEVELS,
   MERGE_DEFAULT_TARGET,
   MERGE_TARGET_ENDLESS,
   MERGE_REPORT_MS,
@@ -15,7 +16,7 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { bestLevel, bestTile, canMove, compareEntries, hasWon, normaliseMergeOptions, step, tileValue, tilesLeft, type Dir, type Game } from '../../../../shared/merge';
+import { bestLevel, bestTile, canMove, compareEntries, crescendoPuzzle, hasWon, mass, normaliseMergeOptions, step, tileValue, tilesLeft, type Dir, type Game } from '../../../../shared/merge';
 import { useGameRoom } from '../../core/room/useRoom';
 import { useLobbyOptions } from '../../core/room/useLobbyOptions';
 import { useSoloTesting } from '../../core/useSolo';
@@ -61,7 +62,10 @@ function Thumb({ board }: { board: readonly number[] }): JSX.Element {
 /** How long a slide takes; merge-rush.css's `--slide` is the same number. */
 const SLIDE_MS = 110;
 
-const DEFAULT_MERGE_PANEL: MergeOptions = { mode: 'time-attack', target: MERGE_DEFAULT_TARGET };
+const DEFAULT_MERGE_PANEL: MergeOptions = { mode: 'crescendo', target: MERGE_DEFAULT_TARGET };
+
+/** How long "Level n ✓" holds before the next Crescendo level is dealt. */
+const LEVEL_BEAT_MS = 700;
 
 /** What the host's panel shows: a race's target is kept even in other modes, so
  *  switching back to a race does not forget it. */
@@ -118,13 +122,18 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   const seed = state?.seed;
   const startsAt = state?.startsAt ?? 0;
   const playing = state?.phase === 'playing';
-  const mode = state?.mode ?? 'time-attack';
+  const mode = state?.mode ?? 'crescendo';
   const target = state?.target ?? 0;
   const roundMs = state?.roundMs ?? 0;
   const startBoard = state?.start;
 
   const [game, setGame] = useState<Game | null>(null);
   const gameRef = useRef<Game | null>(null);
+  /** Crescendo: the level being played, from 1; and the beat between two levels. */
+  const [level, setLevel] = useState(1);
+  const levelRef = useRef(1);
+  const [beat, setBeat] = useState<number | null>(null);
+  const beatRef = useRef(false);
   const [tiles, setTiles] = useState<Tile[]>([]);
   const tilesRef = useRef<Tile[]>([]);
   const nextTileId = useRef(1);
@@ -163,7 +172,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     sentAt.current = performance.now();
     clientRef.current?.send({
       t: 'merge-board',
-      d: { roundId: id, board: [...g.board], score: g.score, moves: g.moves, over: done },
+      d: { roundId: id, board: [...g.board], score: g.score, moves: g.moves, over: done, level: levelRef.current },
     });
   }, []);
 
@@ -183,7 +192,16 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     if (builtFor.current === roundId) return;
     builtFor.current = roundId;
     const mine = state?.boards[myId];
-    const g: Game = mine && mine.moves > 0 ? { board: mine.board, score: mine.score, moves: mine.moves } : { board: startBoard, score: 0, moves: 0 };
+    let g: Game = mine && mine.moves > 0 ? { board: mine.board, score: mine.score, moves: mine.moves } : { board: startBoard, score: 0, moves: 0 };
+    if (state?.mode === 'crescendo' && seed !== undefined) {
+      // Back on the level after the last one the referee counted, on its copy of
+      // the board if that copy is this level's, else the level as dealt.
+      const on = Math.min(MERGE_CRESCENDO_LEVELS, (mine?.level ?? 0) + 1);
+      const dealt = crescendoPuzzle(seed, on).board;
+      levelRef.current = on;
+      setLevel(on);
+      g = { board: mine && mass(mine.board) === mass(dealt) ? mine.board : dealt, score: mine?.level ?? 0, moves: mine?.moves ?? 0 };
+    }
     gameRef.current = g;
     overRef.current = mine?.over === true;
     setGame(g);
@@ -191,7 +209,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const built = tilesFromBoard(g.board, nextTileId.current);
     nextTileId.current = built.nextId;
     showTiles(built.tiles);
-  }, [roundId, startBoard, playing, myId, state, showTiles]);
+  }, [roundId, startBoard, playing, myId, state, seed, showTiles]);
 
   const finish = useCallback(() => {
     if (overRef.current) return;
@@ -219,38 +237,76 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     return () => window.clearInterval(id);
   }, [playing, startsAt, roundMs, finish]);
 
+
+  /** Put a board on screen as dealt: no slide, fresh tiles. Moves keep counting. */
+  const deal = useCallback((board: readonly number[], score: number) => {
+    const g = gameRef.current;
+    const next: Game = { board, score, moves: g?.moves ?? 0 };
+    gameRef.current = next;
+    setGame(next);
+    const built = tilesFromBoard(next.board, nextTileId.current);
+    nextTileId.current = built.nextId;
+    showTiles(built.tiles);
+  }, [showTiles]);
+
+  /** The puzzle back to how it was dealt: Highlander's, or this Crescendo level. */
+  const restart = useCallback(() => {
+    const g = gameRef.current;
+    if (!g || !startBoard || seed === undefined || overRef.current || beatRef.current) return;
+    deal(mode === 'crescendo' ? crescendoPuzzle(seed, levelRef.current).board : startBoard, g.score);
+    report();
+  }, [startBoard, seed, mode, deal, report]);
+
+  /**
+   * A Crescendo level down to one tile: told to the room at once, then a beat
+   * to see it, then the next level — or, after the last, this phone is done.
+   */
+  const completeLevel = useCallback(() => {
+    const done = levelRef.current;
+    if (gameRef.current) gameRef.current = { ...gameRef.current, score: done };
+    send(false);
+    if (done >= MERGE_CRESCENDO_LEVELS) {
+      finish();
+      return;
+    }
+    beatRef.current = true;
+    setBeat(done);
+    window.setTimeout(() => {
+      beatRef.current = false;
+      setBeat(null);
+      if (overRef.current || seed === undefined) return;
+      levelRef.current = done + 1;
+      setLevel(done + 1);
+      deal(crescendoPuzzle(seed, done + 1).board, done);
+      report();
+    }, LEVEL_BEAT_MS);
+  }, [send, finish, seed, deal, report]);
+
   const move = useCallback((dir: Dir) => {
     const g = gameRef.current;
     const now = clientRef.current?.now() ?? Date.now();
-    if (!g || seed === undefined || overRef.current || now < startsAt || spyRef.current) return;
-    const r = step(g, dir, seed, mode !== 'highlander');
+    if (!g || seed === undefined || overRef.current || now < startsAt || spyRef.current || beatRef.current) return;
+    // Only a race spawns: Highlander and Crescendo are puzzles.
+    const r = step(g, dir, seed, mode === 'race');
     if (!r.moved) return;
     gameRef.current = r.game;
     setGame(r.game);
     const moved = moveTiles(tilesRef.current, dir, r.game.board, nextTileId.current);
     nextTileId.current = moved.nextId;
     showTiles(moved.tiles);
+    if (mode === 'crescendo' && tilesLeft(r.game.board) === 1) {
+      completeLevel();
+      return;
+    }
     // Reaching the goal is sent at once, not on the throttle: in a race the
-    // first report to arrive wins.
-    if (hasWon(mode, target, r.game.board) || !canMove(r.game.board)) {
+    // first report to arrive wins. A puzzle never runs out of moves for good —
+    // ↺ is always there — so only a race ends on being stuck.
+    if (hasWon(mode, target, r.game.board) || (mode === 'race' && !canMove(r.game.board))) {
       finish();
       return;
     }
     report();
-  }, [seed, startsAt, mode, target, finish, report, showTiles]);
-
-  /** Highlander only: the puzzle back to its start. Moves keep counting. */
-  const restart = useCallback(() => {
-    const g = gameRef.current;
-    if (!g || !startBoard || overRef.current) return;
-    const next: Game = { board: startBoard, score: g.score, moves: g.moves };
-    gameRef.current = next;
-    setGame(next);
-    const built = tilesFromBoard(next.board, nextTileId.current);
-    nextTileId.current = built.nextId;
-    showTiles(built.tiles);
-    report();
-  }, [startBoard, showTiles, report]);
+  }, [seed, startsAt, mode, target, finish, report, showTiles, completeLevel]);
 
   useEffect(() => {
     if (!playing) return;
@@ -302,7 +358,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
       return { en: `${left} ${left === 1 ? 'tile' : 'tiles'}`, fr: `${left} ${left === 1 ? 'tuile' : 'tuiles'}` };
     }
     if (m === 'race') return { en: String(bestTile(e.board)), fr: String(bestTile(e.board)) };
-    return { en: String(e.score), fr: String(e.score) };
+    return { en: `Lvl ${e.level ?? 0}`, fr: `Niv. ${e.level ?? 0}` };
   };
 
   if (state && state.phase === 'done') {
@@ -318,7 +374,14 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
           // Whoever solved it is shown their time; a solved board is always one tile,
           // so the count is only worth printing for a player who did not finish.
           value: text(
-            state.mode === 'highlander'
+            state.mode === 'crescendo'
+              ? (e.level ?? 0) > 0 && e.levelMs !== undefined
+                ? {
+                    en: `${e.level} ${e.level === 1 ? 'level' : 'levels'} · ${formatDuration(e.levelMs)}`,
+                    fr: `${e.level} ${e.level === 1 ? 'niveau' : 'niveaux'} · ${formatDuration(e.levelMs)}`,
+                  }
+                : { en: '0 levels', fr: '0 niveau' }
+              : state.mode === 'highlander'
               ? e.solvedMs !== undefined
                 ? { en: formatDuration(e.solvedMs), fr: formatDuration(e.solvedMs) }
                 : { en: `${left} ${left === 1 ? 'tile' : 'tiles'} left`, fr: `${left} ${left === 1 ? 'tuile restante' : 'tuiles restantes'}` }
@@ -328,7 +391,12 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         };
       });
     const note =
-      state.mode === 'highlander'
+      state.mode === 'crescendo'
+        ? {
+            en: `Each level adds a tile, up to ${MERGE_CRESCENDO_LEVELS}. Most levels wins, then whoever got there first.`,
+            fr: `Chaque niveau ajoute une tuile, jusqu’à ${MERGE_CRESCENDO_LEVELS}. Le plus de niveaux gagne, puis le premier arrivé.`,
+          }
+        : state.mode === 'highlander'
         ? {
             en: 'First down to one tile wins; otherwise the fewest tiles left. The time counts every restart.',
             fr: 'Le premier à une seule tuile gagne ; sinon, le moins de tuiles restantes. Le temps compte chaque recommencement.',
@@ -384,7 +452,11 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         />
 
         <p class="merge__score">
-          {mode === 'highlander' ? (
+          {mode === 'crescendo' ? (
+            <>
+              {text({ en: 'Level', fr: 'Niveau' })} <b>{level}</b>/{MERGE_CRESCENDO_LEVELS}
+            </>
+          ) : mode === 'highlander' ? (
             <>
               <b>{tilesLeft(board)}</b> {tilesLeft(board) === 1 ? text({ en: 'tile left', fr: 'tuile restante' }) : text({ en: 'tiles left', fr: 'tuiles restantes' })}
             </>
@@ -397,6 +469,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         <p class="merge__goal">
           {text(modeName(mode, target))}
           {mode === 'race' && ` · ${text({ en: 'best', fr: 'record' })} ${bestTile(board)}`}
+          {mode === 'crescendo' && ` · ${tilesLeft(board)} ${text({ en: 'tiles', fr: 'tuiles' })}`}
         </p>
 
         <div
@@ -437,7 +510,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
           </div>
         </div>
 
-        <div class={`merge__pad${mode === 'highlander' ? ' merge__pad--restart' : ''}`}>
+        <div class={`merge__pad${mode !== 'race' ? ' merge__pad--restart' : ''}`}>
           {ARROWS.map((a) => (
             <button
               key={a.dir}
@@ -450,12 +523,12 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
               {a.glyph}
             </button>
           ))}
-          {mode === 'highlander' && (
+          {mode !== 'race' && (
             <button
               type="button"
               class="merge__arrow merge__restart"
               aria-label={text({ en: 'Start the puzzle again', fr: 'Recommencer le puzzle' })}
-              disabled={over || countdown > 0}
+              disabled={over || countdown > 0 || beat !== null}
               onClick={restart}
             >
               ↺
@@ -483,9 +556,16 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         )}
 
         {countdown > 0 && <p class="merge__overlay merge__overlay--count" aria-live="assertive">{countdown}</p>}
+        {beat !== null && (
+          <p class="merge__overlay merge__overlay--level" aria-live="assertive">
+            {text({ en: `Level ${beat} ✓`, fr: `Niveau ${beat} ✓` })}
+          </p>
+        )}
         {over && (
           <p class="merge__overlay" aria-live="polite">
-            {solvedOrWon
+            {mode === 'crescendo' && (state.boards[myId ?? '']?.level ?? 0) >= MERGE_CRESCENDO_LEVELS
+              ? text({ en: `All ${MERGE_CRESCENDO_LEVELS} levels!`, fr: `Les ${MERGE_CRESCENDO_LEVELS} niveaux !` })
+              : solvedOrWon
               ? mode === 'highlander'
                 ? text({ en: 'Solved!', fr: 'Résolu !' })
                 : text({ en: `You made ${targetLabel(target)}!`, fr: `Vous avez fait ${targetLabel(target)} !` })
@@ -511,7 +591,9 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         )}
 
         <p class="visually-hidden" aria-live="polite">
-          {mode === 'highlander'
+          {mode === 'crescendo'
+            ? text({ en: `Level ${level} of ${MERGE_CRESCENDO_LEVELS}`, fr: `Niveau ${level} sur ${MERGE_CRESCENDO_LEVELS}` })
+            : mode === 'highlander'
             ? text({ en: `${tilesLeft(board)} tiles left`, fr: `${tilesLeft(board)} tuiles restantes` })
             : text({ en: `${game?.score ?? 0} points`, fr: `${game?.score ?? 0} points` })}
         </p>

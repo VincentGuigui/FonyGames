@@ -6,7 +6,7 @@
 | **Catchy sentence** | Slide, merge, climb. Out-score the whole room |
 | **Illustration** | `www/src/games/merge-rush/art/card.svg` — a 4×4 grid of coloured tiles, a few merged into bigger ones, an arrow sweeping across it |
 | **Players** | 1–8 |
-| **Round length** | 2 min (Time Attack), 3 min (Highlander), a race until somebody makes the tile |
+| **Round length** | 3 min (Crescendo, Highlander), a race until somebody makes the tile |
 | **Inputs** | touch |
 | **Accent colour** | `#F472B6` |
 | **Status** | 🎮 beta |
@@ -17,8 +17,8 @@ The sliding-tile merge puzzle, in a room. Everyone gets the same starting board
 and slides tiles to merge equal numbers into bigger ones, each on their own
 phone. A strip of thumbnails shows everyone else's board as pure colour, so you
 can watch the room climb — or panic — without a single number to read, and tap
-any of them to watch that board live. Three modes (§3): the best score in two
-minutes, a race to a tile, and a puzzle merged down to one.
+any of them to watch that board live. Three modes (§3): puzzles that grow a tile
+a level, a race to a tile, and one puzzle merged down to one.
 
 ## 2. Core loop
 
@@ -65,9 +65,29 @@ both languages because they are the lobby's buttons.
 
 | Mode | Name (EN / FR) | Blurb | Goal | Clock | When the goal is not met |
 | --- | --- | --- | --- | --- | --- |
-| `time-attack` | Time Attack / Contre-la-montre | Two minutes, highest score wins | — | 2 min countdown | Highest score |
+| `crescendo` | Crescendo / Crescendo | Level after level, one more tile each time: most levels wins | First to finish all 15 levels | 3 min countdown | Most levels, then who got there first |
 | `race` | Race to 2048 / Course à 2048 (Endless race / Course sans fin) | First to make the tile wins | First accepted board with the target tile | Counts up; 30 min cap | Biggest tile, then score |
 | `highlander` | Highlander / Highlander | There can be only one: merge the puzzle down to one tile | First accepted board with one tile | 3 min countdown | Fewest tiles left |
+
+**Crescendo** (the default) is a run of puzzles that grow: level *n* is a board
+of *n* + 1 tiles that merges down to one with nothing spawning — 2 tiles at
+level 1, the full 16 at level 15. Each player goes at their own pace on the same
+puzzles; a level down to one tile counts, a beat of "Level n ✓" follows, and the
+next is dealt. The score is levels finished; at the bell the most levels win,
+and on a tie whoever reached that level first. Finishing all 15 wins outright.
+↺ restarts the current level, and the clock runs on through it.
+
+Every level is **solvable by construction** (`crescendoPuzzle`), not by search:
+each row in use holds a descending chain ending in a pair — 16 8 4 4 — which
+collapses to one tile against the left wall, and the rows' results form the same
+kind of chain down the first column, which collapses upwards. Tiles are spread
+over random cells of their row (gaps change nothing) and the board is then
+turned or mirrored at random, so the pattern is not the same picture twice. The
+generator returns its own solution, and a test replays it on 900 levels.
+
+The referee believes a Crescendo report only for the level the player is on —
+levels count one at a time, so none can be skipped — and only if its board holds
+exactly that level's mass.
 
 **Race.** The target is the host's pick of 512, 1024, 2048 (the default), 4096,
 8192 or **∞**, and the name follows it ("Race to 512"). It is won by the first
@@ -115,13 +135,16 @@ new tile scales in.
 - **Four arrow buttons** under the board, for anyone who cannot swipe, and in
   Highlander a fifth, **↺**, that puts the puzzle back as it started.
 - **The other players**, pinned to the bottom of the screen: one block each,
-  centred, top to bottom — their avatar, where they stand (their score in Time
-  Attack, their best tile in a race, their tiles left in Highlander), and a
+  centred, top to bottom — their avatar, where they stand (their level in
+  Crescendo, their best tile in a race, their tiles left in Highlander), and a
   **32×32 px** canvas of their board as 8 px colour squares, no numbers. Your
   own board is not thumbnailed; it is the big one above.
 
-Under the score, one line names the mode — and in a race, your best tile so far.
-In Highlander the big number is the tiles left rather than points.
+Under the big number, one line names the mode — with your best tile so far in a
+race, and the tiles on the board in Crescendo. The big number is the level in
+Crescendo (`Level 3/15`), the tiles left in Highlander, and points in a race.
+Both puzzle modes have the ↺ button; a puzzle never ends a player's round by
+being stuck, since ↺ is always there.
 
 **Watching another player.** Tapping a thumbnail, at any moment — counting
 down, mid-round, or stuck and waiting — opens that player's board full size,
@@ -224,9 +247,10 @@ A 16-number board and two counters per report. Nothing stored past the room.
 
 ## 12. Open questions
 
-1. **Is two minutes right?** Long enough to build a board, short enough to keep
-   the room together. A round normally ends on the clock rather than on
-   everyone getting stuck.
+1. **Is three minutes right for Crescendo?** A practised player clears all 15
+   levels in about two; whether a first-timer gets past level 8 or so in three
+   minutes is the playtest question. Time Attack, the original two-minute
+   score mode, was replaced by Crescendo.
 2. **The name.** "2048" is a trademark-adjacent title in the wild, so this is
    **Double Fusion** (it was Merge Rush at first). The slug stays `merge-rush` —
    the URL, the flag key and every shared link — because renaming it would
