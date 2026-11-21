@@ -146,23 +146,19 @@ export async function onPlayerGone(ctx: Ctx, playerId: PlayerId): Promise<void> 
   broadcast(ctx, s);
 }
 
-/** Highest score wins. A tie at the top is unranked, and a room where nobody
- *  scored has no winner. */
+/**
+ * Highest score wins, always — a round with a score has a winner, and so does a
+ * solo one. A tie goes to whoever got there in fewer moves, then to whoever
+ * joined first.
+ */
 async function finish(ctx: Ctx, s: MergeRush): Promise<void> {
   let winner: PlayerId | null = null;
-  if (!s.solo) {
-    let best = 0;
-    let tie = false;
-    for (const [id, e] of Object.entries(s.boards)) {
-      if (e.score > best) {
-        best = e.score;
-        winner = id;
-        tie = false;
-      } else if (e.score === best && best > 0) {
-        tie = true;
-      }
+  let best: MergeEntry | null = null;
+  for (const [id, e] of Object.entries(s.boards)) {
+    if (best === null || e.score > best.score || (e.score === best.score && e.moves < best.moves)) {
+      winner = id;
+      best = e;
     }
-    if (tie) winner = null;
   }
   s.phase = 'done';
   s.winner = winner;

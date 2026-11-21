@@ -12,7 +12,7 @@ import {
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { bestTile, canMove, newGame, step, tileValue, type Dir, type Game } from '../../../../shared/merge';
+import { bestLevel, canMove, newGame, step, tileValue, type Dir, type Game } from '../../../../shared/merge';
 import { useGameRoom } from '../../core/room/useRoom';
 import { useSoloTesting } from '../../core/useSolo';
 import { RoomGate } from '../../lobby/RoomGate';
@@ -238,8 +238,8 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         avatar: avatarOf(id),
         name: nameOf(id),
         value: text({
-          en: `${e.score} pts · best tile ${bestTile(e.board)}`,
-          fr: `${e.score} pts · meilleure tuile ${bestTile(e.board)}`,
+          en: `${e.score} pts · lvl ${bestLevel(e.board)}`,
+          fr: `${e.score} pts · niv. ${bestLevel(e.board)}`,
         }),
         out: false,
       }));
@@ -252,9 +252,10 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         title={card.title}
         concept={card.concept}
         rules={card.rules}
+        headline={state.solo ? text({ en: 'Well played!', fr: 'Bravo !' }) : undefined}
         note={text({
-          en: 'A merge scores the tile it makes.',
-          fr: 'Une fusion rapporte la tuile qu’elle crée.',
+          en: 'A merge scores the tile it makes. Level n is the 2ⁿ tile.',
+          fr: 'Une fusion rapporte la tuile qu’elle crée. Niveau n = la tuile 2ⁿ.',
         })}
         rows={rows}
         me={myId}

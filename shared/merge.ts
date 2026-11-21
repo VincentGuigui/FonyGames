@@ -128,6 +128,11 @@ export function bestTile(board: Board): number {
   return tileValue(Math.max(0, ...board));
 }
 
+/** The level a board has reached: the exponent of its best tile, so 128 is level 7. */
+export function bestLevel(board: Board): number {
+  return Math.max(0, ...board);
+}
+
 /** The total of every tile on the board. */
 export function mass(board: Board): number {
   return board.reduce((sum, e) => sum + tileValue(e), 0);

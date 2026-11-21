@@ -29,9 +29,11 @@ can watch the room climb — or panic — without a single number to read.
 4. The round ends after `MERGE_ROUND_MS`, or when every player has no move left.
    A player with no move left is **stuck** and keeps their score.
 
-**Win condition:** highest score. A tie at the top is unranked.
+**Win condition:** highest score — there is always a winner. A tie goes to whoever
+needed fewer moves, then to whoever joined first.
 **Scoring:** the value of every tile created by a merge, added up — merging two
-8s scores 16. Nothing else scores. A solo round has no winner.
+8s scores 16. Nothing else scores. A solo round ends on "Bravo" rather than a
+winner's name.
 
 ### 2.1 Same board, same luck
 
@@ -78,6 +80,10 @@ Sliding is drawn from `tiles.ts`, which follows the same move as
 to; it never decides a result, and its test checks it agrees with the rules over
 whole games.
 
+The results list each player as `score pts · lvl n` (French `niv. n`), where the
+level is the exponent of their best tile — a 128 is level 7 — so the line stays
+short.
+
 ## 5. Inputs & sensors
 
 Touch only: a swipe of at least `MERGE_SWIPE_PX` along either axis, whichever is
@@ -105,13 +111,13 @@ themselves happen on the phone.
 - **Player leaves mid-round**: their last board and score stay on the strip and
   can still win; they stop holding the round open.
 - **Host leaves**: promoted silently.
-- **Too few players**: one is a legitimate round (1–8); solo has no winner.
+- **Too few players**: one is a legitimate round (1–8); the one player wins it.
 - **Backgrounded tab or reload**: the round clock is the server's, so a phone
   that comes back has lost the time but not its board — it resumes from the
   referee's copy, and the next spawn lands where it would have, because every
   spawn is a function of the seed and the move count.
 - **Everyone stuck**: the round ends early.
-- **Nobody moves**: everyone scores 0, no winner.
+- **Nobody moves**: everyone scores 0, and the first to join wins the tie.
 - **A board that fills up with no merge available** is stuck, not lost — the
   score stands, and the phone shows that it is waiting for the others.
 

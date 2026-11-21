@@ -1,6 +1,7 @@
 import { MERGE_CELLS, MERGE_MAX_EXPONENT } from './protocol';
 import {
   DIRS,
+  bestLevel,
   bestTile,
   canMove,
   isBoard,
@@ -168,6 +169,8 @@ function bounds(): void {
   check('mass is the sum of the tiles', mass(rows([2, 4, 0, 0], [8, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 2])) === 16);
   check('the biggest tile on a board', bestTile(rows([2, 4, 0, 0], [64, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 2])) === 64);
   check('an empty board has no tile', bestTile(new Array(16).fill(0)) === 0);
+  check('a level is the exponent of the best tile: 128 is 7', bestLevel(rows([2, 4, 0, 0], [128, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 2])) === 7);
+  check('an empty board is level 0', bestLevel(new Array(16).fill(0)) === 0);
 }
 
 sliding();

@@ -166,7 +166,7 @@ async function ending(): Promise<void> {
   check('one phone being stuck does not end the round', stuck.state().phase === 'playing');
   await onMergeBoard(stuck.ctx, B, 1, s1.board, s1.score, s1.moves, true);
   check('everyone stuck ends it early', stuck.state().phase === 'done');
-  check('a tie at the top is unranked', stuck.state().winner === null);
+  check('a dead heat goes to the first to join', stuck.state().winner === A);
 
   const left = harness();
   await startMergeRush(left.ctx, 1, [A, B]);
@@ -184,13 +184,39 @@ async function ending(): Promise<void> {
   solo.advance(MERGE_COUNTDOWN_MS + 10_000);
   const one = played(solo.state().seed, 10);
   await onMergeBoard(solo.ctx, A, 1, one.board, one.score, one.moves, true);
-  check('solo ends on the one phone being done, with no winner', solo.state().phase === 'done' && solo.state().winner === null);
+  check('solo ends on the one phone being done', solo.state().phase === 'done');
+  check('and the one player wins', solo.state().winner === A && solo.state().solo);
 
   const nobody = harness();
   await startMergeRush(nobody.ctx, 1, [A, B]);
   nobody.advance(MERGE_COUNTDOWN_MS + MERGE_ROUND_MS + MERGE_REPORT_GRACE_MS);
   await tick(nobody.ctx);
-  check('nobody moving ends with no winner', nobody.state().phase === 'done' && nobody.state().winner === null);
+  check('nobody moving still ends with a winner: the first to join', nobody.state().phase === 'done' && nobody.state().winner === A);
+}
+
+async function tieBreaks(): Promise<void> {
+  console.log('\nthe best score always wins (§2)');
+  const h = harness();
+  await startMergeRush(h.ctx, 1, [A, B, C]);
+  const seed = h.state().seed;
+  const g = played(seed, 40);
+  const slow = played(seed, 41);
+  h.advance(MERGE_COUNTDOWN_MS + 60_000);
+  await onMergeBoard(h.ctx, A, 1, slow.board, g.score, slow.moves, true);
+  await onMergeBoard(h.ctx, B, 1, g.board, g.score, g.moves, true);
+  await onMergeBoard(h.ctx, C, 1, g.board, 0, g.moves, true);
+  const e = h.state().boards;
+  check('two players on the same score', e[A]?.score === e[B]?.score && (e[A]?.score ?? 0) > 0, { a: e[A]?.score, b: e[B]?.score });
+  check('the one who needed fewer moves wins it', h.state().winner === B, { a: e[A]?.moves, b: e[B]?.moves, winner: h.state().winner });
+
+  const z = harness();
+  await startMergeRush(z.ctx, 1, [A, B]);
+  z.advance(MERGE_COUNTDOWN_MS + 30_000);
+  const lo = played(z.state().seed, 10);
+  const hi = played(z.state().seed, 70);
+  await onMergeBoard(z.ctx, A, 1, lo.board, lo.score, lo.moves, true);
+  await onMergeBoard(z.ctx, B, 1, hi.board, hi.score, hi.moves, true);
+  check('otherwise the higher score wins, whoever joined first', z.state().winner === B);
 }
 
 async function wire(): Promise<void> {
@@ -209,6 +235,7 @@ async function wire(): Promise<void> {
 await starting();
 await reporting();
 await ending();
+await tieBreaks();
 await wire();
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);
