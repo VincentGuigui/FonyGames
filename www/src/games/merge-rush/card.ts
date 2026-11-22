@@ -19,7 +19,7 @@ export const CARD: GameCard = {
     'Everyone starts on the same board. Tap a thumbnail to watch that player live.',
     'Crescendo: puzzles that grow a tile a level. Race: first to the tile. Highlander: merge down to one.',
   ],
-  art: { src: art, alt: 'A four-by-four board of coloured tiles, some merged into brighter ones, an arrow sweeping across it' },
+  art: { src: art, alt: 'A four-by-four board of numbered, coloured tiles, some of them merged into bigger ones' },
   fr: {
     pitch: 'Glissez, fusionnez, grimpez. Dépassez toute la salle',
     concept: 'Faites glisser les tuiles, fusionnez les nombres égaux et regardez les plateaux des autres grimper à côté du vôtre.',
@@ -28,7 +28,7 @@ export const CARD: GameCard = {
       'Tout le monde part du même plateau. Touchez une miniature pour suivre ce joueur en direct.',
       'Crescendo : des puzzles qui gagnent une tuile par niveau. Course : le premier à la tuile. Highlander : fusionnez jusqu’à une seule.',
     ],
-    art: { alt: 'Un plateau de quatre par quatre de tuiles colorées, certaines fusionnées en tuiles plus vives, une flèche qui le traverse' },
+    art: { alt: 'Un plateau de quatre par quatre de tuiles numérotées et colorées, certaines fusionnées en tuiles plus grosses' },
   },
   accent: '#F472B6',
   players: PLAYERS['merge-rush'],
