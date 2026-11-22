@@ -32,7 +32,7 @@ export const CARD: GameCard = {
   },
   accent: '#F472B6',
   players: PLAYERS['merge-rush'],
-  duration: '3 min',
+  duration: '3 min+',
   inputs: ['touch'],
   tags: ['party', 'arcade', 'strategy'],
   modes: [

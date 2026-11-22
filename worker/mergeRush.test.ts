@@ -6,7 +6,6 @@ import {
   MERGE_TARGET_ENDLESS,
   MERGE_REPORT_GRACE_MS,
   MERGE_CRESCENDO_LEVELS,
-  MERGE_CRESCENDO_MS,
   type ServerMessage,
 } from '../shared/protocol';
 import { crescendoPuzzle, mass, maxMoves, maxScore, newGame, puzzle, slide, solveDepth, startBoard, step, tilesLeft, DIRS, type Board, type Dir, type Game } from '../shared/merge';
@@ -259,7 +258,8 @@ async function modes(): Promise<void> {
   const cr = harness();
   await startMergeRush(cr.ctx, 1, [A, B, C], {});
   const c = cr.state();
-  check('nothing chosen is Crescendo, three minutes', c.mode === 'crescendo' && c.roundMs === MERGE_CRESCENDO_MS);
+  check('nothing chosen is Crescendo, with no clock to run down', c.mode === 'crescendo' && c.roundMs === 0);
+  check('its only deadline is the cap', nextDeadline(c) === c.startsAt + MERGE_RACE_CAP_MS + MERGE_REPORT_GRACE_MS);
   check('everyone starts on level 1, two tiles', JSON.stringify(c.start) === JSON.stringify(crescendoPuzzle(c.seed, 1).board) && tilesLeft(c.start) === 2);
   cr.advance(MERGE_COUNTDOWN_MS + 5_000);
 
@@ -288,9 +288,10 @@ async function modes(): Promise<void> {
   await playLevel(B, 1);
   await playLevel(B, 2);
   check('levels count one after another', cr.state().boards[B]?.level === 2);
-  cr.advance(MERGE_CRESCENDO_MS + MERGE_REPORT_GRACE_MS);
+  check('nobody finishing does not end it early', !(await tick(cr.ctx)) && cr.state().phase === 'playing');
+  cr.advance(MERGE_RACE_CAP_MS + MERGE_REPORT_GRACE_MS);
   await tick(cr.ctx);
-  check('at the bell, the most levels wins', cr.state().phase === 'done' && cr.state().winner === B);
+  check('at the cap, the most levels wins', cr.state().phase === 'done' && cr.state().winner === B);
 
   const tie = harness();
   await startMergeRush(tie.ctx, 1, [A, B], {});
@@ -302,7 +303,7 @@ async function modes(): Promise<void> {
   await onMergeBoard(tie.ctx, B, 1, won, 0, 2, false, 1);
   tie.advance(10_000);
   await onMergeBoard(tie.ctx, A, 1, won, 0, 2, false, 1);
-  tie.advance(MERGE_CRESCENDO_MS);
+  tie.advance(MERGE_RACE_CAP_MS);
   await tick(tie.ctx);
   check('same levels: the one who got there first wins', tie.state().winner === B);
 

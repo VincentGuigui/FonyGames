@@ -1,4 +1,4 @@
-import { MERGE_CELLS, MERGE_CRESCENDO_LEVELS, MERGE_CRESCENDO_MS, MERGE_HIGHLANDER_MS, MERGE_MAX_EXPONENT, MERGE_TARGETS, MERGE_TARGET_ENDLESS } from './protocol';
+import { MERGE_CELLS, MERGE_CRESCENDO_LEVELS, MERGE_HIGHLANDER_MS, MERGE_MAX_EXPONENT, MERGE_TARGETS, MERGE_TARGET_ENDLESS } from './protocol';
 import {
   DIRS,
   bestLevel,
@@ -195,7 +195,7 @@ function modes(): void {
   check('endless is out of reach of any board', MERGE_TARGET_ENDLESS > MERGE_MAX_EXPONENT);
   check('only a race has a target', normaliseMergeOptions({ mode: 'highlander', target: 9 }).target === 0);
   check('an unknown mode is Crescendo', normaliseMergeOptions({ mode: 'blitz' }).mode === 'crescendo');
-  check('Crescendo and Highlander run three minutes, a race counts up', roundMsFor('crescendo') === MERGE_CRESCENDO_MS && roundMsFor('highlander') === MERGE_HIGHLANDER_MS && roundMsFor('race') === 0);
+  check('Highlander runs three minutes; a race and Crescendo count up with no clock', roundMsFor('highlander') === MERGE_HIGHLANDER_MS && roundMsFor('race') === 0 && roundMsFor('crescendo') === 0);
 
   const b512 = rows([512, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 2]);
   check('a race is won by the target tile', hasWon('race', 9, b512));

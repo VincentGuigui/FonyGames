@@ -444,7 +444,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     return (
       <div class="merge" data-tone={roundMs > 0 ? timerTone(clock) : 'calm'} style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
         <StatusBar
-          status={text({ en: clockText, fr: clockText })}
+          status={mode === 'crescendo' ? undefined : text({ en: clockText, fr: clockText })}
           title={card.title}
           concept={card.concept}
           rules={card.rules}

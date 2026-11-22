@@ -6,7 +6,7 @@
 | **Catchy sentence** | Slide, merge, climb. Out-score the whole room |
 | **Illustration** | `www/src/games/merge-rush/art/card.svg` — a 4×4 grid of coloured tiles, a few merged into bigger ones, an arrow sweeping across it |
 | **Players** | 1–8 |
-| **Round length** | 3 min (Crescendo, Highlander), a race until somebody makes the tile |
+| **Round length** | 3 min (Highlander); untimed for Crescendo and a race — until somebody finishes |
 | **Inputs** | touch |
 | **Accent colour** | `#F472B6` |
 | **Status** | 🎮 beta |
@@ -65,7 +65,7 @@ both languages because they are the lobby's buttons.
 
 | Mode | Name (EN / FR) | Blurb | Goal | Clock | When the goal is not met |
 | --- | --- | --- | --- | --- | --- |
-| `crescendo` | Crescendo / Crescendo | Level after level, one more tile each time: most levels wins | First to finish all 15 levels | 3 min countdown | Most levels, then who got there first |
+| `crescendo` | Crescendo / Crescendo | Level after level, one more tile each time: most levels wins | First to finish all 15 levels | Counts up; 30 min cap | Most levels, then who got there first |
 | `race` | Race to 2048 / Course à 2048 (Endless race / Course sans fin) | First to make the tile wins | First accepted board with the target tile | Counts up; 30 min cap | Biggest tile, then score |
 | `highlander` | Highlander / Highlander | There can be only one: merge the puzzle down to one tile | First accepted board with one tile | 3 min countdown | Fewest tiles left |
 
@@ -73,9 +73,12 @@ both languages because they are the lobby's buttons.
 of *n* + 1 tiles that merges down to one with nothing spawning — 2 tiles at
 level 1, the full 16 at level 15. Each player goes at their own pace on the same
 puzzles; a level down to one tile counts, a beat of "Level n ✓" follows, and the
-next is dealt. The score is levels finished; at the bell the most levels win,
-and on a tie whoever reached that level first. Finishing all 15 wins outright.
-↺ restarts the current level, and the clock runs on through it.
+next is dealt. The score is levels finished, and **there is no countdown**: the
+clock counts up, like a race's, and the round ends when someone finishes all 15
+levels — which wins it outright. Nobody is hurried, so a first-timer is not cut
+off at level 6. If no one ever finishes, the 30 min cap ends the round and the
+most levels win, then whoever reached that level first. ↺ restarts the current
+level, and the clock runs on through it.
 
 Every level is **solvable by construction** (`crescendoPuzzle`), not by search:
 each row in use holds a descending chain ending in a pair — 16 8 4 4 — which
@@ -123,7 +126,10 @@ Lobby → countdown → round → results. The round screen, portrait, top to bo
 
 - **The clock**, in the status bar, at twice its usual size. It turns **orange**
   with `30 s` left and **red, blinking once a second,** with `15 s` left
-  (`timer.ts`; under reduced motion it stays red and does not blink).
+  (`timer.ts`; under reduced motion it stays red and does not blink). A race
+  shows it counting up. **Crescendo shows no clock at all** — it has no deadline,
+  so the level is the only number that matters; the time still appears on the
+  results, where it breaks a tie.
 - **Your score**, big.
 - **Your board**: a 4×4 grid filling the width, each tile its colour and its
   number. Tiles **slide** to their new cell over about 110 ms rather than
@@ -247,10 +253,12 @@ A 16-number board and two counters per report. Nothing stored past the room.
 
 ## 12. Open questions
 
-1. **Is three minutes right for Crescendo?** A practised player clears all 15
-   levels in about two; whether a first-timer gets past level 8 or so in three
-   minutes is the playtest question. Time Attack, the original two-minute
-   score mode, was replaced by Crescendo.
+1. **Crescendo has no clock, so how long is a round?** It ends when someone
+   clears level 15. A solver bot does that in about two minutes, which says
+   nothing about a person; how long a room really takes — and whether a slow
+   player drags the others past the 3 min a round is meant to run (AGENTS.md §4)
+   — is the playtest question. Time Attack, the original two-minute score mode,
+   was replaced by Crescendo, and then its countdown went too.
 2. **The name.** "2048" is a trademark-adjacent title in the wild, so this is
    **Double Fusion** (it was Merge Rush at first). The slug stays `merge-rush` —
    the URL, the flag key and every shared link — because renaming it would

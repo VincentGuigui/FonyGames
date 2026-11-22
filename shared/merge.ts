@@ -6,7 +6,6 @@ import {
   MERGE_MAX_EXPONENT,
   MERGE_MAX_MOVES_PER_S,
   MERGE_MODES,
-  MERGE_CRESCENDO_MS,
   MERGE_SIZE,
   MERGE_TARGETS,
   type MergeMode,
@@ -194,9 +193,9 @@ export function normaliseMergeOptions(raw: unknown): MergeOptions {
   return { mode, target: mode === 'race' ? target : 0 };
 }
 
-/** The countdown a mode runs on; 0 for a race, which has none. */
+/** The countdown a mode runs on; 0 for a race and Crescendo, which count up. */
 export function roundMsFor(mode: MergeMode): number {
-  return mode === 'crescendo' ? MERGE_CRESCENDO_MS : mode === 'highlander' ? MERGE_HIGHLANDER_MS : 0;
+  return mode === 'highlander' ? MERGE_HIGHLANDER_MS : 0;
 }
 
 /** Has this board won the round outright: the target tile in a race, one tile in
