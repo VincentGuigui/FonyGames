@@ -393,8 +393,8 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const note =
       state.mode === 'crescendo'
         ? {
-            en: `Each level adds a tile, up to ${MERGE_CRESCENDO_LEVELS}. Most levels wins, then whoever got there first.`,
-            fr: `Chaque niveau ajoute une tuile, jusqu’à ${MERGE_CRESCENDO_LEVELS}. Le plus de niveaux gagne, puis le premier arrivé.`,
+            en: `${MERGE_CRESCENDO_LEVELS} levels, a tile more every two. Most levels wins, then whoever got there first.`,
+            fr: `${MERGE_CRESCENDO_LEVELS} niveaux, une tuile de plus tous les deux. Le plus de niveaux gagne, puis le premier arrivé.`,
           }
         : state.mode === 'highlander'
         ? {

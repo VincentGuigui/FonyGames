@@ -65,28 +65,36 @@ both languages because they are the lobby's buttons.
 
 | Mode | Name (EN / FR) | Blurb | Goal | Clock | When the goal is not met |
 | --- | --- | --- | --- | --- | --- |
-| `crescendo` | Crescendo / Crescendo | Level after level, one more tile each time: most levels wins | First to finish all 15 levels | Counts up; 30 min cap | Most levels, then who got there first |
+| `crescendo` | Crescendo / Crescendo | Level after level, more tiles and longer puzzles: most levels wins | First to finish all 30 levels | Counts up; 30 min cap | Most levels, then who got there first |
 | `race` | Race to 2048 / Course à 2048 (Endless race / Course sans fin) | First to make the tile wins | First accepted board with the target tile | Counts up; 30 min cap | Biggest tile, then score |
 | `highlander` | Highlander / Highlander | There can be only one: merge the puzzle down to one tile | First accepted board with one tile | 3 min countdown | Fewest tiles left |
 
-**Crescendo** (the default) is a run of puzzles that grow: level *n* is a board
-of *n* + 1 tiles that merges down to one with nothing spawning — 2 tiles at
-level 1, the full 16 at level 15. Each player goes at their own pace on the same
+**Crescendo** (the default) is a run of 30 puzzles that grow and get longer:
+each tile count from 2 to 16 is played **twice**, as two different puzzles
+(levels 1–2 are 2 tiles, levels 29–30 the full 16), and every board merges down
+to one tile with nothing spawning. Each player goes at their own pace on the same
 puzzles; a level down to one tile counts, a beat of "Level n ✓" follows, and the
 next is dealt. The score is levels finished, and **there is no countdown**: the
-clock counts up, like a race's, and the round ends when someone finishes all 15
+clock counts up, like a race's, and the round ends when someone finishes all 30
 levels — which wins it outright. Nobody is hurried, so a first-timer is not cut
-off at level 6. If no one ever finishes, the 30 min cap ends the round and the
+off early. If no one ever finishes, the 30 min cap ends the round and the
 most levels win, then whoever reached that level first. ↺ restarts the current
 level, and the clock runs on through it.
 
-Every level is **solvable by construction** (`crescendoPuzzle`), not by search:
-each row in use holds a descending chain ending in a pair — 16 8 4 4 — which
-collapses to one tile against the left wall, and the rows' results form the same
-kind of chain down the first column, which collapses upwards. Tiles are spread
-over random cells of their row (gaps change nothing) and the board is then
-turned or mirrored at random, so the pattern is not the same picture twice. The
-generator returns its own solution, and a test replays it on 900 levels.
+**The puzzles are hard on purpose, and searched for offline.** A board built to be
+solvable (rows of descending chains collapsing into one) takes only 1–6 moves
+however many tiles it has. So `scripts/crescendoBank.gen.ts` (`npm run
+bank:crescendo`) starts from such a board and hill-climbs with a solver: move or
+swap a tile, keep the change if the board is still solvable and its *shortest*
+solution did not shrink. Moving tiles never changes the total, so it stays one
+power of two. It keeps the six hardest distinct boards (a turned copy is not
+distinct) per tile count in `shared/crescendoBank.ts`, with their shortest
+solutions: about 2–3 moves at 2–3 tiles, 7 at 4, a dozen at 8 and 15–25 on a
+full board. Searching takes seconds on a full board, so the phone and the
+referee only *look up*: the seed picks two of the six for a tile count (one for
+each of its levels) and turns or mirrors each, solution included. A test replays
+every solution, has the solver confirm the shortest ones, and checks that
+puzzles take ever more moves.
 
 The referee believes a Crescendo report only for the level the player is on —
 levels count one at a time, so none can be skipped — and only if its board holds
@@ -148,7 +156,7 @@ new tile scales in.
 
 Under the big number, one line names the mode — with your best tile so far in a
 race, and the tiles on the board in Crescendo. The big number is the level in
-Crescendo (`Level 3/15`), the tiles left in Highlander, and points in a race.
+Crescendo (`Level 3/30`), the tiles left in Highlander, and points in a race.
 Both puzzle modes have the ↺ button; a puzzle never ends a player's round by
 being stuck, since ↺ is always there.
 
@@ -254,8 +262,8 @@ A 16-number board and two counters per report. Nothing stored past the room.
 ## 12. Open questions
 
 1. **Crescendo has no clock, so how long is a round?** It ends when someone
-   clears level 15. A solver bot does that in about two minutes, which says
-   nothing about a person; how long a room really takes — and whether a slow
+   clears level 30, which takes a solver bot a few minutes and a person far
+   longer; how long a room really takes — and whether a slow
    player drags the others past the 3 min a round is meant to run (AGENTS.md §4)
    — is the playtest question. Time Attack, the original two-minute score mode,
    was replaced by Crescendo, and then its countdown went too.

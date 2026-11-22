@@ -260,7 +260,8 @@ function highlander(): void {
 }
 
 function crescendo(): void {
-  console.log('\nCrescendo: level n is n + 1 tiles, always solvable (§3)');
+  console.log('\nCrescendo: each tile count twice, always solvable, ever longer (§3)');
+  check('30 levels', MERGE_CRESCENDO_LEVELS === 30);
   let counts = true;
   let powers = true;
   let solves = true;
@@ -270,7 +271,7 @@ function crescendo(): void {
     for (let level = 1; level <= MERGE_CRESCENDO_LEVELS; level++) {
       const { board, solution } = crescendoPuzzle(seed * 2654435761, level);
       boards++;
-      if (tilesLeft(board) !== level + 1) { counts = false; firstBad ||= `count seed ${seed} level ${level}`; }
+      if (tilesLeft(board) !== Math.ceil(level / 2) + 1) { counts = false; firstBad ||= `count seed ${seed} level ${level}`; }
       const m = mass(board);
       if ((m & (m - 1)) !== 0) { powers = false; firstBad ||= `mass seed ${seed} level ${level}`; }
       let b = board;
@@ -278,21 +279,52 @@ function crescendo(): void {
       if (tilesLeft(b) !== 1) { solves = false; firstBad ||= `solve seed ${seed} level ${level}: ${board.join(',')} by ${solution.join(' ')}`; }
     }
   }
-  check(`${boards} levels: each has exactly level + 1 tiles`, counts, firstBad);
+  check(`${boards} levels: each has ceil(level / 2) + 1 tiles`, counts, firstBad);
   check('their tiles add up to one power of two', powers, firstBad);
   check('and its own solution, played out, leaves one tile', solves, firstBad);
-  check('level 1 is two tiles', tilesLeft(crescendoPuzzle(5, 1).board) === 2);
-  check('level 15 is the full board', tilesLeft(crescendoPuzzle(5, 15).board) === 16);
-  check('a full-board level can still move', canMove(crescendoPuzzle(5, 15).board));
-  let small = 0;
-  for (let seed = 1; seed <= 40; seed++) for (let level = 1; level <= 6; level++) if (solveDepth(crescendoPuzzle(seed, level).board) !== null) small++;
-  check(`the solver agrees on the small ones (${small}/240)`, small === 240);
+  check('levels 1 and 2 are two tiles', tilesLeft(crescendoPuzzle(5, 1).board) === 2 && tilesLeft(crescendoPuzzle(5, 2).board) === 2);
+  check('levels 29 and 30 are the full board', tilesLeft(crescendoPuzzle(5, 29).board) === 16 && tilesLeft(crescendoPuzzle(5, 30).board) === 16);
+  check('a full-board level can still move', canMove(crescendoPuzzle(5, 30).board));
+
+  let twins = 0;
+  let same = 0;
+  for (let seed = 1; seed <= 200; seed++) {
+    for (let n = 2; n <= 16; n++) {
+      twins++;
+      if (crescendoPuzzle(seed, 2 * n - 3).board.join() === crescendoPuzzle(seed, 2 * n - 2).board.join()) same++;
+    }
+  }
+  check(`a tile count's two levels are never the same board (${same}/${twins} alike)`, same === 0);
+
+  // The bank's solutions are claimed shortest: the solver, run on every
+  // puzzle the game can deal, must agree, and they must grow harder.
+  let agree = true;
+  const median: number[] = [];
+  for (let n = 2; n <= 16; n++) {
+    const lengths: number[] = [];
+    for (let seed = 1; seed <= 30; seed++) {
+      for (const level of [2 * n - 3, 2 * n - 2]) {
+        const p = crescendoPuzzle(seed, level);
+        if (n <= 8 && solveDepth(p.board, 400_000) !== p.solution.length) { agree = false; firstBad ||= `solver disagrees seed ${seed} level ${level}`; }
+        lengths.push(p.solution.length);
+      }
+    }
+    lengths.sort((x, y) => x - y);
+    median.push(lengths[lengths.length >> 1] as number);
+  }
+  check('the solver agrees each solution is a shortest one (2–8 tiles)', agree, firstBad);
+  // Median shortest solution by tile count (index 0 is two tiles).
+  const floor = (n: number): number => (n <= 3 ? n : n <= 4 ? 7 : n <= 8 ? 10 : n <= 12 ? 16 : 18);
+  const lowest = median.findIndex((m, i) => m < floor(i + 2));
+  check(`puzzles take ever more moves (medians ${median.join(' ')})`, lowest < 0, `${lowest + 2} tiles`);
+  check('a full board takes at least 20 moves, against 6 before the search', (median[14] as number) >= 20);
+
   check('the same seed and level is the same puzzle', crescendoPuzzle(9, 7).board.join() === crescendoPuzzle(9, 7).board.join());
   let differ = 0;
-  for (let level = 2; level <= 15; level++) if (crescendoPuzzle(9, level).board.join() !== crescendoPuzzle(10, level).board.join()) differ++;
-  check(`different seeds deal different puzzles (${differ}/14)`, differ >= 12);
-  let turned = new Set<string>();
-  for (let seed = 1; seed <= 40; seed++) turned.add(crescendoPuzzle(seed, 3).solution[0] as string);
+  for (let level = 2; level <= 30; level++) if (crescendoPuzzle(9, level).board.join() !== crescendoPuzzle(10, level).board.join()) differ++;
+  check(`different seeds deal different puzzles (${differ}/29)`, differ >= 25);
+  const turned = new Set<string>();
+  for (let seed = 1; seed <= 40; seed++) turned.add(crescendoPuzzle(seed, 7).solution[0] as string);
   check(`the opening move is not always the same direction (${[...turned].join(', ')})`, turned.size >= 3);
 }
 

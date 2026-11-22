@@ -3967,10 +3967,10 @@ export const MERGE_TARGET_ENDLESS = 99;
 export const MERGE_TARGETS = [9, 10, 11, 12, 13, MERGE_TARGET_ENDLESS] as const;
 export const MERGE_DEFAULT_TARGET = 11;
 
-/** Crescendo: level n is a puzzle of n + 1 tiles, up to `MERGE_CRESCENDO_LEVELS`
- *  (16 tiles, the full board). It has no clock of its own — like a race it counts
+/** Crescendo: each tile count from 2 to 16 (the full board) is played twice, so
+ *  `MERGE_CRESCENDO_LEVELS` levels of ever longer puzzles. It has no clock of its own — like a race it counts
  *  up and is capped only by `MERGE_RACE_CAP_MS`. */
-export const MERGE_CRESCENDO_LEVELS = 15;
+export const MERGE_CRESCENDO_LEVELS = 30;
 /** Highlander's clock: long enough to solve the puzzle and restart it once or twice. */
 export const MERGE_HIGHLANDER_MS = 180_000;
 /** A race has no clock of its own; this only stops a room that never gets there. */

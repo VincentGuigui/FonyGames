@@ -11,6 +11,7 @@ import {
   type MergeMode,
   type MergeOptions,
 } from './protocol';
+import { CRESCENDO_BANK, CRESCENDO_VARIANTS } from './crescendoBank';
 
 /**
  * Double Fusion's rules. Spec: docs/specs/games/merge-rush.md §2
@@ -321,88 +322,47 @@ const SYMMETRIES: readonly (readonly [number, number, number, number])[] = [
 ];
 const VECTORS: Record<Dir, readonly [number, number]> = { left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1] };
 
-/** Fisher–Yates: the same order on every engine. A `sort` with a random
- *  comparator is not — each browser sorts differently, so two phones would
- *  deal two different "same" puzzles. */
-function shuffled<T>(items: readonly T[], random: () => number): T[] {
-  const out = items.slice();
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [out[i], out[j]] = [out[j] as T, out[i] as T];
-  }
-  return out;
-}
-
 function turn(m: readonly [number, number, number, number], x: number, y: number): [number, number] {
   return [m[0] * x + m[1] * y, m[2] * x + m[3] * y];
 }
 
+/** Tiles on level `level`: two levels for each count, from 2 up to a full board. */
+export function crescendoTiles(level: number): number {
+  return Math.min(MERGE_CELLS, Math.max(2, Math.ceil(level / 2) + 1));
+}
+
+const LETTER_DIR: Record<string, Dir> = { u: 'up', d: 'down', l: 'left', r: 'right' };
+
 /**
- * Crescendo level `level`: a board of `level + 1` tiles that merges down to one
- * with nothing spawning — solvable by construction, and returned with a
- * solution so a test can prove it.
+ * Crescendo level `level`, returned with a shortest solution so a test can
+ * prove it. Looked up, not searched: a board that takes many moves to solve is
+ * found offline (scripts/crescendoBank.gen.ts) and kept in `CRESCENDO_BANK`.
  *
- * Built upright first. Each row in use holds a descending chain that ends in a
- * pair — 16 8 4 4 — which collapses to one tile against the left wall; the
- * rows' results are themselves such a chain down the first column, which
- * collapses upwards. Gaps inside a row change nothing, so tiles are spread over
- * random cells of their row, and the whole board is then turned or mirrored at
- * random, so the pattern is not the same picture every level.
+ * The seed picks two different puzzles of the level's tile count, one for each
+ * of its two levels, and turns or mirrors each — a turned board is the same
+ * puzzle, so the solution is turned with it.
  */
 export function crescendoPuzzle(seed: number, level: number): { board: Board; solution: Dir[] } {
-  const random = mulberry32(Math.imul(seed ^ 0x6a09e667, 1) + Math.imul(level + 7, 0x3c6ef372));
-  const n = Math.min(MERGE_CELLS, Math.max(2, level + 1));
-  const pick = (k: number): number => Math.floor(random() * k);
+  const n = crescendoTiles(level);
+  const picks = mulberry32(Math.imul(seed ^ 0x6a09e667, 1) + Math.imul(n + 7, 0x3c6ef372));
+  const first = Math.floor(picks() * CRESCENDO_VARIANTS);
+  const second = (first + 1 + Math.floor(picks() * (CRESCENDO_VARIANTS - 1))) % CRESCENDO_VARIANTS;
+  const [cells, moves] = (CRESCENDO_BANK[n - 2] as readonly (readonly [string, string])[])[
+    level % 2 === 1 ? first : second
+  ] as readonly [string, string];
 
-  // How many rows, and how many tiles in each (1–4).
-  const minRows = Math.ceil(n / MERGE_SIZE);
-  const rowsUsed = minRows + pick(Math.min(MERGE_SIZE, n) - minRows + 1);
-  const lengths = new Array<number>(rowsUsed).fill(1);
-  for (let left = n - rowsUsed; left > 0; ) {
-    const i = pick(rowsUsed);
-    if ((lengths[i] as number) < MERGE_SIZE) {
-      lengths[i] = (lengths[i] as number) + 1;
-      left--;
-    }
-  }
-  const rows = shuffled([0, 1, 2, 3], random).slice(0, rowsUsed).sort((a, b) => a - b);
-
-  // The first column's chain, top first: K, K-1, … with the last one repeated.
-  const fall = (i: number): number => (rowsUsed === 1 ? 0 : Math.min(i, rowsUsed - 2));
-  let k = 1;
-  lengths.forEach((m, i) => {
-    k = Math.max(k, m + fall(i));
-  });
-  k += pick(2);
-  const column = lengths.map((_, i) => k - fall(i));
-
+  const random = mulberry32(Math.imul(seed ^ 0x510e527f, 1) + Math.imul(level + 3, 0x9b05688c));
+  const m = SYMMETRIES[Math.floor(random() * SYMMETRIES.length)] as readonly [number, number, number, number];
   const board = new Array<number>(MERGE_CELLS).fill(0);
-  rows.forEach((r, i) => {
-    const m = lengths[i] as number;
-    const c = column[i] as number;
-    const chain = m === 1 ? [c] : [...Array.from({ length: m - 1 }, (_, j) => c - 1 - j), c - m + 1];
-    const cols = shuffled([0, 1, 2, 3], random).slice(0, m).sort((a, b) => a - b);
-    cols.forEach((col, j) => {
-      board[r * MERGE_SIZE + col] = chain[j] as number;
-    });
-  });
-  // At least one move left even when every row is a single tile: until then a
-  // row's tile may sit in any column, and the column chain needs them all at the wall.
-  const upright: Dir[] = [
-    ...new Array<Dir>(Math.max(1, Math.max(...lengths) - 1)).fill('left'),
-    ...new Array<Dir>(Math.max(0, rowsUsed - 1)).fill('up'),
-  ];
-
-  const m = SYMMETRIES[pick(SYMMETRIES.length)] as readonly [number, number, number, number];
-  const turned = new Array<number>(MERGE_CELLS).fill(0);
-  board.forEach((e, i) => {
+  [...cells].forEach((c, i) => {
+    const e = parseInt(c, 36);
     if (e === 0) return;
     const [x, y] = turn(m, (i % MERGE_SIZE) - 1.5, Math.floor(i / MERGE_SIZE) - 1.5);
-    turned[(y + 1.5) * MERGE_SIZE + (x + 1.5)] = e;
+    board[(y + 1.5) * MERGE_SIZE + (x + 1.5)] = e;
   });
-  const solution = upright.map((d) => {
-    const [x, y] = turn(m, ...(VECTORS[d] as [number, number]));
+  const solution = [...moves].map((c) => {
+    const [x, y] = turn(m, ...(VECTORS[LETTER_DIR[c] as Dir] as [number, number]));
     return DIRS.find((v) => VECTORS[v][0] === x && VECTORS[v][1] === y) as Dir;
   });
-  return { board: turned, solution };
+  return { board, solution };
 }
