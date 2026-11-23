@@ -31,6 +31,7 @@ import { CARD as RHINO_SPIN_CARD } from './rhino-spin/card';
 import { CARD as MAXIMUM_JUMP_CARD } from './maximum-jump/card';
 import { CARD as BLINK_TAPPER_CARD } from './blink-tapper/card';
 import { CARD as MERGE_RUSH_CARD } from './merge-rush/card';
+import { CARD as TENTACULES_CARD } from './tentacules/card';
 import type { GameCard } from '../core/types';
 
 /**
@@ -80,6 +81,7 @@ export const GAMES: GameCard[] = [
   MAXIMUM_JUMP_CARD,
   BLINK_TAPPER_CARD,
   MERGE_RUSH_CARD,
+  TENTACULES_CARD,
 ];
 
 /** Display order by status. One entry per value of `GameCard['status']`. */

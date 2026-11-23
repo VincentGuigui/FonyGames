@@ -57,6 +57,7 @@ export default defineConfig({
         'maximum-jump': 'www/maximum-jump/index.html',
         'blink-tapper': 'www/blink-tapper/index.html',
         'merge-rush': 'www/merge-rush/index.html',
+        tentacules: 'www/tentacules/index.html',
         // The admin centre. Built to a PLACEHOLDER directory name and renamed to the
         // ADMIN_PATH secret by the deploy — this repository is public, so the real
         // path cannot be committed (docs/deployment.md §3.4).

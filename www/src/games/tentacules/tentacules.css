@@ -1,0 +1,106 @@
+/* Tentacules. Spec: docs/specs/games/tentacules.md §4 */
+
+.tent {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  background: #12304e;
+}
+
+.tent > .statusbar {
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+}
+
+.tent__wall {
+  flex: 1;
+  width: 100%;
+  max-width: 34rem;
+  min-height: 0;
+  margin: 0 auto;
+  display: block;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.tent__overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  font-size: 6rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 4px 16px #000a;
+  pointer-events: none;
+}
+
+.tent__toast {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  translate: -50% 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-weight: 700;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-bg) 85%, transparent);
+  border: 2px solid var(--game-accent);
+  border-radius: var(--radius);
+  pointer-events: none;
+}
+
+.tent-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tent-options:disabled {
+  opacity: 0.7;
+}
+
+.tent-options__legend {
+  padding: 0 0 var(--space-1);
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.tent-options__mode {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  text-align: left;
+  color: var(--color-text-dim);
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.tent-options__mode b {
+  color: var(--color-text);
+}
+
+.tent-options__mode span {
+  font-size: var(--font-small);
+}
+
+.tent-options__mode--on {
+  border-color: var(--game-accent, var(--color-accent));
+  background: color-mix(in srgb, var(--game-accent, var(--color-accent)) 18%, var(--color-surface));
+}
+
+.tent-options__mode:disabled {
+  cursor: default;
+}

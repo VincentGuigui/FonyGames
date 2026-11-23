@@ -9,7 +9,7 @@
 | **Round length** | 1 min (Time trial); about 1 min, capped at 2 min (Summit) |
 | **Inputs** | touch |
 | **Accent colour** | `#FF7F6E` |
-| **Status** | draft |
+| **Status** | built — numbers untested on real thumbs |
 
 ## 1. Pitch
 
