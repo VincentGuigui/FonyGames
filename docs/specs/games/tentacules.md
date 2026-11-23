@@ -52,9 +52,15 @@ screen.
 - A tentacle reaches at most `REACH` = 0.38 from the centre of the body. A drop
   further than that is refused, and the tentacle visibly stretches to its limit
   and springs back — the elasticity is the feedback.
-- The body sits at the centroid of the pegs it holds, then is pulled the least
-  distance needed to keep every held tentacle within `REACH`. With five
-  tentacles spread round it, that is the star.
+- **The body pulls itself up**: it sits 70 % of the way from the centre of its
+  pegs to the highest point every held tentacle still reaches (`place`), so
+  reaching a higher peg lifts it, and with five tentacles spread round it the
+  star shows. Hanging by one tentacle, it dangles just below the peg. (A plain
+  centroid was tried first: five tentacles stacked low anchored the body so far
+  down that nothing above was ever in reach.)
+- **Letting go**: a tentacle dropped on empty space lets go and dangles; a drop
+  on a peg out of reach springs back to the peg it left. Letting low tentacles
+  go is how a climber stops them anchoring the body.
 - **A peg holds one tentacle**, from anyone. A peg held by your own tentacle
   cannot take another. A peg held by **another player** is drawn ringed in
   their colour, and can be **taken over once it has been held 3 s**

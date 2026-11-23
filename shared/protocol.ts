@@ -140,6 +140,8 @@ export type ClientMessage =
         /** Double Fusion's mode and, for a race, the target tile's exponent
          *  (merge-rush.md §3), sanitised by `normaliseMergeOptions`. */
         merge?: { mode?: string; target?: number; aggressive?: boolean };
+        /** Tentacules' mode (tentacules.md §3), sanitised by `normaliseTentMode`. */
+        tentacules?: { mode?: string };
         /**
          * Solo test mode — start with one player, for looking at a game rather than
          * playing it. Set by a browser that has signed into the admin centre; the
@@ -403,6 +405,10 @@ export type ClientMessage =
   /** Double Fusion, aggressive race: send one of this player's unlocked maluses
    *  (its `MergeStock.id`) to a rival, dropped on their thumbnail (spec §3.1). */
   | { t: 'merge-malus'; d: { roundId: number; id: number; to: PlayerId } }
+  /** Tentacules: only what is done is sent — a grab, a let-go, a reset (spec §6). */
+  | { t: 'tentacules-grab'; d: { roundId: number; arm: number; peg: number } }
+  | { t: 'tentacules-let-go'; d: { roundId: number; arms: number[] } }
+  | { t: 'tentacules-reset'; d: { roundId: number } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
@@ -1420,6 +1426,7 @@ export type ServerMessage =
   | { t: 'maximum-jump'; s: number; d: MaximumJumpState }
   | { t: 'blink-tapper'; s: number; d: BlinkTapperState }
   | { t: 'merge-rush'; s: number; d: MergeRushState }
+  | { t: 'tentacules'; s: number; d: TentaculesState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
    * Tap Tap Music: sent to **one player only** — their own cleared
@@ -2172,6 +2179,9 @@ const CLIENT_TYPES = new Set([
   'blink-final',
   'merge-board',
   'merge-malus',
+  'tentacules-grab',
+  'tentacules-let-go',
+  'tentacules-reset',
   'switch-game',
 ]);
 
@@ -4073,4 +4083,55 @@ export type MergeRushState = {
   readyAt: Record<PlayerId, number>;
   /** Who took the last malus: nobody takes two in a row while there is a choice. */
   lastTarget: PlayerId | null;
+};
+
+/* ── Tentacules ─────────────────────────────────────────────────────────────────
+ * Spec: docs/specs/games/tentacules.md
+ *
+ * The climb happens on the phone; only grabs and let-gos travel. The referee
+ * owns the seed, who holds which peg, every height and the winner — a held body
+ * sits where its pegs put it, so it computes heights itself (shared/tentacules.ts).
+ */
+
+export const TENT_MIN_PLAYERS = PLAYERS.tentacules[0];
+export const TENT_MAX_PLAYERS = PLAYERS.tentacules[1];
+export const TENT_MODES = ['trial', 'summit'] as const;
+export type TentMode = (typeof TENT_MODES)[number];
+export const TENT_ARMS = 5;
+export const TENT_COUNTDOWN_MS = 3000;
+/** Time trial: one minute, the highest point reached wins. */
+export const TENT_TRIAL_MS = 60_000;
+/** Summit: the line, in metres above the start, and the cap. */
+export const TENT_SUMMIT_M = 25;
+export const TENT_SUMMIT_CAP_MS = 120_000;
+/** A rival's peg can be taken over once it has been held this long. */
+export const TENT_SQUAT_MS = 3000;
+/** Hanging by one tentacle longer than this, the octopus lets go. */
+export const TENT_HANG_MS = 3000;
+/** Grabs a second, at most, before the referee stops believing a thumb. */
+export const TENT_MAX_GRABS_PER_S = 8;
+export const TENT_REPORT_GRACE_MS = 2000;
+
+export type TentPlayer = {
+  /** The peg each tentacle holds, or null; negative ids are this player's own starting pegs. */
+  holds: (number | null)[];
+  /** When each hold began (server ms), so a phone can see which rival pegs are up for grabs. */
+  since: number[];
+  /** The highest point reached, in metres above the start, and when. */
+  best: number;
+  bestAt: number;
+  /** Summit: ms from the start to the line. */
+  finishedMs?: number;
+};
+
+export type TentaculesState = {
+  roundId: number;
+  phase: 'playing' | 'done';
+  startsAt: number;
+  endsAt: number;
+  seed: number;
+  mode: TentMode;
+  players: Record<PlayerId, TentPlayer>;
+  solo: boolean;
+  winner: PlayerId | null;
 };

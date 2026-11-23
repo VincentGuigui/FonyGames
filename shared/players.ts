@@ -40,6 +40,7 @@ export const PLAYERS = {
   'rhino-spin': [1, 8],
   'maximum-jump': [1, 8],
   'blink-tapper': [1, 8],
+  tentacules: [1, 8],
   'merge-rush': [1, 8],
   'tap-duel': [2, 8],
   'tap-fighter': [2, 2],
@@ -89,6 +90,7 @@ const GAME_OF_MODE: Record<string, GameSlug> = {
   'color-hunt': 'color-hunt', math: 'math-o-matic', tilt: 'tilt-race', scream: 'scream-meter',
   dark: 'together-in-the-dark', tttt: 'tic-tac-tic-tac-toe', fighter: 'tap-fighter',
   crowd: 'crowd-race', rhino: 'rhino-spin', jump: 'maximum-jump', blink: 'blink-tapper', merge: 'merge-rush',
+  tentacules: 'tentacules',
 };
 
 export const MODE_GAMES: readonly GameSlug[] = Object.values(GAME_OF_MODE);
