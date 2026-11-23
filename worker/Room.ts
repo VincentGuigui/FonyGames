@@ -238,6 +238,18 @@ import {
   type Ctx as MergeCtx,
 } from './mergeRush';
 import {
+  nextDeadline as tentDeadline,
+  onGrab as onTentGrab,
+  onLetGo as onTentLetGo,
+  onPlayerGone as tentPlayerGone,
+  onReset as onTentReset,
+  startTentacules,
+  tick as tentTick,
+  toState as tentToState,
+  type Tentacules,
+  type Ctx as TentCtx,
+} from './tentacules';
+import {
   nextDeadline as huntColorDeadline,
   onHuntConfirm,
   onHuntFind,
@@ -519,7 +531,7 @@ export class Room extends DurableObject<Env> {
         });
         return;
       case 'start':
-        await this.#onStart(ws, msg.d.mode, msg.d.drag, msg.d.roles, msg.d.symbols, msg.d.math, msg.d.blink, msg.d.merge, msg.d.solo === true);
+        await this.#onStart(ws, msg.d.mode, msg.d.drag, msg.d.roles, msg.d.symbols, msg.d.math, msg.d.blink, msg.d.merge, msg.d.tentacules, msg.d.solo === true);
         return;
       case 'tap':
         await this.#onTap(ws, msg.d);
@@ -641,6 +653,21 @@ export class Room extends DurableObject<Env> {
       case 'merge-board': {
         const id = this.#idOf(ws);
         if (id) await onMergeBoard(this.#mergeCtx(), id, msg.d.roundId, msg.d.board, msg.d.score, msg.d.moves, msg.d.over, msg.d.level, msg.d.fusions);
+        return;
+      }
+      case 'tentacules-grab': {
+        const id = this.#idOf(ws);
+        if (id) await onTentGrab(this.#tentCtx(), id, msg.d.roundId, msg.d.arm, msg.d.peg);
+        return;
+      }
+      case 'tentacules-let-go': {
+        const id = this.#idOf(ws);
+        if (id) await onTentLetGo(this.#tentCtx(), id, msg.d.roundId, msg.d.arms);
+        return;
+      }
+      case 'tentacules-reset': {
+        const id = this.#idOf(ws);
+        if (id) await onTentReset(this.#tentCtx(), id, msg.d.roundId);
         return;
       }
       case 'merge-malus': {
@@ -963,6 +990,12 @@ export class Room extends DurableObject<Env> {
       await this.#rearm();
       return;
     }
+    const climbing = await this.#tent();
+    if (climbing && climbing.phase === 'playing' && Date.now() >= tentDeadline(climbing)) {
+      await tentTick(this.#tentCtx());
+      await this.#rearm();
+      return;
+    }
     const hunting = await this.#colorHunt();
     if (hunting && hunting.phase === 'hunt' && Date.now() >= huntColorDeadline(hunting)) {
       await huntColorTick(this.#huntColorCtx());
@@ -1054,6 +1087,8 @@ export class Room extends DurableObject<Env> {
     blink?: unknown,
     /** Double Fusion's mode and race target, sanitised by `normaliseMergeOptions`. */
     merge?: unknown,
+    /** Tentacules' mode, sanitised by `normaliseTentMode`. */
+    tentacules?: unknown,
     /**
      * Solo test mode. Relaxes the minimum player count and the "last one standing"
      * end condition, and nothing else — `enoughToStart` in shared/players.ts lists
@@ -1132,6 +1167,8 @@ export class Room extends DurableObject<Env> {
     if (blinking && blinking.phase !== 'done') return;
     const merging = await this.#merge();
     if (merging && merging.phase !== 'done') return;
+    const climbingNow = await this.#tent();
+    if (climbingNow && climbingNow.phase !== 'done') return;
     const colorHunting = await this.#colorHunt();
     if (colorHunting && colorHunting.phase !== 'done') return;
     const tttt = await this.#tttt();
@@ -1175,6 +1212,7 @@ export class Room extends DurableObject<Env> {
       || mode === 'jump'
       || mode === 'blink'
       || mode === 'merge'
+      || mode === 'tentacules'
     ) {
       const roundId = ((await this.ctx.storage.get<number>('roundId')) ?? 0) + 1;
       await this.ctx.storage.put('roundId', roundId);
@@ -1210,6 +1248,7 @@ export class Room extends DurableObject<Env> {
       else if (mode === 'jump') started = await startMaximumJump(this.#jumpCtx(), roundId, ids, solo);
       else if (mode === 'blink') started = await startBlinkTapper(this.#blinkCtx(), roundId, ids, blink, solo);
       else if (mode === 'merge') started = await startMergeRush(this.#mergeCtx(), roundId, ids, merge, solo);
+      else if (mode === 'tentacules') started = await startTentacules(this.#tentCtx(), roundId, ids, tentacules, solo);
       // `direct` is the default because it needs no explanation: grab your icon
       // and it follows your finger. `capped` is the deliberate choice.
       else started = await startCatMouse(this.#cmCtx(), roundId, ids, drag === 'capped' ? 'capped' : 'direct', solo);
@@ -1287,7 +1326,7 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'error', d: { code: 'bad-message', message: 'Game unavailable' } });
       return;
     }
-    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'scream', 'dark', 'tttt', 'fighter', 'crowd', 'rhino', 'jump', 'blink', 'merge', 'roundId', 'scores', 'lobbyOptions']) {
+    for (const key of ['duel', 'bomb', 'steady', 'rush', 'hunt', 'spill', 'siege', 'sling', 'chase', 'grid', 'squash', 'neon', 'taptap', 'taps100', 'ufo-hunt', 'abduct', 'tiles', 'gravity', 'asteroid', 'color-match', 'color-hunt', 'math', 'tilt', 'scream', 'dark', 'tttt', 'fighter', 'crowd', 'rhino', 'jump', 'blink', 'merge', 'tentacules', 'roundId', 'scores', 'lobbyOptions']) {
       await this.ctx.storage.delete(key);
     }
     for (const player of players.values()) player.ready = false;
@@ -1761,6 +1800,22 @@ export class Room extends DurableObject<Env> {
       broadcast: (msg) => this.#broadcast(msg),
       load: () => this.#merge(),
       save: (s) => this.ctx.storage.put('merge', s),
+      setAlarm: () => this.#rearm(),
+      random: () => Math.random(),
+    };
+  }
+
+  async #tent(): Promise<Tentacules | null> {
+    return (await this.ctx.storage.get<Tentacules>('tentacules')) ?? null;
+  }
+
+  #tentCtx(): TentCtx {
+    return {
+      now: () => Date.now(),
+      nextSeq: () => this.#nextSeq(),
+      broadcast: (msg) => this.#broadcast(msg),
+      load: () => this.#tent(),
+      save: (s) => this.ctx.storage.put('tentacules', s),
       setAlarm: () => this.#rearm(),
       random: () => Math.random(),
     };
@@ -2241,6 +2296,12 @@ export class Room extends DurableObject<Env> {
       this.#send(ws, { t: 'merge-rush', s: this.#nextSeq(), d: mergeToState(merging) });
     }
 
+    /* Tentacules: who holds which peg, so a phone that rejoins is put back on its holds. */
+    const climbingBack = await this.#tent();
+    if (climbingBack && climbingBack.phase !== 'done') {
+      this.#send(ws, { t: 'tentacules', s: this.#nextSeq(), d: tentToState(climbingBack) });
+    }
+
     await this.#broadcastPresence(ws);
   }
 
@@ -2361,6 +2422,8 @@ export class Room extends DurableObject<Env> {
     await blinkPlayerGone(this.#blinkCtx(), id);
     // Double Fusion keeps their last board on the strip; it can still win.
     await mergePlayerGone(this.#mergeCtx(), id);
+    // Tentacules frees their pegs at once; their best still counts.
+    await tentPlayerGone(this.#tentCtx(), id);
     // Neon Fall is the same shape as Grid Attack: two fixed seats, and a phone
     // leaving means one of the roles is simply gone — there is no game left.
     await neonPlayerGone(this.#neonCtx(), id);
@@ -2506,6 +2569,9 @@ export class Room extends DurableObject<Env> {
 
     const merging = await this.#merge();
     if (merging?.phase === 'playing') return mergeDeadline(merging);
+
+    const climbingDeadline = await this.#tent();
+    if (climbingDeadline?.phase === 'playing') return tentDeadline(climbingDeadline);
 
     const chase = await this.#catMouse();
     if (chase?.phase === 'running') return cmDeadline(chase);
