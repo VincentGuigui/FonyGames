@@ -12,21 +12,21 @@ import art from './art/card.svg?url&no-inline';
 export const CARD: GameCard = {
   slug: 'merge-rush',
   title: 'Double Fusion',
-  pitch: 'Slide, merge, climb. Out-score the whole room',
+  pitch: 'Swipe, merge, double and win!',
   concept: 'Slide the tiles, merge equal numbers, and watch everyone else’s board climb beside yours.',
   rules: [
     'Swipe to slide every tile. Two equal tiles merge into their double.',
     'Everyone starts on the same board. Tap a thumbnail to watch that player live.',
-    'Crescendo: puzzles that grow a tile a level. Race: first to the tile. Highlander: merge down to one.',
+    '3 modes: Race, Crescendo (increasing difficulty levels), Highlander puzzle (there can be only one number left).',
   ],
   art: { src: art, alt: 'A four-by-four board of numbered, coloured tiles, some of them merged into bigger ones' },
   fr: {
-    pitch: 'Glissez, fusionnez, grimpez. Dépassez toute la salle',
+    pitch: 'Glissez, fusionnez, doublez et gagnez !',
     concept: 'Faites glisser les tuiles, fusionnez les nombres égaux et regardez les plateaux des autres grimper à côté du vôtre.',
     rules: [
       'Glissez pour déplacer toutes les tuiles. Deux tuiles égales fusionnent en leur double.',
       'Tout le monde part du même plateau. Touchez une miniature pour suivre ce joueur en direct.',
-      'Crescendo : des puzzles qui gagnent une tuile par niveau. Course : le premier à la tuile. Highlander : fusionnez jusqu’à une seule.',
+      '3 modes : Course, Crescendo (niveaux de difficulté croissante), Highlander puzzle (il ne doit rester qu’un seul nombre).',
     ],
     art: { alt: 'Un plateau de quatre par quatre de tuiles numérotées et colorées, certaines fusionnées en tuiles plus grosses' },
   },
@@ -36,9 +36,9 @@ export const CARD: GameCard = {
   inputs: ['touch'],
   tags: ['party', 'arcade', 'strategy'],
   modes: [
-    { id: 'crescendo', name: 'Crescendo', blurb: 'Level after level, one more tile each time: most levels wins' },
     { id: 'race', name: 'Race to 2048', blurb: 'First to make the tile wins — 512 up to 8192, or endless' },
-    { id: 'highlander', name: 'Highlander', blurb: 'There can be only one: merge the puzzle down to one tile' },
+    { id: 'crescendo', name: 'Crescendo', blurb: 'Increasing difficulty levels' },
+    { id: 'highlander', name: 'Highlander', blurb: 'Puzzle: there can be only one number left' },
   ],
   status: 'live',
 };

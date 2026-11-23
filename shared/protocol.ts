@@ -3954,7 +3954,7 @@ export const MERGE_CELLS = MERGE_SIZE * MERGE_SIZE;
 export const MERGE_MAX_EXPONENT = 17;
 
 /** The three ways to play (spec §3). */
-export const MERGE_MODES = ['crescendo', 'race', 'highlander'] as const;
+export const MERGE_MODES = ['race', 'crescendo', 'highlander'] as const;
 export type MergeMode = (typeof MERGE_MODES)[number];
 
 /**

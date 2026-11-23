@@ -3,7 +3,7 @@
 | | |
 | --- | --- |
 | **Slug** | `merge-rush` |
-| **Catchy sentence** | Slide, merge, climb. Out-score the whole room |
+| **Catchy sentence** | Swipe, merge, double and win! |
 | **Illustration** | `www/src/games/merge-rush/art/card.svg` — a framed 4×4 grid of numbered, coloured tiles (2 to 32), a few merged into bigger ones |
 | **Players** | 1–8 |
 | **Round length** | 3 min (Highlander); untimed for Crescendo and a race — until somebody finishes |
@@ -61,13 +61,13 @@ number (2, 4, 8, …; 0 is an empty cell) and returns a CSS colour.
 Picked by the host in the lobby, read-only for everyone else — who see the
 host's pick as it is made ([multiplayer.md](../../multiplayer.md) §3) — and sent in the
 `start` payload (`normaliseMergeOptions` sanitises it). Names are given in
-both languages because they are the lobby's buttons.
+both languages because they are the lobby's buttons, listed in this order — Race, Crescendo, Highlander — on the card and in the lobby, with the same blurbs.
 
 | Mode | Name (EN / FR) | Blurb | Goal | Clock | When the goal is not met |
 | --- | --- | --- | --- | --- | --- |
-| `crescendo` | Crescendo / Crescendo | Level after level, more tiles and longer puzzles: most levels wins | First to finish all 30 levels | Counts up; 30 min cap | Most levels, then who got there first |
 | `race` | Race to 2048 / Course à 2048 (Endless race / Course sans fin) | First to make the tile wins | First accepted board with the target tile | Counts up; 30 min cap | Biggest tile, then score |
-| `highlander` | Highlander / Highlander | There can be only one: merge the puzzle down to one tile | First accepted board with one tile | 3 min countdown | Fewest tiles left |
+| `crescendo` | Crescendo / Crescendo | Increasing difficulty levels | First to finish all 30 levels | Counts up; 30 min cap | Most levels, then who got there first |
+| `highlander` | Highlander / Highlander | Puzzle: there can be only one number left | First accepted board with one tile | 3 min countdown | Fewest tiles left |
 
 **Crescendo** (the default) is a run of 30 puzzles that grow and get longer:
 each tile count from 2 to 16 is played **twice**, as two different puzzles
