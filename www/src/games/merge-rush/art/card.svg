@@ -5,12 +5,12 @@
 
     A 4x4 board of numbered tiles, a few already merged into bigger ones. The
     colours are the game's own tileColor ramp at 2, 4, 8, 16 and 32, each with the
-    number it stands for; the biggest tile carries the card's accent as an
-    outline. Literal hexes: this loads through an img element with
+    number it stands for; the board carries the card's accent as a frame. Literal hexes: this loads through an img element with
     no access to the page's CSS. The numbers are text, as on the other cards;
     og.mjs draws them with whatever font resvg finds, so a share image built
     where it finds none shows the tiles without them.
   -->
+  <rect x="13" y="0.8" width="94" height="88.4" rx="5" fill="none" stroke="#F472B6" stroke-width="1.2"/>
   <rect x="17.5" y="2.5" width="19" height="19" rx="3" fill="#2CA2DD"/>
   <rect x="39.5" y="2.5" width="19" height="19" rx="3" fill="#2C3EDD"/>
   <rect x="61.5" y="2.5" width="19" height="19" rx="3" fill="#2A2F3D" fill-opacity="0.55"/>
@@ -23,7 +23,7 @@
   <rect x="39.5" y="46.5" width="19" height="19" rx="3" fill="#2A2F3D" fill-opacity="0.55"/>
   <rect x="61.5" y="46.5" width="19" height="19" rx="3" fill="#7F2CDD"/>
   <rect x="83.5" y="46.5" width="19" height="19" rx="3" fill="#2CA2DD"/>
-  <rect x="17.5" y="68.5" width="19" height="19" rx="3" fill="#DD2C73" stroke="#F472B6" stroke-width="1.4"/>
+  <rect x="17.5" y="68.5" width="19" height="19" rx="3" fill="#DD2C73"/>
   <rect x="39.5" y="68.5" width="19" height="19" rx="3" fill="#2CA2DD"/>
   <rect x="61.5" y="68.5" width="19" height="19" rx="3" fill="#2A2F3D" fill-opacity="0.55"/>
   <rect x="83.5" y="68.5" width="19" height="19" rx="3" fill="#2C3EDD"/>

@@ -4,7 +4,7 @@
 | --- | --- |
 | **Slug** | `merge-rush` |
 | **Catchy sentence** | Slide, merge, climb. Out-score the whole room |
-| **Illustration** | `www/src/games/merge-rush/art/card.svg` — a 4×4 grid of numbered, coloured tiles (2 to 32), a few merged into bigger ones |
+| **Illustration** | `www/src/games/merge-rush/art/card.svg` — a framed 4×4 grid of numbered, coloured tiles (2 to 32), a few merged into bigger ones |
 | **Players** | 1–8 |
 | **Round length** | 3 min (Highlander); untimed for Crescendo and a race — until somebody finishes |
 | **Inputs** | touch |
