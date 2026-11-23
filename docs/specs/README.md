@@ -55,6 +55,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | [Maximum Jump](games/maximum-jump.md) | *Sprint, hit the line, fly. Longest jump wins* | touch | 1–8 | 🎮 beta — the run-up rhythm, the take-off band and the drag term untested on real thumbs ([#48](https://github.com/VincentGuigui/FonyGames/issues/48)) |
 | [Blink Tapper](games/blink-tapper.md) | *Catch the blink. Miss it and lose the point* | touch | 1–8 | 🎮 beta — flashes past the 3 Hz ceiling by explicit exception ([ui-guidelines.md](../design/ui-guidelines.md) §7); the ramp and the on-fraction untested on real thumbs |
 | [Double Fusion](games/merge-rush.md) | *Swipe, merge, double and win!* | touch | 1–8 | 🎮 beta — Crescendo, Race and Highlander modes; round lengths, spawn mix and puzzle difficulty untested on real thumbs |
+| [Tentacules](games/tentacules.md) | *Climb a wall of pegs, one tentacle at a time* | touch | 1–8 | 📝 draft — awaiting approval; open questions in §12 |
 
 ### Idea notes (not yet specs)
 
