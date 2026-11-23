@@ -17,7 +17,8 @@ You are a five-armed octopus at the foot of a reef wall studded with pegs. Drag
 one tentacle at a time to a higher peg and haul yourself up; stretch too far and
 it will not reach, hang by one arm too long and you drop. When two arms hold you
 wide apart you can pull back and fling yourself up like a slingshot. Everyone
-climbs the same wall, and the other octopuses are shadows climbing beside you.
+climbs the same wall, and the other octopuses are shadows climbing beside you —
+shadows that hold their pegs, so a peg one of them is on is not yours to take.
 
 ## 2. Core loop
 
@@ -25,7 +26,8 @@ In the lobby: *"Drag a tentacle onto a peg to climb. Keep at least two holding
 on. Spread wide on two? Pull the octopus back and let go to leap."*
 
 1. The round starts after a 3·2·1. Every octopus sits at the bottom of the wall,
-   its five tentacles on five starting pegs around it, in its five-pointed star.
+   its five tentacles on its own five starting pegs around it, in its
+   five-pointed star.
 2. The player drags the tip of one tentacle and drops it on a peg. It sticks if
    the peg is within reach (§2.1); otherwise it springs back to the peg it left.
 3. The body settles between the pegs it holds, keeping its star shape, so moving
@@ -53,7 +55,13 @@ screen.
 - The body sits at the centroid of the pegs it holds, then is pulled the least
   distance needed to keep every held tentacle within `REACH`. With five
   tentacles spread round it, that is the star.
-- A peg already held by one tentacle cannot take another.
+- **A peg holds one tentacle**, from anyone: a peg held by your own tentacle or
+  by another player's cannot be taken. Pegs held by other players are drawn in
+  their colour; dropping a tentacle on one springs it back, as an out-of-reach
+  drop does.
+- **Starting pegs are each player's own**, not part of the shared wall: every
+  octopus starts — and starts again after a fall to the bottom — on five pegs
+  only it can use and only it sees.
 - One drag at a time: a second finger is ignored while a tentacle is held.
 
 ### 2.2 Slingshot
@@ -88,7 +96,9 @@ screen.
 - **Always climbable**: each band of the wall is built around a *spine*, a chain
   of pegs each within `0.8 × REACH` of the last, plus decoy pegs. The spine alone
   can always be climbed with two tentacles holding, so no section ever needs the
-  slingshot.
+  slingshot. Since a held peg is nobody else's, there are **two interleaved
+  spines**, so no single player can block the way up by sitting on it; a
+  crowded room can still slow you down, which is part of the game.
 - **Harder as it rises**: spine steps grow from `0.5 × REACH` at the bottom to
   `0.8 × REACH` by the Summit line's height, and the pegs thin out, so the
   slingshot becomes the quicker way rather than the only one.
@@ -124,7 +134,9 @@ results.
   blink when the slingshot is armed; a dashed arc while pulling back shows the
   launch direction.
 - **The other players**: their octopuses as translucent dark **shadows** behind
-  the wall's pegs, at their real height. One out of view shows as an avatar chip
+  the wall's pegs, at their real height, and the pegs they hold ringed in their
+  colour. A shadow moves only when one of its tentacles grabs or lets go (§6),
+  sliding over 200 ms to its new place. One out of view shows as an avatar chip
   on the screen's top or bottom edge, with its height.
 - **Top**: the clock (Time trial counts down, Summit counts up) and your height
   in metres (1 wall unit = 1 m). In Summit, a strip on the right edge shows the
@@ -145,50 +157,70 @@ permissions.
 
 ## 6. Networking
 
-Phone-run, like Double Fusion: the climb happens on the phone, the referee owns
-the seed, the clock, the finish and the winner, and bounds what a phone claims.
+**Only what is done is sent: a tentacle grabbing a peg, or letting go.** Never
+the drag, the flight or the fall in between. A body held by pegs sits where its
+pegs put it (§2.1) — a pure function of the wall and the held pegs — so every
+phone and the referee can place any octopus from its holds alone.
+
+The phone runs its own octopus; the referee owns the seed, the clock, **who
+holds which peg**, every player's height and best, the finish and the winner.
 
 | Message | Direction | Payload | Meaning |
 | --- | --- | --- | --- |
 | `start` | host → server | `{ mode: 'tentacules', tentacules: { mode } }` | Start a round |
-| `tentacules` | server → all | `TentaculesState`: round id, phase, seed, mode, startsAt, endsAt, per player `{ height, best, pose, finishedMs? }`, winner | The round as the referee knows it |
-| `tentacules-pose` | phone → server | `{ roundId, height, best, pose }`, at most 5 per second | Where I am: body height and position, and the peg each tentacle holds (or null) |
+| `tentacules-grab` | phone → server | `{ roundId, arm, peg }` | Tentacle `arm` (0–4) now holds `peg` |
+| `tentacules-let-go` | phone → server | `{ roundId, arms }` | These tentacles let go (a fall, a launch, a lift to move one) |
+| `tentacules-reset` | phone → server | `{ roundId }` | Fell past the bottom: back on its own starting pegs |
+| `tentacules` | server → all | `TentaculesState`: round id, phase, seed, mode, startsAt, endsAt, per player `{ holds: (peg \| null)[5], best, bestAt, finishedMs? }`, winner | The round as the referee knows it |
 
-- `pose` is the body's `x, y` and five peg ids or `null`: enough to draw a
-  shadow, about 60 bytes.
-- Shadows are drawn from the latest pose, eased toward the next, so 100–300 ms
-  of latency reads as a slightly lazy shadow, never a jump.
-- Summit's finish is the first `tentacules-pose` to **arrive** with the body on
-  the line — the same arrival rule as Asteroid Race and Double Fusion's race.
+- **A peg is exclusive, so the referee decides**: a grab of a peg someone
+  already holds is refused, and the next state shows that tentacle free. The
+  phone attaches at once (no wait for a round trip) and springs the tentacle
+  back if the refusal comes — two players reaching for the same peg in the same
+  instant: the first to arrive has it.
+- **Moving a tentacle** is a let-go of its old peg sent with the grab of the new
+  one, so a drag that is dropped back where it was sends nothing.
+- **Height and best are the referee's**, computed from the holds; phones never
+  report a number. Summit's finish is the first grab that puts a body on the
+  line.
+- **Shadows** jump only on these events, eased over 200 ms; 100–300 ms of
+  latency reads as a slightly slow climber, never a glitch.
+- Each event is a few dozen bytes, and a fast climber sends perhaps two a
+  second.
 
 ## 7. Failure & edge cases
 
 - **Player leaves**: their best stands and can still win; they stop holding the
-  round open; their shadow fades out.
+  round open; their shadow fades out and their pegs are released at once, so
+  nobody is left stuck below an absent octopus.
 - **Host leaves**: promoted silently.
 - **Alone**: a legitimate round (1–8); the one player wins it.
-- **Backgrounded tab or reload**: the clock is the server's; the phone comes back
-  on the starting pegs with its `best` kept — rebuilding a hold mid-wall from a
-  reported pose would be easy to abuse.
+- **Backgrounded tab or reload**: the clock is the server's, and so are the
+  holds: the phone comes back on the pegs the referee says it holds, its body
+  placed from them. A phone that comes back holding nothing starts again from
+  its starting pegs, its `best` kept.
 - **Screen lock mid-hang**: the 3 s rule runs on the phone's clock, so the
   octopus has fallen when the player comes back.
 - **Ties**: Time trial, whoever reached the height first; Summit, arrival order.
 
 ## 8. Anti-cheat
 
-The phone reports its own height, so the referee bounds it:
+Phones report grabs, not heights, and the referee knows the wall, so most of it
+is simply checked:
 
-- **Climb rate**: `best` may rise at most `MAX_CLIMB_PER_S` (3 wall units per
-  second, above a slingshot's best) since the last report; more is clipped.
-- **Pegs exist**: every peg id in a pose must exist in the seed's wall, and the
-  held pegs must be within `2 × REACH` of each other — a pose that cannot be
-  held is ignored.
-- **Height matches the hold**: a held body's height must be within `REACH` of a
-  held peg.
+- **The peg exists** in the seed's wall (or is one of the player's own starting
+  pegs) and is free.
+- **It is within reach**: while the octopus holds at least one peg, the new peg
+  must be within `REACH` of where those holds put the body. With none held — a
+  slingshot catch or a fall — the body's position is the phone's own business,
+  so the bound is looser: within `REACH` + the highest slingshot leap
+  (`MAX_LEAP`) of where it last was held.
+- **Height is computed, not claimed**: the referee places the body from its
+  holds; a phone cannot report a height it does not hold.
 
-What is left: a client can fake a plausible climb within those bounds. A party
-game among people in one room — the same posture as every other
-report-your-own-number game here.
+What is left: a client could grab its way up faster than a thumb, within reach
+each time. Grabs are rate-limited (8 a second), and beyond that this is a party
+game among people in one room — the same posture as the other phone-run games.
 
 ## 9. Safety
 
@@ -196,7 +228,7 @@ Touch only; no movement of the phone or the player. No safety copy needed.
 
 ## 10. Data & privacy
 
-Poses and heights are relayed within the room and never stored.
+Grabs and holds are relayed within the room and never stored.
 
 ## 11. Accessibility
 
@@ -220,3 +252,7 @@ Poses and heights are relayed within the room and never stored.
 5. **Rendering**: Canvas 2D, no engine — about 100 pegs on screen and six
    curves is light work. A rendering engine is not proposed.
 6. **The other octopuses**: shadows only (proposed), or also their names?
+7. **Contested pegs**: a held peg is nobody else's, so climbers can block each
+   other. Two interleaved spines keep the wall always climbable for a lone
+   blocker; is deliberately sitting on someone's next peg a tactic we want, or
+   should a peg be released after a few seconds of holding?
