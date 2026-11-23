@@ -188,6 +188,13 @@ new tile scales in.
 - **No arrow buttons**: the swipe is the game, and the arrow keys cover a
   desktop. In the puzzle modes a **↺** button sits top left, above the board,
   and puts the puzzle back as it was dealt.
+- **The merge note**: every move that merges plays a light, breathy note, like
+  blowing across a bottle, a semitone above the last — an endless rise, since
+  it is a Shepard tone (`chime.ts`): each note is one pitch class in seven
+  octaves, loudest in the middle and fading out at both ends, so the top of the
+  scale hands over to the bottom unheard. Three moves without a merge and it
+  starts again from the low note. On by default, remembered per phone, with a
+  **Sound** toggle in the gear menu; the merge's jolt is its visual twin.
 - **In an aggressive race**, the unlocked maluses sit in three slots under the
   board (§3.1).
 - **The other players**, pinned to the bottom of the screen: one block each,

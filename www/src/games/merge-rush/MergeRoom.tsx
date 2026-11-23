@@ -47,6 +47,7 @@ import { useSoloTesting } from '../../core/useSolo';
 import { RoomGate } from '../../lobby/RoomGate';
 import { GameLobby } from '../../lobby/GameLobby';
 import { StatusBar } from '../../core/ui/StatusBar';
+import { SoundToggle } from '../../core/ui/SoundToggle';
 import { GameOverScreen } from '../../core/ui/GameOver';
 import { useT } from '../../core/i18n/strings';
 import { useGameText } from '../../core/i18n/gameText';
@@ -56,6 +57,7 @@ import { formatDuration, timerTone } from './timer';
 import { MergeOptionsPanel } from './MergeOptions';
 import { modeName, targetLabel } from './modes';
 import { MALUS_ICON, MALUS_NAME, MALUS_SHORT, fly } from './malus';
+import { CLIMB_START, chimeOn, climb, playChime, prepareChime, setChimeOn } from './chime';
 import './merge-rush.css';
 
 /**
@@ -188,6 +190,12 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   const seenMalus = useRef(0);
   const seenStock = useRef(0);
   const boardEl = useRef<HTMLDivElement>(null);
+  /** The merge note's endless climb (chime.ts), and whether it sounds at all. */
+  const climbRef = useRef(CLIMB_START);
+  const [sound, setSound] = useState(chimeOn);
+  const soundRef = useRef(sound);
+  soundRef.current = sound;
+  useEffect(() => prepareChime(), []);
   const timers = useRef<number[]>([]);
   const later = useCallback((ms: number, fn: () => void) => {
     timers.current.push(window.setTimeout(fn, ms));
@@ -349,6 +357,9 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const moved = moveTiles(tilesRef.current, dir, r.game.board, nextTileId.current, stoneRef.current);
     nextTileId.current = moved.nextId;
     showTiles(moved.tiles);
+    const merged = moved.tiles.some((t) => t.born === 'merge');
+    climbRef.current = climb(climbRef.current, merged);
+    if (merged && soundRef.current) playChime(climbRef.current.step);
     if (big > 0) {
       fusions.current += big;
       const made = moved.tiles.filter((t) => t.born === 'merge' && t.exp >= MERGE_MALUS_FROM).pop();
@@ -635,7 +646,20 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
           concept={card.concept}
           rules={card.rules}
           screen={card.screen}
-        />
+        >
+          <SoundToggle
+            on={sound}
+            onChange={(on) => {
+              setSound(on);
+              setChimeOn(on);
+            }}
+            heading={text({ en: 'Sound', fr: 'Son' })}
+            onLabel={text({ en: 'Merge notes', fr: 'Notes de fusion' })}
+            offLabel={text({ en: 'Silent', fr: 'Silencieux' })}
+            className="merge__sound"
+            activeClassName="merge__sound--on"
+          />
+        </StatusBar>
 
         <div class="merge__head">
         {mode !== 'race' && (
