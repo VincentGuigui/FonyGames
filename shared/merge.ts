@@ -3,11 +3,13 @@ import {
   MERGE_DEFAULT_TARGET,
   MERGE_FOUR_CHANCE,
   MERGE_HIGHLANDER_MS,
+  MERGE_MALUS_FROM,
   MERGE_MAX_EXPONENT,
   MERGE_MAX_MOVES_PER_S,
   MERGE_MODES,
   MERGE_SIZE,
   MERGE_TARGETS,
+  type MergeMalus,
   type MergeMode,
   type MergeOptions,
 } from './protocol';
@@ -53,11 +55,8 @@ function mulberry32(seed: number): () => number {
  * Depends only on the seed, n and the board it lands on, so two players who
  * make the same moves meet the same tiles (spec §2.1).
  */
-export function spawn(board: Board, seed: number, n: number): Board {
-  const empty: number[] = [];
-  board.forEach((e, i) => {
-    if (e === 0) empty.push(i);
-  });
+export function spawn(board: Board, seed: number, n: number, stone = NO_STONE): Board {
+  const empty = emptyCells(board, stone);
   if (empty.length === 0) return board;
   const random = mulberry32(Math.imul(seed ^ 0x9e3779b9, 1) + Math.imul(n + 1, 0x85ebca6b));
   const cell = empty[Math.min(empty.length - 1, Math.floor(random() * empty.length))] as number;
@@ -86,27 +85,56 @@ function line(dir: Dir, i: number): number[] {
   return out;
 }
 
-/** Slide and merge one board. `gained` is the value of every tile a merge made. */
-export function slide(board: Board, dir: Dir): { board: Board; gained: number; moved: boolean } {
+/** No stone on the board. */
+export const NO_STONE = -1;
+
+/** The empty cells, in order; a stone's cell is not empty, though it holds 0. */
+export function emptyCells(board: Board, stone = NO_STONE): number[] {
+  const out: number[] = [];
+  board.forEach((e, i) => {
+    if (e === 0 && i !== stone) out.push(i);
+  });
+  return out;
+}
+
+/**
+ * The cells of line `i` cut at the stone, each run in travel order: tiles stop
+ * against a stone as against a wall, and nothing merges across it.
+ */
+export function runs(dir: Dir, i: number, stone = NO_STONE): number[][] {
+  const out: number[][] = [[]];
+  for (const c of line(dir, i)) {
+    if (c === stone) out.push([]);
+    else (out[out.length - 1] as number[]).push(c);
+  }
+  return out;
+}
+
+/**
+ * Slide and merge one board. `gained` is the value of every tile a merge made.
+ * `stone` is a cell nothing can enter (an aggressive race's malus, spec §3.1).
+ */
+export function slide(board: Board, dir: Dir, stone = NO_STONE): { board: Board; gained: number; moved: boolean } {
   const next = board.slice();
   let gained = 0;
   for (let i = 0; i < MERGE_SIZE; i++) {
-    const cells = line(dir, i);
-    const tiles = cells.map((c) => board[c] as number).filter((e) => e > 0);
-    const merged: number[] = [];
-    for (let k = 0; k < tiles.length; k++) {
-      const here = tiles[k] as number;
-      if (tiles[k + 1] === here) {
-        merged.push(here + 1);
-        gained += tileValue(here + 1);
-        k++;
-      } else {
-        merged.push(here);
+    for (const cells of runs(dir, i, stone)) {
+      const tiles = cells.map((c) => board[c] as number).filter((e) => e > 0);
+      const merged: number[] = [];
+      for (let k = 0; k < tiles.length; k++) {
+        const here = tiles[k] as number;
+        if (tiles[k + 1] === here) {
+          merged.push(here + 1);
+          gained += tileValue(here + 1);
+          k++;
+        } else {
+          merged.push(here);
+        }
       }
+      cells.forEach((c, k) => {
+        next[c] = merged[k] ?? 0;
+      });
     }
-    cells.forEach((c, k) => {
-      next[c] = merged[k] ?? 0;
-    });
   }
   return { board: next, gained, moved: next.some((e, i) => e !== board[i]) };
 }
@@ -115,11 +143,11 @@ export function slide(board: Board, dir: Dir): { board: Board; gained: number; m
  * One move: slide, score, and — only if something moved — the next spawn.
  * Highlander passes `spawns: false`: nothing new ever appears on its board.
  */
-export function step(game: Game, dir: Dir, seed: number, spawns = true): { game: Game; moved: boolean } {
-  const s = slide(game.board, dir);
+export function step(game: Game, dir: Dir, seed: number, spawns = true, stone = NO_STONE): { game: Game; moved: boolean } {
+  const s = slide(game.board, dir, stone);
   if (!s.moved) return { game, moved: false };
   // Two spawns start the board and every move spawns exactly one.
-  const board = spawns ? spawn(s.board, seed, 2 + game.moves) : s.board;
+  const board = spawns ? spawn(s.board, seed, 2 + game.moves, stone) : s.board;
   return { game: { board, score: game.score + s.gained, moves: game.moves + 1 }, moved: true };
 }
 
@@ -191,7 +219,71 @@ export function normaliseMergeOptions(raw: unknown): MergeOptions {
   const o = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
   const mode = (MERGE_MODES as readonly unknown[]).includes(o['mode']) ? (o['mode'] as MergeMode) : 'crescendo';
   const target = (MERGE_TARGETS as readonly unknown[]).includes(o['target']) ? (o['target'] as number) : MERGE_DEFAULT_TARGET;
-  return { mode, target: mode === 'race' ? target : 0 };
+  return { mode, target: mode === 'race' ? target : 0, aggressive: mode === 'race' && o['aggressive'] === true };
+}
+
+/* ── Aggressive race (spec §3.1) ─────────────────────────────────────────── */
+
+/** How many of a move's merges made a tile big enough to send a malus. */
+export function bigFusions(before: Board, dir: Dir, stone = NO_STONE): number {
+  let n = 0;
+  for (let i = 0; i < MERGE_SIZE; i++) {
+    for (const cells of runs(dir, i, stone)) {
+      const tiles = cells.map((c) => before[c] as number).filter((e) => e > 0);
+      for (let k = 0; k < tiles.length; k++) {
+        if (tiles[k + 1] === tiles[k]) {
+          if ((tiles[k] as number) + 1 >= MERGE_MALUS_FROM) n++;
+          k++;
+        }
+      }
+    }
+  }
+  return n;
+}
+
+/**
+ * Who a malus goes to: anyone still playing but its sender, at random — except
+ * that, while there are two or more to choose from, nobody takes two in a row:
+ * the pick passes to the next player in the room's order. Null: nobody is left.
+ */
+export function malusTarget(order: readonly string[], from: string, last: string | null, r: number): string | null {
+  const open = order.filter((id) => id !== from);
+  if (open.length === 0) return null;
+  const at = Math.min(open.length - 1, Math.floor(r * open.length));
+  const pick = open[at] as string;
+  return open.length >= 2 && pick === last ? (open[(at + 1) % open.length] as string) : pick;
+}
+
+/**
+ * What a malus does to the board that receives it, and the cell it lands on
+ * (`NO_STONE` when it lands on the whole board). Only the receiver knows its
+ * board, so the referee sends `r` and the receiver picks the cell with it.
+ *
+ * `explode` takes one of the smallest tiles, if that is a 2, 4 or 8; `add` drops
+ * its tile on an empty cell; `stone` names the empty cell the stone takes;
+ * `gravity` slides everything down. The timed ones leave the board alone. A
+ * malus with nowhere to land does nothing.
+ */
+export function applyMalus(board: Board, m: Pick<MergeMalus, 'kind' | 'r' | 'exp'>, stone = NO_STONE): { board: Board; cell: number } {
+  const pickOf = <T,>(xs: readonly T[]): T | undefined => xs[Math.min(xs.length - 1, Math.floor(m.r * xs.length))];
+  if (m.kind === 'explode') {
+    const low = Math.min(...board.filter((e) => e > 0));
+    if (!(low <= 3)) return { board, cell: NO_STONE };
+    const cell = pickOf(board.flatMap((e, i) => (e === low ? [i] : []))) as number;
+    const next = board.slice();
+    next[cell] = 0;
+    return { board: next, cell };
+  }
+  if (m.kind === 'add' || m.kind === 'stone') {
+    const cell = pickOf(emptyCells(board, stone));
+    if (cell === undefined) return { board, cell: NO_STONE };
+    if (m.kind === 'stone') return { board, cell };
+    const next = board.slice();
+    next[cell] = Math.min(3, Math.max(1, m.exp));
+    return { board: next, cell };
+  }
+  if (m.kind === 'gravity') return { board: slide(board, 'down', stone).board, cell: NO_STONE };
+  return { board, cell: NO_STONE };
 }
 
 /** The countdown a mode runs on; 0 for a race and Crescendo, which count up. */

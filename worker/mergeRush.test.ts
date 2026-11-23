@@ -6,6 +6,8 @@ import {
   MERGE_TARGET_ENDLESS,
   MERGE_REPORT_GRACE_MS,
   MERGE_CRESCENDO_LEVELS,
+  MERGE_MALUS_COOLDOWN_MS,
+  MERGE_MALUS_KINDS,
   type ServerMessage,
 } from '../shared/protocol';
 import { crescendoPuzzle, mass, maxMoves, maxScore, newGame, puzzle, slide, solveDepth, startBoard, step, tilesLeft, DIRS, type Board, type Dir, type Game } from '../shared/merge';
@@ -404,6 +406,77 @@ async function modes(): Promise<void> {
   check('Highlander unsolved at the bell goes to the fewest tiles left', cap.state().phase === 'done' && cap.state().winner === (fewer ? B : A));
 }
 
+async function aggressive(): Promise<void> {
+  console.log('\naggressive race (§3.1)');
+  // A board holding a 64, and one without.
+  const with64: Board = [6, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+  const small: Board = [5, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+  const fresh = async (randoms: number[], ids = [A, B, C], options: object = { mode: 'race', target: 13, aggressive: true }) => {
+    const h = harness(randoms);
+    await startMergeRush(h.ctx, 1, ids, options);
+    h.advance(MERGE_COUNTDOWN_MS + 60_000);
+    return h;
+  };
+  const report = (h: Awaited<ReturnType<typeof fresh>>, who: string, board: Board, fusions: number, moves = 400) =>
+    onMergeBoard(h.ctx, who, 1, board, 0, moves, false, undefined, fusions);
+
+  const h = await fresh([0.1]);
+  check('the round says it is aggressive', toState(h.state()).aggressive && toState(h.state()).maluses.length === 0);
+  await report(h, A, with64, 1);
+  const first = h.state().maluses[0];
+  check('a merge into 64 sends one malus', h.state().maluses.length === 1 && first?.from === A);
+  check('to someone else', first !== undefined && first.to !== A && [B, C].includes(first.to));
+  check('of a known kind', first !== undefined && (MERGE_MALUS_KINDS as readonly string[]).includes(first.kind));
+  check('and the room sees it', toState(h.state()).maluses.length === 1);
+
+  h.advance(MERGE_MALUS_COOLDOWN_MS - 1);
+  await report(h, A, with64, 2);
+  check('another within 10 s is lost', h.state().maluses.length === 1);
+  h.advance(1);
+  await report(h, A, with64, 2);
+  check('the same count again sends nothing', h.state().maluses.length === 1);
+  await report(h, A, with64, 3);
+  check('a new one 10 s after the last goes', h.state().maluses.length === 2);
+  check('and, with two to choose from, never to the same player twice running', h.state().maluses[1]?.to !== first?.to);
+
+  const lie = await fresh([0.1]);
+  await report(lie, A, small, 5);
+  check('a claim with no 64 on the board is ignored', lie.state().maluses.length === 0);
+
+  const two = await fresh([0.5], [A, B]);
+  await report(two, A, with64, 1);
+  two.advance(MERGE_MALUS_COOLDOWN_MS);
+  await report(two, A, with64, 2);
+  check('with one rival, they take every malus', two.state().maluses.length === 2 && two.state().maluses.every((m) => m.to === B));
+
+  const over = await fresh([0.1]);
+  await onMergeBoard(over.ctx, B, 1, small, 0, 400, true);
+  await report(over, A, with64, 1);
+  check('a player who is out receives nothing', over.state().maluses[0]?.to === C);
+
+  const calm = await fresh([0.1], [A, B, C], { mode: 'race', target: 13 });
+  await report(calm, A, with64, 1);
+  check('a race that is not aggressive sends nothing', calm.state().maluses.length === 0);
+  const solo = harness([0.1]);
+  await startMergeRush(solo.ctx, 1, [A], { mode: 'race', target: 13, aggressive: true }, true);
+  solo.advance(MERGE_COUNTDOWN_MS + 60_000);
+  await onMergeBoard(solo.ctx, A, 1, with64, 0, 400, false, undefined, 1);
+  check('nor does a solo round', solo.state().maluses.length === 0);
+
+  // Random draws in the order the referee takes them: the seed, then target, kind, tile, cell.
+  const addIndex = MERGE_MALUS_KINDS.indexOf('add');
+  const drop = await fresh([0.3, 0, (addIndex + 0.5) / MERGE_MALUS_KINDS.length, 0.99, 0.5]);
+  await report(drop, A, with64, 1);
+  const m = drop.state().maluses[0];
+  check('an add drops a 2, 4 or 8', m?.kind === 'add' && m.exp === 3, m);
+  // B's bound is now 8 more than its moves allow: a board with the dropped 8 on it stands.
+  const g = played(drop.state().seed, 5);
+  const plus8 = [...g.board];
+  plus8[plus8.indexOf(0)] = 3;
+  await onMergeBoard(drop.ctx, m?.to ?? B, 1, plus8, g.score, g.moves, false);
+  check('the receiver\'s board with the dropped tile on it is believed', JSON.stringify(drop.state().boards[m?.to ?? B]?.board) === JSON.stringify(plus8));
+}
+
 async function wire(): Promise<void> {
   console.log('\nwhat the room sees (§6, §10)');
   const h = harness();
@@ -422,6 +495,7 @@ await reporting();
 await ending();
 await tieBreaks();
 await modes();
+await aggressive();
 await wire();
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);

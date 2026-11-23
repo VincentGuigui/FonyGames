@@ -139,7 +139,7 @@ export type ClientMessage =
         blink?: { lights?: number; duration?: number };
         /** Double Fusion's mode and, for a race, the target tile's exponent
          *  (merge-rush.md §3), sanitised by `normaliseMergeOptions`. */
-        merge?: { mode?: string; target?: number };
+        merge?: { mode?: string; target?: number; aggressive?: boolean };
         /**
          * Solo test mode — start with one player, for looking at a game rather than
          * playing it. Set by a browser that has signed into the admin centre; the
@@ -396,8 +396,10 @@ export type ClientMessage =
   | { t: 'jump-result'; d: { roundId: number; attempt: number; speed: number; distance: number } }
   /** Blink Tapper: this phone's whole round, sent once when it ends (spec §6). */
   | { t: 'blink-final'; d: { roundId: number; hits: number; misses: number } }
-  /** Double Fusion: this phone's board, throttled, and once more when it ends (spec §6). */
-  | { t: 'merge-board'; d: { roundId: number; board: number[]; score: number; moves: number; over: boolean; level?: number } }
+  /** Double Fusion: this phone's board, throttled, and once more when it ends (spec §6).
+   *  `fusions` counts its merges that made `MERGE_MALUS_FROM` or more — an
+   *  aggressive race sends a malus on each new one (spec §3.1). */
+  | { t: 'merge-board'; d: { roundId: number; board: number[]; score: number; moves: number; over: boolean; level?: number; fusions?: number } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
@@ -4006,7 +4008,34 @@ export type MergeEntry = {
   levelMs?: number;
 };
 
-export type MergeOptions = { mode: MergeMode; target: number };
+export type MergeOptions = { mode: MergeMode; target: number; aggressive: boolean };
+
+/* Aggressive race (spec §3.1): a big merge sends a malus to one rival. */
+
+/** The smallest tile whose making sends a malus: 64. */
+export const MERGE_MALUS_FROM = 6;
+/** A player's maluses are at least this far apart; one made sooner is lost. */
+export const MERGE_MALUS_COOLDOWN_MS = 10_000;
+export const MERGE_MALUS_KINDS = ['explode', 'add', 'freeze', 'fog', 'stone', 'gravity'] as const;
+export type MergeMalusKind = (typeof MERGE_MALUS_KINDS)[number];
+/** How long the timed ones last. */
+export const MERGE_FREEZE_MS = 3000;
+export const MERGE_FOG_MS = 5000;
+export const MERGE_STONE_MS = 10_000;
+/** The referee keeps only the latest few; a phone acts on the ones it has not seen. */
+export const MERGE_MALUS_KEPT = 12;
+
+export type MergeMalus = {
+  /** Counts up through the round, so a phone knows which it has seen. */
+  id: number;
+  kind: MergeMalusKind;
+  from: PlayerId;
+  to: PlayerId;
+  /** In [0, 1): picks the cell on the receiver's board, which only it knows. */
+  r: number;
+  /** The tile `add` drops, as an exponent (1–3); 0 for the others. */
+  exp: number;
+};
 
 export type MergeRushState = {
   roundId: number;
@@ -4025,4 +4054,8 @@ export type MergeRushState = {
   boards: Record<PlayerId, MergeEntry>;
   solo: boolean;
   winner: PlayerId | null;
+  /** A race with maluses (spec §3.1); always false in the other modes. */
+  aggressive: boolean;
+  /** The latest maluses sent, oldest first. */
+  maluses: MergeMalus[];
 };

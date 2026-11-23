@@ -639,7 +639,7 @@ export class Room extends DurableObject<Env> {
       }
       case 'merge-board': {
         const id = this.#idOf(ws);
-        if (id) await onMergeBoard(this.#mergeCtx(), id, msg.d.roundId, msg.d.board, msg.d.score, msg.d.moves, msg.d.over, msg.d.level);
+        if (id) await onMergeBoard(this.#mergeCtx(), id, msg.d.roundId, msg.d.board, msg.d.score, msg.d.moves, msg.d.over, msg.d.level, msg.d.fusions);
         return;
       }
       case 'blink-final': {

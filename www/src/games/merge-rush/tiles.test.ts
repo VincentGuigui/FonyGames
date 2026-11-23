@@ -85,9 +85,33 @@ function followsTheRules(): void {
   check('and the pop mark', settled(after).every((x) => x.born === undefined));
 }
 
+function stone(): void {
+  console.log('\na stone stops tiles as the rules do (§3.1)');
+  let agree = true;
+  let firstBad = '';
+  for (let seed = 1; seed <= 40; seed++) {
+    let g = newGame(seed);
+    let tiles = tilesFromBoard(g.board, 1);
+    const at = (seed * 7) % 16;
+    for (let i = 0; i < 60; i++) {
+      const dir = DIRS[(seed + i * 3) % 4] as Dir;
+      const next = step(g, dir, seed, true, g.board[at] === 0 ? at : -1);
+      if (!next.moved) continue;
+      tiles = moveTiles(tiles.tiles, dir, next.game.board, tiles.nextId, g.board[at] === 0 ? at : -1);
+      g = next.game;
+      if (!same(boardOf(tiles.tiles), g.board)) {
+        agree = false;
+        firstBad ||= `seed ${seed} move ${i}`;
+      }
+    }
+  }
+  check('with a stone on the board, tiles and board never disagree', agree, firstBad);
+}
+
 sliding();
 spawning();
 followsTheRules();
+stone();
 
 if (failures > 0) throw new Error(`${failures} of ${checks} check(s) failed`);
 console.log(`\nall ${checks} passed`);

@@ -1,11 +1,16 @@
 import {
   MERGE_COUNTDOWN_MS,
   MERGE_CRESCENDO_LEVELS,
+  MERGE_MALUS_COOLDOWN_MS,
+  MERGE_MALUS_FROM,
+  MERGE_MALUS_KEPT,
+  MERGE_MALUS_KINDS,
   MERGE_MAX_PLAYERS,
   MERGE_MIN_PLAYERS,
   MERGE_RACE_CAP_MS,
   MERGE_REPORT_GRACE_MS,
   type MergeEntry,
+  type MergeMalus,
   type MergeMode,
   type MergeRushState,
   type PlayerId,
@@ -13,10 +18,12 @@ import {
 } from '../shared/protocol';
 import { enoughToStart } from '../shared/players';
 import {
+  bestLevel,
   compareEntries,
   crescendoPuzzle,
   hasWon,
   isBoard,
+  malusTarget,
   mass,
   maxMass,
   maxMoves,
@@ -54,6 +61,16 @@ export type MergeRush = {
   solo: boolean;
   winner: PlayerId | null;
   phase: 'playing' | 'done';
+  /** Aggressive race (spec §3.1). */
+  aggressive: boolean;
+  maluses: MergeMalus[];
+  malusSeq: number;
+  /** Per player: big merges counted so far, when their last malus went, and the
+   *  mass `add` maluses have dropped on their board — which the bound allows. */
+  fusions: Record<PlayerId, number>;
+  sentAt: Record<PlayerId, number>;
+  dropped: Record<PlayerId, number>;
+  lastTarget: PlayerId | null;
 };
 
 export type Ctx = {
@@ -84,7 +101,7 @@ export async function startMergeRush(
 ): Promise<boolean> {
   if (!enoughToStart(connected.length, [MERGE_MIN_PLAYERS, MERGE_MAX_PLAYERS], solo)) return false;
 
-  const { mode, target } = normaliseMergeOptions(rawOptions);
+  const { mode, target, aggressive } = normaliseMergeOptions(rawOptions);
   const seed = Math.floor(ctx.random() * 0x1_0000_0000) >>> 0;
   const startsAt = ctx.now() + MERGE_COUNTDOWN_MS;
   const roundMs = roundMsFor(mode);
@@ -108,6 +125,13 @@ export async function startMergeRush(
     solo: solo || connected.length <= 1,
     winner: null,
     phase: 'playing',
+    aggressive,
+    maluses: [],
+    malusSeq: 0,
+    fusions: {},
+    sentAt: {},
+    dropped: {},
+    lastTarget: null,
   };
 
   await ctx.save(s);
@@ -135,6 +159,7 @@ export async function onMergeBoard(
   moves: unknown,
   over: unknown,
   level?: unknown,
+  fusions?: unknown,
 ): Promise<void> {
   const s = await ctx.load();
   if (!s || s.roundId !== roundId || s.phase !== 'playing') return;
@@ -150,10 +175,12 @@ export async function onMergeBoard(
   const m = Math.max(e.moves, Math.min(whole(moves), maxMoves(elapsed)));
   const fixed = s.mode === 'highlander';
 
-  if (isBoard(board) && (fixed ? mass(board) === startMass : mass(board) <= maxMass(startMass, m))) e.board = board;
+  const allowed = maxMass(startMass, m) + ((s.dropped ?? {})[playerId] ?? 0);
+  if (isBoard(board) && (fixed ? mass(board) === startMass : mass(board) <= allowed)) e.board = board;
   e.moves = m;
   e.score = Math.max(e.score, Math.min(whole(score), maxScore(startMass, fixed ? 0 : m)));
   e.over = over === true;
+  if (s.aggressive && !s.solo) sendMalus(ctx, s, playerId, whole(fusions));
 
   if (hasWon(s.mode, s.target, e.board)) {
     if (s.mode === 'highlander') e.solvedMs = Math.max(0, ctx.now() - s.startsAt);
@@ -205,6 +232,34 @@ async function onCrescendo(
   }
   await ctx.save(s);
   broadcast(ctx, s);
+}
+
+/**
+ * A new big merge sends one malus to one rival (spec §3.1). It is believed only
+ * if the board it came with holds such a tile, and lost if this player's last
+ * malus went less than `MERGE_MALUS_COOLDOWN_MS` ago.
+ */
+function sendMalus(ctx: Ctx, s: MergeRush, from: PlayerId, fusions: number): void {
+  const before = s.fusions[from] ?? 0;
+  if (fusions <= before) return;
+  s.fusions[from] = fusions;
+  const e = s.boards[from];
+  if (!e || bestLevel(e.board) < MERGE_MALUS_FROM) return;
+  const now = ctx.now();
+  if (now < s.startsAt) return;
+  const last = s.sentAt[from];
+  if (last !== undefined && now - last < MERGE_MALUS_COOLDOWN_MS) return;
+
+  const order = Object.keys(s.boards).filter((id) => !s.gone.includes(id) && !s.boards[id]?.over);
+  const to = malusTarget(order, from, s.lastTarget, ctx.random());
+  if (to === null) return;
+  const kind = MERGE_MALUS_KINDS[Math.floor(ctx.random() * MERGE_MALUS_KINDS.length)] ?? 'add';
+  const exp = kind === 'add' ? 1 + Math.floor(ctx.random() * 3) : 0;
+  if (kind === 'add') s.dropped[to] = (s.dropped[to] ?? 0) + 2 ** exp;
+  s.sentAt[from] = now;
+  s.lastTarget = to;
+  s.malusSeq += 1;
+  s.maluses = [...s.maluses, { id: s.malusSeq, kind, from, to, r: ctx.random(), exp }].slice(-MERGE_MALUS_KEPT);
 }
 
 function everyoneDone(s: MergeRush): boolean {
@@ -272,6 +327,9 @@ export function toState(s: MergeRush): MergeRushState {
     boards,
     solo: s.solo,
     winner: s.winner,
+    // A round saved before aggressive races existed has neither.
+    aggressive: s.aggressive === true,
+    maluses: (s.maluses ?? []).map((m) => ({ ...m })),
   };
 }
 

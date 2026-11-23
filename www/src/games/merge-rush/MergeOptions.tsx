@@ -7,7 +7,8 @@ import { modeBlurb, modeName, targetLabel } from './modes';
  * The host's mode, in the lobby. Spec: docs/specs/games/merge-rush.md §3
  *
  * Read-only for everybody but the host, the same call every other options
- * panel in the catalogue makes. A race also picks its target tile.
+ * panel in the catalogue makes. A race also picks its target tile, from a
+ * dropdown to keep the panel short, and whether it is aggressive (§3.1).
  */
 export function MergeOptionsPanel({
   value,
@@ -19,7 +20,7 @@ export function MergeOptionsPanel({
   editable: boolean;
 }): JSX.Element {
   const text = useGameText();
-  const pick = (mode: MergeMode): void => onChange({ mode, target: value.target });
+  const pick = (mode: MergeMode): void => onChange({ ...value, mode });
 
   return (
     <div class="merge-options">
@@ -44,23 +45,36 @@ export function MergeOptionsPanel({
       </fieldset>
 
       {value.mode === 'race' && (
-        <fieldset class="merge-options__group" disabled={!editable}>
-          <legend class="merge-options__legend">{text({ en: 'First to make', fr: 'Le premier à faire' })}</legend>
-          <div class="merge-options__targets" role="radiogroup">
-            {MERGE_TARGETS.map((t) => (
-              <button
-                key={t}
-                type="button"
-                role="radio"
-                aria-checked={value.target === t}
-                class={`merge-options__stop ${value.target === t ? 'merge-options__stop--on' : ''}`}
-                disabled={!editable}
-                onClick={() => onChange({ mode: 'race', target: t })}
-              >
-                {targetLabel(t)}
-              </button>
-            ))}
-          </div>
+        <fieldset class="merge-options__group merge-options__race" disabled={!editable}>
+          <label class="merge-options__target">
+            <span>{text({ en: 'First to make', fr: 'Le premier à faire' })}</span>
+            <select
+              value={String(value.target)}
+              disabled={!editable}
+              onChange={(e) => onChange({ ...value, target: Number((e.currentTarget as HTMLSelectElement).value) })}
+            >
+              {MERGE_TARGETS.map((t) => (
+                <option key={t} value={String(t)}>
+                  {targetLabel(t)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label class="merge-options__aggressive">
+            <input
+              type="checkbox"
+              checked={value.aggressive}
+              disabled={!editable}
+              onChange={(e) => onChange({ ...value, aggressive: (e.currentTarget as HTMLInputElement).checked })}
+            />
+            <span>
+              <b>{text({ en: 'Aggressive mode', fr: 'Mode agressif' })}</b>
+              {text({
+                en: 'Every merge into 64 or more sends a random malus to a rival',
+                fr: 'Chaque fusion en 64 ou plus envoie un malus au hasard à un adversaire',
+              })}
+            </span>
+          </label>
         </fieldset>
       )}
 

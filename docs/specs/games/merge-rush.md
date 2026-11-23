@@ -109,7 +109,8 @@ Race uses for a finish — and the round ends for everyone at once.
 can reach (`MERGE_TARGET_ENDLESS`), so nobody ever wins it outright. Everyone
 plays until they are stuck, the round ends when the last one is, and the biggest
 tile — then the score — wins. 256 was dropped from the list: it ended a race in
-well under a minute.
+well under a minute. The target is a dropdown in the lobby, which keeps the
+panel short.
 
 **Highlander** ("Il ne doit en rester qu'une" in French) is the film's line, and
 the mode is exactly that. Every player gets the same puzzle: 5–7 tiles adding
@@ -127,6 +128,39 @@ tile (`solvedMs`), so **every restart is inside it** — the clock does not stop
 for ↺. The first to arrive ends the round, which makes the winner the fastest
 solver by construction; if two ever reached one tile, the quicker `solvedMs`
 ranks first.
+
+### 3.1 Aggressive race
+
+A race the host ticks **Mode agressif / Aggressive mode** on. Every merge that
+makes a **64 or bigger** (`MERGE_MALUS_FROM`) sends one malus, drawn at random,
+to **one** rival:
+
+| Malus | Icon | Effect on the receiver's board |
+| --- | --- | --- |
+| `explode` | 💥 | One of its smallest tiles blows up — only if that is a 2, 4 or 8 |
+| `add` | ➕ | A 2, 4 or 8 drops on an empty cell |
+| `freeze` | ❄️ | No move is taken for 3 s |
+| `fog` | 🌫️ | The numbers vanish for 5 s; only the colours are left |
+| `stone` | 🪨 | A stone takes an empty cell for 10 s: tiles stop against it and nothing merges across it, and nothing spawns on it |
+| `gravity` | ⬇️ | Everything falls, exactly as a swipe down (no points, no spawn) |
+
+- **Who receives it**: anyone still playing but the sender, at random. While
+  there are two or more to choose from, nobody takes two in a row — the pick
+  passes to the next player in the room's order (`malusTarget`). Nobody left: the
+  malus is lost.
+- **Cooldown**: a player's maluses are at least 10 s apart
+  (`MERGE_MALUS_COOLDOWN_MS`); a big merge made sooner sends nothing, and is not
+  saved for later.
+- **Animation**: the sender sees the malus's icon fly from the tile it merged to
+  the receiver's thumbnail; the receiver sees it fly from the sender's thumbnail
+  to the cell it lands on (the board's centre for the timed ones), then a notice
+  names it and who sent it. Reduced motion: it lands at once.
+- **Who decides what**: the referee draws the receiver, the kind, the dropped
+  tile and a number `r`; only the receiver knows its board, so it picks the cell
+  with `r` (`applyMalus`). Phones report `fusions`, their count of big merges,
+  and the referee sends a malus when that count goes up and the board it came
+  with holds a 64 or more. Solo rounds and the other modes never send one —
+  Crescendo and Highlander are puzzles that must stay solvable.
 
 ## 4. Screens
 
@@ -232,6 +266,9 @@ unit of mass merges at most once per doubling, so
 at `MERGE_MAX_MOVES_PER_S`. A report over a bound is **clipped, not rejected**
 for the score and moves; a board that cannot exist is ignored and the previous
 one kept. Score and moves never go down, and `over` never goes back.
+
+In an aggressive race, every `add` malus raises its receiver's mass bound by the
+tile it dropped, since that mass came from no spawn.
 
 Highlander is tighter still: nothing spawns, so a board is only believed if it
 holds **exactly** the mass of the puzzle it started from, and a single tile

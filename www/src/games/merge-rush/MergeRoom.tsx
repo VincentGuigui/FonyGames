@@ -6,17 +6,39 @@ import {
   MERGE_MIN_PLAYERS,
   MERGE_CRESCENDO_LEVELS,
   MERGE_DEFAULT_TARGET,
+  MERGE_FOG_MS,
+  MERGE_FREEZE_MS,
+  MERGE_MALUS_FROM,
+  MERGE_STONE_MS,
   MERGE_TARGET_ENDLESS,
   MERGE_REPORT_MS,
   MERGE_SIZE,
   MERGE_SWIPE_PX,
   type MergeEntry,
+  type MergeMalus,
   type MergeOptions,
   type MergeRushState,
   type ServerMessage,
 } from '../../../../shared/protocol';
 import { enoughToStart } from '../../../../shared/players';
-import { bestLevel, bestTile, canMove, compareEntries, crescendoPuzzle, hasWon, mass, normaliseMergeOptions, step, tileValue, tilesLeft, type Dir, type Game } from '../../../../shared/merge';
+import {
+  NO_STONE,
+  applyMalus,
+  bestLevel,
+  bestTile,
+  bigFusions,
+  canMove,
+  compareEntries,
+  crescendoPuzzle,
+  hasWon,
+  mass,
+  normaliseMergeOptions,
+  step,
+  tileValue,
+  tilesLeft,
+  type Dir,
+  type Game,
+} from '../../../../shared/merge';
 import { useGameRoom } from '../../core/room/useRoom';
 import { useLobbyOptions } from '../../core/room/useLobbyOptions';
 import { useSoloTesting } from '../../core/useSolo';
@@ -31,6 +53,7 @@ import { moveTiles, tilesFromBoard, type Tile } from './tiles';
 import { formatDuration, timerTone } from './timer';
 import { MergeOptionsPanel } from './MergeOptions';
 import { modeName, targetLabel } from './modes';
+import { MALUS_ICON, MALUS_NAME, fly } from './malus';
 import './merge-rush.css';
 
 /**
@@ -62,17 +85,18 @@ function Thumb({ board }: { board: readonly number[] }): JSX.Element {
 /** How long a slide takes; merge-rush.css's `--slide` is the same number. */
 const SLIDE_MS = 110;
 
-const DEFAULT_MERGE_PANEL: MergeOptions = { mode: 'crescendo', target: MERGE_DEFAULT_TARGET };
+const DEFAULT_MERGE_PANEL: MergeOptions = { mode: 'crescendo', target: MERGE_DEFAULT_TARGET, aggressive: false };
 
 /** How long "Level n ✓" holds before the next Crescendo level is dealt. */
 const LEVEL_BEAT_MS = 700;
 
-/** What the host's panel shows: a race's target is kept even in other modes, so
- *  switching back to a race does not forget it. */
+/** What the host's panel shows: a race's settings are kept even in other modes,
+ *  so switching back to a race does not forget them. */
 function normaliseMergeOptionsForPanel(raw: unknown): MergeOptions {
   const o = normaliseMergeOptions(raw);
-  const target = typeof raw === 'object' && raw !== null ? normaliseMergeOptions({ mode: 'race', target: (raw as Record<string, unknown>)['target'] }).target : DEFAULT_MERGE_PANEL.target;
-  return { mode: o.mode, target };
+  const r = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
+  const race = normaliseMergeOptions({ mode: 'race', target: r['target'], aggressive: r['aggressive'] });
+  return { mode: o.mode, target: race.target, aggressive: race.aggressive };
 }
 
 /** Another player's board, full size and live, while you watch it (spec §4). */
@@ -124,6 +148,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   const playing = state?.phase === 'playing';
   const mode = state?.mode ?? 'crescendo';
   const target = state?.target ?? 0;
+  const aggressive = state?.aggressive === true && !state.solo;
   const roundMs = state?.roundMs ?? 0;
   const startBoard = state?.start;
 
@@ -148,9 +173,28 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
       clearGone.current = window.setTimeout(() => {
         tilesRef.current = tilesRef.current.filter((t) => !t.gone);
         setTiles(tilesRef.current);
-      }, SLIDE_MS + 30);
+      }, next.some((t) => t.boom) ? 320 : SLIDE_MS + 30);
     }
   }, []);
+
+  /* Aggressive race (spec §3.1): what has landed on this board, and what this
+     phone has sent. Times are `performance.now()`. */
+  const [stone, setStone] = useState(NO_STONE);
+  const stoneRef = useRef(NO_STONE);
+  const frozenUntil = useRef(0);
+  const [frozen, setFrozen] = useState(false);
+  const fogUntil = useRef(0);
+  const [fog, setFog] = useState(false);
+  const [notice, setNotice] = useState<{ id: number; text: string } | null>(null);
+  const fusions = useRef(0);
+  const fusionCell = useRef(NO_STONE);
+  const seenMalus = useRef(0);
+  const boardEl = useRef<HTMLDivElement>(null);
+  const timers = useRef<number[]>([]);
+  const later = useCallback((ms: number, fn: () => void) => {
+    timers.current.push(window.setTimeout(fn, ms));
+  }, []);
+  useEffect(() => () => timers.current.forEach((id) => window.clearTimeout(id)), []);
   const [over, setOver] = useState(false);
   const overRef = useRef(false);
   /** Seconds left on a countdown; seconds gone in a race, which counts up. */
@@ -172,7 +216,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     sentAt.current = performance.now();
     clientRef.current?.send({
       t: 'merge-board',
-      d: { roundId: id, board: [...g.board], score: g.score, moves: g.moves, over: done, level: levelRef.current },
+      d: { roundId: id, board: [...g.board], score: g.score, moves: g.moves, over: done, level: levelRef.current, fusions: fusions.current },
     });
   }, []);
 
@@ -204,6 +248,16 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     }
     gameRef.current = g;
     overRef.current = mine?.over === true;
+    // A fresh round: nothing has landed yet, and maluses sent before this phone
+    // was here are not replayed.
+    fusions.current = 0;
+    seenMalus.current = Math.max(0, ...(state?.maluses ?? []).map((m) => m.id));
+    stoneRef.current = NO_STONE;
+    setStone(NO_STONE);
+    frozenUntil.current = 0;
+    fogUntil.current = 0;
+    setFrozen(false);
+    setFog(false);
     setGame(g);
     setOver(overRef.current);
     const built = tilesFromBoard(g.board, nextTileId.current);
@@ -286,14 +340,21 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const g = gameRef.current;
     const now = clientRef.current?.now() ?? Date.now();
     if (!g || seed === undefined || overRef.current || now < startsAt || spyRef.current || beatRef.current) return;
+    if (performance.now() < frozenUntil.current) return;
     // Only a race spawns: Highlander and Crescendo are puzzles.
-    const r = step(g, dir, seed, mode === 'race');
+    const big = aggressive ? bigFusions(g.board, dir, stoneRef.current) : 0;
+    const r = step(g, dir, seed, mode === 'race', stoneRef.current);
     if (!r.moved) return;
     gameRef.current = r.game;
     setGame(r.game);
-    const moved = moveTiles(tilesRef.current, dir, r.game.board, nextTileId.current);
+    const moved = moveTiles(tilesRef.current, dir, r.game.board, nextTileId.current, stoneRef.current);
     nextTileId.current = moved.nextId;
     showTiles(moved.tiles);
+    if (big > 0) {
+      fusions.current += big;
+      const made = moved.tiles.filter((t) => t.born === 'merge' && t.exp >= MERGE_MALUS_FROM).pop();
+      if (made) fusionCell.current = made.r * MERGE_SIZE + made.c;
+    }
     if (mode === 'crescendo' && tilesLeft(r.game.board) === 1) {
       completeLevel();
       return;
@@ -305,8 +366,81 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
       finish();
       return;
     }
-    report();
-  }, [seed, startsAt, mode, target, finish, report, showTiles, completeLevel]);
+    // A big merge goes at once: its malus should not wait for the throttle.
+    if (big > 0) send(false);
+    else report();
+  }, [seed, startsAt, mode, target, aggressive, finish, report, send, showTiles, completeLevel]);
+
+  /** A malus reaching this board: its effect, shown, then reported. */
+  const land = useCallback((m: MergeMalus, sender: string) => {
+    const g = gameRef.current;
+    if (!g || overRef.current) return;
+    setNotice({ id: m.id, text: `${MALUS_ICON[m.kind]} ${text(MALUS_NAME[m.kind])} — ${sender}` });
+    later(2000, () => setNotice((n) => (n?.id === m.id ? null : n)));
+    const now = performance.now();
+    if (m.kind === 'freeze') {
+      frozenUntil.current = Math.max(frozenUntil.current, now + MERGE_FREEZE_MS);
+      setFrozen(true);
+      later(MERGE_FREEZE_MS, () => setFrozen(performance.now() < frozenUntil.current));
+      return;
+    }
+    if (m.kind === 'fog') {
+      fogUntil.current = Math.max(fogUntil.current, now + MERGE_FOG_MS);
+      setFog(true);
+      later(MERGE_FOG_MS, () => setFog(performance.now() < fogUntil.current));
+      return;
+    }
+    const res = applyMalus(g.board, m, stoneRef.current);
+    if (m.kind === 'stone') {
+      if (res.cell === NO_STONE || stoneRef.current !== NO_STONE) return;
+      stoneRef.current = res.cell;
+      setStone(res.cell);
+      later(MERGE_STONE_MS, () => {
+        stoneRef.current = NO_STONE;
+        setStone(NO_STONE);
+      });
+      return;
+    }
+    if (res.board === g.board) return;
+    const at = { r: Math.floor(res.cell / MERGE_SIZE), c: res.cell % MERGE_SIZE };
+    let next: Tile[];
+    if (m.kind === 'gravity') {
+      const moved = moveTiles(tilesRef.current, 'down', res.board, nextTileId.current, stoneRef.current);
+      nextTileId.current = moved.nextId;
+      next = moved.tiles;
+    } else if (m.kind === 'explode') {
+      next = tilesRef.current.filter((t) => !t.gone).map((t) => (t.r === at.r && t.c === at.c ? { ...t, gone: true, boom: true } : t));
+    } else {
+      next = [...tilesRef.current.filter((t) => !t.gone), { id: nextTileId.current++, exp: res.board[res.cell] as number, ...at, born: 'spawn' }];
+    }
+    showTiles(next);
+    const after: Game = { ...g, board: res.board };
+    gameRef.current = after;
+    setGame(after);
+    if (!canMove(after.board)) finish();
+    else report();
+  }, [text, later, showTiles, finish, report]);
+
+  // Maluses the referee has sent since this phone last looked: fly the ones it
+  // sent towards their target's thumbnail, and land the ones aimed at it.
+  const maluses = state?.maluses;
+  useEffect(() => {
+    if (!maluses || builtFor.current !== roundId || myId === undefined) return;
+    for (const m of maluses) {
+      if (m.id <= seenMalus.current) continue;
+      seenMalus.current = m.id;
+      const thumb = (id: string): Element | null => document.querySelector(`[data-rival="${CSS.escape(id)}"] .merge__thumb`);
+      const cellEl = (cell: number): Element | null => boardEl.current?.querySelectorAll('.merge__cell')[cell] ?? boardEl.current ?? null;
+      if (m.from === myId) {
+        fly(cellEl(fusionCell.current), thumb(m.to), MALUS_ICON[m.kind], () => undefined);
+      } else if (m.to === myId) {
+        const g = gameRef.current;
+        const aim = g ? applyMalus(g.board, m, stoneRef.current).cell : NO_STONE;
+        const sender = players.find((p) => p.id === m.from)?.name ?? '?';
+        fly(thumb(m.from), aim === NO_STONE ? boardEl.current : cellEl(aim), MALUS_ICON[m.kind], () => land(m, sender));
+      }
+    }
+  }, [maluses, roundId, myId, land]);
 
   useEffect(() => {
     if (!playing) return;
@@ -470,10 +604,12 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
           {text(modeName(mode, target))}
           {mode === 'race' && ` · ${text({ en: 'best', fr: 'record' })} ${bestTile(board)}`}
           {mode === 'crescendo' && ` · ${tilesLeft(board)} ${text({ en: 'tiles', fr: 'tuiles' })}`}
+          {aggressive && ` · 😈 ${text({ en: 'aggressive', fr: 'agressif' })}`}
         </p>
 
         <div
-          class="merge__board"
+          ref={boardEl}
+          class={`merge__board${fog ? ' merge__board--fog' : ''}${frozen ? ' merge__board--frozen' : ''}`}
           onPointerDown={onDown}
           onPointerUp={onUp}
           onPointerCancel={() => { from.current = null; }}
@@ -489,7 +625,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
               return (
                 <div
                   key={t.id}
-                  class={`merge__tile merge__tile--d${String(v).length}${t.born ? ` merge__tile--${t.born}` : ''}${t.gone ? ' merge__tile--gone' : ''}`}
+                  class={`merge__tile merge__tile--d${String(v).length}${t.born ? ` merge__tile--${t.born}` : ''}${t.gone ? ' merge__tile--gone' : ''}${t.boom ? ' merge__tile--boom' : ''}`}
                   style={
                     {
                       '--r': t.r,
@@ -507,6 +643,15 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
                 </div>
               );
             })}
+            {stone !== NO_STONE && (
+              <div
+                class="merge__stone"
+                style={{ '--r': Math.floor(stone / MERGE_SIZE), '--c': stone % MERGE_SIZE } as JSX.CSSProperties}
+                aria-label={text({ en: 'Stone', fr: 'Pierre' })}
+              >
+                🪨
+              </div>
+            )}
           </div>
         </div>
 
@@ -542,6 +687,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
               <li key={id}>
                 <button
                   type="button"
+                  data-rival={id}
                   class="merge__rival"
                   aria-label={text({ en: `Watch ${nameOf(id)}’s board`, fr: `Voir le plateau de ${nameOf(id)}` })}
                   onClick={() => setSpy(id)}
@@ -556,6 +702,11 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         )}
 
         {countdown > 0 && <p class="merge__overlay merge__overlay--count" aria-live="assertive">{countdown}</p>}
+        {notice && (
+          <p key={notice.id} class="merge__notice" aria-live="assertive">
+            {notice.text}
+          </p>
+        )}
         {beat !== null && (
           <p class="merge__overlay merge__overlay--level" aria-live="assertive">
             {text({ en: `Level ${beat} ✓`, fr: `Niveau ${beat} ✓` })}

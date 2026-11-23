@@ -1,5 +1,9 @@
 import { MERGE_CELLS, MERGE_CRESCENDO_LEVELS, MERGE_HIGHLANDER_MS, MERGE_MAX_EXPONENT, MERGE_TARGETS, MERGE_TARGET_ENDLESS } from './protocol';
 import {
+  NO_STONE,
+  applyMalus,
+  bigFusions,
+  malusTarget,
   DIRS,
   bestLevel,
   bestTile,
@@ -184,9 +188,9 @@ function bounds(): void {
 
 function modes(): void {
   console.log('\nthree ways to play (§3)');
-  check('nothing chosen is Crescendo', JSON.stringify(normaliseMergeOptions(undefined)) === '{"mode":"crescendo","target":0}');
+  check('nothing chosen is Crescendo', JSON.stringify(normaliseMergeOptions(undefined)) === '{"mode":"crescendo","target":0,"aggressive":false}');
   check('Time Attack is gone: it falls back to Crescendo', normaliseMergeOptions({ mode: 'time-attack' }).mode === 'crescendo');
-  check('a race keeps its target', JSON.stringify(normaliseMergeOptions({ mode: 'race', target: 9 })) === '{"mode":"race","target":9}');
+  check('a race keeps its target', JSON.stringify(normaliseMergeOptions({ mode: 'race', target: 9 })) === '{"mode":"race","target":9,"aggressive":false}');
   check('a race with no target races to 2048', normaliseMergeOptions({ mode: 'race' }).target === 11);
   check('a target off the list is 2048 too', normaliseMergeOptions({ mode: 'race', target: 14 }).target === 11);
   check('256 is no longer on the list', !(MERGE_TARGETS as readonly number[]).includes(8) && normaliseMergeOptions({ mode: 'race', target: 8 }).target === 11);
@@ -328,8 +332,53 @@ function crescendo(): void {
   check(`the opening move is not always the same direction (${[...turned].join(', ')})`, turned.size >= 3);
 }
 
+function aggressive(): void {
+  console.log('\naggressive race (§3.1)');
+  check('a race can be aggressive', normaliseMergeOptions({ mode: 'race', aggressive: true }).aggressive);
+  check('only a race: Crescendo and Highlander never are', !normaliseMergeOptions({ mode: 'crescendo', aggressive: true }).aggressive && !normaliseMergeOptions({ mode: 'highlander', aggressive: true }).aggressive);
+  check('anything but true is not aggressive', !normaliseMergeOptions({ mode: 'race', aggressive: 'yes' }).aggressive);
+
+  // A stone stops tiles like a wall, and nothing merges across it.
+  const b = rows([2, 2, 0, 2], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]);
+  check('a stone cuts the line: 2 2 ▪ 2 slides to 4 · ▪ 2', same(slide(b, 'left', 2).board, rows([4, 0, 0, 2], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0])));
+  check('tiles stop against it from the other side', same(slide(rows([0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 8]), 'left', 13).board, rows([0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 8, 0])));
+  check('no stone is the plain slide', same(slide(b, 'left', NO_STONE).board, slide(b, 'left').board));
+  const crowded = rows([2, 4, 2, 4], [4, 2, 4, 2], [2, 4, 2, 4], [4, 2, 4, 0]);
+  check('a spawn never lands on the stone', spawn(crowded, 7, 3, 15)[15] === 0);
+
+  check('a merge into 64 is a big one', bigFusions(rows([32, 32, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]), 'left') === 1);
+  check('into 32 is not', bigFusions(rows([16, 16, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]), 'left') === 0);
+  check('two in one move count twice', bigFusions(rows([64, 64, 0, 0], [32, 0, 32, 0], [0, 0, 0, 0], [0, 0, 0, 0]), 'right') === 2);
+  check('not across a stone', bigFusions(rows([32, 0, 32, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]), 'left', 1) === 0);
+
+  const order = ['a', 'b', 'c', 'd'];
+  check('never to its sender', [0, 0.3, 0.6, 0.99].every((r) => malusTarget(order, 'b', null, r) !== 'b'));
+  check('at random among the others', new Set([0, 0.4, 0.8].map((r) => malusTarget(order, 'b', null, r))).size === 3);
+  check('the same player twice running passes to the next', malusTarget(order, 'a', 'b', 0) === 'c');
+  check('wrapping round, never back to the sender', malusTarget(order, 'a', 'd', 0.99) === 'b');
+  check('with one rival left it goes to them every time', malusTarget(['a', 'b'], 'a', 'b', 0.5) === 'b');
+  check('with nobody left it goes nowhere', malusTarget(['a'], 'a', null, 0.5) === null);
+
+  const board = rows([2, 4, 0, 0], [2, 128, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]);
+  const boom = applyMalus(board, { kind: 'explode', r: 0.99, exp: 0 });
+  check('explode takes one of the smallest tiles', boom.cell === 4 && boom.board[4] === 0 && tilesLeft(boom.board) === 3);
+  const big = rows([16, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]);
+  check('but only if it is a 2, 4 or 8', applyMalus(big, { kind: 'explode', r: 0, exp: 0 }).board === big);
+  const add = applyMalus(board, { kind: 'add', r: 0, exp: 3 });
+  check('add drops its tile on an empty cell', add.cell === 2 && add.board[2] === 3 && mass(add.board) === mass(board) + 8);
+  check('never on the stone', applyMalus(board, { kind: 'add', r: 0, exp: 1 }, 2).cell === 3);
+  check('an add tile is a 2, 4 or 8 whatever it is told', applyMalus(board, { kind: 'add', r: 0, exp: 9 }).board[2] === 3);
+  check('a full board takes no tile', applyMalus(crowded.map((e) => e || 1), { kind: 'add', r: 0, exp: 1 }).cell === NO_STONE);
+  const stone = applyMalus(board, { kind: 'stone', r: 0.5, exp: 0 });
+  check('stone picks an empty cell and leaves the board as it is', stone.board === board && board[stone.cell] === 0);
+  check('gravity is a slide down', same(applyMalus(board, { kind: 'gravity', r: 0, exp: 0 }).board, slide(board, 'down').board));
+  check('freeze and fog leave the board alone', applyMalus(board, { kind: 'freeze', r: 0, exp: 0 }).board === board && applyMalus(board, { kind: 'fog', r: 0, exp: 0 }).board === board);
+  check('the same malus on the same board lands on the same cell', applyMalus(board, { kind: 'add', r: 0.7, exp: 1 }).cell === applyMalus(board, { kind: 'add', r: 0.7, exp: 1 }).cell);
+}
+
 sliding();
 crescendo();
+aggressive();
 moving();
 sameLuck();
 bounds();
