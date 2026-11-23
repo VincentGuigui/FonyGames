@@ -4,9 +4,9 @@
 | --- | --- |
 | **Slug** | `tentacules` |
 | **Catchy sentence** | Climb a wall of pegs, one tentacle at a time |
-| **Illustration** | `www/src/games/tentacules/art/card.svg` — a coral octopus, star-shaped, its five tentacles gripping round pegs on a reef wall, one tentacle mid-reach for a higher peg |
+| **Illustration** | `www/src/games/tentacules/art/card.svg` — a cute round coral octopus with big shiny eyes and pink cheeks, star-shaped, its five tentacles gripping pegs on a reef wall, one reaching for a higher peg |
 | **Players** | 1–8 |
-| **Round length** | 1 min (Time trial); about 1 min, capped at 3 min (Summit) |
+| **Round length** | 1 min (Time trial); about 1 min, capped at 2 min (Summit) |
 | **Inputs** | touch |
 | **Accent colour** | `#FF7F6E` |
 | **Status** | draft |
@@ -55,10 +55,12 @@ screen.
 - The body sits at the centroid of the pegs it holds, then is pulled the least
   distance needed to keep every held tentacle within `REACH`. With five
   tentacles spread round it, that is the star.
-- **A peg holds one tentacle**, from anyone: a peg held by your own tentacle or
-  by another player's cannot be taken. Pegs held by other players are drawn in
-  their colour; dropping a tentacle on one springs it back, as an out-of-reach
-  drop does.
+- **A peg holds one tentacle**, from anyone. A peg held by your own tentacle
+  cannot take another. A peg held by **another player** is drawn ringed in
+  their colour, and can be **taken over once it has been held 3 s**
+  (`SQUAT_MS`): a drop on it then wins it, and the holder's tentacle is knocked
+  off. Held for less than 3 s, it is still theirs, and the drop springs back as
+  an out-of-reach one does. So a climber can be bumped but not walled in.
 - **Starting pegs are each player's own**, not part of the shared wall: every
   octopus starts — and starts again after a fall to the bottom — on five pegs
   only it can use and only it sees.
@@ -66,12 +68,13 @@ screen.
 
 ### 2.2 Slingshot
 
-- **Armed** when exactly two tentacles hold, their pegs are at least 0.45 apart
-  horizontally, and the angle between them seen from the body is at least 120°.
+- **Armed** when exactly two tentacles hold, their pegs are at least 0.35 apart
+  horizontally, and the angle between them seen from the body is at least 100°.
   The body blinks yellow while armed.
 - The player drags the body away from the line between the two pegs — down and
   back — up to 0.25. Releasing launches the body in the opposite direction,
-  speed proportional to the pull, under gravity; both tentacles let go.
+  speed proportional to the pull, under gravity; both tentacles let go. A full
+  pull straight up rises `MAX_LEAP` = 1.5 wall units.
 - In the air, the moment a free peg comes within `REACH` above the body's
   centre, one tentacle reaches for it and grabs: the highest such peg, at or
   after the top of the arc. The octopus then hangs by one tentacle, so the 3 s
@@ -96,12 +99,16 @@ screen.
 - **Always climbable**: each band of the wall is built around a *spine*, a chain
   of pegs each within `0.8 × REACH` of the last, plus decoy pegs. The spine alone
   can always be climbed with two tentacles holding, so no section ever needs the
-  slingshot. Since a held peg is nobody else's, there are **two interleaved
-  spines**, so no single player can block the way up by sitting on it; a
-  crowded room can still slow you down, which is part of the game.
+  slingshot — up to 8 m. There are **two interleaved spines**, so one player
+  sitting on a peg never blocks the way for long.
 - **Harder as it rises**: spine steps grow from `0.5 × REACH` at the bottom to
-  `0.8 × REACH` by the Summit line's height, and the pegs thin out, so the
-  slingshot becomes the quicker way rather than the only one.
+  `0.8 × REACH` by 25 m (the Summit line), and the pegs thin out.
+- **Gaps above 8 m**: some bands then have a **gap** — a stretch no tentacle can
+  bridge — that only a slingshot leap clears. Every gap is preceded by a
+  **launch pair**: two pegs far enough apart to arm the slingshot (§2.2), and
+  the gap is at most 70 % of the highest leap (`MAX_LEAP`), so it is always
+  clearable. Gaps come more often as the wall rises: about one every 6 m at
+  8 m, one every 3 m by 25 m.
 - The decor is a reef: coral, rock, a little weed, scrolling with the wall.
 
 ## 3. Modes / variations
@@ -109,12 +116,12 @@ screen.
 | Mode | Name (EN / FR) | Blurb (lobby) | Goal | Clock | When the goal is not met |
 | --- | --- | --- | --- | --- | --- |
 | `trial` | Time trial / Contre-la-montre | Climb as high as you can in one minute | Highest point reached in 60 s | 60 s countdown | — |
-| `summit` | Summit / Sommet | First to the finish line wins | First to touch the line | Counts up; 3 min cap | Highest point reached |
+| `summit` | Summit / Sommet | First to the finish line wins | First to touch the line | Counts up; 2 min cap | Highest point reached |
 
 - **Time trial** (default): the score is the **highest point the body reached**,
   so a late fall does not wipe a good climb. Ties: whoever reached it first.
 - **Summit**: a finish line across the wall, at a height an average climber
-  reaches in about a minute (40 wall units at first; tuned by playtest). The
+  reaches in about a minute: **25 m** (tuned by playtest). The
   first report to arrive with the body on the line wins outright and ends the
   round for everyone.
 
@@ -128,14 +135,24 @@ results.
 - **The wall** fills the screen; the camera follows the body up to mid-screen,
   then the wall scrolls instead. Pegs are round knobs, the free ones brighter
   than the ones held.
-- **Your octopus**: a coral body with eyes (`art/octopus.svg`) and five
-  tentacles drawn as tapering curves from the body to their pegs. A dragged
+- **Your octopus is cute**, and that is a requirement, not a polish item: a
+  round, soft head bigger than its body would suggest, two big shiny eyes with
+  white highlights, pink cheeks, a tiny smile, pastel colours — each player's
+  octopus tinted with their avatar colour. Its face reacts: content while
+  holding on; worried brows and a wobbly mouth hanging by one tentacle;
+  squeezed eyes and an "o" mouth while pulling back the slingshot; a delighted
+  open smile in flight; dizzy spiral eyes after a fall. The faces are sprites
+  in `art/` (one SVG per expression), the head shape stays the same. Tentacles
+  are drawn as soft tapering curves with a row of little suckers, ending in a
+  curl where they hold. A dragged
   tentacle follows the finger, turning red at the edge of its reach. Yellow
   blink when the slingshot is armed; a dashed arc while pulling back shows the
   launch direction.
-- **The other players**: their octopuses as translucent dark **shadows** behind
-  the wall's pegs, at their real height, and the pegs they hold ringed in their
-  colour. A shadow moves only when one of its tentacles grabs or lets go (§6),
+- **The other players**: their octopuses as translucent **shadows** behind the
+  wall's pegs — the same cute silhouette, darker, with their **name and avatar**
+  floating above — at their real height, and the pegs they hold ringed in their
+  colour: a solid ring for the first 3 s, then a pulsing dashed one, meaning it
+  can be taken over. A shadow moves only when one of its tentacles grabs or lets go (§6),
   sliding over 200 ms to its new place. One out of view shows as an avatar chip
   on the screen's top or bottom edge, with its height.
 - **Top**: the clock (Time trial counts down, Summit counts up) and your height
@@ -171,13 +188,16 @@ holds which peg**, every player's height and best, the finish and the winner.
 | `tentacules-grab` | phone → server | `{ roundId, arm, peg }` | Tentacle `arm` (0–4) now holds `peg` |
 | `tentacules-let-go` | phone → server | `{ roundId, arms }` | These tentacles let go (a fall, a launch, a lift to move one) |
 | `tentacules-reset` | phone → server | `{ roundId }` | Fell past the bottom: back on its own starting pegs |
-| `tentacules` | server → all | `TentaculesState`: round id, phase, seed, mode, startsAt, endsAt, per player `{ holds: (peg \| null)[5], best, bestAt, finishedMs? }`, winner | The round as the referee knows it |
+| `tentacules` | server → all | `TentaculesState`: round id, phase, seed, mode, startsAt, endsAt, per player `{ holds, since, best, bestAt, finishedMs? }` — `holds` the five pegs held (or null), `since` when each hold began — and the winner | The round as the referee knows it |
 
-- **A peg is exclusive, so the referee decides**: a grab of a peg someone
-  already holds is refused, and the next state shows that tentacle free. The
-  phone attaches at once (no wait for a round trip) and springs the tentacle
-  back if the refusal comes — two players reaching for the same peg in the same
-  instant: the first to arrive has it.
+- **A peg is exclusive, so the referee decides**, by arrival. A grab of a free
+  peg is accepted. A grab of a peg another player has held for less than 3 s is
+  refused, and the next state shows that tentacle free; held 3 s or more, the
+  grab wins it and the holder's tentacle is let go. The phone attaches at once
+  (no wait for a round trip) and acts on the state when it comes: a refused
+  tentacle springs back, a knocked-off one lets go — and the octopus may then be
+  down to one tentacle, or none. `since` lets a phone show which rival pegs are
+  already up for grabs.
 - **Moving a tentacle** is a let-go of its old peg sent with the grab of the new
   one, so a drag that is dropped back where it was sends nothing.
 - **Height and best are the referee's**, computed from the holds; phones never
@@ -209,7 +229,7 @@ Phones report grabs, not heights, and the referee knows the wall, so most of it
 is simply checked:
 
 - **The peg exists** in the seed's wall (or is one of the player's own starting
-  pegs) and is free.
+  pegs), and is free or has been held by someone else for at least 3 s.
 - **It is within reach**: while the octopus holds at least one peg, the new peg
   must be within `REACH` of where those holds put the body. With none held — a
   slingshot catch or a fall — the body's position is the phone's own business,
@@ -243,16 +263,11 @@ Grabs and holds are relayed within the room and never stored.
 
 ## 12. Open questions
 
-1. **Time trial length**: 60 s as asked, or 90 s so a fall is recoverable?
-2. **Time trial score**: highest point reached (proposed), or height at the bell
-   (harsher, makes the last seconds tense)?
-3. **Summit line**: 40 m to start with, adjusted after a playtest; 3 min cap.
-4. **Slingshot thresholds** (0.45 apart, 120°) and whether it can ever be
-   *required*: proposed never — the spine is always climbable on foot.
-5. **Rendering**: Canvas 2D, no engine — about 100 pegs on screen and six
-   curves is light work. A rendering engine is not proposed.
-6. **The other octopuses**: shadows only (proposed), or also their names?
-7. **Contested pegs**: a held peg is nobody else's, so climbers can block each
-   other. Two interleaved spines keep the wall always climbable for a lone
-   blocker; is deliberately sitting on someone's next peg a tactic we want, or
-   should a peg be released after a few seconds of holding?
+Decided with the maintainer: 60 s Time trial scored on the highest point
+reached; Summit at 25 m with a 2 min cap; a held peg can be taken over after
+3 s; shadows show names; the slingshot is needed above 8 m, armed at 0.35 apart
+and 100°; the octopuses are cute.
+
+Left to playtest: the numbers — `REACH`, the leap, the gap spacing, the 25 m
+line. Rendering is Canvas 2D with no engine (about 100 pegs and six curves on
+screen).
