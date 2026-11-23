@@ -242,16 +242,13 @@ export function bigFusions(before: Board, dir: Dir, stone = NO_STONE): number {
 }
 
 /**
- * Who a malus goes to: anyone still playing but its sender, at random — except
- * that, while there are two or more to choose from, nobody takes two in a row:
- * the pick passes to the next player in the room's order. Null: nobody is left.
+ * Who a malus may be sent to: anyone still playing but its sender — except
+ * that, while there are two or more of them, whoever took the last malus does
+ * not take the next.
  */
-export function malusTarget(order: readonly string[], from: string, last: string | null, r: number): string | null {
-  const open = order.filter((id) => id !== from);
-  if (open.length === 0) return null;
-  const at = Math.min(open.length - 1, Math.floor(r * open.length));
-  const pick = open[at] as string;
-  return open.length >= 2 && pick === last ? (open[(at + 1) % open.length] as string) : pick;
+export function malusTargets(playing: readonly string[], from: string, last: string | null): string[] {
+  const open = playing.filter((id) => id !== from);
+  return open.length >= 2 ? open.filter((id) => id !== last) : open;
 }
 
 /**

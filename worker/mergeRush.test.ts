@@ -8,10 +8,11 @@ import {
   MERGE_CRESCENDO_LEVELS,
   MERGE_MALUS_COOLDOWN_MS,
   MERGE_MALUS_KINDS,
+  MERGE_MALUS_STOCK,
   type ServerMessage,
 } from '../shared/protocol';
 import { crescendoPuzzle, mass, maxMoves, maxScore, newGame, puzzle, slide, solveDepth, startBoard, step, tilesLeft, DIRS, type Board, type Dir, type Game } from '../shared/merge';
-import { nextDeadline, onMergeBoard, onPlayerGone, startMergeRush, tick, toState, type Ctx, type MergeRush } from './mergeRush';
+import { nextDeadline, onMergeBoard, onMergeMalus, onPlayerGone, startMergeRush, tick, toState, type Ctx, type MergeRush } from './mergeRush';
 
 /**
  * Double Fusion's referee. Spec: docs/specs/games/merge-rush.md §6-§8
@@ -417,64 +418,89 @@ async function aggressive(): Promise<void> {
     h.advance(MERGE_COUNTDOWN_MS + 60_000);
     return h;
   };
-  const report = (h: Awaited<ReturnType<typeof fresh>>, who: string, board: Board, fusions: number, moves = 400) =>
-    onMergeBoard(h.ctx, who, 1, board, 0, moves, false, undefined, fusions);
+  type H = Awaited<ReturnType<typeof fresh>>;
+  const report = (h: H, who: string, board: Board, fusions: number, over = false) =>
+    onMergeBoard(h.ctx, who, 1, board, 0, 400, over, undefined, fusions);
+  const stockOf = (h: H, who: string) => h.state().stock[who] ?? [];
+  const sendTo = (h: H, who: string, to: string, id = stockOf(h, who)[0]?.id) => onMergeMalus(h.ctx, who, 1, id, to);
 
   const h = await fresh([0.1]);
   check('the round says it is aggressive', toState(h.state()).aggressive && toState(h.state()).maluses.length === 0);
   await report(h, A, with64, 1);
-  const first = h.state().maluses[0];
-  check('a merge into 64 sends one malus', h.state().maluses.length === 1 && first?.from === A);
-  check('to someone else', first !== undefined && first.to !== A && [B, C].includes(first.to));
-  check('of a known kind', first !== undefined && (MERGE_MALUS_KINDS as readonly string[]).includes(first.kind));
-  check('and the room sees it', toState(h.state()).maluses.length === 1);
+  check('a merge into 64 unlocks one malus, and sends nothing by itself', stockOf(h, A).length === 1 && h.state().maluses.length === 0);
+  check('of a known kind', (MERGE_MALUS_KINDS as readonly string[]).includes(stockOf(h, A)[0]?.kind ?? ''));
+  check('the room sees what each player holds', toState(h.state()).stock[A]?.length === 1);
+  await report(h, A, with64, 1);
+  check('the same count again unlocks nothing', stockOf(h, A).length === 1);
+  await report(h, A, with64, 9);
+  check(`a player holds at most ${MERGE_MALUS_STOCK}; the rest are lost`, stockOf(h, A).length === MERGE_MALUS_STOCK);
+
+  const kind = stockOf(h, A)[0]?.kind;
+  await sendTo(h, A, A);
+  check('nobody sends one to themselves', h.state().maluses.length === 0);
+  await sendTo(h, A, B, 999);
+  check('nor one they do not hold', h.state().maluses.length === 0);
+  await sendTo(h, A, B);
+  const sent = h.state().maluses[0];
+  check('dropped on a rival, it goes to that rival', sent?.from === A && sent.to === B && sent.kind === kind);
+  check('and leaves the stock', stockOf(h, A).length === MERGE_MALUS_STOCK - 1);
+  check('the room knows when they may send again', toState(h.state()).readyAt[A] === h.now + MERGE_MALUS_COOLDOWN_MS);
 
   h.advance(MERGE_MALUS_COOLDOWN_MS - 1);
-  await report(h, A, with64, 2);
-  check('another within 10 s is lost', h.state().maluses.length === 1);
+  await sendTo(h, A, C);
+  check('the next within 10 s is refused, and kept', h.state().maluses.length === 1 && stockOf(h, A).length === MERGE_MALUS_STOCK - 1);
   h.advance(1);
-  await report(h, A, with64, 2);
-  check('the same count again sends nothing', h.state().maluses.length === 1);
-  await report(h, A, with64, 3);
-  check('a new one 10 s after the last goes', h.state().maluses.length === 2);
-  check('and, with two to choose from, never to the same player twice running', h.state().maluses[1]?.to !== first?.to);
+  await sendTo(h, A, B);
+  check('with a choice, whoever took the last one cannot take the next', h.state().maluses.length === 1);
+  await report(h, C, with64, 1);
+  await sendTo(h, C, B);
+  check('from anyone', h.state().maluses.length === 1);
+  await sendTo(h, A, C);
+  check('another rival can', h.state().maluses.length === 2 && h.state().maluses[1]?.to === C);
 
   const lie = await fresh([0.1]);
   await report(lie, A, small, 5);
-  check('a claim with no 64 on the board is ignored', lie.state().maluses.length === 0);
+  check('a claim with no 64 on the board unlocks nothing', stockOf(lie, A).length === 0);
 
   const two = await fresh([0.5], [A, B]);
-  await report(two, A, with64, 1);
-  two.advance(MERGE_MALUS_COOLDOWN_MS);
   await report(two, A, with64, 2);
-  check('with one rival, they take every malus', two.state().maluses.length === 2 && two.state().maluses.every((m) => m.to === B));
+  await sendTo(two, A, B);
+  two.advance(MERGE_MALUS_COOLDOWN_MS);
+  await sendTo(two, A, B);
+  check('with one rival, they can take one after another', two.state().maluses.length === 2 && two.state().maluses.every((m) => m.to === B));
 
-  const over = await fresh([0.1]);
-  await onMergeBoard(over.ctx, B, 1, small, 0, 400, true);
-  await report(over, A, with64, 1);
-  check('a player who is out receives nothing', over.state().maluses[0]?.to === C);
+  const out = await fresh([0.1]);
+  await report(out, B, small, 0, true);
+  await report(out, A, with64, 1);
+  await sendTo(out, A, B);
+  check('a player who is out cannot be sent one', out.state().maluses.length === 0);
+  await report(out, C, with64, 1, true);
+  await sendTo(out, C, A);
+  check('but a player who is stuck can still send what they hold', out.state().maluses[0]?.from === C);
 
   const calm = await fresh([0.1], [A, B, C], { mode: 'race', target: 13 });
   await report(calm, A, with64, 1);
-  check('a race that is not aggressive sends nothing', calm.state().maluses.length === 0);
+  check('a race that is not aggressive unlocks nothing', stockOf(calm, A).length === 0);
   const solo = harness([0.1]);
   await startMergeRush(solo.ctx, 1, [A], { mode: 'race', target: 13, aggressive: true }, true);
   solo.advance(MERGE_COUNTDOWN_MS + 60_000);
   await onMergeBoard(solo.ctx, A, 1, with64, 0, 400, false, undefined, 1);
-  check('nor does a solo round', solo.state().maluses.length === 0);
+  check('nor does a solo round', (solo.state().stock[A] ?? []).length === 0);
 
-  // Random draws in the order the referee takes them: the seed, then target, kind, tile, cell.
+  // Random draws in the order the referee takes them: the seed, the kind when
+  // unlocked, then the tile and the cell when sent.
   const addIndex = MERGE_MALUS_KINDS.indexOf('add');
-  const drop = await fresh([0.3, 0, (addIndex + 0.5) / MERGE_MALUS_KINDS.length, 0.99, 0.5]);
+  const drop = await fresh([0.3, (addIndex + 0.5) / MERGE_MALUS_KINDS.length, 0.99, 0.5]);
   await report(drop, A, with64, 1);
+  await sendTo(drop, A, B);
   const m = drop.state().maluses[0];
   check('an add drops a 2, 4 or 8', m?.kind === 'add' && m.exp === 3, m);
   // B's bound is now 8 more than its moves allow: a board with the dropped 8 on it stands.
   const g = played(drop.state().seed, 5);
   const plus8 = [...g.board];
   plus8[plus8.indexOf(0)] = 3;
-  await onMergeBoard(drop.ctx, m?.to ?? B, 1, plus8, g.score, g.moves, false);
-  check('the receiver\'s board with the dropped tile on it is believed', JSON.stringify(drop.state().boards[m?.to ?? B]?.board) === JSON.stringify(plus8));
+  await onMergeBoard(drop.ctx, B, 1, plus8, g.score, g.moves, false);
+  check('the receiver\'s board with the dropped tile on it is believed', JSON.stringify(drop.state().boards[B]?.board) === JSON.stringify(plus8));
 }
 
 async function wire(): Promise<void> {

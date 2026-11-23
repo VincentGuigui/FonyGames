@@ -70,8 +70,8 @@ export function MergeOptionsPanel({
             <span>
               <b>{text({ en: 'Aggressive mode', fr: 'Mode agressif' })}</b>
               {text({
-                en: 'Every merge into 64 or more sends a random malus to a rival',
-                fr: 'Chaque fusion en 64 ou plus envoie un malus au hasard à un adversaire',
+                en: 'Merging into 64 or more unlocks a malus: drag it onto a rival to send it',
+                fr: 'Fusionner en 64 ou plus débloque un malus : glissez-le sur un adversaire pour l’envoyer',
               })}
             </span>
           </label>

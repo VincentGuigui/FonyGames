@@ -11,6 +11,16 @@ export const MALUS_ICON: Record<MergeMalusKind, string> = {
   gravity: '⬇️',
 };
 
+/** The label under an unlocked malus's icon: a word or two, to read at a glance. */
+export const MALUS_SHORT: Record<MergeMalusKind, { en: string; fr: string }> = {
+  explode: { en: 'Boom', fr: 'Boum' },
+  add: { en: '+1 tile', fr: '+1 tuile' },
+  freeze: { en: 'Freeze', fr: 'Gel' },
+  fog: { en: 'Fog', fr: 'Brouillard' },
+  stone: { en: 'Stone', fr: 'Pierre' },
+  gravity: { en: 'Gravity', fr: 'Gravité' },
+};
+
 export const MALUS_NAME: Record<MergeMalusKind, { en: string; fr: string }> = {
   explode: { en: 'Boom: a small tile blown up', fr: 'Boum : une petite tuile explose' },
   add: { en: 'An extra tile', fr: 'Une tuile en plus' },

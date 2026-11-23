@@ -9,6 +9,7 @@ import {
   MERGE_FOG_MS,
   MERGE_FREEZE_MS,
   MERGE_MALUS_FROM,
+  MERGE_MALUS_STOCK,
   MERGE_STONE_MS,
   MERGE_TARGET_ENDLESS,
   MERGE_REPORT_MS,
@@ -31,6 +32,7 @@ import {
   compareEntries,
   crescendoPuzzle,
   hasWon,
+  malusTargets,
   mass,
   normaliseMergeOptions,
   step,
@@ -53,7 +55,7 @@ import { moveTiles, tilesFromBoard, type Tile } from './tiles';
 import { formatDuration, timerTone } from './timer';
 import { MergeOptionsPanel } from './MergeOptions';
 import { modeName, targetLabel } from './modes';
-import { MALUS_ICON, MALUS_NAME, fly } from './malus';
+import { MALUS_ICON, MALUS_NAME, MALUS_SHORT, fly } from './malus';
 import './merge-rush.css';
 
 /**
@@ -115,13 +117,8 @@ function Spy({ board }: { board: readonly number[] }): JSX.Element {
   );
 }
 
+/** Arrow keys play on a desktop; a phone swipes. */
 const KEYS: Record<string, Dir> = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
-const ARROWS: { dir: Dir; glyph: string; en: string; fr: string }[] = [
-  { dir: 'left', glyph: '←', en: 'Slide left', fr: 'Glisser à gauche' },
-  { dir: 'up', glyph: '↑', en: 'Slide up', fr: 'Glisser vers le haut' },
-  { dir: 'down', glyph: '↓', en: 'Slide down', fr: 'Glisser vers le bas' },
-  { dir: 'right', glyph: '→', en: 'Slide right', fr: 'Glisser à droite' },
-];
 
 function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }): JSX.Element {
   const t = useT();
@@ -189,6 +186,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   const fusions = useRef(0);
   const fusionCell = useRef(NO_STONE);
   const seenMalus = useRef(0);
+  const seenStock = useRef(0);
   const boardEl = useRef<HTMLDivElement>(null);
   const timers = useRef<number[]>([]);
   const later = useCallback((ms: number, fn: () => void) => {
@@ -252,6 +250,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     // was here are not replayed.
     fusions.current = 0;
     seenMalus.current = Math.max(0, ...(state?.maluses ?? []).map((m) => m.id));
+    seenStock.current = Math.max(0, ...(state?.stock?.[myId] ?? []).map((m) => m.id));
     stoneRef.current = NO_STONE;
     setStone(NO_STONE);
     frozenUntil.current = 0;
@@ -421,19 +420,27 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     else report();
   }, [text, later, showTiles, finish, report]);
 
-  // Maluses the referee has sent since this phone last looked: fly the ones it
-  // sent towards their target's thumbnail, and land the ones aimed at it.
+  const thumb = (id: string): Element | null => document.querySelector(`[data-rival="${CSS.escape(id)}"] .merge__thumb`);
+  const cellEl = (cell: number): Element | null => boardEl.current?.querySelectorAll('.merge__cell')[cell] ?? boardEl.current ?? null;
+
+  // A malus just unlocked flies from the tile whose merge earned it to its slot.
+  const myStock = (myId !== undefined ? state?.stock?.[myId] : undefined) ?? [];
+  const stockKey = myStock.map((m) => m.id).join();
+  useEffect(() => {
+    const fresh = myStock.filter((m) => m.id > seenStock.current);
+    seenStock.current = Math.max(seenStock.current, ...myStock.map((m) => m.id));
+    for (const m of fresh) fly(cellEl(fusionCell.current), document.querySelector(`[data-slot="${m.id}"]`), MALUS_ICON[m.kind], () => undefined);
+  }, [stockKey]);
+
+  // Maluses the referee has sent since this phone last looked: the ones aimed
+  // at it fly from their sender's thumbnail to where they land.
   const maluses = state?.maluses;
   useEffect(() => {
     if (!maluses || builtFor.current !== roundId || myId === undefined) return;
     for (const m of maluses) {
       if (m.id <= seenMalus.current) continue;
       seenMalus.current = m.id;
-      const thumb = (id: string): Element | null => document.querySelector(`[data-rival="${CSS.escape(id)}"] .merge__thumb`);
-      const cellEl = (cell: number): Element | null => boardEl.current?.querySelectorAll('.merge__cell')[cell] ?? boardEl.current ?? null;
-      if (m.from === myId) {
-        fly(cellEl(fusionCell.current), thumb(m.to), MALUS_ICON[m.kind], () => undefined);
-      } else if (m.to === myId) {
+      if (m.to === myId) {
         const g = gameRef.current;
         const aim = g ? applyMalus(g.board, m, stoneRef.current).cell : NO_STONE;
         const sender = players.find((p) => p.id === m.from)?.name ?? '?';
@@ -474,6 +481,46 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     if (Math.max(Math.abs(dx), Math.abs(dy)) < MERGE_SWIPE_PX) return;
     move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up');
   };
+
+  // Dragging an unlocked malus: a copy of its icon follows the finger, and
+  // letting go over a rival's thumbnail sends it — if that rival can take it.
+  const [held, setHeld] = useState<{ id: number; over: string | null } | null>(null);
+  const ghost = useRef<HTMLElement | null>(null);
+  const rivalAt = (x: number, y: number): string | null =>
+    (document.elementFromPoint(x, y)?.closest('[data-rival]') as HTMLElement | null)?.dataset['rival'] ?? null;
+  const grab = (e: PointerEvent, id: number, icon: string): void => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const g = document.createElement('span');
+    g.className = 'merge__ghost';
+    g.textContent = icon;
+    g.style.left = `${e.clientX}px`;
+    g.style.top = `${e.clientY}px`;
+    document.body.appendChild(g);
+    ghost.current = g;
+    setHeld({ id, over: null });
+  };
+  const drag = (e: PointerEvent): void => {
+    if (!ghost.current || !held) return;
+    ghost.current.style.left = `${e.clientX}px`;
+    ghost.current.style.top = `${e.clientY}px`;
+    const over = rivalAt(e.clientX, e.clientY);
+    if (over !== held.over) setHeld({ id: held.id, over });
+  };
+  const drop = (e: PointerEvent | null, allowed: readonly string[]): void => {
+    const g = ghost.current;
+    ghost.current = null;
+    const to = e ? rivalAt(e.clientX, e.clientY) : null;
+    const id = held?.id;
+    setHeld(null);
+    if (!g) return;
+    if (to && id !== undefined && allowed.includes(to) && roundRef.current !== undefined) {
+      clientRef.current?.send({ t: 'merge-malus', d: { roundId: roundRef.current, id, to } });
+      g.animate([{ scale: '1', opacity: 1 }, { scale: '0.2', opacity: 0 }], { duration: 220, easing: 'ease-in' }).onfinish = () => g.remove();
+    } else {
+      g.remove();
+    }
+  };
+  useEffect(() => () => ghost.current?.remove(), []);
 
   const players = room.room?.players ?? [];
   const nameOf = (id: string): string => players.find((p) => p.id === id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' });
@@ -574,6 +621,11 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const mm = `${Math.floor(clock / 60)}:${String(clock % 60).padStart(2, '0')}`;
     const clockText = roundMs > 0 ? `${clock} s` : mm;
     const solvedOrWon = hasWon(mode, target, board);
+    // Who an unlocked malus can go to now, and how long before the next may go.
+    const stillPlaying = Object.entries(state.boards).filter(([, e]) => !e.over).map(([id]) => id);
+    const targets = myId !== undefined ? malusTargets(stillPlaying, myId, state.lastTarget ?? null) : [];
+    const now = clientRef.current?.now() ?? Date.now();
+    const cooling = Math.max(0, Math.ceil(((state.readyAt?.[myId ?? ''] ?? 0) - now) / 1000));
 
     return (
       <div class="merge" data-tone={roundMs > 0 ? timerTone(clock) : 'calm'} style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
@@ -585,6 +637,18 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
           screen={card.screen}
         />
 
+        <div class="merge__head">
+        {mode !== 'race' && (
+          <button
+            type="button"
+            class="merge__restart"
+            aria-label={text({ en: 'Start the puzzle again', fr: 'Recommencer le puzzle' })}
+            disabled={over || countdown > 0 || beat !== null}
+            onClick={restart}
+          >
+            ↺
+          </button>
+        )}
         <p class="merge__score">
           {mode === 'crescendo' ? (
             <>
@@ -606,6 +670,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
           {mode === 'crescendo' && ` · ${tilesLeft(board)} ${text({ en: 'tiles', fr: 'tuiles' })}`}
           {aggressive && ` · 😈 ${text({ en: 'aggressive', fr: 'agressif' })}`}
         </p>
+        </div>
 
         <div
           ref={boardEl}
@@ -655,31 +720,41 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
           </div>
         </div>
 
-        <div class={`merge__pad${mode !== 'race' ? ' merge__pad--restart' : ''}`}>
-          {ARROWS.map((a) => (
-            <button
-              key={a.dir}
-              type="button"
-              class="merge__arrow"
-              aria-label={text({ en: a.en, fr: a.fr })}
-              disabled={over || countdown > 0}
-              onClick={() => move(a.dir)}
-            >
-              {a.glyph}
-            </button>
-          ))}
-          {mode !== 'race' && (
-            <button
-              type="button"
-              class="merge__arrow merge__restart"
-              aria-label={text({ en: 'Start the puzzle again', fr: 'Recommencer le puzzle' })}
-              disabled={over || countdown > 0 || beat !== null}
-              onClick={restart}
-            >
-              ↺
-            </button>
-          )}
-        </div>
+        {aggressive && (
+          <div class="merge__tray">
+            <div class="merge__slots">
+              {Array.from({ length: MERGE_MALUS_STOCK }, (_, i) => {
+                const m = myStock[i];
+                if (!m) return <span key={`empty-${i}`} class="merge__slot merge__slot--empty" aria-hidden="true" />;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    data-slot={m.id}
+                    class={`merge__slot${cooling > 0 ? ' merge__slot--cooling' : ''}${held?.id === m.id ? ' merge__slot--held' : ''}`}
+                    aria-label={text(MALUS_NAME[m.kind])}
+                    onPointerDown={(e) => {
+                      if (cooling === 0 && targets.length > 0) grab(e, m.id, MALUS_ICON[m.kind]);
+                    }}
+                    onPointerMove={drag}
+                    onPointerUp={(e) => drop(e, targets)}
+                    onPointerCancel={() => drop(null, targets)}
+                  >
+                    <span class="merge__slot-icon" aria-hidden="true">{MALUS_ICON[m.kind]}</span>
+                    {text(MALUS_SHORT[m.kind])}
+                  </button>
+                );
+              })}
+            </div>
+            <p class="merge__tray-hint">
+              {myStock.length === 0
+                ? text({ en: 'Merge into 64 or more to unlock a malus', fr: 'Fusionnez en 64 ou plus pour débloquer un malus' })
+                : cooling > 0
+                  ? text({ en: `Next malus in ${cooling} s`, fr: `Prochain malus dans ${cooling} s` })
+                  : text({ en: 'Drag a malus onto a rival', fr: 'Glissez un malus sur un adversaire' })}
+            </p>
+          </div>
+        )}
 
         {others.length > 0 && (
           <ul class="merge__strip" aria-label={text({ en: 'The other players', fr: 'Les autres joueurs' })}>
@@ -688,7 +763,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
                 <button
                   type="button"
                   data-rival={id}
-                  class="merge__rival"
+                  class={`merge__rival${held ? (targets.includes(id) ? ` merge__rival--target${held.over === id ? ' merge__rival--hover' : ''}` : ' merge__rival--blocked') : ''}`}
                   aria-label={text({ en: `Watch ${nameOf(id)}’s board`, fr: `Voir le plateau de ${nameOf(id)}` })}
                   onClick={() => setSpy(id)}
                 >

@@ -3,7 +3,7 @@ import {
   NO_STONE,
   applyMalus,
   bigFusions,
-  malusTarget,
+  malusTargets,
   DIRS,
   bestLevel,
   bestTile,
@@ -352,12 +352,11 @@ function aggressive(): void {
   check('not across a stone', bigFusions(rows([32, 0, 32, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]), 'left', 1) === 0);
 
   const order = ['a', 'b', 'c', 'd'];
-  check('never to its sender', [0, 0.3, 0.6, 0.99].every((r) => malusTarget(order, 'b', null, r) !== 'b'));
-  check('at random among the others', new Set([0, 0.4, 0.8].map((r) => malusTarget(order, 'b', null, r))).size === 3);
-  check('the same player twice running passes to the next', malusTarget(order, 'a', 'b', 0) === 'c');
-  check('wrapping round, never back to the sender', malusTarget(order, 'a', 'd', 0.99) === 'b');
-  check('with one rival left it goes to them every time', malusTarget(['a', 'b'], 'a', 'b', 0.5) === 'b');
-  check('with nobody left it goes nowhere', malusTarget(['a'], 'a', null, 0.5) === null);
+  check('anyone playing but the sender can take one', malusTargets(order, 'b', null).join() === 'a,c,d');
+  check('but not whoever took the last one', malusTargets(order, 'a', 'c').join() === 'b,d');
+  check('whoever sent the last one can take the next', malusTargets(order, 'c', 'c').join() === 'a,b,d');
+  check('with one rival left, they take every one', malusTargets(['a', 'b'], 'a', 'b').join() === 'b');
+  check('with nobody left there is no one to send to', malusTargets(['a'], 'a', null).length === 0);
 
   const board = rows([2, 4, 0, 0], [2, 128, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]);
   const boom = applyMalus(board, { kind: 'explode', r: 0.99, exp: 0 });

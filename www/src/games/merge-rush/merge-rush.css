@@ -227,26 +227,26 @@
 .merge__tile--d5,
 .merge__tile--d6 { font-size: clamp(0.7rem, 4vw, 1.1rem); }
 
-.merge__pad {
-  display: grid;
-  grid-template-columns: repeat(4, 3.2rem);
+.merge__head {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: var(--space-2);
+  width: min(92vw, 56dvh, 28rem);
 }
 
-.merge__pad--restart {
-  grid-template-columns: repeat(5, 3.2rem);
-}
-
+/* Only the puzzle modes have it; top left, out of the way of a swipe. */
 .merge__restart {
-  color: var(--game-accent);
-}
-
-.merge__arrow {
-  min-height: 2.75rem;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3rem;
+  height: 3rem;
   font: inherit;
-  font-size: var(--font-title);
+  font-size: 1.6rem;
   font-weight: 700;
-  color: var(--color-text);
+  color: var(--game-accent);
   background: var(--color-surface);
   border: 2px solid var(--color-border);
   border-radius: var(--radius);
@@ -254,9 +254,93 @@
   touch-action: manipulation;
 }
 
-.merge__arrow:disabled {
+.merge__restart:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+/* Aggressive race: unlocked maluses, dragged onto a rival's thumbnail. */
+.merge__tray {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.merge__slots {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.merge__slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 4.6rem;
+  height: 4.2rem;
+  padding: 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 2px solid var(--game-accent);
+  border-radius: var(--radius);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.merge__slot-icon {
+  font-size: 1.7rem;
+  line-height: 1.1;
+}
+
+.merge__slot--empty {
+  border: 2px dashed var(--color-border);
+  background: none;
+  cursor: default;
+}
+
+.merge__slot--cooling {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.merge__slot--held {
+  opacity: 0.3;
+}
+
+.merge__tray-hint {
+  margin: 0;
+  font-size: var(--font-small);
+  color: var(--color-text-dim);
+}
+
+.merge__ghost {
+  position: fixed;
+  z-index: 60;
+  translate: -50% -50%;
+  font-size: 2.6rem;
+  line-height: 1;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 8px #000a);
+}
+
+.merge__rival--target {
+  outline: 2px dashed var(--game-accent);
+  outline-offset: 2px;
+}
+
+.merge__rival--hover {
+  outline-style: solid;
+  background: color-mix(in srgb, var(--game-accent) 30%, transparent);
+}
+
+.merge__rival--blocked {
+  opacity: 0.35;
 }
 
 /* The other players, pinned to the bottom: one block each, avatar over score

@@ -25,7 +25,7 @@ a level, a race to a tile, and one puzzle merged down to one.
 1. The host picks a mode (§3). The referee draws a **seed** and the round
    starts on a 3·2·1, every phone on the **same starting board** (§2.1) — a
    puzzle in Highlander.
-2. Swipe (or tap an arrow) to slide every tile as far as it goes in that
+2. Swipe to slide every tile as far as it goes in that
    direction. Two equal tiles that meet merge into one of double the value.
 3. A move that changed the board spawns one new tile — a 2, or now and then a 4
    — in an empty cell. Not in Highlander, where nothing ever spawns.
@@ -132,8 +132,10 @@ ranks first.
 ### 3.1 Aggressive race
 
 A race the host ticks **Mode agressif / Aggressive mode** on. Every merge that
-makes a **64 or bigger** (`MERGE_MALUS_FROM`) sends one malus, drawn at random,
-to **one** rival:
+makes a **64 or bigger** (`MERGE_MALUS_FROM`) **unlocks** one malus, of a kind
+drawn at random. It appears under the player's board as an icon with its name,
+and they **drag it onto a rival's thumbnail** to send it. A player holds at most
+three (`MERGE_MALUS_STOCK`); one unlocked past that is lost.
 
 | Malus | Icon | Effect on the receiver's board |
 | --- | --- | --- |
@@ -144,22 +146,25 @@ to **one** rival:
 | `stone` | 🪨 | A stone takes an empty cell for 10 s: tiles stop against it and nothing merges across it, and nothing spawns on it |
 | `gravity` | ⬇️ | Everything falls, exactly as a swipe down (no points, no spawn) |
 
-- **Who receives it**: anyone still playing but the sender, at random. While
-  there are two or more to choose from, nobody takes two in a row — the pick
-  passes to the next player in the room's order (`malusTarget`). Nobody left: the
-  malus is lost.
-- **Cooldown**: a player's maluses are at least 10 s apart
-  (`MERGE_MALUS_COOLDOWN_MS`); a big merge made sooner sends nothing, and is not
-  saved for later.
-- **Animation**: the sender sees the malus's icon fly from the tile it merged to
-  the receiver's thumbnail; the receiver sees it fly from the sender's thumbnail
-  to the cell it lands on (the board's centre for the timed ones), then a notice
-  names it and who sent it. Reduced motion: it lands at once.
-- **Who decides what**: the referee draws the receiver, the kind, the dropped
-  tile and a number `r`; only the receiver knows its board, so it picks the cell
-  with `r` (`applyMalus`). Phones report `fusions`, their count of big merges,
-  and the referee sends a malus when that count goes up and the board it came
-  with holds a 64 or more. Solo rounds and the other modes never send one —
+- **Who can take it**: anyone still playing but the sender. While there are two
+  or more of them, whoever took the last malus — from anyone — cannot take the
+  next (`malusTargets`). While dragging, the thumbnails that can take it are
+  outlined and the others dimmed. A stuck player can still send what they hold.
+- **Cooldown**: a player's maluses go out at least 10 s apart
+  (`MERGE_MALUS_COOLDOWN_MS`); meanwhile their slots are dimmed with the seconds
+  left, and nothing is lost.
+- **Animation**: an unlocked malus flies from the tile whose merge earned it to
+  its slot; the dragged icon shrinks into the thumbnail it is dropped on; the
+  receiver sees it fly from the sender's thumbnail to the cell it lands on (the
+  board's centre for the timed ones), then a notice names it and who sent it.
+  Reduced motion: no flights.
+- **Who decides what**: the referee keeps each player's unlocked maluses and
+  draws their kind, then — when one is sent — the dropped tile and a number `r`;
+  only the receiver knows its board, so it picks the cell with `r`
+  (`applyMalus`). Phones report `fusions`, their count of big merges; the
+  referee unlocks one when that count goes up and the board it came with holds
+  a 64 or more, and refuses a send it cannot honour (not held, too soon, a
+  rival who cannot take it). Solo rounds and the other modes never unlock any —
   Crescendo and Highlander are puzzles that must stay solvable.
 
 ## 4. Screens
@@ -180,8 +185,11 @@ into its own over about a quarter of a second, and gives a jolt as it does — i
 overshoots to 1.28× with a small twist, rings back past 1 and settles — while a
 new tile scales in.
   Swiping anywhere on the board moves.
-- **Four arrow buttons** under the board, for anyone who cannot swipe, and in
-  Highlander a fifth, **↺**, that puts the puzzle back as it started.
+- **No arrow buttons**: the swipe is the game, and the arrow keys cover a
+  desktop. In the puzzle modes a **↺** button sits top left, above the board,
+  and puts the puzzle back as it was dealt.
+- **In an aggressive race**, the unlocked maluses sit in three slots under the
+  board (§3.1).
 - **The other players**, pinned to the bottom of the screen: one block each,
   centred, top to bottom — their avatar, where they stand (their level in
   Crescendo, their best tile in a race, their tiles left in Highlander), and a
@@ -191,7 +199,7 @@ new tile scales in.
 Under the big number, one line names the mode — with your best tile so far in a
 race, and the tiles on the board in Crescendo. The big number is the level in
 Crescendo (`Level 3/30`), the tiles left in Highlander, and points in a race.
-Both puzzle modes have the ↺ button; a puzzle never ends a player's round by
+A puzzle never ends a player's round by
 being stuck, since ↺ is always there.
 
 **Watching another player.** Tapping a thumbnail, at any moment — counting
@@ -288,8 +296,8 @@ A 16-number board and two counters per report. Nothing stored past the room.
 
 ## 11. Accessibility
 
-- **No gesture is the only way**: the four arrow buttons do everything a swipe
-  does, and so do the arrow keys.
+- **The swipe is the only way on a phone** — a deliberate choice: the game is
+  the gesture. The arrow keys do everything a swipe does on a desktop.
 - **Colour is never the only signal on your own board**: every tile carries its
   number. The thumbnails are colour-only by design, and are a convenience —
   nothing in the game depends on reading one.

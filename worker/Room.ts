@@ -229,6 +229,7 @@ import {
 import {
   nextDeadline as mergeDeadline,
   onMergeBoard,
+  onMergeMalus,
   onPlayerGone as mergePlayerGone,
   startMergeRush,
   tick as mergeTick,
@@ -640,6 +641,11 @@ export class Room extends DurableObject<Env> {
       case 'merge-board': {
         const id = this.#idOf(ws);
         if (id) await onMergeBoard(this.#mergeCtx(), id, msg.d.roundId, msg.d.board, msg.d.score, msg.d.moves, msg.d.over, msg.d.level, msg.d.fusions);
+        return;
+      }
+      case 'merge-malus': {
+        const id = this.#idOf(ws);
+        if (id) await onMergeMalus(this.#mergeCtx(), id, msg.d.roundId, msg.d.id, msg.d.to);
         return;
       }
       case 'blink-final': {

@@ -397,9 +397,12 @@ export type ClientMessage =
   /** Blink Tapper: this phone's whole round, sent once when it ends (spec §6). */
   | { t: 'blink-final'; d: { roundId: number; hits: number; misses: number } }
   /** Double Fusion: this phone's board, throttled, and once more when it ends (spec §6).
-   *  `fusions` counts its merges that made `MERGE_MALUS_FROM` or more — an
-   *  aggressive race sends a malus on each new one (spec §3.1). */
+   *  `fusions` counts its merges that made `MERGE_MALUS_FROM` or more — in an
+   *  aggressive race each new one unlocks a malus (spec §3.1). */
   | { t: 'merge-board'; d: { roundId: number; board: number[]; score: number; moves: number; over: boolean; level?: number; fusions?: number } }
+  /** Double Fusion, aggressive race: send one of this player's unlocked maluses
+   *  (its `MergeStock.id`) to a rival, dropped on their thumbnail (spec §3.1). */
+  | { t: 'merge-malus'; d: { roundId: number; id: number; to: PlayerId } }
   | { t: 'switch-game'; d: { game: string; bring: boolean } };
 
 /* ------------------------------------------------------------------ */
@@ -2168,6 +2171,7 @@ const CLIENT_TYPES = new Set([
   'jump-result',
   'blink-final',
   'merge-board',
+  'merge-malus',
   'switch-game',
 ]);
 
@@ -4010,11 +4014,14 @@ export type MergeEntry = {
 
 export type MergeOptions = { mode: MergeMode; target: number; aggressive: boolean };
 
-/* Aggressive race (spec §3.1): a big merge sends a malus to one rival. */
+/* Aggressive race (spec §3.1): a big merge unlocks a malus, which its player
+   sends by dropping it on a rival's thumbnail. */
 
-/** The smallest tile whose making sends a malus: 64. */
+/** The smallest tile whose making unlocks a malus: 64. */
 export const MERGE_MALUS_FROM = 6;
-/** A player's maluses are at least this far apart; one made sooner is lost. */
+/** How many unlocked maluses a player can hold; one more is lost. */
+export const MERGE_MALUS_STOCK = 3;
+/** A player's maluses go out at least this far apart. */
 export const MERGE_MALUS_COOLDOWN_MS = 10_000;
 export const MERGE_MALUS_KINDS = ['explode', 'add', 'freeze', 'fog', 'stone', 'gravity'] as const;
 export type MergeMalusKind = (typeof MERGE_MALUS_KINDS)[number];
@@ -4024,6 +4031,9 @@ export const MERGE_FOG_MS = 5000;
 export const MERGE_STONE_MS = 10_000;
 /** The referee keeps only the latest few; a phone acts on the ones it has not seen. */
 export const MERGE_MALUS_KEPT = 12;
+
+/** An unlocked malus, waiting to be sent. */
+export type MergeStock = { id: number; kind: MergeMalusKind };
 
 export type MergeMalus = {
   /** Counts up through the round, so a phone knows which it has seen. */
@@ -4058,4 +4068,9 @@ export type MergeRushState = {
   aggressive: boolean;
   /** The latest maluses sent, oldest first. */
   maluses: MergeMalus[];
+  /** Each player's unlocked maluses, and when (server ms) they may next send one. */
+  stock: Record<PlayerId, MergeStock[]>;
+  readyAt: Record<PlayerId, number>;
+  /** Who took the last malus: nobody takes two in a row while there is a choice. */
+  lastTarget: PlayerId | null;
 };
