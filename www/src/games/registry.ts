@@ -30,7 +30,7 @@ import { CARD as CROWD_RACE_CARD } from './crowd-race/card';
 import { CARD as RHINO_SPIN_CARD } from './rhino-spin/card';
 import { CARD as MAXIMUM_JUMP_CARD } from './maximum-jump/card';
 import { CARD as BLINK_TAPPER_CARD } from './blink-tapper/card';
-import { CARD as MERGE_RUSH_CARD } from './merge-rush/card';
+import { CARD as MERGE_RUSH_CARD } from './double-fusion/card';
 import { CARD as TENTACULES_CARD } from './tentacules/card';
 import type { GameCard } from '../core/types';
 

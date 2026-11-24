@@ -15,7 +15,7 @@ import { crescendoPuzzle, mass, maxMoves, maxScore, newGame, puzzle, slide, solv
 import { nextDeadline, onMergeBoard, onMergeMalus, onPlayerGone, startMergeRush, tick, toState, type Ctx, type MergeRush } from './mergeRush';
 
 /**
- * Double Fusion's referee. Spec: docs/specs/games/merge-rush.md §6-§8
+ * Double Fusion's referee. Spec: docs/specs/games/double-fusion.md §6-§8
  *
  * The moves happen on the phones. What is asserted here is what this file owns:
  * the shared seed, what it believes of a report, the clock and the winner.
@@ -90,7 +90,7 @@ async function starting(): Promise<void> {
   check('everyone starts on the same board', JSON.stringify(s.boards[A]?.board) === begin && JSON.stringify(s.boards[B]?.board) === begin);
   check('which is the seed\'s own starting board', JSON.stringify(toState(s).boards[A]?.board) === begin);
   check('at zero', s.boards[A]?.score === 0 && s.boards[A]?.moves === 0 && s.boards[A]?.over === false);
-  check('and the room was told', h.sent.some((m) => m.t === 'merge-rush'));
+  check('and the room was told', h.sent.some((m) => m.t === 'double-fusion'));
 
   const other = harness([0.9]);
   await startMergeRush(other.ctx, 1, [A, B], SPAWN);
@@ -114,7 +114,7 @@ async function reporting(): Promise<void> {
   await onMergeBoard(h.ctx, A, 1, g.board, g.score, g.moves, false);
   const a = h.state().boards[A];
   check('an honest report is taken as it is', a?.score === g.score && a?.moves === g.moves && JSON.stringify(a?.board) === JSON.stringify(g.board), a);
-  check('and broadcast', h.sent.filter((m) => m.t === 'merge-rush').length >= 2);
+  check('and broadcast', h.sent.filter((m) => m.t === 'double-fusion').length >= 2);
 
   await onMergeBoard(h.ctx, A, 1, g.board, 1, 1, false);
   check('score and moves never go down', h.state().boards[A]?.score === g.score && h.state().boards[A]?.moves === g.moves);

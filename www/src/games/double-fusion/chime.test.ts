@@ -1,6 +1,6 @@
 import { CHIME_RESET_AFTER, CHIME_STEPS, CLIMB_START, climb, partials } from './chime';
 
-/** The merge note's climb and its spectrum. Module: merge-rush/chime.ts */
+/** The merge note's climb and its spectrum. Module: double-fusion/chime.ts */
 
 let failures = 0;
 let checks = 0;

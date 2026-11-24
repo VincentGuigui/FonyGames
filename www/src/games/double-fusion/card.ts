@@ -10,7 +10,7 @@ import art from './art/card.svg?url&no-inline';
  * game's runtime would put the whole game in the hub's chunk.
  */
 export const CARD: GameCard = {
-  slug: 'merge-rush',
+  slug: 'double-fusion',
   title: 'Double Fusion',
   pitch: 'Swipe, merge, double and win!',
   concept: 'Slide the tiles, merge equal numbers, and watch everyone else’s board climb beside yours.',
@@ -31,7 +31,7 @@ export const CARD: GameCard = {
     art: { alt: 'Un plateau de quatre par quatre de tuiles numérotées et colorées, certaines fusionnées en tuiles plus grosses' },
   },
   accent: '#F472B6',
-  players: PLAYERS['merge-rush'],
+  players: PLAYERS['double-fusion'],
   duration: '3 min+',
   inputs: ['touch'],
   tags: ['party', 'arcade', 'strategy'],

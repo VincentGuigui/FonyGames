@@ -1,7 +1,7 @@
 import { MERGE_TARGET_ENDLESS, type MergeMode } from '../../../../shared/protocol';
 import { tileValue } from '../../../../shared/merge';
 
-/** What each mode is called, in both languages. Spec: docs/specs/games/merge-rush.md §3 */
+/** What each mode is called, in both languages. Spec: docs/specs/games/double-fusion.md §3 */
 
 type Both = { en: string; fr: string };
 

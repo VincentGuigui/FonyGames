@@ -1,6 +1,6 @@
 import type { MergeMalusKind } from '../../../../shared/protocol';
 
-/** An aggressive race's maluses, as a player sees them. Spec: docs/specs/games/merge-rush.md §3.1 */
+/** An aggressive race's maluses, as a player sees them. Spec: docs/specs/games/double-fusion.md §3.1 */
 
 export const MALUS_ICON: Record<MergeMalusKind, string> = {
   explode: '💥',

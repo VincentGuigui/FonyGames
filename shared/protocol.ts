@@ -138,7 +138,7 @@ export type ClientMessage =
          *  (blink-tapper.md §3), sanitised by `normaliseBlinkOptions`. */
         blink?: { lights?: number; duration?: number };
         /** Double Fusion's mode and, for a race, the target tile's exponent
-         *  (merge-rush.md §3), sanitised by `normaliseMergeOptions`. */
+         *  (double-fusion.md §3), sanitised by `normaliseMergeOptions`. */
         merge?: { mode?: string; target?: number; aggressive?: boolean };
         /** Tentacules' mode (tentacules.md §3), sanitised by `normaliseTentMode`. */
         tentacules?: { mode?: string };
@@ -1425,7 +1425,7 @@ export type ServerMessage =
   | { t: 'rhino-spin'; s: number; d: RhinoSpinState }
   | { t: 'maximum-jump'; s: number; d: MaximumJumpState }
   | { t: 'blink-tapper'; s: number; d: BlinkTapperState }
-  | { t: 'merge-rush'; s: number; d: MergeRushState }
+  | { t: 'double-fusion'; s: number; d: MergeRushState }
   | { t: 'tentacules'; s: number; d: TentaculesState }
   | { t: 'room-redirect'; s: number; d: { code: string; game: string } }
   /**
@@ -3953,15 +3953,15 @@ export type BlinkTapperState = {
 };
 
 /* ── Double Fusion ──────────────────────────────────────────────────────────────
- * Spec: docs/specs/games/merge-rush.md
+ * Spec: docs/specs/games/double-fusion.md
  *
  * The moves happen on the phone; the referee owns the seed, the clock and the
  * winner, and bounds what a phone claims (spec §8). The rules both sides share
  * are shared/merge.ts.
  */
 
-export const MERGE_MIN_PLAYERS = PLAYERS['merge-rush'][0];
-export const MERGE_MAX_PLAYERS = PLAYERS['merge-rush'][1];
+export const MERGE_MIN_PLAYERS = PLAYERS['double-fusion'][0];
+export const MERGE_MAX_PLAYERS = PLAYERS['double-fusion'][1];
 
 /** The board is `MERGE_SIZE` × `MERGE_SIZE`; a cell holds an exponent, 0 empty. */
 export const MERGE_SIZE = 4;

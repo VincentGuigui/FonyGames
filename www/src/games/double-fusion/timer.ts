@@ -1,5 +1,5 @@
 /**
- * How urgent the clock looks. Spec: docs/specs/games/merge-rush.md §4
+ * How urgent the clock looks. Spec: docs/specs/games/double-fusion.md §4
  *
  * Orange with half a minute left, red and blinking with fifteen seconds left.
  */

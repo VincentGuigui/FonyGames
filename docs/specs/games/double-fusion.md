@@ -2,9 +2,9 @@
 
 | | |
 | --- | --- |
-| **Slug** | `merge-rush` |
+| **Slug** | `double-fusion` |
 | **Catchy sentence** | Swipe, merge, double and win! |
-| **Illustration** | `www/src/games/merge-rush/art/card.svg` — a framed 4×4 grid of numbered, coloured tiles (2 to 32), a few merged into bigger ones |
+| **Illustration** | `www/src/games/double-fusion/art/card.svg` — a framed 4×4 grid of numbered, coloured tiles (2 to 32), a few merged into bigger ones |
 | **Players** | 1–8 |
 | **Round length** | 3 min (Highlander); untimed for Crescendo and a race — until somebody finishes |
 | **Inputs** | touch |
@@ -51,7 +51,7 @@ run the same functions from `shared/merge.ts`.
 ### 2.2 Colour is one function
 
 What colour a tile is — and how the thumbnails read — comes from **one
-function**, `tileColor(value)` in `www/src/games/merge-rush/colors.ts`. The
+function**, `tileColor(value)` in `www/src/games/double-fusion/colors.ts`. The
 board and the thumbnails both call it and nothing else decides a colour, so
 retuning the palette is a change to that function alone. It takes a tile's
 number (2, 4, 8, …; 0 is an empty cell) and returns a CSS colour.
@@ -240,7 +240,7 @@ a thumbnail has to be live, but not frame-rate.
 | --- | --- | --- | --- |
 | `start` | client → server | `{ mode: 'merge', solo, merge: { mode, target } }` | Host starts; carries the lobby's mode and race target |
 | `merge-board` | phone → server | `{ roundId, board, score, moves, over }` | This phone's board, at most every `MERGE_REPORT_MS`, and once more when it ends |
-| `merge-rush` | server → all | `{ roundId, phase, startsAt, endsAt, seed, mode, target, roundMs, start, boards, solo, winner }` | Everyone's last accepted board and score, and the round's own rules |
+| `double-fusion` | server → all | `{ roundId, phase, startsAt, endsAt, seed, mode, target, roundMs, start, boards, solo, winner }` | Everyone's last accepted board and score, and the round's own rules |
 
 `board` is 16 exponents — 0 empty, *k* for 2^*k* — row by row, and so is `start`,
 the board every phone begins on. The referee seeds every player's entry with
@@ -320,9 +320,10 @@ A 16-number board and two counters per report. Nothing stored past the room.
    — is the playtest question. Time Attack, the original two-minute score mode,
    was replaced by Crescendo, and then its countdown went too.
 2. **The name.** "2048" is a trademark-adjacent title in the wild, so this is
-   **Double Fusion** (it was Merge Rush at first). The slug stays `merge-rush` —
-   the URL, the flag key and every shared link — because renaming it would
-   break links already in group chats; the title is all a player reads.
+   **Double Fusion** (it was Merge Rush at first). The slug followed the name
+   while nobody had the old link: `double-fusion` is the URL, the folder and the
+   flag key. Anything named `merge` inside — the wire `mode`, `shared/merge.ts`,
+   the referee's file — is the game's mechanic, not its slug, and stays.
 3. **The palette.** `tileColor` starts as an evenly spaced hue ramp so every
    doubling is distinguishable from its neighbours; whether it reads at 8 px is
    the thumbnail test.

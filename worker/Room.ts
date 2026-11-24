@@ -2293,7 +2293,7 @@ export class Room extends DurableObject<Env> {
        strip straight away and rebuilds its own board from the seed's start. */
     const merging = await this.#merge();
     if (merging && merging.phase !== 'done') {
-      this.#send(ws, { t: 'merge-rush', s: this.#nextSeq(), d: mergeToState(merging) });
+      this.#send(ws, { t: 'double-fusion', s: this.#nextSeq(), d: mergeToState(merging) });
     }
 
     /* Tentacules: who holds which peg, so a phone that rejoins is put back on its holds. */

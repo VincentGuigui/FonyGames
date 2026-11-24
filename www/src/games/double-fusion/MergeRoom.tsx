@@ -58,10 +58,10 @@ import { MergeOptionsPanel } from './MergeOptions';
 import { modeName, targetLabel } from './modes';
 import { MALUS_ICON, MALUS_NAME, MALUS_SHORT, fly } from './malus';
 import { CLIMB_START, chimeOn, climb, playChime, prepareChime, setChimeOn } from './chime';
-import './merge-rush.css';
+import './double-fusion.css';
 
 /**
- * Double Fusion's room screen. Spec: docs/specs/games/merge-rush.md §4
+ * Double Fusion's room screen. Spec: docs/specs/games/double-fusion.md §4
  *
  * The rules are `shared/merge.ts` run from the room's seed; this holds them
  * together with the swipe, the thumbnails and the one thing that reaches
@@ -86,7 +86,7 @@ function Thumb({ board }: { board: readonly number[] }): JSX.Element {
   return <canvas ref={ref} class="merge__thumb" width={32} height={32} aria-hidden="true" />;
 }
 
-/** How long a slide takes; merge-rush.css's `--slide` is the same number. */
+/** How long a slide takes; double-fusion.css's `--slide` is the same number. */
 const SLIDE_MS = 110;
 
 const DEFAULT_MERGE_PANEL: MergeOptions = { mode: 'crescendo', target: MERGE_DEFAULT_TARGET, aggressive: false };
@@ -132,7 +132,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   spyRef.current = spy;
 
   const onGame = useCallback((msg: ServerMessage) => {
-    if (msg.t === 'merge-rush') setState(msg.d);
+    if (msg.t === 'double-fusion') setState(msg.d);
   }, []);
 
   const { room, joinUrl, copied, showQr, share, toggleQr } = useGameRoom(code, card, onGame);

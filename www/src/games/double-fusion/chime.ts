@@ -1,5 +1,5 @@
 /**
- * Double Fusion's merge note. Spec: docs/specs/games/merge-rush.md §4
+ * Double Fusion's merge note. Spec: docs/specs/games/double-fusion.md §4
  *
  * A breathy note, like blowing across a bottle, that climbs a semitone with
  * every merging move in a row — forever. It is a Shepard tone: each note is the
@@ -47,7 +47,7 @@ export function partials(step: number): { hz: number; gain: number }[] {
   return out.map((p) => ({ hz: p.hz, gain: p.gain / total }));
 }
 
-const SOUND_KEY = 'merge-rush:sound';
+const SOUND_KEY = 'double-fusion:sound';
 
 /** Remembered on this phone; on unless turned off, as Shake Rush's tune is. */
 export function chimeOn(): boolean {

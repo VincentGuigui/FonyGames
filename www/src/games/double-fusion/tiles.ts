@@ -2,7 +2,7 @@ import { MERGE_SIZE } from '../../../../shared/protocol';
 import { NO_STONE, runs, type Board, type Dir } from '../../../../shared/merge';
 
 /**
- * Tiles with an identity, so a move can slide them. Spec: docs/specs/games/merge-rush.md §4
+ * Tiles with an identity, so a move can slide them. Spec: docs/specs/games/double-fusion.md §4
  *
  * `shared/merge.ts` decides what a move does to the board; this follows the
  * same move tile by tile, only to know where each one travelled from and to.

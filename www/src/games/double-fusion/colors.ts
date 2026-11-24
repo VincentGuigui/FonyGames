@@ -1,5 +1,5 @@
 /**
- * What colour a tile is. Spec: docs/specs/games/merge-rush.md §2.2
+ * What colour a tile is. Spec: docs/specs/games/double-fusion.md §2.2
  *
  * **The only place a tile's colour is decided.** The board and the thumbnails
  * both call these and nothing else, so retuning the palette is a change here

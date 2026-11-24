@@ -4,7 +4,7 @@ import { useGameText } from '../../core/i18n/gameText';
 import { modeBlurb, modeName, targetLabel } from './modes';
 
 /**
- * The host's mode, in the lobby. Spec: docs/specs/games/merge-rush.md §3
+ * The host's mode, in the lobby. Spec: docs/specs/games/double-fusion.md §3
  *
  * Read-only for everybody but the host, the same call every other options
  * panel in the catalogue makes. A race also picks its target tile, from a

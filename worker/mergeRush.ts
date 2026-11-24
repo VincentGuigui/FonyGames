@@ -38,7 +38,7 @@ import {
 } from '../shared/merge';
 
 /**
- * Double Fusion. Spec: docs/specs/games/merge-rush.md
+ * Double Fusion. Spec: docs/specs/games/double-fusion.md
  *
  * The moves happen on the phones. This file owns the seed, the starting board,
  * the clock and the winner, and the bound on what a phone claims about its own
@@ -367,5 +367,5 @@ export function toState(s: MergeRush): MergeRushState {
 }
 
 function broadcast(ctx: Ctx, s: MergeRush): void {
-  ctx.broadcast({ t: 'merge-rush', s: ctx.nextSeq(), d: toState(s) });
+  ctx.broadcast({ t: 'double-fusion', s: ctx.nextSeq(), d: toState(s) });
 }
