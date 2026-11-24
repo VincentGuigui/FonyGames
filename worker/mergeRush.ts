@@ -1,5 +1,6 @@
 import {
   MERGE_COUNTDOWN_MS,
+  MERGE_BOT_ID,
   MERGE_CRESCENDO_LEVELS,
   MERGE_MALUS_COOLDOWN_MS,
   MERGE_MALUS_FROM,
@@ -65,6 +66,8 @@ export type MergeRush = {
   phase: 'playing' | 'done';
   /** Aggressive race (spec §3.1). */
   aggressive: boolean;
+  /** Admin solo test: a local bot is the rival, and maluses may go to it. */
+  bot: boolean;
   maluses: MergeMalus[];
   malusSeq: number;
   stockSeq: number;
@@ -131,6 +134,7 @@ export async function startMergeRush(
     winner: null,
     phase: 'playing',
     aggressive,
+    bot: solo && aggressive,
     maluses: [],
     malusSeq: 0,
     stockSeq: 0,
@@ -182,12 +186,14 @@ export async function onMergeBoard(
   const m = Math.max(e.moves, Math.min(whole(moves), maxMoves(elapsed)));
   const fixed = s.mode === 'highlander';
 
-  const allowed = maxMass(startMass, m) + ((s.dropped ?? {})[playerId] ?? 0);
+  // Against the bot there is nobody to cheat — and its maluses land on the phone,
+  // which the referee does not see — so only the shape of the board is checked.
+  const allowed = s.bot ? Infinity : maxMass(startMass, m) + ((s.dropped ?? {})[playerId] ?? 0);
   if (isBoard(board) && (fixed ? mass(board) === startMass : mass(board) <= allowed)) e.board = board;
   e.moves = m;
   e.score = Math.max(e.score, Math.min(whole(score), maxScore(startMass, fixed ? 0 : m)));
   e.over = over === true;
-  if (s.aggressive && !s.solo) unlock(ctx, s, playerId, whole(fusions));
+  if (s.aggressive && (!s.solo || s.bot)) unlock(ctx, s, playerId, whole(fusions));
 
   if (hasWon(s.mode, s.target, e.board)) {
     if (s.mode === 'highlander') e.solvedMs = Math.max(0, ctx.now() - s.startsAt);
@@ -260,7 +266,8 @@ function unlock(ctx: Ctx, s: MergeRush, player: PlayerId, fusions: number): void
 }
 
 function playing(s: MergeRush): PlayerId[] {
-  return Object.keys(s.boards).filter((id) => !s.gone.includes(id) && !s.boards[id]?.over);
+  const real = Object.keys(s.boards).filter((id) => !s.gone.includes(id) && !s.boards[id]?.over);
+  return s.bot ? [...real, MERGE_BOT_ID] : real;
 }
 
 /**
@@ -271,7 +278,7 @@ function playing(s: MergeRush): PlayerId[] {
  */
 export async function onMergeMalus(ctx: Ctx, from: PlayerId, roundId: number, id: unknown, to: unknown): Promise<void> {
   const s = await ctx.load();
-  if (!s || s.roundId !== roundId || s.phase !== 'playing' || !s.aggressive || s.solo) return;
+  if (!s || s.roundId !== roundId || s.phase !== 'playing' || !s.aggressive || (s.solo && !s.bot)) return;
   if (s.gone.includes(from) || !(from in s.boards)) return;
   const stock = s.stock[from] ?? [];
   const at = stock.findIndex((m) => m.id === id);
@@ -359,6 +366,7 @@ export function toState(s: MergeRush): MergeRushState {
     winner: s.winner,
     // A round saved before aggressive races existed has neither.
     aggressive: s.aggressive === true,
+    bot: s.bot === true,
     maluses: (s.maluses ?? []).map((m) => ({ ...m })),
     stock: Object.fromEntries(Object.entries(s.stock ?? {}).map(([id, list]) => [id, list.map((m) => ({ ...m }))])),
     readyAt: { ...(s.readyAt ?? {}) },

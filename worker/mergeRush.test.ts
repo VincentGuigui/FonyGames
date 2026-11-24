@@ -6,6 +6,7 @@ import {
   MERGE_TARGET_ENDLESS,
   MERGE_REPORT_GRACE_MS,
   MERGE_CRESCENDO_LEVELS,
+  MERGE_BOT_ID,
   MERGE_MALUS_COOLDOWN_MS,
   MERGE_MALUS_KINDS,
   MERGE_MALUS_STOCK,
@@ -481,11 +482,36 @@ async function aggressive(): Promise<void> {
   const calm = await fresh([0.1], [A, B, C], { mode: 'race', target: 13 });
   await report(calm, A, with64, 1);
   check('a race that is not aggressive unlocks nothing', stockOf(calm, A).length === 0);
-  const solo = harness([0.1]);
-  await startMergeRush(solo.ctx, 1, [A], { mode: 'race', target: 13, aggressive: true }, true);
-  solo.advance(MERGE_COUNTDOWN_MS + 60_000);
-  await onMergeBoard(solo.ctx, A, 1, with64, 0, 400, false, undefined, 1);
-  check('nor does a solo round', (solo.state().stock[A] ?? []).length === 0);
+  const lone = harness([0.1]);
+  await startMergeRush(lone.ctx, 1, [A], { mode: 'race', target: 13, aggressive: true });
+  lone.advance(MERGE_COUNTDOWN_MS + 60_000);
+  await onMergeBoard(lone.ctx, A, 1, with64, 0, 400, false, undefined, 1);
+  check('nor does a lone player, who has nobody to send to', (lone.state().stock[A] ?? []).length === 0 && !toState(lone.state()).bot);
+
+  // The admin's solo test plays a bot: it lives on the phone, but maluses may go to it.
+  const bot = harness([0.1]);
+  await startMergeRush(bot.ctx, 1, [A], { mode: 'race', target: 13, aggressive: true }, true);
+  bot.advance(MERGE_COUNTDOWN_MS + 60_000);
+  check('an admin\'s solo aggressive race has a bot', toState(bot.state()).bot);
+  await onMergeBoard(bot.ctx, A, 1, with64, 0, 400, false, undefined, 1);
+  check('and the player unlocks maluses against it', (bot.state().stock[A] ?? []).length === 1);
+  await onMergeMalus(bot.ctx, A, 1, bot.state().stock[A]?.[0]?.id, MERGE_BOT_ID);
+  check('and sends one to it', bot.state().maluses[0]?.to === MERGE_BOT_ID && bot.state().maluses[0]?.from === A);
+  await onMergeBoard(bot.ctx, A, 1, with64, 0, 400, false, undefined, 2);
+  bot.advance(MERGE_MALUS_COOLDOWN_MS);
+  await onMergeMalus(bot.ctx, A, 1, bot.state().stock[A]?.[0]?.id, 'nobody');
+  check('but to nobody else', bot.state().maluses.length === 1);
+  const crowded = [...with64];
+  crowded[2] = 3;
+  crowded[3] = 3;
+  await onMergeBoard(bot.ctx, A, 1, crowded, 0, 1, false);
+  check('the bot\'s own tiles on the player\'s board are not held to the spawn bound', JSON.stringify(bot.state().boards[A]?.board) === JSON.stringify(crowded));
+  const noBot = harness([0.1]);
+  await startMergeRush(noBot.ctx, 1, [A], { mode: 'race', target: 13 }, true);
+  check('a solo race that is not aggressive has none', !toState(noBot.state()).bot);
+  const crescendo = harness([0.1]);
+  await startMergeRush(crescendo.ctx, 1, [A], { mode: 'crescendo', aggressive: true }, true);
+  check('nor does a puzzle mode', !toState(crescendo.state()).bot);
 
   // Random draws in the order the referee takes them: the seed, the kind when
   // unlocked, then the tile and the cell when sent.

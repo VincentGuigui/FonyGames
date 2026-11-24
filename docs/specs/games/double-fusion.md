@@ -164,8 +164,21 @@ three (`MERGE_MALUS_STOCK`); one unlocked past that is lost.
   (`applyMalus`). Phones report `fusions`, their count of big merges; the
   referee unlocks one when that count goes up and the board it came with holds
   a 64 or more, and refuses a send it cannot honour (not held, too soon, a
-  rival who cannot take it). Solo rounds and the other modes never unlock any —
-  Crescendo and Highlander are puzzles that must stay solvable.
+  rival who cannot take it). The other modes never unlock any — Crescendo and
+  Highlander are puzzles that must stay solvable — and neither does a lone
+  player, who has nobody to send to.
+- **The bot** (admin solo test only): so the mode can be tried alone, an
+  aggressive race started with solo testing on (`core/solo.ts`) plays a **bot**
+  (`bot.ts`) on the phone — a rival in the thumbnail strip, 🤖 *Bot*, that can
+  be watched like anyone. It makes **one move a second** on the room's own seed
+  (the player's tiles, the same luck), keeps its big tile in a corner, and plays
+  the whole malus game: it unlocks by the same rule (a merge into 64 or more),
+  sends when it holds one and its 10 s are up, and takes what is dropped on it —
+  an explosion, a tile, a stone, a freeze, gravity, fog meaning nothing to it.
+  The referee only knows it as a rival id (`MERGE_BOT_ID`) maluses can be sent
+  to, and, since the bot's maluses land on the phone without it, skips the mass
+  bound for that round: there is nobody to cheat. The bot never wins; it is
+  there to be played against and looked at.
 
 ## 4. Screens
 

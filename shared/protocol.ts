@@ -4031,6 +4031,9 @@ export type MergeOptions = { mode: MergeMode; target: number; aggressive: boolea
 export const MERGE_MALUS_FROM = 6;
 /** How many unlocked maluses a player can hold; one more is lost. */
 export const MERGE_MALUS_STOCK = 3;
+/** The local rival an admin's solo aggressive race plays against (spec §3.1): it
+ *  exists on the phone only, but the referee lets maluses be sent to it. */
+export const MERGE_BOT_ID = 'bot';
 /** A player's maluses go out at least this far apart. */
 export const MERGE_MALUS_COOLDOWN_MS = 10_000;
 export const MERGE_MALUS_KINDS = ['explode', 'add', 'freeze', 'fog', 'stone', 'gravity'] as const;
@@ -4076,6 +4079,8 @@ export type MergeRushState = {
   winner: PlayerId | null;
   /** A race with maluses (spec §3.1); always false in the other modes. */
   aggressive: boolean;
+  /** An admin's solo aggressive race: the phone plays a bot rival. */
+  bot: boolean;
   /** The latest maluses sent, oldest first. */
   maluses: MergeMalus[];
   /** Each player's unlocked maluses, and when (server ms) they may next send one. */

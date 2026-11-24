@@ -4,6 +4,7 @@ import type { GameCard } from '../../core/types';
 import {
   MERGE_MAX_PLAYERS,
   MERGE_MIN_PLAYERS,
+  MERGE_BOT_ID,
   MERGE_CRESCENDO_LEVELS,
   MERGE_DEFAULT_TARGET,
   MERGE_FOG_MS,
@@ -57,6 +58,7 @@ import { formatDuration, timerTone } from './timer';
 import { MergeOptionsPanel } from './MergeOptions';
 import { modeName, targetLabel } from './modes';
 import { MALUS_ICON, MALUS_NAME, MALUS_SHORT, fly } from './malus';
+import { BOT_MOVE_MS, newBot, receive as botReceive, turn as botTurn, type Bot } from './bot';
 import { CLIMB_START, chimeOn, climb, playChime, prepareChime, setChimeOn } from './chime';
 import './double-fusion.css';
 
@@ -147,7 +149,8 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   const playing = state?.phase === 'playing';
   const mode = state?.mode ?? 'crescendo';
   const target = state?.target ?? 0;
-  const aggressive = state?.aggressive === true && !state.solo;
+  const hasBot = state?.bot === true;
+  const aggressive = state?.aggressive === true && (!state.solo || hasBot);
   const roundMs = state?.roundMs ?? 0;
   const startBoard = state?.start;
 
@@ -259,6 +262,11 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     fusions.current = 0;
     seenMalus.current = Math.max(0, ...(state?.maluses ?? []).map((m) => m.id));
     seenStock.current = Math.max(0, ...(state?.stock?.[myId] ?? []).map((m) => m.id));
+    if (state?.bot) showBot(newBot(startBoard, clientRef.current?.now() ?? Date.now()));
+    else {
+      botRef.current = null;
+      setBotEntry(null);
+    }
     stoneRef.current = NO_STONE;
     setStone(NO_STONE);
     frozenUntil.current = 0;
@@ -271,6 +279,15 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     nextTileId.current = built.nextId;
     showTiles(built.tiles);
   }, [roundId, startBoard, playing, myId, state, seed, showTiles]);
+
+  /* The admin's solo test: a local rival, one move a second (bot.ts). Its board is
+     the only part React draws; the rest of it lives in a ref. */
+  const botRef = useRef<Bot | null>(null);
+  const [botEntry, setBotEntry] = useState<MergeEntry | null>(null);
+  const showBot = useCallback((b: Bot) => {
+    botRef.current = b;
+    setBotEntry({ board: [...b.game.board], score: b.game.score, moves: b.game.moves, over: !canMove(b.game.board) });
+  }, []);
 
   const finish = useCallback(() => {
     if (overRef.current) return;
@@ -456,9 +473,37 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         const aim = g ? applyMalus(g.board, m, stoneRef.current).cell : NO_STONE;
         const sender = players.find((p) => p.id === m.from)?.name ?? '?';
         fly(thumb(m.from), aim === NO_STONE ? boardEl.current : cellEl(aim), MALUS_ICON[m.kind], () => land(m, sender));
+      } else if (m.to === MERGE_BOT_ID && botRef.current) {
+        fly(boardEl.current, thumb(MERGE_BOT_ID), MALUS_ICON[m.kind], () => {
+          if (botRef.current) showBot(botReceive(botRef.current, m, clientRef.current?.now() ?? Date.now()));
+        });
       }
     }
-  }, [maluses, roundId, myId, land]);
+  }, [maluses, roundId, myId, land, showBot]);
+
+  // The bot's second: it moves, and may send a malus, which flies from its
+  // thumbnail to this board like a rival's.
+  const botSeq = useRef(0);
+  // Read through a ref: `land` is a new function on most renders, and an interval
+  // that restarted with it would never reach its second.
+  const landRef = useRef(land);
+  landRef.current = land;
+  useEffect(() => {
+    if (!playing || !hasBot || seed === undefined || myId === undefined) return;
+    const id = window.setInterval(() => {
+      const at = clientRef.current?.now() ?? Date.now();
+      if (at < startsAt || !botRef.current || overRef.current) return;
+      const r = botTurn(botRef.current, seed, at, Math.random);
+      showBot(r.bot);
+      if (r.sent) {
+        const m: MergeMalus = { id: -(++botSeq.current), kind: r.sent.kind, from: MERGE_BOT_ID, to: myId, r: r.sent.r, exp: r.sent.exp };
+        const g = gameRef.current;
+        const aim = g ? applyMalus(g.board, m, stoneRef.current).cell : NO_STONE;
+        fly(thumb(MERGE_BOT_ID), aim === NO_STONE ? boardEl.current : cellEl(aim), MALUS_ICON[m.kind], () => landRef.current(m, '🤖 Bot'));
+      }
+    }, BOT_MOVE_MS);
+    return () => window.clearInterval(id);
+  }, [playing, hasBot, seed, myId, startsAt, showBot]);
 
   useEffect(() => {
     if (!playing) return;
@@ -534,8 +579,9 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   useEffect(() => () => ghost.current?.remove(), []);
 
   const players = room.room?.players ?? [];
-  const nameOf = (id: string): string => players.find((p) => p.id === id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' });
-  const avatarOf = (id: string): string => players.find((p) => p.id === id)?.avatar ?? '🙂';
+  const nameOf = (id: string): string =>
+    id === MERGE_BOT_ID ? 'Bot' : (players.find((p) => p.id === id)?.name ?? text({ en: 'Someone', fr: 'Quelqu’un' }));
+  const avatarOf = (id: string): string => (id === MERGE_BOT_ID ? '🤖' : (players.find((p) => p.id === id)?.avatar ?? '🙂'));
 
   const start = useCallback(() => {
     clientRef.current?.send({ t: 'start', d: { mode: 'merge', solo, merge: { ...options } } });
@@ -627,13 +673,16 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
 
   if (state) {
     const board = game?.board ?? state.boards[myId ?? '']?.board ?? [];
-    const others = Object.entries(state.boards).filter(([id]) => id !== myId);
-    const watched = spy ? state.boards[spy] : undefined;
+    const others: [string, MergeEntry][] = [
+      ...Object.entries(state.boards).filter(([id]) => id !== myId),
+      ...(hasBot && botEntry ? ([[MERGE_BOT_ID, botEntry]] as [string, MergeEntry][]) : []),
+    ];
+    const watched = spy === MERGE_BOT_ID ? (botEntry ?? undefined) : spy ? state.boards[spy] : undefined;
     const mm = `${Math.floor(clock / 60)}:${String(clock % 60).padStart(2, '0')}`;
     const clockText = roundMs > 0 ? `${clock} s` : mm;
     const solvedOrWon = hasWon(mode, target, board);
     // Who an unlocked malus can go to now, and how long before the next may go.
-    const stillPlaying = Object.entries(state.boards).filter(([, e]) => !e.over).map(([id]) => id);
+    const stillPlaying = [...Object.entries(state.boards).filter(([, e]) => !e.over).map(([id]) => id), ...(hasBot ? [MERGE_BOT_ID] : [])];
     const targets = myId !== undefined ? malusTargets(stillPlaying, myId, state.lastTarget ?? null) : [];
     const now = clientRef.current?.now() ?? Date.now();
     const cooling = Math.max(0, Math.ceil(((state.readyAt?.[myId ?? ''] ?? 0) - now) / 1000));
@@ -693,6 +742,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
           {mode === 'race' && ` · ${text({ en: 'best', fr: 'record' })} ${bestTile(board)}`}
           {mode === 'crescendo' && ` · ${tilesLeft(board)} ${text({ en: 'tiles', fr: 'tuiles' })}`}
           {aggressive && ` · 😈 ${text({ en: 'aggressive', fr: 'agressif' })}`}
+          {hasBot && ' · 🤖'}
         </p>
         </div>
 
