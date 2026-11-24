@@ -21,12 +21,13 @@ export const MALUS_SHORT: Record<MergeMalusKind, { en: string; fr: string }> = {
   gravity: { en: 'Gravity', fr: 'Gravité' },
 };
 
+/** Spoken for the slots (the screen only shows `MALUS_SHORT`): no figures to learn. */
 export const MALUS_NAME: Record<MergeMalusKind, { en: string; fr: string }> = {
   explode: { en: 'Boom: a small tile blown up', fr: 'Boum : une petite tuile explose' },
   add: { en: 'An extra tile', fr: 'Une tuile en plus' },
-  freeze: { en: 'Frozen for 3 s', fr: 'Gelé pendant 3 s' },
-  fog: { en: 'Fog: no numbers for 5 s', fr: 'Brouillard : plus de nombres pendant 5 s' },
-  stone: { en: 'A stone for 10 s', fr: 'Une pierre pendant 10 s' },
+  freeze: { en: 'Freeze', fr: 'Gel' },
+  fog: { en: 'Fog', fr: 'Brouillard' },
+  stone: { en: 'Stone', fr: 'Pierre' },
   gravity: { en: 'Gravity: everything falls', fr: 'Gravité : tout tombe' },
 };
 

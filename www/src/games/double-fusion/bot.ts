@@ -1,15 +1,14 @@
 import {
   MERGE_CELLS,
-  MERGE_FREEZE_MS,
   MERGE_MALUS_COOLDOWN_MS,
   MERGE_MALUS_FROM,
   MERGE_MALUS_KINDS,
   MERGE_MALUS_STOCK,
   MERGE_SIZE,
-  MERGE_STONE_MS,
   type MergeMalus,
   type MergeMalusKind,
 } from '../../../../shared/protocol';
+import { CLEAR, afflict, played, stoned, swallow, type Effects } from './effects';
 import { DIRS, NO_STONE, applyMalus, bestLevel, bigFusions, canMove, slide, step, type Board, type Dir, type Game } from '../../../../shared/merge';
 
 /**
@@ -25,16 +24,16 @@ export const BOT_MOVE_MS = 1000;
 
 export type Bot = {
   game: Game;
+  /** The cell a stone holds, or `NO_STONE`; and what the maluses on it still do, in moves. */
   stone: number;
-  stoneUntil: number;
-  frozenUntil: number;
+  fx: Effects;
   stock: MergeMalusKind[];
   /** When it may next send a malus (room clock, ms). */
   readyAt: number;
 };
 
 export function newBot(start: Board, now: number): Bot {
-  return { game: { board: start, score: 0, moves: 0 }, stone: NO_STONE, stoneUntil: 0, frozenUntil: 0, stock: [], readyAt: now };
+  return { game: { board: start, score: 0, moves: 0 }, stone: NO_STONE, fx: CLEAR, stock: [], readyAt: now };
 }
 
 /** How good a board is for a bot that keeps its big tile in a corner and its cells free. */
@@ -67,19 +66,27 @@ export function chooseMove(board: Board, stone = NO_STONE): Dir | null {
 export type Sent = { kind: MergeMalusKind; exp: number; r: number };
 
 /**
- * One second of the bot's round: it moves (unless frozen or stuck), unlocks a
- * malus for each big merge, and sends one if it holds any and may.
+ * One second of the bot's round: it moves — or has a swipe swallowed by a
+ * freeze, or is stuck — unlocks a malus for each big merge, and sends one if it
+ * holds any and may. Gravity pulls its board down again after each move it makes.
  */
 export function turn(b: Bot, seed: number, now: number, random: () => number): { bot: Bot; sent: Sent | null } {
   let bot: Bot = b;
-  if (bot.stone !== NO_STONE && now >= bot.stoneUntil) bot = { ...bot, stone: NO_STONE };
-  if (now >= bot.frozenUntil && canMove(bot.game.board)) {
+  const held = swallow(bot.fx);
+  if (held.swallowed) bot = { ...bot, fx: held.effects };
+  else if (canMove(bot.game.board)) {
     const dir = chooseMove(bot.game.board, bot.stone);
     if (dir) {
       const big = bigFusions(bot.game.board, dir, bot.stone);
       const r = step(bot.game, dir, seed, true, bot.stone);
       bot = { ...bot, game: r.game };
-      if (big > 0 && bestLevel(r.game.board) >= MERGE_MALUS_FROM) {
+      const after = played(bot.fx);
+      bot = { ...bot, fx: after.effects, stone: after.crumbled ? NO_STONE : bot.stone };
+      if (after.fall) {
+        const fell = slide(bot.game.board, 'down', bot.stone);
+        if (fell.moved) bot = { ...bot, game: { ...bot.game, board: fell.board } };
+      }
+      if (big > 0 && bestLevel(bot.game.board) >= MERGE_MALUS_FROM) {
         const stock = [...bot.stock];
         for (let n = big; n > 0 && stock.length < MERGE_MALUS_STOCK; n--) {
           stock.push(MERGE_MALUS_KINDS[Math.floor(random() * MERGE_MALUS_KINDS.length)] ?? 'add');
@@ -99,13 +106,14 @@ export function turn(b: Bot, seed: number, now: number, random: () => number): {
 }
 
 /** A malus dropped on the bot. Fog means nothing to it. */
-export function receive(b: Bot, m: Pick<MergeMalus, 'kind' | 'r' | 'exp'>, now: number): Bot {
-  if (m.kind === 'freeze') return { ...b, frozenUntil: Math.max(b.frozenUntil, now + MERGE_FREEZE_MS) };
-  if (m.kind === 'fog') return b;
+export function receive(b: Bot, m: Pick<MergeMalus, 'kind' | 'r' | 'exp'>): Bot {
+  const fx = afflict(b.fx, m.kind);
+  if (m.kind === 'freeze' || m.kind === 'fog') return { ...b, fx };
   const res = applyMalus(b.game.board, m, b.stone);
   if (m.kind === 'stone') {
     if (res.cell === NO_STONE || b.stone !== NO_STONE) return b;
-    return { ...b, stone: res.cell, stoneUntil: now + MERGE_STONE_MS };
+    return { ...b, stone: res.cell, fx: stoned(b.fx) };
   }
-  return res.board === b.game.board ? b : { ...b, game: { ...b.game, board: res.board } };
+  const game = res.board === b.game.board ? b.game : { ...b.game, board: res.board };
+  return { ...b, game, fx };
 }

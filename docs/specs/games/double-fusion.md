@@ -141,11 +141,15 @@ three (`MERGE_MALUS_STOCK`); one unlocked past that is lost.
 | --- | --- | --- |
 | `explode` | 💥 | One of its smallest tiles blows up — only if that is a 2, 4 or 8 |
 | `add` | ➕ | A 2, 4 or 8 drops on an empty cell |
-| `freeze` | ❄️ | No move is taken for 3 s |
-| `fog` | 🌫️ | The numbers vanish for 5 s; only the colours are left |
-| `stone` | 🪨 | A stone takes an empty cell for 10 s: tiles stop against it and nothing merges across it, and nothing spawns on it |
-| `gravity` | ⬇️ | Everything falls, exactly as a swipe down (no points, no spawn) |
+| `freeze` | ❄️ | The next three swipes do nothing |
+| `fog` | 🌫️ | The numbers vanish for three moves; only the colours are left |
+| `stone` | 🪨 | A stone takes an empty cell for three moves: tiles stop against it and nothing merges across it, and nothing spawns on it |
+| `gravity` | ⬇️ | Everything falls, exactly as a swipe down (no points, no spawn) — and again after each of the next three moves: the player can slide up, left or right, and it all drops back |
 
+A malus lasts **three moves** (`MERGE_MALUS_MOVES`), never seconds: a slow player
+is hit as hard as a fast one, and the screen shows no countdown to explain. The
+counting is `effects.ts`, shared by the phone and the bot. Gravity's extra falls
+wait for the slide to settle, so a swipe made in that instant is ignored.
 - **Who can take it**: anyone still playing but the sender. While there are two
   or more of them, whoever took the last malus — from anyone — cannot take the
   next (`malusTargets`). While dragging, the thumbnails that can take it are
@@ -156,8 +160,9 @@ three (`MERGE_MALUS_STOCK`); one unlocked past that is lost.
 - **Animation**: an unlocked malus flies from the tile whose merge earned it to
   its slot; the dragged icon shrinks into the thumbnail it is dropped on; the
   receiver sees it fly from the sender's thumbnail to the cell it lands on (the
-  board's centre for the timed ones), then a notice names it and who sent it.
-  Reduced motion: no flights.
+  board's centre for the ones that last), then a notice shows **only the icon
+  and its name, for a second** — no sender, no explanation. Reduced motion: no
+  flights.
 - **Who decides what**: the referee keeps each player's unlocked maluses and
   draws their kind, then — when one is sent — the dropped tile and a number `r`;
   only the receiver knows its board, so it picks the cell with `r`
@@ -174,7 +179,8 @@ three (`MERGE_MALUS_STOCK`); one unlocked past that is lost.
   (the player's tiles, the same luck), keeps its big tile in a corner, and plays
   the whole malus game: it unlocks by the same rule (a merge into 64 or more),
   sends when it holds one and its 10 s are up, and takes what is dropped on it —
-  an explosion, a tile, a stone, a freeze, gravity, fog meaning nothing to it.
+  an explosion, a tile, a stone, a freeze, gravity — for the same three moves — fog
+  meaning nothing to it.
   The referee only knows it as a rival id (`MERGE_BOT_ID`) maluses can be sent
   to, and, since the bot's maluses land on the phone without it, skips the mass
   bound for that round: there is nobody to cheat. The bot never wins; it is

@@ -1,4 +1,4 @@
-import { MERGE_FREEZE_MS, MERGE_MALUS_COOLDOWN_MS, MERGE_MALUS_STOCK, MERGE_STONE_MS } from '../../../../shared/protocol';
+import { MERGE_MALUS_COOLDOWN_MS, MERGE_MALUS_STOCK } from '../../../../shared/protocol';
 import { NO_STONE, canMove, mass, startBoard, tilesLeft, type Board } from '../../../../shared/merge';
 import { BOT_MOVE_MS, chooseMove, newBot, receive, turn, type Bot, type Sent } from './bot';
 
@@ -72,20 +72,36 @@ function receiving(): void {
   console.log('\nreceiving maluses');
   const board = rows([2, 4, 0, 0], [2, 128, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]);
   const bot: Bot = { ...newBot(board, 0), game: { board, score: 0, moves: 0 } };
-  const boom = receive(bot, { kind: 'explode', r: 0.99, exp: 0 }, 0);
+  const boom = receive(bot, { kind: 'explode', r: 0.99, exp: 0 });
   check('explode blows up a small tile', tilesLeft(boom.game.board) === tilesLeft(board) - 1);
-  const add = receive(bot, { kind: 'add', r: 0, exp: 2 }, 0);
+  const add = receive(bot, { kind: 'add', r: 0, exp: 2 });
   check('add drops a tile', tilesLeft(add.game.board) === tilesLeft(board) + 1);
-  const frozen = receive(bot, { kind: 'freeze', r: 0, exp: 0 }, 1000);
-  const held = turn(frozen, 1, 1000 + MERGE_FREEZE_MS - 1, () => 0.5);
-  check('frozen, it does not move', held.bot.game.moves === 0);
-  check('until the freeze is over', turn(frozen, 1, 1000 + MERGE_FREEZE_MS, () => 0.5).bot.game.moves === 1);
-  const stone = receive(bot, { kind: 'stone', r: 0.5, exp: 0 }, 1000);
+  let frozen = receive(bot, { kind: 'freeze', r: 0, exp: 0 });
+  const moves: number[] = [];
+  for (let i = 1; i <= 4; i++) {
+    frozen = turn(frozen, 1, i * 1000, () => 0.5).bot;
+    moves.push(frozen.game.moves);
+  }
+  check('frozen, its next three swipes are swallowed, then it moves', moves.join() === '0,0,0,1', moves);
+  let stone = receive(bot, { kind: 'stone', r: 0.5, exp: 0 });
   check('a stone takes an empty cell', stone.stone !== NO_STONE && board[stone.stone] === 0);
-  check('and crumbles', turn(stone, 1, 1000 + MERGE_STONE_MS, () => 0.5).bot.stone === NO_STONE);
-  check('fog means nothing to it', receive(bot, { kind: 'fog', r: 0, exp: 0 }, 0) === bot);
-  const down = receive(bot, { kind: 'gravity', r: 0, exp: 0 }, 0);
+  const held: number[] = [];
+  for (let i = 1; i <= 3; i++) {
+    stone = turn(stone, 1, i * 1000, () => 0.5).bot;
+    held.push(stone.stone);
+  }
+  check('and crumbles on its third move', held[0] !== NO_STONE && held[1] !== NO_STONE && held[2] === NO_STONE, held);
+  check('fog means nothing to it', receive(bot, { kind: 'fog', r: 0, exp: 0 }).game === bot.game);
+  const down = receive(bot, { kind: 'gravity', r: 0, exp: 0 });
   check('gravity drops everything', down.game.board.slice(12).some((e) => e > 0));
+  let g = down;
+  const bottoms: boolean[] = [];
+  for (let i = 1; i <= 4; i++) {
+    g = turn(g, 1, i * 1000, () => 0.5).bot;
+    const lowRows = g.game.board.slice(8).filter((e) => e > 0).length;
+    bottoms.push(lowRows >= g.game.board.filter((e) => e > 0).length - 1);
+  }
+  check('and keeps pulling it down after each of its next three moves', bottoms.slice(0, 3).every(Boolean), bottoms);
 }
 
 playing();

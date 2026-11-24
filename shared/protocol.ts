@@ -4038,10 +4038,8 @@ export const MERGE_BOT_ID = 'bot';
 export const MERGE_MALUS_COOLDOWN_MS = 10_000;
 export const MERGE_MALUS_KINDS = ['explode', 'add', 'freeze', 'fog', 'stone', 'gravity'] as const;
 export type MergeMalusKind = (typeof MERGE_MALUS_KINDS)[number];
-/** How long the timed ones last. */
-export const MERGE_FREEZE_MS = 3000;
-export const MERGE_FOG_MS = 5000;
-export const MERGE_STONE_MS = 10_000;
+/** How many of its receiver's moves a freeze, fog, stone or gravity lasts. */
+export const MERGE_MALUS_MOVES = 3;
 /** The referee keeps only the latest few; a phone acts on the ones it has not seen. */
 export const MERGE_MALUS_KEPT = 12;
 
