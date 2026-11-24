@@ -258,8 +258,9 @@ export function malusTargets(playing: readonly string[], from: string, last: str
  *
  * `explode` takes one of the smallest tiles, if that is a 2, 4 or 8; `add` drops
  * its tile on an empty cell; `stone` names the empty cell the stone takes;
- * `gravity` slides everything down. The timed ones leave the board alone. A
- * malus with nowhere to land does nothing.
+ * `gravity` slides everything down; `swap` trades the smallest tile's place
+ * with the biggest's. The ones that last leave the board alone. A malus with
+ * nowhere to land does nothing.
  */
 export function applyMalus(board: Board, m: Pick<MergeMalus, 'kind' | 'r' | 'exp'>, stone = NO_STONE): { board: Board; cell: number } {
   const pickOf = <T,>(xs: readonly T[]): T | undefined => xs[Math.min(xs.length - 1, Math.floor(m.r * xs.length))];
@@ -280,6 +281,18 @@ export function applyMalus(board: Board, m: Pick<MergeMalus, 'kind' | 'r' | 'exp
     return { board: next, cell };
   }
   if (m.kind === 'gravity') return { board: slide(board, 'down', stone).board, cell: NO_STONE };
+  if (m.kind === 'swap') {
+    const tiles = board.filter((e) => e > 0);
+    const low = Math.min(...tiles);
+    const high = Math.max(...tiles);
+    if (low === high) return { board, cell: NO_STONE };
+    const small = pickOf(board.flatMap((e, i) => (e === low ? [i] : []))) as number;
+    const big = pickOf(board.flatMap((e, i) => (e === high ? [i] : []))) as number;
+    const next = board.slice();
+    next[small] = high;
+    next[big] = low;
+    return { board: next, cell: small };
+  }
   return { board, cell: NO_STONE };
 }
 

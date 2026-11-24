@@ -1,4 +1,4 @@
-import { MERGE_MALUS_COOLDOWN_MS, MERGE_MALUS_STOCK } from '../../../../shared/protocol';
+import { MERGE_MALUS_COOLDOWN_MS, MERGE_MALUS_KINDS, MERGE_MALUS_STOCK } from '../../../../shared/protocol';
 import { NO_STONE, canMove, mass, startBoard, tilesLeft, type Board } from '../../../../shared/merge';
 import { BOT_MOVE_MS, chooseMove, newBot, receive, turn, type Bot, type Sent } from './bot';
 
@@ -54,7 +54,7 @@ function maluses(): void {
   const b = (stock: Bot['stock'] = [], readyAt = 0): Bot => ({ ...newBot(rows([0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [32, 32, 0, 0]), 0), stock, readyAt });
   let r = turn(b(), 1, 1000, dice([0.99, 0.5, 0.2]));
   check('a merge into 64 sends its malus at once when the bot may', r.sent !== null && r.bot.stock.length === 0);
-  check('which carries its kind, its tile and its cell number', r.sent !== null && ['explode', 'add', 'freeze', 'fog', 'stone', 'gravity'].includes(r.sent.kind));
+  check('which carries its kind, its tile and its cell number', r.sent !== null && (MERGE_MALUS_KINDS as readonly string[]).includes(r.sent.kind));
   const quiet = (stock: Bot['stock'], readyAt: number): Bot => ({ ...newBot(rows([2, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 0, 0, 0]), 0), stock, readyAt });
   r = turn(quiet(['gravity'], 5000), 1, 1000, dice([0.5]));
   check('held back until its cooldown ends', r.sent === null && r.bot.stock.length === 1);
@@ -92,6 +92,8 @@ function receiving(): void {
   }
   check('and crumbles on its third move', held[0] !== NO_STONE && held[1] !== NO_STONE && held[2] === NO_STONE, held);
   check('fog means nothing to it', receive(bot, { kind: 'fog', r: 0, exp: 0 }).game === bot.game);
+  const swapped = receive(bot, { kind: 'swap', r: 0, exp: 0 });
+  check('swap trades its smallest and biggest tiles', swapped.game.board[0] === 7 && swapped.game.board[5] === 1);
   const down = receive(bot, { kind: 'gravity', r: 0, exp: 0 });
   check('gravity drops everything', down.game.board.slice(12).some((e) => e > 0));
   let g = down;

@@ -372,6 +372,13 @@ function aggressive(): void {
   check('stone picks an empty cell and leaves the board as it is', stone.board === board && board[stone.cell] === 0);
   check('gravity is a slide down', same(applyMalus(board, { kind: 'gravity', r: 0, exp: 0 }).board, slide(board, 'down').board));
   check('freeze and fog leave the board alone', applyMalus(board, { kind: 'freeze', r: 0, exp: 0 }).board === board && applyMalus(board, { kind: 'fog', r: 0, exp: 0 }).board === board);
+  const sw = applyMalus(board, { kind: 'swap', r: 0, exp: 0 });
+  check('swap trades the smallest tile\'s place with the biggest\'s', sw.board[0] === 7 && sw.board[5] === 1 && sw.cell === 0, sw);
+  check('and only those two cells change', sw.board.filter((e, i) => e !== board[i]).length === 2 && mass(sw.board) === mass(board));
+  check('with ties, r picks which of the smallest', applyMalus(board, { kind: 'swap', r: 0.99, exp: 0 }).cell === 4);
+  const level = rows([8, 8, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]);
+  check('equal tiles have nothing to swap', applyMalus(level, { kind: 'swap', r: 0, exp: 0 }).board === level);
+  check('nor does a single tile', applyMalus(rows([8, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]), { kind: 'swap', r: 0, exp: 0 }).cell === NO_STONE);
   check('the same malus on the same board lands on the same cell', applyMalus(board, { kind: 'add', r: 0.7, exp: 1 }).cell === applyMalus(board, { kind: 'add', r: 0.7, exp: 1 }).cell);
 }
 

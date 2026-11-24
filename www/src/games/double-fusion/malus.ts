@@ -9,6 +9,7 @@ export const MALUS_ICON: Record<MergeMalusKind, string> = {
   fog: '🌫️',
   stone: '🪨',
   gravity: '⬇️',
+  swap: '🔀',
 };
 
 /** The label under an unlocked malus's icon: a word or two, to read at a glance. */
@@ -19,6 +20,7 @@ export const MALUS_SHORT: Record<MergeMalusKind, { en: string; fr: string }> = {
   fog: { en: 'Fog', fr: 'Brouillard' },
   stone: { en: 'Stone', fr: 'Pierre' },
   gravity: { en: 'Gravity', fr: 'Gravité' },
+  swap: { en: 'Swap', fr: 'Inversion' },
 };
 
 /** Spoken for the slots (the screen only shows `MALUS_SHORT`): no figures to learn. */
@@ -29,6 +31,7 @@ export const MALUS_NAME: Record<MergeMalusKind, { en: string; fr: string }> = {
   fog: { en: 'Fog', fr: 'Brouillard' },
   stone: { en: 'Stone', fr: 'Pierre' },
   gravity: { en: 'Gravity: everything falls', fr: 'Gravité : tout tombe' },
+  swap: { en: 'Swap: the smallest and biggest tiles trade places', fr: 'Inversion : la plus petite et la plus grosse tuile échangent leur place' },
 };
 
 const FLIGHT_MS = 600;

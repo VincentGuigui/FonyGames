@@ -4036,7 +4036,7 @@ export const MERGE_MALUS_STOCK = 3;
 export const MERGE_BOT_ID = 'bot';
 /** A player's maluses go out at least this far apart. */
 export const MERGE_MALUS_COOLDOWN_MS = 10_000;
-export const MERGE_MALUS_KINDS = ['explode', 'add', 'freeze', 'fog', 'stone', 'gravity'] as const;
+export const MERGE_MALUS_KINDS = ['explode', 'add', 'freeze', 'fog', 'stone', 'gravity', 'swap'] as const;
 export type MergeMalusKind = (typeof MERGE_MALUS_KINDS)[number];
 /** How many of its receiver's moves a freeze, fog, stone or gravity lasts. */
 export const MERGE_MALUS_MOVES = 3;

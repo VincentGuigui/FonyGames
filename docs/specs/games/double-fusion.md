@@ -145,6 +145,7 @@ three (`MERGE_MALUS_STOCK`); one unlocked past that is lost.
 | `fog` | 🌫️ | The numbers vanish for three moves; only the colours are left |
 | `stone` | 🪨 | A stone takes an empty cell for three moves: tiles stop against it and nothing merges across it, and nothing spawns on it |
 | `gravity` | ⬇️ | Everything falls, exactly as a swipe down (no points, no spawn) — and again after each of the next three moves: the player can slide up, left or right, and it all drops back |
+| `swap` | 🔀 | **Inversion**: the smallest tile and the biggest trade places (a tie is settled by `r`; nothing happens if all tiles are equal) |
 
 A malus lasts **three moves** (`MERGE_MALUS_MOVES`), never seconds: a slow player
 is hit as hard as a fast one, and the screen shows no countdown to explain. The
@@ -222,10 +223,12 @@ new tile scales in.
   **32×32 px** canvas of their board as 8 px colour squares, no numbers. Your
   own board is not thumbnailed; it is the big one above.
 
-Under the big number, one line names the mode — with your best tile so far in a
-race, and the tiles on the board in Crescendo. The big number is the level in
-Crescendo (`Level 3/30`), the tiles left in Highlander, and points in a race.
-A puzzle never ends a player's round by
+The big number is the level in Crescendo (`Level 3/30`), the tiles left in
+Highlander, and in a race **your best tile over the target** — `512 / 2048`, or
+`512 / ∞` in an endless one — followed by 😈 when the race is aggressive. A race
+shows **no score and no title line**: the two tiles are all the player needs.
+Crescendo and Highlander keep a line under the number naming the mode (and, in
+Crescendo, the tiles on the board). A puzzle never ends a player's round by
 being stuck, since ↺ is always there.
 
 **Watching another player.** Tapping a thumbnail, at any moment — counting

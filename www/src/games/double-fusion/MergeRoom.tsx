@@ -458,6 +458,19 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
       const moved = moveTiles(tilesRef.current, 'down', res.board, nextTileId.current, stoneRef.current);
       nextTileId.current = moved.nextId;
       next = moved.tiles;
+    } else if (m.kind === 'swap') {
+      const cells = res.board.flatMap((e, i) => (e !== g.board[i] ? [i] : []));
+      const [a, b] = cells as [number, number];
+      const pos = (cell: number) => ({ r: Math.floor(cell / MERGE_SIZE), c: cell % MERGE_SIZE });
+      next = tilesRef.current
+        .filter((t) => !t.gone)
+        .map((t) => {
+          const cell = t.r * MERGE_SIZE + t.c;
+          // The two tiles travel: each keeps its number and takes the other's place.
+          if (cell === a) return { ...t, ...pos(b) };
+          if (cell === b) return { ...t, ...pos(a) };
+          return t;
+        });
     } else if (m.kind === 'explode') {
       next = tilesRef.current.filter((t) => !t.gone).map((t) => (t.r === at.r && t.c === at.c ? { ...t, gone: true, boom: true } : t));
     } else {
@@ -755,17 +768,17 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
             </>
           ) : (
             <>
-              <b>{game?.score ?? 0}</b> {text({ en: 'points', fr: 'points' })}
+              <b>{bestTile(board)}</b> / {targetLabel(target)}
+              {aggressive && ' 😈'}
             </>
           )}
         </p>
-        <p class="merge__goal">
-          {text(modeName(mode, target))}
-          {mode === 'race' && ` · ${text({ en: 'best', fr: 'record' })} ${bestTile(board)}`}
-          {mode === 'crescendo' && ` · ${tilesLeft(board)} ${text({ en: 'tiles', fr: 'tuiles' })}`}
-          {aggressive && ` · 😈 ${text({ en: 'aggressive', fr: 'agressif' })}`}
-          {hasBot && ' · 🤖'}
-        </p>
+        {mode !== 'race' && (
+          <p class="merge__goal">
+            {text(modeName(mode, target))}
+            {mode === 'crescendo' && ` · ${tilesLeft(board)} ${text({ en: 'tiles', fr: 'tuiles' })}`}
+          </p>
+        )}
         </div>
 
         <div
@@ -917,7 +930,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
             ? text({ en: `Level ${level} of ${MERGE_CRESCENDO_LEVELS}`, fr: `Niveau ${level} sur ${MERGE_CRESCENDO_LEVELS}` })
             : mode === 'highlander'
             ? text({ en: `${tilesLeft(board)} tiles left`, fr: `${tilesLeft(board)} tuiles restantes` })
-            : text({ en: `${game?.score ?? 0} points`, fr: `${game?.score ?? 0} points` })}
+            : text({ en: `Best tile ${bestTile(board)} of ${targetLabel(target)}`, fr: `Meilleure tuile ${bestTile(board)} sur ${targetLabel(target)}` })}
         </p>
       </div>
     );
