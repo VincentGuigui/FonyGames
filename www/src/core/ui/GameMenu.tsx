@@ -61,7 +61,9 @@ export function GameMenu({
           <a class="btn btn--big gamemenu__exit" href="/">
             {t.common.leaveGame}
           </a>
-          <GameSwitcher />
+          <div class="gamemenu__switch">
+            <GameSwitcher />
+          </div>
         </Sheet>
       )}
     </>

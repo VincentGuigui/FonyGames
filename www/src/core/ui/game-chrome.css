@@ -229,6 +229,18 @@
   border-color: transparent;
 }
 
+/* The host's "bring everyone" button: centred under the exit button, with room
+   above it. Nothing renders for a guest, so an empty box takes no space. */
+.gamemenu__switch {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.gamemenu__switch:not(:empty) {
+  margin-top: var(--space-4);
+}
+
 /* --- the pre-round panel ------------------------------------------------- */
 
 .preround {
