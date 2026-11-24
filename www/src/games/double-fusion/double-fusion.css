@@ -505,17 +505,24 @@
   gap: var(--space-2);
 }
 
+.merge-options__card {
+  background: var(--color-surface);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
 .merge-options__mode {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
+  width: 100%;
   padding: var(--space-2) var(--space-3);
   font: inherit;
   text-align: left;
   color: var(--color-text-dim);
-  background: var(--color-surface);
-  border: 2px solid var(--color-border);
+  background: none;
+  border: 0;
   border-radius: var(--radius);
   cursor: pointer;
 }
@@ -528,15 +535,17 @@
   font-size: var(--font-small);
 }
 
-.merge-options__mode--on {
+.merge-options__card--on {
   border-color: var(--game-accent, var(--color-accent));
   background: color-mix(in srgb, var(--game-accent, var(--color-accent)) 18%, var(--color-surface));
 }
 
+/* A race's own settings sit inside its box, under its name. */
 .merge-options__race {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  padding: 0 var(--space-3) var(--space-3);
 }
 
 .merge-options__target {

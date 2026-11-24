@@ -654,7 +654,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
               setChimeOn(on);
             }}
             heading={text({ en: 'Sound', fr: 'Son' })}
-            onLabel={text({ en: 'Merge notes', fr: 'Notes de fusion' })}
+            onLabel={text({ en: 'Sound effects', fr: 'Effets sonores' })}
             offLabel={text({ en: 'Silent', fr: 'Silencieux' })}
             className="merge__sound"
             activeClassName="merge__sound--on"

@@ -28,55 +28,55 @@ export function MergeOptionsPanel({
         <legend class="merge-options__legend">{text({ en: 'Mode', fr: 'Mode' })}</legend>
         <div class="merge-options__modes" role="radiogroup">
           {MERGE_MODES.map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              role="radio"
-              aria-checked={value.mode === mode}
-              class={`merge-options__mode ${value.mode === mode ? 'merge-options__mode--on' : ''}`}
-              disabled={!editable}
-              onClick={() => pick(mode)}
-            >
-              <b>{text(modeName(mode, value.target))}</b>
-              <span>{text(modeBlurb(mode, value.target))}</span>
-            </button>
+            <div key={mode} class={`merge-options__card${value.mode === mode ? ' merge-options__card--on' : ''}`}>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={value.mode === mode}
+                class="merge-options__mode"
+                disabled={!editable}
+                onClick={() => pick(mode)}
+              >
+                <b>{text(modeName(mode, value.target))}</b>
+                <span>{text(modeBlurb(mode, value.target))}</span>
+              </button>
+              {mode === 'race' && value.mode === 'race' && (
+                <div class="merge-options__race">
+                  <label class="merge-options__target">
+                    <span>{text({ en: 'First to make', fr: 'Le premier à faire' })}</span>
+                    <select
+                      value={String(value.target)}
+                      disabled={!editable}
+                      onChange={(e) => onChange({ ...value, target: Number((e.currentTarget as HTMLSelectElement).value) })}
+                    >
+                      {MERGE_TARGETS.map((t) => (
+                        <option key={t} value={String(t)}>
+                          {targetLabel(t)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label class="merge-options__aggressive">
+                    <input
+                      type="checkbox"
+                      checked={value.aggressive}
+                      disabled={!editable}
+                      onChange={(e) => onChange({ ...value, aggressive: (e.currentTarget as HTMLInputElement).checked })}
+                    />
+                    <span>
+                      <b>{text({ en: 'Aggressive mode', fr: 'Mode agressif' })}</b>
+                      {text({
+                        en: 'Merging into 64 or more unlocks a malus: drag it onto a rival to send it',
+                        fr: 'Fusionner en 64 ou plus débloque un malus : glissez-le sur un adversaire pour l’envoyer',
+                      })}
+                    </span>
+                  </label>
+                </div>
+              )}
+            </div>
           ))}
         </div>
       </fieldset>
-
-      {value.mode === 'race' && (
-        <fieldset class="merge-options__group merge-options__race" disabled={!editable}>
-          <label class="merge-options__target">
-            <span>{text({ en: 'First to make', fr: 'Le premier à faire' })}</span>
-            <select
-              value={String(value.target)}
-              disabled={!editable}
-              onChange={(e) => onChange({ ...value, target: Number((e.currentTarget as HTMLSelectElement).value) })}
-            >
-              {MERGE_TARGETS.map((t) => (
-                <option key={t} value={String(t)}>
-                  {targetLabel(t)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label class="merge-options__aggressive">
-            <input
-              type="checkbox"
-              checked={value.aggressive}
-              disabled={!editable}
-              onChange={(e) => onChange({ ...value, aggressive: (e.currentTarget as HTMLInputElement).checked })}
-            />
-            <span>
-              <b>{text({ en: 'Aggressive mode', fr: 'Mode agressif' })}</b>
-              {text({
-                en: 'Merging into 64 or more unlocks a malus: drag it onto a rival to send it',
-                fr: 'Fusionner en 64 ou plus débloque un malus : glissez-le sur un adversaire pour l’envoyer',
-              })}
-            </span>
-          </label>
-        </fieldset>
-      )}
 
       {!editable && (
         <p class="howto__aside">{text({ en: 'The host picks the mode.', fr: 'L’hôte choisit le mode.' })}</p>
