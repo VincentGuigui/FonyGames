@@ -3987,8 +3987,8 @@ export const MERGE_DEFAULT_TARGET = 11;
  *  `MERGE_CRESCENDO_LEVELS` levels of ever longer puzzles. It has no clock of its own — like a race it counts
  *  up and is capped only by `MERGE_RACE_CAP_MS`. */
 export const MERGE_CRESCENDO_LEVELS = 30;
-/** Highlander's clock: long enough to solve the puzzle and restart it once or twice. */
-export const MERGE_HIGHLANDER_MS = 180_000;
+/** Highlander's clock: a minute, so a puzzle is solved, or not, within one breath. */
+export const MERGE_HIGHLANDER_MS = 60_000;
 /** A race has no clock of its own; this only stops a room that never gets there. */
 export const MERGE_RACE_CAP_MS = 30 * 60_000;
 export const MERGE_COUNTDOWN_MS = 3000;

@@ -363,7 +363,7 @@ async function modes(): Promise<void> {
   const hl = harness();
   await startMergeRush(hl.ctx, 1, [A, B, C], { mode: 'highlander' });
   const h = hl.state();
-  check('Highlander runs three minutes', h.roundMs === MERGE_HIGHLANDER_MS);
+  check('Highlander runs a minute', h.roundMs === MERGE_HIGHLANDER_MS);
   check('on the seed\'s puzzle, for everyone', JSON.stringify(h.start) === JSON.stringify(puzzle(h.seed)) && JSON.stringify(h.boards[A]?.board) === JSON.stringify(h.start));
   check('which can be solved', solveDepth(h.start) !== null);
   hl.advance(MERGE_COUNTDOWN_MS + 40_000);

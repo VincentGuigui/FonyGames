@@ -199,7 +199,7 @@ function modes(): void {
   check('endless is out of reach of any board', MERGE_TARGET_ENDLESS > MERGE_MAX_EXPONENT);
   check('only a race has a target', normaliseMergeOptions({ mode: 'highlander', target: 9 }).target === 0);
   check('an unknown mode is Crescendo', normaliseMergeOptions({ mode: 'blitz' }).mode === 'crescendo');
-  check('Highlander runs three minutes; a race and Crescendo count up with no clock', roundMsFor('highlander') === MERGE_HIGHLANDER_MS && roundMsFor('race') === 0 && roundMsFor('crescendo') === 0);
+  check('Highlander runs a minute; a race and Crescendo count up with no clock', roundMsFor('highlander') === MERGE_HIGHLANDER_MS && roundMsFor('race') === 0 && roundMsFor('crescendo') === 0);
 
   const b512 = rows([512, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 2]);
   check('a race is won by the target tile', hasWon('race', 9, b512));
