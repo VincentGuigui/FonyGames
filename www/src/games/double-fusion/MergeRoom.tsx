@@ -698,7 +698,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
 
         <div
           ref={boardEl}
-          class={`merge__board${fog ? ' merge__board--fog' : ''}${frozen ? ' merge__board--frozen' : ''}`}
+          class={`merge__board${fog ? ' merge__board--fog' : ''}${frozen ? ' merge__board--frozen' : ''}${countdown > 0 ? ' merge__board--wait' : ''}`}
           onPointerDown={onDown}
           onPointerUp={onUp}
           onPointerCancel={() => { from.current = null; }}

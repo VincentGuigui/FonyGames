@@ -423,7 +423,7 @@ function Inner({ game: card, code }: { game: GameCard; code: string }): JSX.Elem
         />
         <canvas
           ref={canvas}
-          class="tent__wall"
+          class={`tent__wall${countdown > 0 ? ' tent__wall--wait' : ''}`}
           onPointerDown={onDown}
           onPointerMove={onMove}
           onPointerUp={onUp}

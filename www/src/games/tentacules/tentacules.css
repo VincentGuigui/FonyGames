@@ -26,7 +26,12 @@
   user-select: none;
 }
 
+.tent__wall--wait {
+  filter: blur(8px);
+}
+
 .tent__overlay {
+  z-index: 30;
   position: absolute;
   inset: 0;
   display: grid;

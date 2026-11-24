@@ -414,8 +414,18 @@
 }
 
 .merge__overlay--count {
+  z-index: 30;
   font-size: clamp(4rem, 22vh, 10rem);
   color: var(--game-accent);
+  text-shadow: 0 4px 24px #000a;
+  background: none;
+}
+
+/* The board is out of focus until the countdown ends, so the number reads and
+   nobody swipes ahead of the bell. A filter also keeps the tiles' own z-index
+   inside the board, where it used to paint them over the number. */
+.merge__board--wait {
+  filter: blur(10px);
 }
 
 /* Watching another player: their board, full size and live, over everything.
