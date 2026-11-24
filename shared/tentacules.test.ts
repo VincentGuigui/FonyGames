@@ -58,7 +58,7 @@ function body(): void {
   check('one further than REACH cannot', !canGrab(pair, { x: pb.x, y: pb.y + REACH + 0.02 }, null));
   check('pegs no body can hold together do not fit', !fits([{ x: 0, y: 0 }, { x: 2 * REACH + 0.01, y: 0 }]) && fits([{ x: 0, y: 0 }, { x: 2 * REACH - 0.01, y: 0 }]));
   check('nor can a tentacle take a peg that would leave another out of reach', !canGrab([{ x: 0.1, y: 1 }, { x: 0.1, y: 1.2 }], { x: 0.1 + 2 * REACH + 0.05, y: 1.1 }, null));
-  check('with nothing held, reach is from wherever the body is', canGrab([], { x: 0.5, y: 2.3 }, { x: 0.5, y: 2 }) && !canGrab([], { x: 0.5, y: 2.5 }, { x: 0.5, y: 2 }));
+  check('with nothing held, reach is from wherever the body is', canGrab([], { x: 0.5, y: 2 + REACH - 0.02 }, { x: 0.5, y: 2 }) && !canGrab([], { x: 0.5, y: 2 + REACH + 0.02 }, { x: 0.5, y: 2 }));
   check('with nothing held and no body known, nothing', !canGrab([], { x: 0.5, y: 2 }, null));
 }
 

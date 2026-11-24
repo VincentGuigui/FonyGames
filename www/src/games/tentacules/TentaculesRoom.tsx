@@ -25,7 +25,7 @@ import { useT } from '../../core/i18n/strings';
 import { useGameText } from '../../core/i18n/gameText';
 import { colorFor, loadAvatarColors } from '../../core/avatarColor';
 import { armed, drop, fresh, heldPegs, launch, reconcile, rest, tick, type Octo, type Send } from './game';
-import { draw, pegOf, pegsNear, type Face, type Frame, type Rival, type Shadow } from './render';
+import { OCTO_PINK, draw, pegOf, pegsNear, type Face, type Frame, type Rival, type Shadow } from './render';
 import './tentacules.css';
 
 /**
@@ -248,7 +248,6 @@ function Inner({ game: card, code }: { game: GameCard; code: string }): JSX.Elem
           const b = bodyOf(st.seed, p.holds);
           return { id, name: who?.name ?? '?', avatar: who?.avatar ?? '🐙', tint: colorFor(who?.avatar ?? '') ?? '#8892A6', holds, body: b, height: b ? heightOf(b.y) : 0 };
         });
-      const myAvatar = playersRef.current.find((q) => q.id === myIdRef.current)?.avatar ?? '';
       const f: Frame = {
         seed: st.seed,
         w,
@@ -259,7 +258,7 @@ function Inner({ game: card, code }: { game: GameCard; code: string }): JSX.Elem
         summit: st.mode === 'summit',
         reduced,
         me: {
-          tint: colorFor(myAvatar) ?? card.accent,
+          tint: OCTO_PINK,
           body,
           holds: o.holds,
           tips: tips.current,
@@ -267,6 +266,11 @@ function Inner({ game: card, code }: { game: GameCard; code: string }): JSX.Elem
           armed: armed(o) && !pull.current,
           oneSince: o.oneSince,
           drag: drag.current,
+          dragOk: drag.current !== null && (() => {
+            const d = drag.current as { arm: number; at: Point };
+            const r = drop(o, d.arm, d.at, pegsNear(st.seed, d.at.y - 0.3, d.at.y + 0.3), taken, at);
+            return r.ok && r.send.t === 'grab';
+          })(),
           pull: pull.current?.by ?? null,
         },
         shadows,

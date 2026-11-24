@@ -49,9 +49,11 @@ on. Spread wide on two? Pull the octopus back and let go to leap."*
 All lengths are in **wall units**: the width of the wall is 1, whatever the
 screen.
 
-- A tentacle reaches at most `REACH` = 0.38 from the centre of the body. A drop
+- A tentacle reaches at most `REACH` = 0.57 from the centre of the body (raised
+  by half after the first build felt cramped). A drop
   further than that is refused, and the tentacle visibly stretches to its limit
-  and springs back — the elasticity is the feedback.
+  and springs back — the elasticity is the feedback. While a dragged tentacle
+  is over a peg it would grab, it turns **green**; past its reach, red.
 - **The body pulls itself up**: it sits 70 % of the way from the centre of its
   pegs to the highest point every held tentacle still reaches (`place`), so
   reaching a higher peg lifts it, and with five tentacles spread round it the
@@ -111,9 +113,9 @@ screen.
   `0.8 × REACH` by 25 m (the Summit line), and the pegs thin out.
 - **Gaps above 8 m**: some bands then have a **gap** — a stretch no tentacle can
   bridge — that only a slingshot leap clears. Every gap is preceded by a
-  **launch pair**: two pegs far enough apart to arm the slingshot (§2.2), and
-  the gap is at most 70 % of the highest leap (`MAX_LEAP`), so it is always
-  clearable. Gaps come more often as the wall rises: about one every 6 m at
+  **launch pair**: two pegs far enough apart to arm the slingshot (§2.2). A gap
+  is two reaches and a little more (`2 × REACH + 0.1`), so no step from peg to
+  peg crosses it, and well inside a leap plus a reach, so a leap always does. Gaps come more often as the wall rises: about one every 6 m at
   8 m, one every 3 m by 25 m.
 - The decor is a reef: coral, rock, a little weed, scrolling with the wall.
 
@@ -143,8 +145,9 @@ results.
   than the ones held.
 - **Your octopus is cute**, and that is a requirement, not a polish item: a
   round, soft head bigger than its body would suggest, two big shiny eyes with
-  white highlights, pink cheeks, a tiny smile, pastel colours — each player's
-  octopus tinted with their avatar colour. Its face reacts: content while
+  white highlights, pink cheeks, a tiny smile — and **pink-lilac**, head and
+  tentacles, on every player's own screen (rivals' shadows keep their avatar
+  colour, so they are told apart). Its face reacts: content while
   holding on; worried brows and a wobbly mouth hanging by one tentacle;
   squeezed eyes and an "o" mouth while pulling back the slingshot; a delighted
   open smile in flight; dizzy spiral eyes after a fall. The faces are sprites

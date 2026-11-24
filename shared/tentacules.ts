@@ -15,7 +15,7 @@ export type Point = { x: number; y: number };
 export type Peg = Point & { id: number };
 
 /** How far a tentacle reaches from the centre of the body. */
-export const REACH = 0.38;
+export const REACH = 0.57;
 /** A full slingshot pull straight up rises this high. */
 export const MAX_LEAP = 1.5;
 /** The furthest the body can be pulled back. */
@@ -186,7 +186,9 @@ function lerp(a: number, b: number, t: number): number {
 
 /** Where the slingshot becomes necessary, and how tall a gap is. */
 export const GAPS_FROM = 8;
-export const GAP = 0.7 * MAX_LEAP;
+/** Taller than two reaches, so no tentacle-to-tentacle step crosses it, and well
+ *  inside a leap plus a reach, so a slingshot always does. */
+export const GAP = 2 * REACH + 0.1;
 /** Spine pegs, side by side across a gap: the launch pair below it, the landing above. */
 const GAP_LEFT = 0.32;
 const GAP_RIGHT = 0.68;

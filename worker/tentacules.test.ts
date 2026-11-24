@@ -215,16 +215,22 @@ async function climbing(): Promise<void> {
   sum.advance(TENT_COUNTDOWN_MS + 1000);
   const ss = sum.state();
   // Hang A on two pegs just under the line, one grab short of it.
+  // On a wall whose line does not fall in a gap — the seed is the wall, so try a few.
   const line = START_BODY.y + TENT_SUMMIT_M;
-  const near = pegsBetween(ss.seed, line - 1.2, line + 0.6);
   let setup: { below: Peg[]; up: Peg } | null = null;
-  for (const p1 of near) for (const p2 of near) {
-    if (setup || p1.id >= p2.id) continue;
-    const pair = [p1, p2];
-    const body = place(pair);
-    if (!body || heightOf(body.y) >= TENT_SUMMIT_M) continue;
-    const up = near.find((u) => u.id !== p1.id && u.id !== p2.id && canGrab(pair, u, null) && heightOf((place([...pair, u]) as Point).y) >= TENT_SUMMIT_M);
-    if (up) setup = { below: pair, up };
+  for (let seed = 1; seed < 40 && !setup; seed++) {
+    const near = pegsBetween(seed, line - 1.2, line + 0.8);
+    for (const p1 of near) for (const p2 of near) {
+      if (setup || p1.id >= p2.id) continue;
+      const pair = [p1, p2];
+      const body = place(pair);
+      if (!body || heightOf(body.y) >= TENT_SUMMIT_M) continue;
+      const up = near.find((u) => u.id !== p1.id && u.id !== p2.id && canGrab(pair, u, null) && heightOf((place([...pair, u]) as Point).y) >= TENT_SUMMIT_M);
+      if (up) {
+        setup = { below: pair, up };
+        ss.seed = seed;
+      }
+    }
   }
   const below = setup?.below ?? [];
   (ss.players[A] as { holds: (number | null)[] }).holds = [below[0]?.id ?? null, below[1]?.id ?? null, null, null, null];

@@ -30,6 +30,10 @@ const DECOR = [art(coralArt), art(weedArt)];
 /** The head is this wide, in wall units; the tentacles leave it at 80 % of its height. */
 export const HEAD = 0.2;
 const PEG_R = 0.022;
+/** Every player's own octopus is this pink-lilac; rivals keep their avatar colour as shadows. */
+export const OCTO_PINK = '#E58BEA';
+/** A dragged tentacle over a peg it can take. */
+const GRAB_OK = '#4ADE80';
 
 /* ── Pegs, built once per band ───────────────────────────────────────────── */
 
@@ -83,6 +87,8 @@ export type Frame = {
     armed: boolean;
     oneSince: number | null;
     drag: { arm: number; at: Point } | null;
+    /** The dragged tentacle would grab the peg under it if let go now. */
+    dragOk: boolean;
     pull: Point | null;
   };
   shadows: Shadow[];
@@ -288,7 +294,8 @@ export function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
       const len = Math.hypot(dx, dy);
       const max = REACH * 1.15;
       to = len > max ? { x: me.body.x + (dx / len) * max, y: me.body.y + (dy / len) * max } : me.drag.at;
-      if (len > REACH) color = '#FF4D4D';
+      if (me.dragOk) color = GRAB_OK;
+      else if (len > REACH) color = '#FF4D4D';
     }
     me.tips[arm] = to;
     tentacle(ctx, f, from, to, color, 1, true, held !== null && me.drag?.arm !== arm);
