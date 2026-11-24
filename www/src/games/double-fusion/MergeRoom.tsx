@@ -28,6 +28,7 @@ import {
   bigFusions,
   canMove,
   compareEntries,
+  crescendoLevelOn,
   crescendoPuzzle,
   hasWon,
   malusTargets,
@@ -631,7 +632,9 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
       return { en: `${left} ${left === 1 ? 'tile' : 'tiles'}`, fr: `${left} ${left === 1 ? 'tuile' : 'tuiles'}` };
     }
     if (m === 'race') return { en: String(bestTile(e.board)), fr: String(bestTile(e.board)) };
-    return { en: `Lvl ${e.level ?? 0}`, fr: `Niv. ${e.level ?? 0}` };
+    // The level they are on, as their own screen says, not the ones they have finished.
+    const on = crescendoLevelOn(e.level ?? 0);
+    return { en: `Lvl ${on}`, fr: `Niv. ${on}` };
   };
 
   if (state && state.phase === 'done') {

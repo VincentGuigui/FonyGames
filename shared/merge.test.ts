@@ -9,6 +9,7 @@ import {
   bestTile,
   canMove,
   compareEntries,
+  crescendoLevelOn,
   crescendoPuzzle,
   hasWon,
   normaliseMergeOptions,
@@ -323,6 +324,8 @@ function crescendo(): void {
   check(`puzzles take ever more moves (medians ${median.join(' ')})`, lowest < 0, `${lowest + 2} tiles`);
   check('a full board takes at least 20 moves, against 6 before the search', (median[14] as number) >= 20);
 
+  check('a rival who has finished 14 levels is on level 15', crescendoLevelOn(14) === 15 && crescendoLevelOn(0) === 1);
+  check('one who has finished them all is still on the last', crescendoLevelOn(MERGE_CRESCENDO_LEVELS) === MERGE_CRESCENDO_LEVELS && crescendoLevelOn(99) === MERGE_CRESCENDO_LEVELS);
   check('the same seed and level is the same puzzle', crescendoPuzzle(9, 7).board.join() === crescendoPuzzle(9, 7).board.join());
   let differ = 0;
   for (let level = 2; level <= 30; level++) if (crescendoPuzzle(9, level).board.join() !== crescendoPuzzle(10, level).board.join()) differ++;

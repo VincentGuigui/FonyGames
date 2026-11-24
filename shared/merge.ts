@@ -1,5 +1,6 @@
 import {
   MERGE_CELLS,
+  MERGE_CRESCENDO_LEVELS,
   MERGE_DEFAULT_TARGET,
   MERGE_FOUR_CHANCE,
   MERGE_HIGHLANDER_MS,
@@ -426,6 +427,11 @@ const VECTORS: Record<Dir, readonly [number, number]> = { left: [-1, 0], right: 
 
 function turn(m: readonly [number, number, number, number], x: number, y: number): [number, number] {
   return [m[0] * x + m[1] * y, m[2] * x + m[3] * y];
+}
+
+/** The level a player is on, given the levels they have finished: the one after, until the last. */
+export function crescendoLevelOn(finished: number): number {
+  return Math.min(MERGE_CRESCENDO_LEVELS, Math.max(0, finished) + 1);
 }
 
 /** Tiles on level `level`: two levels for each count, from 2 up to a full board. */

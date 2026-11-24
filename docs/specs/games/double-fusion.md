@@ -218,8 +218,8 @@ new tile scales in.
 - **In an aggressive race**, the unlocked maluses sit in three slots under the
   board (§3.1).
 - **The other players**, pinned to the bottom of the screen: one block each,
-  centred, top to bottom — their avatar, where they stand (their level in
-  Crescendo, their best tile in a race, their tiles left in Highlander), and a
+  centred, top to bottom — their avatar, where they stand (the level they are on
+  in Crescendo, their best tile in a race, their tiles left in Highlander), and a
   **32×32 px** canvas of their board as 8 px colour squares, no numbers. Your
   own board is not thumbnailed; it is the big one above.
 
