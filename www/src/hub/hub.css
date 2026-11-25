@@ -35,16 +35,6 @@
   max-width: 24ch;
 }
 
-.hub__notice {
-  margin: 0 0 var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  background: var(--color-surface);
-  border: 1px dashed var(--color-border);
-  border-radius: var(--radius);
-  color: var(--color-text-dim);
-  font-size: var(--font-small);
-}
-
 /* --- filters (docs/specs/hub.md §3) ------------------------------------- */
 
 .hub__filters {
@@ -95,8 +85,8 @@
 }
 
 /* The dev-only preview switch reuses the chip look, set apart by a dashed rule —
-   the same visual device `.hub__notice` already uses for "this is not the real
-   thing", since a dev host's own hub chrome is exactly that. */
+   it says "this is not the real thing", since a dev host's own hub chrome is
+   exactly that. */
 .hub__admin-preview {
   padding-bottom: var(--space-3);
   margin-bottom: var(--space-3);

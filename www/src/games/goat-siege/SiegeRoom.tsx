@@ -138,7 +138,7 @@ function SiegeRoomInner({ game: card, code }: { game: GameCard; code: string }):
       onStart={() => client?.send({ t: 'start', d: { mode: 'siege', solo } })}
       playerTag={(id) => {
         const n = state?.cabbages[id];
-        return n === undefined ? null : text({ en: `${n} left`, fr: `${n} restantes` });
+        return n === undefined ? null : text({ en: `${n} left`, fr: `${n} restants` });
       }}
     />
   );

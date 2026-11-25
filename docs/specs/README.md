@@ -22,7 +22,7 @@ Each game is sold by **one illustration + one catchy sentence**. Status:
 | Game | Catchy sentence | Input | Players | Status |
 | --- | --- | --- | --- | --- |
 | Random game | *Can't decide? Let the dice choose for you* | touch | 1–10 | 🎮 built — a redirector, not a spec'd game; picks any built game at random |
-| [Pass the Bomb](games/pass-the-bomb.md) | *Smash phones together to pass the bomb before it blows* | bump / motion | 3–8 | 🎮 beta — untested on real phones bumping |
+| [Pass the Bomb](games/pass-the-bomb.md) | *Bump phones to pass the bomb before it blows* | bump / motion | 3–8 | 🎮 beta — untested on real phones bumping |
 | [Shake Rush](games/shake-rush.md) | *Shake like your life depends on it — first to the finish wins* | motion | 2–8 | 🎮 beta — distance and threshold untested on real arms |
 | [Steady Hand](games/steady-hand.md) | *Hold your phone perfectly still. Longer than everyone else* | motion | 2–8 | 🎮 beta — tolerance curve untested on real hands |
 | [Tap Duel](games/tap-duel.md) | *The fastest thumb in the room takes the round* | touch | 2–8 | 🎮 `pistol` live · `sprint`/`simon` to come |

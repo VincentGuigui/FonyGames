@@ -69,8 +69,3 @@
   margin: var(--space-5) 0 0;
   font-size: 3.5rem;
 }
-
-.tiles__gone-note {
-  margin: var(--space-2) 0 0;
-  color: var(--color-text-dim);
-}

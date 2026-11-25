@@ -196,10 +196,6 @@ function BlinkRoomInner({ game: card, code }: { game: GameCard; code: string }):
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        note={text({
-          en: 'A point for every lit tap, one off for every miss.',
-          fr: 'Un point par tap sur une lumière allumée, un de moins par raté.',
-        })}
         rows={rows}
         me={myId}
         winner={state.winner}

@@ -72,7 +72,7 @@ export function GameSwitcher(props: { room?: Room; code?: string; game?: string 
         {choice.card
           ? <span class="game-switcher__card-art"><GameIllustration art={choice.card.art} accent={choice.card.accent} /></span>
           : <span class="game-switcher__card-art game-switcher__card-art--letter" aria-hidden="true">{choice.title.slice(0, 1)}</span>}
-        <span class="game-switcher__card-title">{choice.title}</span><span class="game-switcher__card-pitch">{text({ en: 'Bring everyone to this game', fr: 'Emmener tout le monde vers ce jeu' })}</span>
+        <span class="game-switcher__card-title">{choice.title}</span>
       </button>)}</div> : <div class="game-switcher__confirm">
         <p>{text({ en: `Bring the ${connected - 1} other player(s) along to ${chosenCard?.title ?? chosen}?`, fr: `Faire venir les ${connected - 1} autre(s) joueur(s) vers ${chosenCard?.title ?? chosen} ?` })}</p>
         <button class="btn btn--big" type="button" onClick={bring}>{text({ en: 'Bring everyone', fr: 'Faire venir tout le monde' })}</button>

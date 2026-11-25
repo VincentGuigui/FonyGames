@@ -300,11 +300,7 @@ export function Duel(props: {
         me={me}
         winner={result.matchWinnerId ?? result.winnerId}
         {...(headline === undefined ? {} : { headline })}
-        note={
-          tookMatch
-            ? text({ en: `${times}. First to ${DUEL_MATCH_TARGET} takes it — the next one is a new match.`, fr: `${times}. Le premier à ${DUEL_MATCH_TARGET} gagne — la prochaine manche ouvre un nouveau match.` })
-            : times
-        }
+        note={times}
         {...(tookMatch
           ? { onAgain, againLabel: text({ en: 'New match', fr: 'Nouveau match' }) }
           : { onNext: onAgain, nextLabel: text({ en: 'Next duel', fr: 'Duel suivant' }) })}
@@ -392,7 +388,6 @@ export function Duel(props: {
         aria-label={text({ en: 'Get ready. Follow the target and tap it the moment it lights up', fr: 'Préparez-vous. Suivez la cible et touchez-la dès qu’elle s’allume' })}
       >
         <span class="duel__word">{text({ en: 'GET READY', fr: 'PRÉPAREZ-VOUS' })}</span>
-        <span class="duel__sub">{text({ en: 'Stay with the target. Tap it the moment it lights up', fr: 'Suivez la cible. Touchez-la dès qu’elle s’allume' })}</span>
       </button>
       {bullseye}
       {menu}

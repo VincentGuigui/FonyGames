@@ -241,10 +241,6 @@ function ColorHuntRoomInner({ game: card, code }: { game: GameCard; code: string
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        note={text({
-          en: `The room ran out of colours after ${state.round} rounds.`,
-          fr: `La pièce a été épuisée après ${state.round} manches.`,
-        })}
         rows={ranked.map(([id, total]) => ({ id, avatar: avatarOf(id), name: nameOf(id), value: total, unit: text({ en: 'pts', fr: 'pts' }) }))}
         me={myId}
         winner={state.winner}
@@ -373,8 +369,8 @@ function CameraPrimer({ on, asked, isHost, onEnable }: { on: boolean; asked: boo
         <PermissionPrimer
           heading={heading}
           body={text({
-            en: 'The camera was turned down, and it is the only way to play this one — there is no tap version, so there is nothing to find a colour with.',
-            fr: 'La caméra a été refusée, et c’est la seule façon de jouer — il n’y a pas de version tactile, donc rien pour trouver une couleur.',
+            en: 'This game can only be played with the camera.',
+            fr: 'Ce jeu ne se joue qu’avec l’appareil photo.',
           })}
           action={{ label: text({ en: 'Try again', fr: 'Réessayer' }), onClick: onEnable }}
         />
@@ -404,8 +400,8 @@ function CameraPrimer({ on, asked, isHost, onEnable }: { on: boolean; asked: boo
       <PermissionPrimer
         heading={heading}
         body={`${text({
-          en: 'The camera finds the colours. We look at 100 pixels from the middle of the picture, average them on your phone, and send one colour — no image ever leaves the device.',
-          fr: 'La caméra trouve les couleurs. Nous regardons 100 pixels au centre de l’image, nous en faisons la moyenne sur votre téléphone et n’envoyons qu’une couleur — aucune image ne quitte l’appareil.',
+          en: 'The camera finds the colours. No image ever leaves the device.',
+          fr: 'La caméra trouve les couleurs. Aucune image ne quitte l’appareil.',
         })} ${isHost
           ? text({ en: 'Start the round and your phone will ask.', fr: 'Démarrez la manche et votre téléphone vous le demandera.' })
           : text({ en: 'Tap Ready and your phone will ask.', fr: 'Touchez Prêt et votre téléphone vous le demandera.' })}`}

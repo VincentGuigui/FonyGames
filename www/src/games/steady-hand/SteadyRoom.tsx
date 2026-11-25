@@ -214,7 +214,7 @@ function SteadyRoomInner({ game: card, code }: { game: GameCard; code: string })
             <h2 class="panel__heading">{text({ en: 'The one rule', fr: 'La règle unique' })}</h2>
             <p class="steady-rule__body">
               {text({ en: 'Hold the phone ', fr: 'Tenez le téléphone ' })}<strong>{text({ en: 'up', fr: 'levé' })}</strong>,{' '}
-              {text({ en: 'screen towards you. Resting it on a table or your lap ends your round — that is the one thing the game can tell you are doing.', fr: 'écran vers vous. Le poser sur une table ou sur vos genoux termine votre manche — c’est la seule chose que le jeu peut détecter.' })}
+              {text({ en: 'screen towards you. Resting it on a table or your lap ends your round.', fr: 'écran vers vous. Le poser sur une table ou sur vos genoux termine votre manche.' })}
             </p>
           </section>
 
@@ -259,7 +259,7 @@ function MotionPrimer({
       <PermissionPrimer heading={heading} body={`${support === 'unsupported'
         ? text({ en: 'This phone has no motion sensor, so it cannot measure how still you are holding it.', fr: 'Ce téléphone n’a pas de capteur de mouvement et ne peut pas mesurer son immobilité.' })
         : text({ en: 'Motion was turned down, so this phone cannot measure how still you are holding it.', fr: 'L’accès au mouvement a été refusé, le téléphone ne peut donc pas mesurer son immobilité.' })} ${text(
-        { en: 'There is no tap version of this one — holding a phone still is the whole game — so you can watch the round, and the meters are worth watching.', fr: 'Il n’existe pas de version tactile — tenir le téléphone immobile est le jeu — mais vous pouvez regarder la manche et ses jauges.' },
+        { en: 'There is no tap version of this one — holding a phone still is the whole game — so you can watch the round.', fr: 'Il n’existe pas de version tactile — tenir le téléphone immobile est le jeu — mais vous pouvez regarder la manche.' },
       )}`} />
     );
   }

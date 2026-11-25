@@ -246,9 +246,6 @@ function RushRoomInner({ game: card, code }: { game: GameCard; code: string }): 
               <strong>{text({ en: 'Grip it properly and keep your arm down.', fr: 'Tenez-le fermement et gardez le bras baissé.' })}</strong>{' '}
               {text({ en: 'No throwing, no swinging near faces, and take the strap or popsocket off if it makes you loosen your grip.', fr: 'Ne le lancez pas, ne l’agitez pas près des visages et retirez la dragonne ou le support s’il gêne votre prise.' })}
             </p>
-            <p class="rush-safety__note">
-              {text({ en: 'Shaking harder does not help — the game counts changes of direction, not force.', fr: 'Secouer plus fort ne sert à rien — le jeu compte les changements de direction, pas la force.' })}
-            </p>
           </section>
 
           <MotionPrimer
@@ -294,7 +291,7 @@ function MotionPrimer({
         body={`${support === 'unsupported'
           ? text({ en: 'This phone has no motion sensor, so it cannot tell when you shake it.', fr: 'Ce téléphone n’a pas de capteur de mouvement et ne peut pas détecter les secousses.' })
           : text({ en: 'Motion was turned down, so this phone cannot tell when you shake it.', fr: 'L’accès au mouvement a été refusé, le téléphone ne peut donc pas détecter les secousses.' })} ${text(
-          { en: 'There is no tap version of this one — a thumb is faster than an arm, so it would not stand in for shaking, it would win — so you can watch the race, and the track is worth watching.', fr: 'Il n’existe pas de version tactile — un pouce est plus rapide qu’un bras et gagnerait au lieu de remplacer le geste — mais vous pouvez regarder la course.' },
+          { en: 'There is no tap version of this one, but you can watch the race.', fr: 'Il n’existe pas de version tactile, mais vous pouvez regarder la course.' },
         )}`}
       />
     );

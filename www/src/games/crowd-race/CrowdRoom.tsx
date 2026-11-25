@@ -199,7 +199,6 @@ function CrowdRoomInner({ game: card, code }: { game: GameCard; code: string }):
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        note={text({ en: 'Placings are by distance up the street for anyone who did not finish.', fr: 'Les places se jouent à la distance parcourue pour ceux qui n’ont pas fini.' })}
         rows={tableRows}
         me={myId}
         winner={state.winner}
@@ -309,8 +308,8 @@ function CrowdPrimer({
       <PermissionPrimer
         heading={heading}
         body={text({
-          en: 'Tilt was turned down. There is no on-screen stick and no tap version — nothing else can move the pedestrian.',
-          fr: 'L’inclinaison a été refusée. Il n’y a ni joystick à l’écran ni version tactile — rien d’autre ne peut faire avancer le piéton.',
+          en: 'This game can only be played by tilting.',
+          fr: 'Ce jeu ne se joue qu’en inclinant le téléphone.',
         })}
         action={{ label: text({ en: 'Try again', fr: 'Réessayer' }), onClick: onEnable }}
       />
@@ -325,7 +324,7 @@ function CrowdPrimer({
   }
 
   return <PermissionPrimer heading={heading} body={text({
-    en: 'This one needs the tilt sensor, and nothing else can play it. You walk wherever gravity says is up, all the time — turn the phone upside down and you walk backward.',
-    fr: 'Ce jeu a besoin du capteur d’inclinaison, et rien d’autre ne permet d’y jouer. Vous marchez en permanence là où la gravité indique le haut — tenez le téléphone à l’envers pour reculer.',
+    en: 'This game needs the tilt sensor.',
+    fr: 'Ce jeu a besoin du capteur d’inclinaison.',
   })} />;
 }

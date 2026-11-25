@@ -261,8 +261,8 @@ function TiltPrimer({
       <PermissionPrimer
         heading={heading}
         body={text({
-          en: 'Tilt was turned down. Either seat can end up the glider, and the glider has nothing else to steer with — the tap zones are gone — so the round cannot include this phone.',
-          fr: 'L’inclinaison a été refusée. Chaque siège peut devenir le planeur, et le planeur n’a rien d’autre pour se diriger — les zones tactiles ont disparu — cette manche ne peut donc pas inclure ce téléphone.',
+          en: 'Tilt was turned down. Either seat can end up the glider, and the glider has nothing else to steer with, so the round cannot include this phone.',
+          fr: 'L’inclinaison a été refusée. Chaque siège peut devenir le planeur, et le planeur n’a rien d’autre pour se diriger : cette manche ne peut donc pas inclure ce téléphone.',
         })}
         action={{ label: text({ en: 'Try again', fr: 'Réessayer' }), onClick: onEnable }}
       />

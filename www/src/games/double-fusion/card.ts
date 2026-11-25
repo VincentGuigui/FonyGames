@@ -17,7 +17,6 @@ export const CARD: GameCard = {
   rules: [
     'Swipe to slide every tile. Two equal tiles merge into their double.',
     'Everyone starts on the same board. Tap a thumbnail to watch that player live.',
-    '3 modes: Race, Crescendo (increasing difficulty levels), Highlander puzzle (there can be only one number left).',
   ],
   art: { src: art, alt: 'A four-by-four board of numbered, coloured tiles, some of them merged into bigger ones' },
   fr: {
@@ -26,7 +25,6 @@ export const CARD: GameCard = {
     rules: [
       'Glissez pour déplacer toutes les tuiles. Deux tuiles égales fusionnent en leur double.',
       'Tout le monde part du même plateau. Touchez une miniature pour suivre ce joueur en direct.',
-      '3 modes : Course, Crescendo (niveaux de difficulté croissante), Highlander puzzle (il ne doit rester qu’un seul nombre).',
     ],
     art: { alt: 'Un plateau de quatre par quatre de tuiles numérotées et colorées, certaines fusionnées en tuiles plus grosses' },
   },

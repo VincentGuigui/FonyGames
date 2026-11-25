@@ -18,7 +18,6 @@ export const CARD: GameCard = {
   pitch: 'Pick a barn. Dodge the beam',
   concept: 'Five barns, one UFO. Tap where your cow runs — the beam only ever picks one.',
   rules: [
-    'Tap a barn to send your cow there. Change your mind as often as you like.',
     'When the countdown ends, the UFO beams up every cow at the barn it picks.',
     'Beamed up, you’re out for good. Last cow standing wins.',
   ],
@@ -27,7 +26,6 @@ export const CARD: GameCard = {
     pitch: 'Choisissez une grange. Évitez le rayon',
     concept: 'Cinq granges, une soucoupe. Touchez la grange où votre vache court — le rayon n’en choisit qu’une.',
     rules: [
-      'Touchez une grange pour y envoyer votre vache. Changez d’avis autant que vous voulez.',
       'Quand le décompte se termine, la soucoupe enlève toutes les vaches de la grange choisie.',
       'Enlevée, votre vache est éliminée. La dernière vache debout gagne.',
     ],

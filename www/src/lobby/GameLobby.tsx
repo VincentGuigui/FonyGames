@@ -254,7 +254,6 @@ export function GameLobby({
           </button>
         )}
         {!room.isHost && <ReadyButton room={room} blocked={readyBlocked} onBeforeReady={onBeforeReady} screen={card.screen} />}
-        {readyBlocked && <p class="lobby__ready-note">{t.lobby.finishSetup}</p>}
         {room.isHost && canStart && !everybodyReady && (
           <p class="lobby__ready-note" role="status">
             {t.lobby.waitingReady}

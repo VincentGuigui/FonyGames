@@ -735,7 +735,7 @@ function RoutePicker({
             is part of the thing you are about to tap (spec §10).
           */}
           <span class="hunt-route__privacy">
-            {text({ en: 'No worry — no picture ever leaves your phone. The feed goes straight to the outline on screen and is thrown away frame by frame.', fr: 'Pas d’inquiétude — aucune image ne quitte votre téléphone. Le flux sert directement au contour à l’écran puis est jeté image par image.' })}
+            {text({ en: 'No worry — no picture ever leaves your phone.', fr: 'Pas d’inquiétude — aucune image ne quitte votre téléphone.' })}
           </span>
         </button>
 

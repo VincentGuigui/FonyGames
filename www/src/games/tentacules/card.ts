@@ -17,7 +17,7 @@ export const CARD: GameCard = {
   rules: [
     'Drag a tentacle onto a peg to climb; drop it on empty space to let go. Keep at least two holding.',
     'Holding by two spread wide, pull the octopus back and let go to leap. One tentacle alone gives way after 3 s.',
-    'A peg holds one tentacle — but one a rival has sat on for 3 s can be taken. Time trial: highest in a minute. Summit: first to 25 m.',
+    'A peg holds one tentacle — but one a rival has sat on for 3 s can be taken.',
   ],
   art: { src: art, alt: 'A cute coral octopus climbing a reef wall, four tentacles curled round pegs and one reaching for a higher one' },
   fr: {
@@ -26,7 +26,7 @@ export const CARD: GameCard = {
     rules: [
       'Glissez une tentacule sur un plot pour grimper ; lâchez-la dans le vide pour la décrocher. Gardez-en au moins deux accrochées.',
       'Tenue par deux tentacules bien écartées, tirez la pieuvre en arrière puis lâchez pour bondir. Une seule tentacule lâche au bout de 3 s.',
-      'Un plot ne porte qu’une tentacule — mais celui qu’un rival occupe depuis 3 s peut lui être pris. Contre-la-montre : le plus haut en une minute. Sommet : premier à 25 m.',
+      'Un plot ne porte qu’une tentacule — mais celui qu’un rival occupe depuis 3 s peut lui être pris.',
     ],
     art: { alt: 'Une pieuvre corail toute mignonne qui escalade un mur de récif, quatre tentacules enroulées sur des plots et une qui en vise un plus haut' },
   },

@@ -18,18 +18,14 @@ export const CARD: GameCard = {
   pitch: 'Hunt that exact colour down in the room around you',
   concept: 'Point your camera at something that really is the colour called.',
   rules: [
-    'A colour is called. Find it in the room.',
     'The ring in the middle shows what you are really pointing at.',
-    'Camera only — no camera, no hunt.',
   ],
   art: { src: art, alt: 'A phone viewport over a room corner, a ring magnifier filled with flat orange dead centre' },
   fr: {
     pitch: 'Débusquez cette couleur exacte dans la pièce autour de vous',
     concept: 'Visez avec la caméra quelque chose qui est vraiment la couleur annoncée.',
     rules: [
-      'Une couleur est annoncée. Trouvez-la dans la pièce.',
       'L’anneau central montre ce que vous visez vraiment.',
-      'Caméra obligatoire — sans caméra, pas de chasse.',
     ],
     art: { alt: 'Un cadre de téléphone sur un coin de pièce, une loupe circulaire orange en plein centre' },
   },

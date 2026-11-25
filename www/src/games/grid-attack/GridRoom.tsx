@@ -201,7 +201,7 @@ function GetReady({
       <h1 class="grid-ready__title">{title}</h1>
       {mine ? (
         <>
-          <p class="grid-ready__say">{text({ en: 'Waiting for the other phone…', fr: 'En attente de l’autre téléphone…' })}</p>
+          {!theirs && <p class="grid-ready__say">{text({ en: 'Waiting for the other phone…', fr: 'En attente de l’autre téléphone…' })}</p>}
           <p class="grid-ready__note">
             {theirs ? text({ en: 'Starting now.', fr: 'Démarrage immédiat.' })
               : text({ en: 'They have to tap their button too.', fr: 'L’autre joueur doit aussi toucher son bouton.' })}

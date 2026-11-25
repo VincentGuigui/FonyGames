@@ -21,7 +21,6 @@ export const CARD: GameCard = {
     // The colour marker is `{{#hex|word}}` — HowToPlay.tsx renders it in that colour and
     // strips the markup. The two colours are the halves' own border colours (grid.css),
     // named in words too, never colour alone (docs/design/ui-guidelines.md §2).
-    'Attack their grid ({{#a3e635|green}}) while defending yours ({{#a78bfa|purple}}).',
     '{{#a3e635|Green}}: tap the enemy grid three times, fast, to light it.',
     '{{#a78bfa|Purple}}: a lit cell bursts in two seconds — three taps saves it.',
   ],
@@ -31,7 +30,6 @@ export const CARD: GameCard = {
     concept:
       'Deux grilles, à l’horizontale. Trois taps pour allumer une case chez eux, trois pour éteindre une case chez vous.',
     rules: [
-      'Attaquez leur grille ({{#a3e635|verte}}) tout en défendant la vôtre ({{#a78bfa|violette}}).',
       '{{#a3e635|Vert}} : tapez trois fois, vite, sur la grille ennemie pour l’allumer.',
       '{{#a78bfa|Violet}} : une case allumée explose en deux secondes — trois taps la sauvent.',
     ],

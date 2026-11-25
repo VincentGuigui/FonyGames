@@ -241,9 +241,8 @@ Sliding is drawn from `tiles.ts`, which follows the same move as
 to; it never decides a result, and its test checks it agrees with the rules over
 whole games.
 
-The results list each player as `score pts · lvl n` (French `niv. n`), where the
-level is the exponent of their best tile — a 128 is level 7 — so the line stays
-short. Highlander lists the **solver's time** instead (`m:ss.t`) — a solved board
+The results list each player by what the mode is won on: in a race their best
+tile (`128`), in Crescendo their levels and time; Highlander lists the **solver's time** instead (`m:ss.t`) — a solved board
 is always one tile, so the count would say nothing — and `n tiles left` only for
 a player who did not finish.
 

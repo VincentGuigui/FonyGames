@@ -110,8 +110,6 @@ function ScreamRoomInner({ game: card, code }: { game: GameCard; code: string })
   /** The room's own noise floor, measured in the first second of the countdown. */
   const floorRef = useRef(SCREAM_DB_FLOOR);
   const sentRef = useRef(false);
-  const [level, setLevel] = useState(SCREAM_DB_FLOOR);
-  const [peakHold, setPeakHold] = useState(SCREAM_DB_FLOOR);
 
   const meterRef = useRef<HTMLDivElement>(null);
   const peakRef = useRef<HTMLDivElement>(null);
@@ -130,7 +128,6 @@ function ScreamRoomInner({ game: card, code }: { game: GameCard; code: string })
 
     sentRef.current = false;
     floorRef.current = SCREAM_DB_FLOOR;
-    setPeakHold(SCREAM_DB_FLOOR);
     mic.reset();
 
     let frame = 0;
@@ -210,8 +207,6 @@ function ScreamRoomInner({ game: card, code }: { game: GameCard; code: string })
             partial,
           },
         });
-        setLevel(loudest);
-        setPeakHold(peakOf(samples));
       }
 
       frame = requestAnimationFrame(loop);
@@ -323,19 +318,17 @@ function ScreamRoomInner({ game: card, code }: { game: GameCard; code: string })
           <div class="scream__side" aria-hidden="true">{rightOthers.map(sideMeter)}</div>
         </div>
 
-        {/* The meter is not the only feedback: the numeric level is text, and
-            so is this round's result once it closes (spec §11). */}
+        {/* The meter is not the only feedback: this round's result is text
+            once it closes (spec §11). */}
         <p class="scream__readout" aria-live="off">
           {revealing
             ? (mine
                 ? text({
-                    en: `This round: ${mine.score}${mine.partial ? ' (part.)' : ''}. Total: ${myTotal}.`,
-                    fr: `Cette manche : ${mine.score}${mine.partial ? ' (part.)' : ''}. Total : ${myTotal}.`,
+                    en: `This round: ${mine.score}. Total: ${myTotal}.`,
+                    fr: `Cette manche : ${mine.score}. Total : ${myTotal}.`,
                   })
                 : text({ en: `No answer this round. Total: ${myTotal}.`, fr: `Aucune réponse cette manche. Total : ${myTotal}.` }))
-            : sentRef.current
-              ? text({ en: `Best three seconds: ${level.toFixed(0)} dB, peak ${peakHold.toFixed(0)}`, fr: `Meilleures trois secondes : ${level.toFixed(0)} dB, pic ${peakHold.toFixed(0)}` })
-              : text({ en: 'The loudest three seconds is what counts', fr: 'Ce sont les trois secondes les plus fortes qui comptent' })}
+            : text({ en: 'The loudest three seconds is what counts', fr: 'Ce sont les trois secondes les plus fortes qui comptent' })}
         </p>
 
         {/* Who has reported in — presence, not numbers (spec §4). */}
@@ -418,8 +411,8 @@ function MicPrimer({
       <PermissionPrimer
         heading={heading}
         body={text({
-          en: 'The microphone was turned down, and it is the only way to play this one — a tap version of a screaming game is a different game.',
-          fr: 'Le microphone a été refusé, et c’est la seule façon de jouer — une version tactile d’un jeu de cri est un autre jeu.',
+          en: 'The microphone was turned down, and it is the only way to play this one.',
+          fr: 'Le microphone a été refusé, et c’est la seule façon de jouer.',
         })}
         action={{ label: text({ en: 'Try again', fr: 'Réessayer' }), onClick: onEnable }}
       />
@@ -434,7 +427,7 @@ function MicPrimer({
   }
 
   return <PermissionPrimer heading={heading} body={text({
-    en: 'Your phone measures how loud it is and sends one number. No recording is made, nothing is kept, and no audio ever leaves the phone. Without it there is nothing to play — this one excludes anyone who cannot shout, and says so now rather than after.',
-    fr: 'Votre téléphone mesure le volume et envoie un seul chiffre. Aucun enregistrement, rien n’est conservé, aucun son ne quitte jamais le téléphone. Sans lui il n’y a rien à jouer — ce jeu exclut qui ne peut pas crier, et le dit maintenant plutôt qu’après.',
+    en: 'Your phone measures how loud it is and sends one number. No recording is made, nothing is kept, and no audio ever leaves the phone. Without it there is nothing to play.',
+    fr: 'Votre téléphone mesure le volume et envoie un seul chiffre. Aucun enregistrement, rien n’est conservé, aucun son ne quitte jamais le téléphone. Sans lui il n’y a rien à jouer.',
   })} />;
 }

@@ -191,7 +191,6 @@ function Sideways(): JSX.Element {
         🔄
       </p>
       <p class="upright__say">{t.orientation.turnSideways}</p>
-      <p class="upright__note">{t.orientation.turnSidewaysNote}</p>
     </div>
   );
 }

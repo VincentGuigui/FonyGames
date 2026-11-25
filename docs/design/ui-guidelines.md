@@ -39,8 +39,8 @@ A card is a **promise in one glance**:
 │                           │
 ├───────────────────────────┤
 │ Pass the Bomb                │  title
-│ Smash phones together to  │  ONE catchy sentence, ≤ 60 chars, no period
-│ pass the bomb.            │
+│ Bump phones to pass the   │  ONE catchy sentence, ≤ 60 chars, no period
+│ bomb before it blows      │
 │ 2–8 · 1–2 min · 📳 motion │  players · duration · input icons
 └───────────────────────────┘
 ```

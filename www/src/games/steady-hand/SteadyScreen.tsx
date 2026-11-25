@@ -142,11 +142,6 @@ export function SteadyScreen({
             </span>
           </p>
 
-          {hit && (
-            <p class="steady__hit-note" role="alert">
-              {text({ en: `${myLives} left`, fr: `${myLives} restantes` })}
-            </p>
-          )}
         </>
       )}
     </div>

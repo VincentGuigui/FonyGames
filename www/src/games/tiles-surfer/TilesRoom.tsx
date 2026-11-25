@@ -190,7 +190,6 @@ function TilesRoomInner({ game: card, code }: { game: GameCard; code: string }):
           />
           <Scoreboard rows={scoreRows} me={myId} unit={text({ en: 'pts', fr: 'pts' })} best="high" />
           <p class="tiles__gone" aria-hidden="true">🧊</p>
-          <p class="tiles__gone-note">{text({ en: 'Out of lives — watching the rest of the run.', fr: 'Plus de vie — vous regardez la suite.' })}</p>
         </div>
       );
     }

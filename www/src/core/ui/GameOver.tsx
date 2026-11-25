@@ -286,7 +286,6 @@ export function GameOver({
       <div class="gameover__gate" inert={!settled}>
         {hostView ? (
           <div class="gameover__actions">
-            {readyBlocked && <p class="gameover__waiting">{t.lobby.finishSetup}</p>}
             {readyBlocked && onReadySetup && (
               <button class="btn btn--big" type="button" onClick={onReadySetup}>
                 {t.lobby.setUpControls}
@@ -326,9 +325,7 @@ export function GameOver({
           </div>
         ) : room ? (
           <>
-            <p class="gameover__waiting">
-              {readyBlocked ? t.lobby.finishSetup : (waiting ?? t.common.waitingHost)}
-            </p>
+            {!readyBlocked && <p class="gameover__waiting">{waiting ?? t.common.waitingHost}</p>}
             <div class="gameover__actions">
               {readyBlocked && onReadySetup && (
                 <button class="btn btn--big" type="button" onClick={onReadySetup}>

@@ -141,7 +141,6 @@ export function RushScreen({
   return (
     <div class="rush" style={{ '--game-accent': accent } as JSX.CSSProperties}>
       <StatusBar
-        score={{ value: left, label: 'to go' }}
         status={state.finished.length > 0 ? home.someoneHome : undefined}
         title={title}
         concept={concept}

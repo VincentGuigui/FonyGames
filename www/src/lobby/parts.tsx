@@ -80,7 +80,6 @@ export function CodeCard({
       {showQr && (
         <div class="code-card__qr">
           <QrCode value={joinUrl} size={220} />
-          <p class="code-card__hint">{t.parts.qrHint}</p>
         </div>
       )}
     </div>

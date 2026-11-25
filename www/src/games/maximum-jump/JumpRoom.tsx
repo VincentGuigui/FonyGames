@@ -250,10 +250,6 @@ function JumpRoomInner({ game: card, code }: { game: GameCard; code: string }): 
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        note={text({
-          en: 'Best of three attempts. A faceplant still spends one.',
-          fr: 'Le meilleur de trois essais. Une gamelle en consomme un quand même.',
-        })}
         rows={rows}
         me={myId}
         winner={state.winner}

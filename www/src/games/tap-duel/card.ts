@@ -42,9 +42,6 @@ export const CARD: GameCard = {
   tags: ['party'],
   modes: [
     { id: 'pistol', name: 'Pistol', blurb: 'Tap on the signal — false start loses' },
-    { id: 'sprint', name: 'Sprint', blurb: 'Most taps before the buzzer' },
-    { id: 'simon', name: 'Simon', blurb: 'Repeat the sequence, faster each round' },
   ],
-  // `new`: pistol mode is playable; sprint and simon are not built yet.
   status: 'live',
 };

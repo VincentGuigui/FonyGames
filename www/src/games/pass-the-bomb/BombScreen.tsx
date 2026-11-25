@@ -208,7 +208,7 @@ export function BombScreen({
       <p class="bombscreen__how">
         {canBump
           ? text({ en: 'Stay close — they have to knock a phone to get rid of it.', fr: 'Restez proche — il faut toucher un téléphone pour s’en débarrasser.' })
-          : text({ en: 'Waiting. This phone has no motion sensor, so they will pass by tap.', fr: 'Attendez. Sans capteur de mouvement, la bombe sera passée en touchant l’écran.' })}
+          : text({ en: 'Waiting. Stay close.', fr: 'Attendez, restez à côté.' })}
       </p>
     </div>
   );

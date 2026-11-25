@@ -118,7 +118,6 @@ export function RoomChoice({
           <button class="btn btn--primary btn--big choice__enter" type="button" onClick={create}>
             {t.roomChoice.createButton}
           </button>
-          <p class="choice__hint">{t.roomChoice.createHint}</p>
         </section>
       ) : (
         <section
@@ -146,7 +145,6 @@ export function RoomChoice({
               onEnter(code);
             }}
           />
-          <p class="choice__hint">{t.roomChoice.joinHint}</p>
         </section>
       )}
     </div>

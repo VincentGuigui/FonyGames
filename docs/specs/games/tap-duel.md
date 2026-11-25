@@ -98,14 +98,11 @@ Standard flow ([../../multiplayer.md](../../multiplayer.md) §3). Specifics:
 
 - **Lobby** — as built. `Start round` is enabled for the host once ≥ 2 players
   are connected.
-- **Armed** — full-bleed dark, **GET READY** with the instruction line
-  *Stay with the target. Tap it the moment it lights up*. "WAIT" was tried first
-  and read as an order to do nothing, which is the opposite of the intent. Nothing
-  on this screen may leak the fire time: no countdown, no progress bar. The line
-  says *stay with* rather than *thumb over* because the target drifts (below), and
-  the lobby's `rules` say the same — a lobby and a game that disagree about how to
-  play means one of them is lying with no way to tell which
-  ([../../design/game-chrome.md](../../design/game-chrome.md) §1).
+- **Armed** — full-bleed dark, **GET READY** and nothing else: the how-to is the
+  lobby's `rules`, and repeating it before each of a match's ten duels was noise.
+  "WAIT" was tried first and read as an order to do nothing, which is the
+  opposite of the intent. Nothing on this screen may leak the fire time: no
+  countdown, no progress bar.
 - **Fire** — the viewport becomes the accent colour and the target **lights up**
   at the exact position reached by its armed movement. Only a tap on the target counts.
 

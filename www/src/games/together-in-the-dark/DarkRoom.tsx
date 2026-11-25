@@ -245,19 +245,6 @@ function DarkRoomInner({ game: card, code }: { game: GameCard; code: string }): 
       canStart={room.isHost && enoughToStart(room.connected, [DARK_MIN_PLAYERS, DARK_MAX_PLAYERS], solo)}
       startLabel={t.common.startRound}
       onStart={start}
-      aside={
-        /*
-         * The primer is where the central dilemma has to be explained: a player
-         * who does not understand that light costs a turn will not understand
-         * the game at all (spec §4).
-         */
-        <p class="howto__aside">
-          {text({
-            en: 'One action each turn, for the whole team: a step, or a light one cell. Never both. Everything you light is announced to the room — the arguing is the game.',
-            fr: 'Une action par tour, pour toute l’équipe : un pas, ou une lumière sur une case. Jamais les deux. Tout ce que vous éclairez est annoncé à la salle — c’est la discussion qui fait le jeu.',
-          })}
-        </p>
-      }
     />
   );
 }

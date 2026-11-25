@@ -6,7 +6,7 @@
 | | |
 | --- | --- |
 | **Slug** | `pass-the-bomb` |
-| **Catchy sentence** | *Smash phones together to pass the bomb before it blows* |
+| **Catchy sentence** | *Bump phones to pass the bomb before it blows* |
 | **Illustration** | `www/src/games/pass-the-bomb/art/card.svg` — two phones tapping corner to corner, a cartoon bomb with a lit fuse jumping between them |
 | **Players** | 2–8 |
 | **Round length** | 1–2 min |

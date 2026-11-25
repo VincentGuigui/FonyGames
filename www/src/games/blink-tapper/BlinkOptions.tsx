@@ -63,11 +63,11 @@ export function BlinkOptionsPanel({
             </button>
           ))}
         </div>
-        <p class="blink-options__readout">
-          {value.duration === 0
-            ? text({ en: `Unlimited: ${BLINK_MISS_LIMIT} misses and you are out`, fr: `Illimité : ${BLINK_MISS_LIMIT} ratés et vous êtes éliminé` })
-            : text({ en: `${value.duration / 1000} seconds of blinks`, fr: `${value.duration / 1000} secondes de clignotements` })}
-        </p>
+        {value.duration === 0 && (
+          <p class="blink-options__readout">
+            {text({ en: `Unlimited: ${BLINK_MISS_LIMIT} misses and you are out`, fr: `Illimité : ${BLINK_MISS_LIMIT} ratés et vous êtes éliminé` })}
+          </p>
+        )}
       </fieldset>
 
       {!editable && (

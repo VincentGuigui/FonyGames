@@ -216,10 +216,6 @@ function RhinoRoomInner({ game: card, code }: { game: GameCard; code: string }):
         title={card.title}
         concept={card.concept}
         rules={card.rules}
-        note={text({
-          en: 'A spin is a full turn of the phone, either way round.',
-          fr: 'Un tour, c’est une rotation complète du téléphone, dans un sens ou dans l’autre.',
-        })}
         rows={rows}
         me={myId}
         winner={state.winner}
@@ -242,7 +238,7 @@ function RhinoRoomInner({ game: card, code }: { game: GameCard; code: string }):
     return (
       <div class="rhino" style={{ '--game-accent': card.accent } as JSX.CSSProperties}>
         <StatusBar
-          status={done ? text({ en: 'Dizzy', fr: 'Le tournis' }) : text({ en: `${count} spins`, fr: `${count} tours` })}
+          status={done ? text({ en: 'Dizzy', fr: 'Le tournis' }) : undefined}
           title={card.title}
           concept={card.concept}
           rules={card.rules}

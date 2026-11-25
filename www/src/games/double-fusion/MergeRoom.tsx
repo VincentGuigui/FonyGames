@@ -23,7 +23,6 @@ import { enoughToStart } from '../../../../shared/players';
 import {
   NO_STONE,
   applyMalus,
-  bestLevel,
   bestTile,
   bigFusions,
   canMove,
@@ -661,33 +660,25 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
               ? e.solvedMs !== undefined
                 ? { en: formatDuration(e.solvedMs), fr: formatDuration(e.solvedMs) }
                 : { en: `${left} ${left === 1 ? 'tile' : 'tiles'} left`, fr: `${left} ${left === 1 ? 'tuile restante' : 'tuiles restantes'}` }
-              : { en: `${e.score} pts · lvl ${bestLevel(e.board)}`, fr: `${e.score} pts · niv. ${bestLevel(e.board)}` },
+              : { en: String(bestTile(e.board)), fr: String(bestTile(e.board)) },
           ),
           out: false,
         };
       });
     const note =
       state.mode === 'crescendo'
-        ? {
-            en: `${MERGE_CRESCENDO_LEVELS} levels, a tile more every two. Most levels wins, then whoever got there first.`,
-            fr: `${MERGE_CRESCENDO_LEVELS} niveaux, une tuile de plus tous les deux. Le plus de niveaux gagne, puis le premier arrivé.`,
-          }
+        ? { en: 'Most levels wins.', fr: 'Le plus de niveaux gagne.' }
         : state.mode === 'highlander'
-        ? {
-            en: 'First down to one tile wins; otherwise the fewest tiles left. The time counts every restart.',
-            fr: 'Le premier à une seule tuile gagne ; sinon, le moins de tuiles restantes. Le temps compte chaque recommencement.',
-          }
-        : state.mode === 'race'
-          ? state.target === MERGE_TARGET_ENDLESS
-            ? {
-                en: 'No finish line: the biggest tile when everyone is stuck wins. Level n is the 2ⁿ tile.',
-                fr: 'Pas de ligne d’arrivée : la plus grosse tuile quand tout le monde est bloqué gagne. Niveau n = la tuile 2ⁿ.',
-              }
-            : {
-                en: `First to make ${targetLabel(state.target)} wins. Level n is the 2ⁿ tile.`,
-                fr: `Le premier à faire ${targetLabel(state.target)} gagne. Niveau n = la tuile 2ⁿ.`,
-              }
-          : { en: 'A merge scores the tile it makes. Level n is the 2ⁿ tile.', fr: 'Une fusion rapporte la tuile qu’elle crée. Niveau n = la tuile 2ⁿ.' };
+        ? { en: 'First down to one tile wins.', fr: 'Le premier à une seule tuile gagne.' }
+        : state.target === MERGE_TARGET_ENDLESS
+          ? {
+              en: 'No finish line: the biggest tile when everyone is stuck wins.',
+              fr: 'Pas de ligne d’arrivée : la plus grosse tuile quand tout le monde est bloqué gagne.',
+            }
+          : {
+              en: `First to make ${targetLabel(state.target)} wins.`,
+              fr: `Le premier à faire ${targetLabel(state.target)} gagne.`,
+            };
     return (
       <GameOverScreen
         room={room}

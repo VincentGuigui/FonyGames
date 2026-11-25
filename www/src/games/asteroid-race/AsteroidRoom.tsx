@@ -283,8 +283,8 @@ function TiltPrimer({
       <PermissionPrimer
         heading={heading}
         body={text({
-          en: 'Tilt was turned down, and it is the only way to fly this one — there is no stick and no tap version, so the ship has nothing to steer with.',
-          fr: 'L’inclinaison a été refusée, et c’est la seule façon de piloter — il n’y a ni stick ni version tactile, le vaisseau n’a donc rien pour se diriger.',
+          en: 'This game can only be played by tilting.',
+          fr: 'Ce jeu ne se joue qu’en inclinant le téléphone.',
         })}
         action={{ label: text({ en: 'Try again', fr: 'Réessayer' }), onClick: onEnable }}
       />
@@ -302,8 +302,8 @@ function TiltPrimer({
     <PermissionPrimer
       heading={heading}
       body={`${text({
-        en: 'Tilting flies the ship. Nothing is recorded — the tilt never leaves your phone at all, only how far down the track you have got.',
-        fr: 'L’inclinaison pilote le vaisseau. Rien n’est enregistré — l’inclinaison ne quitte jamais votre téléphone, seule votre distance est transmise.',
+        en: 'Tilting flies the ship.',
+        fr: 'L’inclinaison pilote le vaisseau.',
       })} ${isHost
         ? text({ en: 'Start the round and your phone will ask.', fr: 'Démarrez la manche et votre téléphone vous le demandera.' })
         : text({ en: 'Tap Ready and your phone will ask.', fr: 'Touchez Prêt et votre téléphone vous le demandera.' })}`}

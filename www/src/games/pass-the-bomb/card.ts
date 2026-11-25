@@ -15,7 +15,7 @@ import art from './art/card.svg?url&no-inline';
 export const CARD: GameCard = {
   slug: 'pass-the-bomb',
   title: 'Pass the Bomb',
-  pitch: 'Smash phones together to pass the bomb before it blows',
+  pitch: 'Bump phones to pass the bomb before it blows',
   concept: 'The fuse is hidden, so nobody knows how long they dare hold it.',
   rules: [
     'One phone holds the bomb.',
@@ -24,7 +24,7 @@ export const CARD: GameCard = {
   ],
   art: { src: art, alt: 'Two phones knocking together, a bomb jumping between them' },
   fr: {
-    pitch: 'Cognez les téléphones pour passer la bombe avant qu’elle n’explose',
+    pitch: 'Cognez doucement les téléphones pour passer la bombe avant qu’elle n’explose',
     concept: 'La mèche est cachée, alors personne ne sait combien de temps il ose la garder.',
     rules: [
       'Un téléphone porte la bombe.',
@@ -40,9 +40,6 @@ export const CARD: GameCard = {
   tags: ['party', 'physical'],
   modes: [
     { id: 'classic', name: 'Classic', blurb: 'One bomb, one loser at a time' },
-    { id: 'double', name: 'Double', blurb: 'Two bombs, half the mercy' },
-    { id: 'hot-hands', name: 'Hot Hands', blurb: 'Hold it too long and it speeds up' },
-    { id: 'teams', name: 'Teams', blurb: 'Two colours, one bomb, zero trust' },
   ],
   status: 'live',
 };

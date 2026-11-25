@@ -19,7 +19,7 @@ export const CARD: GameCard = {
   pitch: 'Tilt through the crowd. First up the street wins',
   concept: 'You walk up the street automatically. Tilt to steer.',
   rules: [
-    'Forward is automatic. Tilt to weave — upside down walks you backward.',
+    'Upside down walks you backward.',
     'Clip someone and you both bounce. Pile-ups cascade.',
     'Bicycles stop you cold for two seconds. Trees never move.',
   ],
@@ -28,7 +28,7 @@ export const CARD: GameCard = {
     pitch: 'Slalomez dans la foule. Premier en haut de la rue',
     concept: 'Vous avancez automatiquement dans la rue. Inclinez pour diriger.',
     rules: [
-      'L’avancée est automatique. Inclinez pour slalomer — à l’envers, vous reculez.',
+      'À l’envers, vous reculez.',
       'Frôlez quelqu’un et vous rebondissez tous les deux. Les carambolages s’enchaînent.',
       'Les vélos vous arrêtent net pendant deux secondes. Les arbres ne bougent jamais.',
     ],

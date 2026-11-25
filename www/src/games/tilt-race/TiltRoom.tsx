@@ -442,14 +442,11 @@ function TiltPrimer({
   }
 
   if (on) {
-    return <PermissionPrimer heading={heading} enabled body={text({
-      en: 'Ready. Turn the phone and the car turns with it, degree for degree — right round if you like. The map stays put.',
-      fr: 'Prêt. Tournez le téléphone et la voiture tourne avec lui, degré pour degré — un tour complet si vous voulez. La carte, elle, ne bouge pas.',
-    })} />;
+    return <PermissionPrimer heading={heading} enabled body={text({ en: 'Ready.', fr: 'Prêt.' })} />;
   }
 
   return <PermissionPrimer heading={heading} body={text({
-    en: 'This one needs the tilt sensor, and nothing else can play it. The phone is the steering wheel — turn it and the car turns with it.',
-    fr: 'Ce jeu a besoin du capteur d’inclinaison, et rien d’autre ne permet d’y jouer. Le téléphone est le volant — tournez-le et la voiture tourne avec lui.',
+    en: 'This one needs the tilt sensor, and nothing else can play it.',
+    fr: 'Ce jeu a besoin du capteur d’inclinaison, et rien d’autre ne permet d’y jouer.',
   })} />;
 }

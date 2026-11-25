@@ -18,7 +18,6 @@ export const CARD: GameCard = {
   pitch: 'One cat, a floor full of mice, and nowhere to hide',
   concept: 'One shared floor. Your mouse moves only while you are moving it.',
   rules: [
-    'Drag your own icon. Let go and it stops dead.',
     'The cat only has to touch you once.',
     'Three lives each. Outlast the clock and the mice win.',
   ],
@@ -27,7 +26,6 @@ export const CARD: GameCard = {
     pitch: 'Un chat, une pièce pleine de souris, et aucun endroit où se cacher',
     concept: 'Une pièce partagée. Votre souris ne bouge que pendant que vous la faites bouger.',
     rules: [
-      'Faites glisser votre icône. Relâchez et elle s’arrête net.',
       'Le chat n’a besoin de vous toucher qu’une fois.',
       'Trois vies chacun. Survivez au chrono et les souris gagnent.',
     ],

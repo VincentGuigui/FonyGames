@@ -4,7 +4,7 @@ import { catalogue } from '../games/registry';
 import { HubGrid } from './HubGrid';
 import { HubFilters } from './HubFilters';
 import { HubAdminPreview, useAdminPreview } from './HubAdminPreview';
-import { cardState, flagFor, type GameFlag } from '../../../shared/flags';
+import type { GameFlag } from '../../../shared/flags';
 import type { GameTag } from '../core/types';
 import { JoinByCode } from '../core/ui/JoinByCode';
 import { LocalePicker } from '../core/ui/LocalePicker';
@@ -43,10 +43,6 @@ export function Hub({
   const [selectedPlayers, setSelectedPlayers] = useState<number | null>(null);
   const { isAdmin, effectiveShowAll, previewProd, setPreviewProd } = useAdminPreview(showAll);
 
-  // "Nothing is playable yet" has to account for the flags, not just build-time status:
-  // with every built game disabled, the shell notice is the honest thing to show.
-  const anyPlayable = games.some((g) => cardState(g.status, flagFor(flags, g.slug), effectiveShowAll).playable);
-
   /*
    * Once per real page load. This runs only on the client — Preact effects never fire
    * during `scripts/ssr.mjs`'s build-time `renderToString` — so a build never reports a
@@ -76,8 +72,6 @@ export function Hub({
         players={selectedPlayers}
         onPlayersChange={setSelectedPlayers}
       />
-
-      {!anyPlayable && <p class="hub__notice">{t.hub.shellNotice}</p>}
 
       {grid ?? (
         <HubGrid

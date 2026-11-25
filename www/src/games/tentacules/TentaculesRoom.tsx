@@ -399,11 +399,6 @@ function Inner({ game: card, code }: { game: GameCard; code: string }): JSX.Elem
         rules={card.rules}
         status={text(MODE_TEXT[state.mode].name)}
         headline={state.solo ? text({ en: 'Well climbed!', fr: 'Bien grimpé !' }) : undefined}
-        note={text(
-          state.mode === 'trial'
-            ? { en: 'The highest point reached in a minute wins.', fr: 'Le point le plus haut atteint en une minute gagne.' }
-            : { en: `First to the ${TENT_SUMMIT_M} m line wins; otherwise the highest.`, fr: `Le premier à la ligne des ${TENT_SUMMIT_M} m gagne ; sinon, le plus haut.` },
-        )}
         rows={rows}
         me={myId}
         winner={state.winner}

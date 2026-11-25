@@ -108,12 +108,6 @@
   border-radius: var(--radius-sm);
 }
 
-.code-card__hint {
-  margin: var(--space-2) 0 0;
-  font-size: var(--font-small);
-  color: var(--color-text-dim);
-}
-
 /* --- buttons ------------------------------------------------------------- */
 
 .btn {
@@ -850,12 +844,6 @@ a.btn {
   margin-top: var(--space-4);
 }
 
-.choice__hint {
-  margin: var(--space-3) 0 0;
-  color: var(--color-text-dim);
-  font-size: var(--font-small);
-}
-
 /* --- collapsible panel (core/ui/Disclosure.tsx) --------------------------- */
 
 /*
@@ -975,7 +963,6 @@ a.btn {
 }
 
 .game-switcher__card-title { font-weight: 800; }
-.game-switcher__card-pitch { color: var(--color-text-dim); font-size: .8rem; }
 
 .lobby__switch-game {
   display: flex;

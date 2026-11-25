@@ -19,8 +19,7 @@ export const CARD: GameCard = {
   pitch: 'Find them in order. Fastest fingers win',
   concept: 'A hundred numbers, one shared shuffle. Every one visible — tap them in order.',
   rules: [
-    'All 100 numbers are on the board — find the next one and tap it.',
-    'Tap anything else and you fall back to your last checkpoint of ten.',
+    'A wrong tap sends you back to your last ten.',
     'No score — just a clock. First to clear all 100 wins.',
   ],
   art: {
@@ -31,8 +30,7 @@ export const CARD: GameCard = {
     pitch: 'Trouvez-les dans l’ordre. Les doigts les plus rapides gagnent',
     concept: 'Cent nombres, un seul mélange partagé. Tous visibles — touchez-les dans l’ordre.',
     rules: [
-      'Les 100 nombres sont sur le plateau — trouvez le suivant et touchez-le.',
-      'Touchez autre chose et vous retombez à votre dernier palier de dix.',
+      'Une erreur vous renvoie à votre dernière dizaine.',
       'Pas de score — juste un chrono. Premier à effacer les 100 gagne.',
     ],
     art: { alt: 'Une grille de 10×10 petits cercles en dégradé rose-violet, quelques-uns marqués de chiffres' },
