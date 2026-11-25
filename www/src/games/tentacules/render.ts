@@ -90,6 +90,10 @@ export type Frame = {
     /** The dragged tentacle would grab the peg under it if let go now. */
     dragOk: boolean;
     pull: Point | null;
+    /** How the body is moving, for the wobble: velocity, head lean (radians) and jelly squash (1 = none). */
+    vel: Point;
+    tilt: number;
+    squash: number;
   };
   shadows: Shadow[];
   /** Pegs held by other players: their colour, and since when. */
@@ -109,22 +113,36 @@ function root(body: Point, arm: number): Point {
   return { x: body.x + Math.cos(a) * HEAD * 0.18, y: body.y + Math.sin(a) * HEAD * 0.12 };
 }
 
-/** Where a free tentacle hangs: out from its root, drooping, swaying a little. */
-export function dangle(body: Point, arm: number, now: number, reduced: boolean): Point {
+/** Where a free tentacle hangs: out from its root, drooping, swaying a little and trailing the body's motion. */
+export function dangle(body: Point, arm: number, now: number, reduced: boolean, vel: Point = { x: 0, y: 0 }): Point {
   const a = Math.PI / 2 + (arm * 2 * Math.PI) / TENT_ARMS;
   const sway = reduced ? 0 : Math.sin(now / 420 + arm * 1.7) * 0.02;
-  return { x: body.x + Math.cos(a) * 0.13 + sway, y: body.y + Math.sin(a) * 0.08 - 0.07 };
+  const lag = reduced ? 0 : 0.05;
+  return { x: body.x + Math.cos(a) * 0.13 + sway - vel.x * lag, y: body.y + Math.sin(a) * 0.08 - 0.07 - vel.y * lag };
 }
 
-function tentacle(ctx: CanvasRenderingContext2D, f: Frame, from: Point, to: Point, color: string, alpha: number, suckers: boolean, curl: boolean): void {
+/** How much a tentacle's curve trails the body's velocity, in wall units per unit of speed. */
+const TRAIL = 0.06;
+
+function tentacle(
+  ctx: CanvasRenderingContext2D,
+  f: Frame,
+  from: Point,
+  to: Point,
+  color: string,
+  alpha: number,
+  suckers: boolean,
+  curl: boolean,
+  trail: Point = { x: 0, y: 0 },
+): void {
   const ax = sx(f, from.x);
   const ay = sy(f, from.y);
   const bx = sx(f, to.x);
   const by = sy(f, to.y);
   const len = Math.hypot(bx - ax, by - ay);
   // A soft droop: the control point sags below the straight line.
-  const cx = (ax + bx) / 2 + (by - ay) * 0.12;
-  const cy = (ay + by) / 2 + len * 0.22;
+  const cx = (ax + bx) / 2 + (by - ay) * 0.12 - trail.x * TRAIL * f.w;
+  const cy = (ay + by) / 2 + len * 0.22 + trail.y * TRAIL * f.w;
   const steps = 14;
   const base = f.w * 0.036;
   const tip = f.w * 0.011;
@@ -161,18 +179,20 @@ function tentacle(ctx: CanvasRenderingContext2D, f: Frame, from: Point, to: Poin
   ctx.restore();
 }
 
-function head(ctx: CanvasRenderingContext2D, f: Frame, body: Point, face: Face, tint: string, alpha: number): void {
+/** The head, leaning and squashing about the point the tentacles leave it from. */
+function head(ctx: CanvasRenderingContext2D, f: Frame, body: Point, face: Face, tint: string, alpha: number, tilt = 0, squash = 1): void {
   const size = HEAD * f.w;
   const sprite = FACES[face].at(size, f.dpr, tint);
-  const x = sx(f, body.x) - size / 2;
-  const y = sy(f, body.y) - size * 0.8;
   ctx.save();
   ctx.globalAlpha = alpha;
-  if (sprite) ctx.drawImage(sprite.source, x, y, size, size);
+  ctx.translate(sx(f, body.x), sy(f, body.y));
+  ctx.rotate(tilt);
+  ctx.scale(1 / squash, squash);
+  if (sprite) ctx.drawImage(sprite.source, -size / 2, -size * 0.8, size, size);
   else {
     ctx.fillStyle = tint;
     ctx.beginPath();
-    ctx.arc(x + size / 2, y + size / 2, size * 0.4, 0, Math.PI * 2);
+    ctx.arc(0, -size * 0.3, size * 0.4, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
@@ -286,7 +306,7 @@ export function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
   for (let arm = 0; arm < TENT_ARMS; arm++) {
     const from = root(me.body, arm);
     const held = me.holds[arm] ?? null;
-    let to: Point = held ?? dangle(me.body, arm, f.now, f.reduced);
+    let to: Point = held ?? dangle(me.body, arm, f.now, f.reduced, me.vel);
     let color = me.tint;
     if (me.drag?.arm === arm) {
       const dx = me.drag.at.x - me.body.x;
@@ -298,7 +318,7 @@ export function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
       else if (len > REACH) color = '#FF4D4D';
     }
     me.tips[arm] = to;
-    tentacle(ctx, f, from, to, color, 1, true, held !== null && me.drag?.arm !== arm);
+    tentacle(ctx, f, from, to, color, 1, true, held !== null && me.drag?.arm !== arm, f.reduced ? undefined : me.vel);
   }
   if (me.armed) {
     const pulse = f.reduced ? 1 : 0.5 + 0.5 * Math.sin(f.now / 110);
@@ -311,7 +331,7 @@ export function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
     ctx.font = `700 ${Math.round(w * 0.05)}px system-ui, sans-serif`;
     ctx.fillText('⤴', sx(f, me.body.x) + HEAD * w * 0.5, sy(f, me.body.y) - HEAD * w * 0.75);
   }
-  head(ctx, f, me.body, me.face, me.tint, 1);
+  head(ctx, f, me.body, me.face, me.tint, 1, me.tilt, me.squash);
   if (me.oneSince !== null) {
     const left = Math.max(0, 1 - (f.now - me.oneSince) / TENT_HANG_MS);
     ctx.strokeStyle = left < 0.34 ? '#FF4D4D' : '#FFFFFF';

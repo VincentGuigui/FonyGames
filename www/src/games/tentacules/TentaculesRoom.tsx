@@ -206,7 +206,7 @@ function Inner({ game: card, code }: { game: GameCard; code: string }): JSX.Elem
 
       if (started && !pull.current) {
         const near = pegsNear(st.seed, octo.current.body.y - 1.2, octo.current.body.y + 1.2);
-        const r = tick(octo.current, dt, at, near, taken);
+        const r = tick(octo.current, dt, at, near, taken, reduced);
         octo.current = r.octo;
         for (const s of r.send) send(s);
       }
@@ -272,6 +272,10 @@ function Inner({ game: card, code }: { game: GameCard; code: string }): JSX.Elem
             return r.ok && r.send.t === 'grab';
           })(),
           pull: pull.current?.by ?? null,
+          vel: o.vel,
+          // Lean against the swing and stretch with the fall: a hanging body is jelly.
+          tilt: reduced ? 0 : Math.max(-0.45, Math.min(0.45, -(o.vel.x * 0.7 + (o.body.x - (restAt?.x ?? o.body.x)) * 4))),
+          squash: reduced ? 1 : 1 + Math.max(-0.12, Math.min(0.12, o.vel.y * 0.06)),
         },
         shadows,
         rivals,

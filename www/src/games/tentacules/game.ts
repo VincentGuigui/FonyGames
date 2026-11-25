@@ -41,8 +41,20 @@ export type Send =
 
 /** A drop lands on the nearest peg within this of the finger. */
 export const SNAP = 0.08;
-/** How quickly the drawn body catches up with where its holds put it, per second. */
-const EASE = 12;
+/**
+ * The drawn body hangs from its holds on a spring: gravity sags it, a grab or a
+ * let-go sets it swinging, and it settles. Fewer tentacles means a looser spring
+ * and a longer wobble; five hold it almost still. Only the drawing — where the
+ * body *is* for the rules stays `rest()`, which the referee computes too.
+ */
+const SPRING = 70;
+const DAMPING_BASE = 7;
+const DAMPING_PER_ARM = 2.2;
+/** How far a body sags below its resting place, per missing tentacle (wall units). */
+const SAG_PER_MISSING = 0.01;
+/** A gentle push side to side while hanging by one or two tentacles. */
+const SWAY_ONE = 1.2;
+const SWAY_TWO = 0.6;
 /** Falling faster than this would tunnel past pegs a thumb could catch. */
 const TERMINAL = 5;
 /** Below the start by this much, a fall puts the octopus back on its starting pegs. */
@@ -124,14 +136,21 @@ export function launch(o: Octo, pull: Point): { octo: Octo; send: Send } | null 
  * way down grabs the highest free peg in reach by itself; a fall past the
  * bottom starts it again on its starting pegs.
  */
-export function tick(o: Octo, dt: number, now: number, near: readonly Peg[], taken: Taken): { octo: Octo; send: Send[] } {
+export function tick(o: Octo, dt: number, now: number, near: readonly Peg[], taken: Taken, calm = false): { octo: Octo; send: Send[] } {
   const send: Send[] = [];
   let next = o;
   if (o.mode === 'held') {
     const target = rest(o);
     if (!target) return { octo: settle({ ...o, mode: 'falling' }, now), send };
-    const k = 1 - Math.exp(-EASE * dt);
-    next = { ...o, body: { x: o.body.x + (target.x - o.body.x) * k, y: o.body.y + (target.y - o.body.y) * k } };
+    // Calm (reduced motion): critically damped, no sag, no sway — it just arrives.
+    const n = heldPegs(o).length;
+    const damping = calm ? 2 * Math.sqrt(SPRING) : DAMPING_BASE + DAMPING_PER_ARM * n;
+    const sag = calm ? 0 : SAG_PER_MISSING * (TENT_ARMS - n);
+    const sway = calm ? 0 : (n === 1 ? SWAY_ONE : n === 2 ? SWAY_TWO : 0) * Math.sin(now / 255);
+    const ax = SPRING * (target.x - o.body.x) - damping * o.vel.x + sway;
+    const ay = SPRING * (target.y - sag - o.body.y) - damping * o.vel.y;
+    const vel = { x: o.vel.x + ax * dt, y: o.vel.y + ay * dt };
+    next = { ...o, vel, body: { x: o.body.x + vel.x * dt, y: o.body.y + vel.y * dt } };
     if (o.oneSince !== null && now - o.oneSince >= TENT_HANG_MS) {
       const arms = o.holds.flatMap((h, i) => (h ? [i] : []));
       send.push({ t: 'let-go', arms });

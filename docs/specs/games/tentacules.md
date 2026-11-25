@@ -60,6 +60,14 @@ screen.
   star shows. Hanging by one tentacle, it dangles just below the peg. (A plain
   centroid was tried first: five tentacles stacked low anchored the body so far
   down that nothing above was ever in reach.)
+- **Gravity and wobble** (drawing only — where the body *is* for the rules stays
+  `place`, which the referee computes too): the drawn body hangs from its holds
+  on a spring. It sags a little below its resting place for each tentacle
+  missing, a grab or a let-go sets it swinging, and it settles; with one or two
+  tentacles it also sways gently side to side, with five it hangs almost still.
+  The head leans against the swing and stretches or squashes like jelly with the
+  fall, the tentacles trail the motion, and free ones dangle and sway. With
+  reduced motion it just arrives, with none of this.
 - **Letting go**: a tentacle dropped on empty space lets go and dangles; a drop
   on a peg out of reach springs back to the peg it left. Letting low tentacles
   go is how a climber stops them anchoring the body.

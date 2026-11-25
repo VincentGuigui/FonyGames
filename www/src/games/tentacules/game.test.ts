@@ -105,7 +105,36 @@ function reconciling(): void {
   check('the body stays held while others hold', knocked.mode === 'held' && place(knocked.holds.filter((h): h is Peg => h !== null)) !== null);
 }
 
+function hanging(): void {
+  console.log('\nthe body hangs, sags and wobbles (§2.1)');
+  const swing = (holds: (Peg | null)[], calm: boolean, from: Point) => {
+    let o: Octo = { ...fresh(), holds, body: from, vel: { x: 0, y: 0 }, mode: 'held', oneSince: null };
+    const target = rest(o) as Point;
+    const path: Point[] = [];
+    for (let i = 0; i < 360; i++) {
+      o = tick(o, 1 / 60, 10_000 + i * 16.7, [], nobody, calm).octo;
+      path.push({ ...o.body });
+    }
+    return { o, target, path };
+  };
+  const one = [peg(1, 0.5, 3), null, null, null, null];
+  const five = startPegs();
+  const t1 = place([peg(1, 0.5, 3)]) as Point;
+  const r1 = swing(one, false, { x: t1.x, y: t1.y + 0.3 });
+  check('dropped into place by one tentacle, the body swings past where it settles', r1.path.some((p) => p.y < r1.target.y - 0.045) && r1.path.some((p) => p.y > r1.target.y - 0.02), r1.target);
+  check('and settles, a little lower than its holds put it: gravity sags it', Math.abs(r1.o.body.y - (r1.target.y - 0.04)) < 0.02 && r1.o.body.y < r1.target.y);
+  check('hanging by one tentacle it keeps swaying side to side', Math.max(...r1.path.slice(240).map((p) => p.x)) - Math.min(...r1.path.slice(240).map((p) => p.x)) > 0.01);
+  const rest5 = place(five) as Point;
+  const r5 = swing(five, false, { x: rest5.x, y: rest5.y + 0.2 });
+  check('five tentacles hold it almost still, and level with its holds', Math.abs(r5.o.body.y - rest5.y) < 0.005 && Math.max(...r5.path.slice(240).map((p) => p.x)) - Math.min(...r5.path.slice(240).map((p) => p.x)) < 0.002);
+  const calm = swing(one, true, { x: t1.x, y: t1.y + 0.3 });
+  check('with reduced motion it just arrives: no overshoot, no sag, no sway', calm.path.every((p) => p.y >= calm.target.y - 0.005) && Math.abs(calm.o.body.y - calm.target.y) < 0.005);
+  check('and the rules are untouched: where the holds put it is still `rest`', JSON.stringify(rest({ ...fresh(), holds: one })) === JSON.stringify(place([peg(1, 0.5, 3)])));
+  check('numerically steady for six seconds', r1.path.every((p) => Number.isFinite(p.x) && Number.isFinite(p.y)) && Math.abs(r1.path[359]?.y ?? 99) < 5);
+}
+
 dropping();
+hanging();
 slinging();
 falling();
 reconciling();
