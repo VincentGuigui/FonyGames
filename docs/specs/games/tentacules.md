@@ -153,15 +153,16 @@ results.
   than the ones held.
 - **Your octopus is cute**, and that is a requirement, not a polish item: a
   round, soft head bigger than its body would suggest, two big shiny eyes with
-  white highlights, pink cheeks, a tiny smile — and **pink-lilac**, head and
-  tentacles, on every player's own screen (rivals' shadows keep their avatar
-  colour, so they are told apart). Its face reacts: content while
+  white highlights, rosy cheeks, a tiny smile — and **coral-rose** (`#FF7F90`,
+  a step from the card's coral accent), head and tentacles, on every player's
+  own screen (rivals' shadows keep their avatar colour, so they are told apart).
+  The tentacles are the head's own pink taken the same way, so they match. Its face reacts: content while
   holding on; worried brows and a wobbly mouth hanging by one tentacle;
   squeezed eyes and an "o" mouth while pulling back the slingshot; a delighted
   open smile in flight; dizzy spiral eyes after a fall. The faces are sprites
   in `art/` (one SVG per expression), the head shape stays the same. Tentacles
-  are drawn as soft tapering curves with a row of little suckers, ending in a
-  curl where they hold. A dragged
+  are drawn as soft tapering curves with a row of little suckers; a held one
+  wraps its peg and its **tip points away from the octopus**. A dragged
   tentacle follows the finger, turning red at the edge of its reach. Yellow
   blink when the slingshot is armed; a dashed arc while pulling back shows the
   launch direction.

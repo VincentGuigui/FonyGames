@@ -1,6 +1,7 @@
 import { TENT_ARMS, TENT_SQUAT_MS, TENT_SUMMIT_M, TENT_HANG_MS } from '../../../../shared/protocol';
 import { REACH, START_BODY, bandPegs, startPegs, type Peg, type Point } from '../../../../shared/tentacules';
 import { art, type SpriteSheet } from '../../core/art/sprites';
+import { ART_REFERENCE_HUE, hexHue, rotatedPixel } from '../../core/art/tint';
 import happyArt from './art/octopus-happy.svg?url&no-inline';
 import worriedArt from './art/octopus-worried.svg?url&no-inline';
 import strainArt from './art/octopus-strain.svg?url&no-inline';
@@ -30,8 +31,16 @@ const DECOR = [art(coralArt), art(weedArt)];
 /** The head is this wide, in wall units; the tentacles leave it at 80 % of its height. */
 export const HEAD = 0.2;
 const PEG_R = 0.022;
-/** Every player's own octopus is this pink-lilac; rivals keep their avatar colour as shadows. */
-export const OCTO_PINK = '#E58BEA';
+/** Every player's own octopus is this coral-rose, a step from the game's accent;
+ *  rivals keep their avatar colour as shadows. The head sprite is carried to it
+ *  by hue; the tentacles are the head's own pink taken the same way, a little lighter. */
+export const OCTO_COLOR = '#FF7F90';
+
+/** The tentacle colour that goes with a head tinted `tint` (the sprite is painted in `ART_REFERENCE_HUE`). */
+function skinOf(tint: string): string {
+  const [r, g, b] = rotatedPixel(240, 128, 240, hexHue(tint) - ART_REFERENCE_HUE);
+  return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+}
 /** A dragged tentacle over a peg it can take. */
 const GRAB_OK = '#4ADE80';
 
@@ -171,9 +180,20 @@ function tentacle(
     py = y;
   }
   if (curl) {
-    ctx.lineWidth = tip * 1.4;
+    // The end wraps the peg and its tip points away from the octopus.
+    const dx = bx - ax;
+    const dy = by - ay;
+    const d = Math.hypot(dx, dy) || 1;
+    const ux = dx / d;
+    const uy = dy / d;
+    const side = ux >= 0 ? 1 : -1;
+    const px = -uy * side;
+    const py = ux * side;
+    const r = PEG_R * f.w * 1.5;
+    ctx.lineWidth = tip * 1.5;
     ctx.beginPath();
-    ctx.arc(bx, by, PEG_R * f.w * 1.25, Math.PI * 0.1, Math.PI * 1.7);
+    ctx.moveTo(bx - ux * r * 0.4, by - uy * r * 0.4);
+    ctx.bezierCurveTo(bx + px * r * 1.6 - ux * r * 0.6, by + py * r * 1.6 - uy * r * 0.6, bx + px * r * 1.5 + ux * r * 1.8, by + py * r * 1.5 + uy * r * 1.8, bx + ux * r * 2.1, by + uy * r * 2.1);
     ctx.stroke();
   }
   ctx.restore();
@@ -292,6 +312,7 @@ export function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
 
   // Me.
   const me = f.me;
+  const skin = skinOf(me.tint);
   if (me.pull) {
     const from = { x: sx(f, me.body.x), y: sy(f, me.body.y) };
     ctx.strokeStyle = '#FFD84D';
@@ -307,7 +328,7 @@ export function draw(ctx: CanvasRenderingContext2D, f: Frame): void {
     const from = root(me.body, arm);
     const held = me.holds[arm] ?? null;
     let to: Point = held ?? dangle(me.body, arm, f.now, f.reduced, me.vel);
-    let color = me.tint;
+    let color = skin;
     if (me.drag?.arm === arm) {
       const dx = me.drag.at.x - me.body.x;
       const dy = me.drag.at.y - me.body.y;

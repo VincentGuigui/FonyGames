@@ -3,41 +3,45 @@
     Tentacules — hub card illustration.
     Style: docs/design/ui-guidelines.md §6 · mechanics: docs/design/illustrations.md
 
-    A cute coral octopus climbing a reef wall: big shiny eyes, pink cheeks, a
-    small smile, four tentacles curled round pegs and the fifth stretching for
-    a higher one. The coral is the card's accent. Literal hexes: this loads
-    through an img element with no access to the page's CSS.
+    The in-game octopus (art/octopus-happy.svg, carried to the game's coral-rose
+    as the room does) on a piece of reef wall: the same tall head, big shiny eyes,
+    rosy cheeks and small smile, four tentacles curled round pegs with their tips
+    pointing away, one reaching for a higher peg. The card's accent frames the wall.
+    Literal hexes: this loads through an img element with no access to the page's CSS.
   -->
-  <g fill="#3A4256" stroke="#1B2030" stroke-width="1.6">
-    <circle cx="22" cy="78" r="4.5"/>
-    <circle cx="96" cy="74" r="4.5"/>
-    <circle cx="28" cy="40" r="4.5"/>
-    <circle cx="94" cy="36" r="4.5"/>
-    <circle cx="78" cy="10" r="4.5"/>
-    <circle cx="46" cy="12" r="4.5"/>
+  <rect x="3.5" y="3.5" width="113" height="83" rx="9" fill="#12304E" stroke="#FF7F6E" stroke-width="2"/>
+  <g fill="#C9D6E8" stroke="#1B2030" stroke-width="1.4">
+    <circle cx="24" cy="72" r="3.6"/>
+    <circle cx="96" cy="70" r="3.6"/>
+    <circle cx="20" cy="42" r="3.6"/>
+    <circle cx="100" cy="40" r="3.6"/>
+    <circle cx="90" cy="14" r="3.6"/>
+    <circle cx="30" cy="16" r="3.6"/>
   </g>
-  <g fill="none" stroke="#FF7F6E" stroke-linecap="round">
-    <path d="M52 56 C 40 62, 30 70, 22 78" stroke-width="6"/>
-    <path d="M68 56 C 80 62, 90 68, 96 74" stroke-width="6"/>
-    <path d="M50 46 C 40 44, 32 42, 28 40" stroke-width="6"/>
-    <path d="M70 46 C 80 42, 88 38, 94 36" stroke-width="6"/>
-    <path d="M62 36 C 64 26, 70 16, 76 12" stroke-width="5"/>
+  <g fill="none" stroke="#F0808F" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M52 40 C 42 52 32 62 24 72 C 20 77 16 77 12 80" stroke-width="5"/>
+    <path d="M68 40 C 78 52 88 60 96 70 C 100 75 104 76 108 80" stroke-width="5"/>
+    <path d="M47 33 C 38 36 28 40 20 42 C 15 43 11 42 8 38" stroke-width="5"/>
+    <path d="M73 33 C 82 33 92 37 100 40 C 105 41 109 40 112 36" stroke-width="5"/>
+    <path d="M64 33 C 68 26 74 20 80 17" stroke-width="4.5"/>
   </g>
   <g fill="#FFFFFF" fill-opacity="0.55">
-    <circle cx="36" cy="68" r="1.3"/>
-    <circle cx="30" cy="73" r="1.3"/>
-    <circle cx="84" cy="65" r="1.3"/>
-    <circle cx="90" cy="69" r="1.3"/>
+    <circle cx="38" cy="58" r="1.2"/>
+    <circle cx="32" cy="64" r="1.2"/>
+    <circle cx="82" cy="56" r="1.2"/>
+    <circle cx="88" cy="62" r="1.2"/>
   </g>
-  <path d="M60 22 C 42 22, 40 38, 41 46 C 42 56, 50 60, 60 60 C 70 60, 78 56, 79 46 C 80 38, 78 22, 60 22 Z" fill="#FF7F6E" stroke="#B24A3F" stroke-width="2"/>
-  <ellipse cx="54" cy="31" rx="5" ry="3" fill="#FFFFFF" fill-opacity="0.5"/>
-  <ellipse cx="52" cy="43" rx="5.5" ry="6.5" fill="#FFFFFF" stroke="#1B2030" stroke-width="1.2"/>
-  <ellipse cx="68" cy="43" rx="5.5" ry="6.5" fill="#FFFFFF" stroke="#1B2030" stroke-width="1.2"/>
-  <circle cx="53" cy="45" r="3.4" fill="#1B2030"/>
-  <circle cx="69" cy="45" r="3.4" fill="#1B2030"/>
-  <circle cx="54.2" cy="43.6" r="1.2" fill="#FFFFFF"/>
-  <circle cx="70.2" cy="43.6" r="1.2" fill="#FFFFFF"/>
-  <ellipse cx="45" cy="51" rx="3.2" ry="2" fill="#FF4F8B" fill-opacity="0.7"/>
-  <ellipse cx="75" cy="51" rx="3.2" ry="2" fill="#FF4F8B" fill-opacity="0.7"/>
-  <path d="M57 52 Q 60 55, 63 52" fill="none" stroke="#1B2030" stroke-width="1.5" stroke-linecap="round"/>
+  <g transform="translate(37 4) scale(0.46)">
+    <path d="M50 8 C 22 8, 15 34, 16 50 C 17 72, 31 87, 50 87 C 69 87, 83 72, 84 50 C 85 34, 78 8, 50 8 Z" fill="#E85A6D" stroke="#7A222E" stroke-width="3.5"/>
+    <ellipse cx="38" cy="24" rx="10" ry="6" fill="#F7B0B9" transform="rotate(-20 38 24)"/>
+    <ellipse cx="37" cy="52" rx="9.5" ry="11.5" fill="#FFFFFF" stroke="#1B1B26" stroke-width="2"/>
+    <ellipse cx="63" cy="52" rx="9.5" ry="11.5" fill="#FFFFFF" stroke="#1B1B26" stroke-width="2"/>
+    <circle cx="37" cy="54" r="6" fill="#1B1B26"/>
+    <circle cx="63" cy="54" r="6" fill="#1B1B26"/>
+    <circle cx="39.2" cy="51.4" r="2.2" fill="#FFFFFF"/>
+    <circle cx="65.2" cy="51.4" r="2.2" fill="#FFFFFF"/>
+    <ellipse cx="25" cy="66" rx="6" ry="3.6" fill="#FF4F8F" fill-opacity="0.75"/>
+    <ellipse cx="75" cy="66" rx="6" ry="3.6" fill="#FF4F8F" fill-opacity="0.75"/>
+    <path d="M44 72 Q 50 77, 56 72" fill="none" stroke="#1B1B26" stroke-width="2.6" stroke-linecap="round"/>
+  </g>
 </svg>

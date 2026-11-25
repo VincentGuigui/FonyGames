@@ -25,7 +25,7 @@ import { useT } from '../../core/i18n/strings';
 import { useGameText } from '../../core/i18n/gameText';
 import { colorFor, loadAvatarColors } from '../../core/avatarColor';
 import { armed, drop, fresh, heldPegs, launch, reconcile, rest, tick, type Octo, type Send } from './game';
-import { OCTO_PINK, draw, pegOf, pegsNear, type Face, type Frame, type Rival, type Shadow } from './render';
+import { OCTO_COLOR, draw, pegOf, pegsNear, type Face, type Frame, type Rival, type Shadow } from './render';
 import './tentacules.css';
 
 /**
@@ -258,7 +258,7 @@ function Inner({ game: card, code }: { game: GameCard; code: string }): JSX.Elem
         summit: st.mode === 'summit',
         reduced,
         me: {
-          tint: OCTO_PINK,
+          tint: OCTO_COLOR,
           body,
           holds: o.holds,
           tips: tips.current,
