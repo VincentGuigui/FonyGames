@@ -1,5 +1,5 @@
 import type { JSX } from 'preact';
-import { MERGE_MODES, MERGE_TARGETS, type MergeMode, type MergeOptions } from '../../../../shared/protocol';
+import { MERGE_MODES, MERGE_SERIES, MERGE_TARGETS, type MergeMode, type MergeOptions, type MergeSeries } from '../../../../shared/protocol';
 import { useGameText } from '../../core/i18n/gameText';
 import { modeBlurb, modeName, targetLabel } from './modes';
 
@@ -70,6 +70,24 @@ export function MergeOptionsPanel({
                         fr: 'Fusionner en 64 ou plus débloque un malus : glissez-le sur un adversaire pour l’envoyer',
                       })}
                     </span>
+                  </label>
+                </div>
+              )}
+              {mode === 'highlander' && value.mode === 'highlander' && (
+                <div class="merge-options__race">
+                  <label class="merge-options__target">
+                    <span>{text({ en: 'Series', fr: 'Série' })}</span>
+                    <select
+                      value={value.series}
+                      disabled={!editable}
+                      onChange={(e) => onChange({ ...value, series: (e.currentTarget as HTMLSelectElement).value as MergeSeries })}
+                    >
+                      {MERGE_SERIES.map((s) => (
+                        <option key={s} value={s}>
+                          {text(s === 'ten' ? { en: '10 rounds', fr: '10 manches' } : { en: 'Endless', fr: 'Sans fin' })}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 </div>
               )}

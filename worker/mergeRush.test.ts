@@ -1,6 +1,8 @@
 import {
   MERGE_COUNTDOWN_MS,
   MERGE_HIGHLANDER_MS,
+  MERGE_HIGHLANDER_ROUNDS,
+  MERGE_ROUND_GRACE_MS,
   MERGE_MAX_PLAYERS,
   MERGE_RACE_CAP_MS,
   MERGE_TARGET_ENDLESS,
@@ -12,7 +14,7 @@ import {
   MERGE_MALUS_STOCK,
   type ServerMessage,
 } from '../shared/protocol';
-import { crescendoPuzzle, mass, maxMoves, maxScore, newGame, puzzle, slide, solveDepth, startBoard, step, tilesLeft, DIRS, type Board, type Dir, type Game } from '../shared/merge';
+import { crescendoPuzzle, highlanderPuzzle, mass, maxMoves, maxScore, newGame, slide, solveDepth, startBoard, step, tilesLeft, DIRS, type Board, type Dir, type Game } from '../shared/merge';
 import { nextDeadline, onMergeBoard, onMergeMalus, onPlayerGone, startMergeRush, tick, toState, type Ctx, type MergeRush } from './mergeRush';
 
 /**
@@ -364,9 +366,11 @@ async function modes(): Promise<void> {
   const hl = harness();
   await startMergeRush(hl.ctx, 1, [A, B, C], { mode: 'highlander' });
   const h = hl.state();
-  check('Highlander runs a minute', h.roundMs === MERGE_HIGHLANDER_MS);
-  check('on the seed\'s puzzle, for everyone', JSON.stringify(h.start) === JSON.stringify(puzzle(h.seed)) && JSON.stringify(h.boards[A]?.board) === JSON.stringify(h.start));
+  check('Highlander runs a minute a puzzle', h.roundMs === MERGE_HIGHLANDER_MS);
+  check('nothing chosen is a series of ten rounds, starting at round 1', toState(h).series === 'ten' && toState(h).round === 1 && toState(h).rounds === MERGE_HIGHLANDER_ROUNDS && toState(h).last === null);
+  check('on the seed\'s first puzzle, for everyone', JSON.stringify(h.start) === JSON.stringify(highlanderPuzzle(h.seed, 1)) && JSON.stringify(h.boards[A]?.board) === JSON.stringify(h.start));
   check('which can be solved', solveDepth(h.start) !== null);
+  check('and the next round has another', JSON.stringify(highlanderPuzzle(h.seed, 2)) !== JSON.stringify(highlanderPuzzle(h.seed, 1)));
   hl.advance(MERGE_COUNTDOWN_MS + 40_000);
 
   const cheat = [...h.start];
@@ -376,36 +380,81 @@ async function modes(): Promise<void> {
   const one = new Array(16).fill(0);
   one[0] = 17;
   await onMergeBoard(hl.ctx, A, 1, one, 0, 5, true);
-  check('nor is a single tile worth more than the puzzle', hl.state().phase === 'playing');
+  check('nor is a single tile worth more than the puzzle', hl.state().phase === 'playing' && hl.state().round === 1);
+  check('a phone saying it is done changes nothing: only a solve or the clock ends a round', hl.state().boards[A]?.over === false);
 
   const part = slide(h.start, 'left').moved ? slide(h.start, 'left').board : slide(h.start, 'right').board;
-  await onMergeBoard(hl.ctx, C, 1, part, 0, 1, false);
+  await onMergeBoard(hl.ctx, C, 1, part, 0, 1, false, undefined, undefined, 1);
   const win = solved(h.start);
-  await onMergeBoard(hl.ctx, B, 1, win.board, 0, win.moves, true);
-  check(`the first phone down to one tile wins (${win.moves} moves)`, hl.state().phase === 'done' && hl.state().winner === B);
-  check('and its duration is the referee\'s clock from the round start', hl.state().boards[B]?.solvedMs === 40_000, hl.state().boards[B]);
-  check('while a player who did not finish has none', hl.state().boards[C]?.solvedMs === undefined && hl.state().boards[A]?.solvedMs === undefined);
-  check('the duration reaches the room', toState(hl.state()).boards[B]?.solvedMs === 40_000);
+  await onMergeBoard(hl.ctx, B, 1, win.board, 0, win.moves, false, undefined, undefined, 1);
+  const after = hl.state();
+  check(`the first phone down to one tile wins the round (${win.moves} moves)`, after.last?.round === 1 && after.last.winner === B && after.boards[B]?.wins === 1);
+  check('its time is the referee\'s clock from the round start', after.boards[B]?.winMs === 40_000, after.boards[B]);
+  check('and the series goes on with round 2', after.phase === 'playing' && after.round === 2 && toState(after).round === 2);
+  check('a new puzzle, dealt to everyone, with its own countdown', JSON.stringify(after.start) === JSON.stringify(highlanderPuzzle(after.seed, 2)) && JSON.stringify(after.boards[C]?.board) === JSON.stringify(after.start) && after.startsAt === hl.now + MERGE_COUNTDOWN_MS);
+  check('and its own clock', after.endsAt === after.startsAt + MERGE_HIGHLANDER_MS + MERGE_ROUND_GRACE_MS);
+  check('nobody else has a win', after.boards[A]?.wins === undefined && after.boards[C]?.wins === undefined);
 
-  const rs = harness();
-  await startMergeRush(rs.ctx, 1, [A, B], { mode: 'highlander' });
-  const p0 = rs.state().start;
-  const ans = solved(p0);
-  rs.advance(MERGE_COUNTDOWN_MS + 20_000);
-  await onMergeBoard(rs.ctx, A, 1, p0, 0, 3, false);
-  rs.advance(35_000);
-  await onMergeBoard(rs.ctx, A, 1, ans.board, 0, ans.moves + 6, true);
-  check('a restart does not stop the clock: the time is the whole 55 s', rs.state().boards[A]?.solvedMs === 55_000, rs.state().boards[A]);
+  await onMergeBoard(hl.ctx, C, 1, solved(h.start).board, 0, 9, false, undefined, undefined, 1);
+  check('a report about the round just ended is ignored', hl.state().boards[C]?.wins === undefined && hl.state().round === 2);
 
-  const cap = harness();
-  await startMergeRush(cap.ctx, 1, [A, B], { mode: 'highlander' });
-  const c0 = cap.state().start;
-  cap.advance(MERGE_COUNTDOWN_MS + 30_000);
-  const fewer = DIRS.map((d) => slide(c0, d)).find((x) => x.moved && tilesLeft(x.board) < tilesLeft(c0));
-  if (fewer) await onMergeBoard(cap.ctx, B, 1, fewer.board, 0, 1, false);
-  cap.advance(MERGE_HIGHLANDER_MS + MERGE_REPORT_GRACE_MS);
-  await tick(cap.ctx);
-  check('Highlander unsolved at the bell goes to the fewest tiles left', cap.state().phase === 'done' && cap.state().winner === (fewer ? B : A));
+  // Ten rounds, each solved by whoever is named, and the series ends on the tenth.
+  const ten = harness();
+  await startMergeRush(ten.ctx, 1, [A, B], { mode: 'highlander', series: 'ten' });
+  const solveRound = async (who: string): Promise<void> => {
+    const t = ten.state();
+    ten.advance(Math.max(0, t.startsAt - ten.now) + 10_000);
+    const sol = solved(t.start);
+    await onMergeBoard(ten.ctx, who, 1, sol.board, 0, sol.moves, false, undefined, undefined, t.round);
+  };
+  for (let r = 1; r <= 9; r++) await solveRound(r <= 6 ? A : B);
+  check('after nine rounds it is still on', ten.state().phase === 'playing' && ten.state().round === 10);
+  await solveRound(B);
+  check('the tenth round ends the series', ten.state().phase === 'done');
+  check('most rounds won wins: B won 4', ten.state().boards[B]?.wins === 4 && ten.state().boards[A]?.wins === 6 && ten.state().winner === A);
+
+  // The same rounds won: the shorter total time.
+  const level = harness();
+  await startMergeRush(level.ctx, 1, [A, B], { mode: 'highlander', series: 'ten' });
+  for (let r = 1; r <= 10; r++) {
+    const t = level.state();
+    level.advance(Math.max(0, t.startsAt - level.now) + (r % 2 === 1 ? 5_000 : 20_000));
+    const sol = solved(t.start);
+    await onMergeBoard(level.ctx, r % 2 === 1 ? B : A, 1, sol.board, 0, sol.moves, false, undefined, undefined, t.round);
+  }
+  check('five rounds each: the quicker total time wins', level.state().boards[A]?.wins === 5 && level.state().boards[B]?.wins === 5 && level.state().winner === B, [level.state().boards[A]?.winMs, level.state().boards[B]?.winMs]);
+
+  // Endless: the first puzzle nobody solves in time ends it.
+  const en = harness();
+  await startMergeRush(en.ctx, 1, [A, B], { mode: 'highlander', series: 'endless' });
+  check('endless has no number of rounds', toState(en.state()).series === 'endless' && toState(en.state()).rounds === 0);
+  for (let r = 1; r <= 12; r++) {
+    const t = en.state();
+    en.advance(Math.max(0, t.startsAt - en.now) + 15_000);
+    const sol = solved(t.start);
+    await onMergeBoard(en.ctx, B, 1, sol.board, 0, sol.moves, false, undefined, undefined, t.round);
+  }
+  check('past ten rounds it keeps going while they are solved', en.state().phase === 'playing' && en.state().round === 13 && en.state().boards[B]?.wins === 12);
+  const open = en.state();
+  en.advance(Math.max(0, open.startsAt - en.now) + MERGE_HIGHLANDER_MS + MERGE_ROUND_GRACE_MS);
+  await tick(en.ctx);
+  check('a puzzle nobody solves ends the series', en.state().phase === 'done' && en.state().last?.winner === null && en.state().last?.round === 13);
+  check('and the most rounds won wins', en.state().winner === B);
+
+  // A ten-round series where a puzzle goes unsolved just moves on.
+  const unsolved = harness();
+  await startMergeRush(unsolved.ctx, 1, [A, B], { mode: 'highlander', series: 'ten' });
+  unsolved.advance(MERGE_COUNTDOWN_MS + MERGE_HIGHLANDER_MS + MERGE_ROUND_GRACE_MS);
+  await tick(unsolved.ctx);
+  check('an unsolved round of ten moves on, with no point for anyone', unsolved.state().phase === 'playing' && unsolved.state().round === 2 && unsolved.state().last?.winner === null && unsolved.state().boards[A]?.wins === undefined);
+  unsolved.advance(MERGE_RACE_CAP_MS);
+  await tick(unsolved.ctx);
+  check('the 30 min cap ends a series that runs on', unsolved.state().phase === 'done');
+
+  const gone = harness();
+  await startMergeRush(gone.ctx, 1, [A], { mode: 'highlander', series: 'ten' }, true);
+  await onPlayerGone(gone.ctx, A);
+  check('everyone gone ends it', gone.state().phase === 'done');
 }
 
 async function aggressive(): Promise<void> {

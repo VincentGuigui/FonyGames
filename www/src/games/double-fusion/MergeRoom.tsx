@@ -90,18 +90,18 @@ function Thumb({ board }: { board: readonly number[] }): JSX.Element {
 /** How long a slide takes; double-fusion.css's `--slide` is the same number. */
 const SLIDE_MS = 110;
 
-const DEFAULT_MERGE_PANEL: MergeOptions = { mode: 'crescendo', target: MERGE_DEFAULT_TARGET, aggressive: false };
+const DEFAULT_MERGE_PANEL: MergeOptions = { mode: 'crescendo', target: MERGE_DEFAULT_TARGET, aggressive: false, series: 'ten' };
 
 /** How long "Level n ✓" holds before the next Crescendo level is dealt. */
 const LEVEL_BEAT_MS = 700;
 
-/** What the host's panel shows: a race's settings are kept even in other modes,
- *  so switching back to a race does not forget them. */
+/** What the host's panel shows: a race's and Highlander's settings are kept even
+ *  in other modes, so switching back does not forget them. */
 function normaliseMergeOptionsForPanel(raw: unknown): MergeOptions {
   const o = normaliseMergeOptions(raw);
   const r = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
   const race = normaliseMergeOptions({ mode: 'race', target: r['target'], aggressive: r['aggressive'] });
-  return { mode: o.mode, target: race.target, aggressive: race.aggressive };
+  return { mode: o.mode, target: race.target, aggressive: race.aggressive, series: normaliseMergeOptions({ mode: 'highlander', series: r['series'] }).series };
 }
 
 /** Another player's board, full size and live, while you watch it (spec §4). */
@@ -218,6 +218,11 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   const pending = useRef<number | undefined>(undefined);
   const roundRef = useRef(roundId);
   roundRef.current = roundId;
+  /** Highlander: the round being played, which a report must name (the referee ignores a late one). */
+  const roundNoRef = useRef(1);
+  roundNoRef.current = state?.round ?? 1;
+  /** One board is built per round of a series, not only per room round. */
+  const buildKey = roundId === undefined ? undefined : roundId * 100 + (state?.round ?? 1);
 
   /** Send the latest board now; `done` says this phone is finished. */
   const send = useCallback((done: boolean) => {
@@ -229,7 +234,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     sentAt.current = performance.now();
     clientRef.current?.send({
       t: 'merge-board',
-      d: { roundId: id, board: [...g.board], score: g.score, moves: g.moves, over: done, level: levelRef.current, fusions: fusions.current },
+      d: { roundId: id, board: [...g.board], score: g.score, moves: g.moves, over: done, level: levelRef.current, fusions: fusions.current, round: roundNoRef.current },
     });
   }, []);
 
@@ -246,8 +251,8 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   const builtFor = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (roundId === undefined || startBoard === undefined || !playing || myId === undefined) return;
-    if (builtFor.current === roundId) return;
-    builtFor.current = roundId;
+    if (builtFor.current === buildKey) return;
+    builtFor.current = buildKey;
     const mine = state?.boards[myId];
     let g: Game = mine && mine.moves > 0 ? { board: mine.board, score: mine.score, moves: mine.moves } : { board: startBoard, score: 0, moves: 0 };
     if (state?.mode === 'crescendo' && seed !== undefined) {
@@ -282,7 +287,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const built = tilesFromBoard(g.board, nextTileId.current);
     nextTileId.current = built.nextId;
     showTiles(built.tiles);
-  }, [roundId, startBoard, playing, myId, state, seed, showTiles]);
+  }, [roundId, buildKey, startBoard, playing, myId, state, seed, showTiles]);
 
   /* The admin's solo test: a local rival, one move a second (bot.ts). Its board is
      the only part React draws; the rest of it lives in a ref. */
@@ -500,7 +505,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   // at it fly from their sender's thumbnail to where they land.
   const maluses = state?.maluses;
   useEffect(() => {
-    if (!maluses || builtFor.current !== roundId || myId === undefined) return;
+    if (!maluses || builtFor.current !== buildKey || myId === undefined) return;
     for (const m of maluses) {
       if (m.id <= seenMalus.current) continue;
       seenMalus.current = m.id;
@@ -626,10 +631,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
 
   /** The number beside a player in the strip and on the results: what the mode is won on. */
   const standing = (e: MergeEntry, m: typeof mode): { en: string; fr: string } => {
-    if (m === 'highlander') {
-      const left = tilesLeft(e.board);
-      return { en: `${left} ${left === 1 ? 'tile' : 'tiles'}`, fr: `${left} ${left === 1 ? 'tuile' : 'tuiles'}` };
-    }
+    if (m === 'highlander') return { en: `🏆 ${e.wins ?? 0}`, fr: `🏆 ${e.wins ?? 0}` };
     if (m === 'race') return { en: String(bestTile(e.board)), fr: String(bestTile(e.board)) };
     // The level they are on, as their own screen says, not the ones they have finished.
     const on = crescendoLevelOn(e.level ?? 0);
@@ -641,7 +643,6 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const rows = Object.entries(state.boards)
       .sort((a, b) => (a[0] === state.winner ? -1 : b[0] === state.winner ? 1 : ahead(a[1], b[1])))
       .map(([id, e]) => {
-        const left = tilesLeft(e.board);
         return {
           id,
           avatar: avatarOf(id),
@@ -657,9 +658,12 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
                   }
                 : { en: '0 levels', fr: '0 niveau' }
               : state.mode === 'highlander'
-              ? e.solvedMs !== undefined
-                ? { en: formatDuration(e.solvedMs), fr: formatDuration(e.solvedMs) }
-                : { en: `${left} ${left === 1 ? 'tile' : 'tiles'} left`, fr: `${left} ${left === 1 ? 'tuile restante' : 'tuiles restantes'}` }
+              ? (e.wins ?? 0) > 0 && e.winMs !== undefined
+                ? {
+                    en: `${e.wins} ${e.wins === 1 ? 'win' : 'wins'} · ${formatDuration(e.winMs)}`,
+                    fr: `${e.wins} ${e.wins === 1 ? 'victoire' : 'victoires'} · ${formatDuration(e.winMs)}`,
+                  }
+                : { en: '0 wins', fr: '0 victoire' }
               : { en: String(bestTile(e.board)), fr: String(bestTile(e.board)) },
           ),
           out: false,
@@ -669,7 +673,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
       state.mode === 'crescendo'
         ? { en: 'Most levels wins.', fr: 'Le plus de niveaux gagne.' }
         : state.mode === 'highlander'
-        ? { en: 'First down to one tile wins.', fr: 'Le premier à une seule tuile gagne.' }
+        ? { en: 'Most rounds won wins.', fr: 'Le plus de manches gagnées gagne.' }
         : state.target === MERGE_TARGET_ENDLESS
           ? {
               en: 'No finish line: the biggest tile when everyone is stuck wins.',
@@ -771,6 +775,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
           <p class="merge__goal">
             {text(modeName(mode, target))}
             {mode === 'crescendo' && ` · ${tilesLeft(board)} ${text({ en: 'tiles', fr: 'tuiles' })}`}
+            {mode === 'highlander' && ` · ${text({ en: 'Round', fr: 'Manche' })} ${state.round ?? 1}${(state.rounds ?? 0) > 0 ? `/${state.rounds}` : ''}`}
           </p>
         )}
         </div>
@@ -880,6 +885,13 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
         )}
 
         {countdown > 0 && <p class="merge__overlay merge__overlay--count" aria-live="assertive">{countdown}</p>}
+        {countdown > 0 && mode === 'highlander' && state.last && state.last.round === (state.round ?? 1) - 1 && (
+          <p class="merge__banner" aria-live="polite">
+            {state.last.winner
+              ? text({ en: `${avatarOf(state.last.winner)} ${nameOf(state.last.winner)} wins round ${state.last.round}`, fr: `${avatarOf(state.last.winner)} ${nameOf(state.last.winner)} gagne la manche ${state.last.round}` })
+              : text({ en: `Nobody solved round ${state.last.round}`, fr: `Personne n’a résolu la manche ${state.last.round}` })}
+          </p>
+        )}
         {notice && (
           <p key={notice.id} class="merge__notice" aria-live="assertive">
             {notice.text}

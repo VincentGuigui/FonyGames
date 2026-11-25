@@ -6,7 +6,7 @@
 | **Catchy sentence** | Swipe, merge, double and win! |
 | **Illustration** | `www/src/games/double-fusion/art/card.svg` — a framed 4×4 grid of numbered, coloured tiles (2 to 32), a few merged into bigger ones |
 | **Players** | 1–8 |
-| **Round length** | 1 min (Highlander); untimed for Crescendo and a race — until somebody finishes |
+| **Round length** | 1 min a puzzle, ten of them or until one goes unsolved (Highlander); untimed for Crescendo and a race — until somebody finishes |
 | **Inputs** | touch |
 | **Accent colour** | `#F472B6` |
 | **Status** | 🎮 beta |
@@ -67,7 +67,7 @@ both languages because they are the lobby's buttons, listed in this order — Ra
 | --- | --- | --- | --- | --- | --- |
 | `race` | Race to 2048 / Course à 2048 (Endless race / Course sans fin) | First to reach the 2048 tile wins (the target follows the pick) | First accepted board with the target tile | Counts up; 30 min cap | Biggest tile, then score |
 | `crescendo` | Crescendo / Crescendo | Increasing difficulty levels | First to finish all 30 levels | Counts up; 30 min cap | Most levels, then who got there first |
-| `highlander` | Highlander / Highlander | Puzzle: there can be only one number left | First accepted board with one tile | 60 s countdown | Fewest tiles left |
+| `highlander` | Highlander / Highlander | Puzzle: there can be only one number left | Most puzzles solved first, over 10 rounds or endless (§3 Highlander) | 60 s a puzzle | Most rounds won, then the shorter total time |
 
 **Crescendo** (the default) is a run of 30 puzzles that grow and get longer:
 each tile count from 2 to 16 is played **twice**, as two different puzzles
@@ -113,7 +113,8 @@ well under a minute. The target is a dropdown in the lobby, which keeps the
 panel short.
 
 **Highlander** ("Il ne doit en rester qu'une" in French) is the film's line, and
-the mode is exactly that. Every player gets the same puzzle: 5–7 tiles adding
+the mode is exactly that, played as a **series of puzzles**. Every player gets
+the same puzzle each round: 5–7 tiles adding
 up to one power of two, and **no tile ever spawns**, so merging them all leaves
 one. `puzzle(seed)` builds it by splitting one tile in halves until there are
 enough pieces, places them, and keeps the placement only if a breadth-first
@@ -122,12 +123,23 @@ is proved solvable, never hoped. A player who boxes themselves in taps **↺** t
 put the puzzle back as it started; the clock keeps running and the moves keep
 counting.
 
-**The duration is what decides Highlander.** It is measured by the referee from
-the start of the round to the report that arrives with the puzzle down to one
-tile (`solvedMs`), so **every restart is inside it** — the clock does not stop
-for ↺. The first to arrive ends the round, which makes the winner the fastest
-solver by construction; if two ever reached one tile, the quicker `solvedMs`
-ranks first.
+**The series.** The host picks it in the lobby, inside the Highlander box:
+**10 rounds** (the default) or **endless**. A round is one puzzle with its own
+60 s clock and its own 3·2·1 (`highlanderPuzzle(seed, round)`, so round *n* is
+the same for everyone). The **first phone to arrive with the puzzle down to one
+tile wins the round and a point**, and the round ends for everybody at once; a
+banner over the next countdown says who won it ("Nobody solved round 3" if the
+clock ran out). Ten rounds end the series after the tenth. An **endless** series
+goes on while each puzzle is solved and **ends at the first one nobody solves in
+time**; either series also ends on the 30 min cap, or when everyone has left.
+
+**The duration breaks ties.** A winner's time is the referee's clock from the
+round's start to the report that arrives with one tile, so **every restart is
+inside it** — ↺ does not stop the clock. The series is won by **most rounds
+won, then the shorter total of those times** (`wins`, `winMs`); a dead heat goes
+to whoever joined first. A phone saying it is done changes nothing here: only a
+solve or the clock ends a round, and a report about a round already over is
+ignored (`round` names it).
 
 ### 3.1 Aggressive race
 
@@ -219,7 +231,7 @@ new tile scales in.
   board (§3.1).
 - **The other players**, pinned to the bottom of the screen: one block each,
   centred, top to bottom — their avatar, where they stand (the level they are on
-  in Crescendo, their best tile in a race, their tiles left in Highlander), and a
+  in Crescendo, their best tile in a race, their rounds won in Highlander), and a
   **32×32 px** canvas of their board as 8 px colour squares, no numbers. Your
   own board is not thumbnailed; it is the big one above.
 
@@ -242,9 +254,10 @@ to; it never decides a result, and its test checks it agrees with the rules over
 whole games.
 
 The results list each player by what the mode is won on: in a race their best
-tile (`128`), in Crescendo their levels and time; Highlander lists the **solver's time** instead (`m:ss.t`) — a solved board
-is always one tile, so the count would say nothing — and `n tiles left` only for
-a player who did not finish.
+tile (`128`), in Crescendo their levels and time, and in Highlander their rounds
+won and the total time they took (`3 wins · 1:42.3`). During a Highlander series
+the strip shows each rival's wins (`🏆 3`) and the line under the number names
+the round (`Highlander · Round 3/10`, or `Round 3` in an endless series).
 
 ## 5. Inputs & sensors
 

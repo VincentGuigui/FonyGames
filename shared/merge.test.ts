@@ -189,15 +189,18 @@ function bounds(): void {
 
 function modes(): void {
   console.log('\nthree ways to play (§3)');
-  check('nothing chosen is Crescendo', JSON.stringify(normaliseMergeOptions(undefined)) === '{"mode":"crescendo","target":0,"aggressive":false}');
+  check('nothing chosen is Crescendo', JSON.stringify(normaliseMergeOptions(undefined)) === '{"mode":"crescendo","target":0,"aggressive":false,"series":"ten"}');
   check('Time Attack is gone: it falls back to Crescendo', normaliseMergeOptions({ mode: 'time-attack' }).mode === 'crescendo');
-  check('a race keeps its target', JSON.stringify(normaliseMergeOptions({ mode: 'race', target: 9 })) === '{"mode":"race","target":9,"aggressive":false}');
+  check('a race keeps its target', JSON.stringify(normaliseMergeOptions({ mode: 'race', target: 9 })) === '{"mode":"race","target":9,"aggressive":false,"series":"ten"}');
   check('a race with no target races to 2048', normaliseMergeOptions({ mode: 'race' }).target === 11);
   check('a target off the list is 2048 too', normaliseMergeOptions({ mode: 'race', target: 14 }).target === 11);
   check('256 is no longer on the list', !(MERGE_TARGETS as readonly number[]).includes(8) && normaliseMergeOptions({ mode: 'race', target: 8 }).target === 11);
   check('the list is 512 up to 8192, then endless', MERGE_TARGETS.join() === `9,10,11,12,13,${MERGE_TARGET_ENDLESS}`);
   check('endless is a legal race target', normaliseMergeOptions({ mode: 'race', target: MERGE_TARGET_ENDLESS }).target === MERGE_TARGET_ENDLESS);
   check('endless is out of reach of any board', MERGE_TARGET_ENDLESS > MERGE_MAX_EXPONENT);
+  check('Highlander is a series of ten rounds unless told otherwise', normaliseMergeOptions({ mode: 'highlander' }).series === 'ten' && normaliseMergeOptions({}).series === 'ten');
+  check('or an endless one', normaliseMergeOptions({ mode: 'highlander', series: 'endless' }).series === 'endless');
+  check('anything else is ten', normaliseMergeOptions({ mode: 'highlander', series: 'forever' }).series === 'ten');
   check('only a race has a target', normaliseMergeOptions({ mode: 'highlander', target: 9 }).target === 0);
   check('an unknown mode is Crescendo', normaliseMergeOptions({ mode: 'blitz' }).mode === 'crescendo');
   check('Highlander runs a minute; a race and Crescendo count up with no clock', roundMsFor('highlander') === MERGE_HIGHLANDER_MS && roundMsFor('race') === 0 && roundMsFor('crescendo') === 0);
@@ -222,10 +225,11 @@ function modes(): void {
   check('no level at all ranks behind one', compareEntries('crescendo')(e(0, 1, big), { ...e(0, 99, big), level: 1 }) > 0);
   check('a race: the bigger tile, whatever the score', compareEntries('race')(e(100, 50, big), e(900, 10, small)) < 0);
   check('a race on the same tile: the higher score', compareEntries('race')(e(900, 50, big), e(100, 10, big)) < 0);
-  const one = rows([0, 0, 0, 0], [0, 64, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]);
-  check('Highlander, both on one tile: the quicker solve', compareEntries('highlander')({ ...e(0, 90, one), solvedMs: 40_000 }, { ...e(0, 10, one), solvedMs: 55_000 }) < 0);
-  check('and a solve beats an unsolved board', compareEntries('highlander')({ ...e(0, 90, one), solvedMs: 99_000 }, e(0, 10, big.map((x, i) => (i === 5 ? 1 : x)))) < 0);
-  check('Highlander: fewer tiles left', compareEntries('highlander')(e(0, 90, big), e(500, 10, small)) < 0);
+  const hi = compareEntries('highlander');
+  check('Highlander: more rounds won', hi({ ...e(0, 90, big), wins: 4, winMs: 200_000 }, { ...e(0, 10, big), wins: 3, winMs: 20_000 }) < 0);
+  check('the same rounds won: the shorter total time', hi({ ...e(0, 90, big), wins: 3, winMs: 90_000 }, { ...e(0, 10, big), wins: 3, winMs: 120_000 }) < 0);
+  check('a round won beats none', hi({ ...e(0, 90, big), wins: 1, winMs: 59_000 }, e(0, 10, small)) < 0);
+  check('the board a player is on now does not count: only fewer moves breaks it', hi(e(0, 9, big), e(0, 10, small)) < 0);
   check('every mode: fewer moves breaks a tie', compareEntries('race')(e(100, 9, big), e(100, 10, big)) < 0);
   check('a dead heat keeps the order it was given in', compareEntries('race')(e(100, 9, big), e(100, 9, big)) === 0);
 }

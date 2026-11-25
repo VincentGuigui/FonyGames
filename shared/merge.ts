@@ -8,11 +8,13 @@ import {
   MERGE_MAX_EXPONENT,
   MERGE_MAX_MOVES_PER_S,
   MERGE_MODES,
+  MERGE_SERIES,
   MERGE_SIZE,
   MERGE_TARGETS,
   type MergeMalus,
   type MergeMode,
   type MergeOptions,
+  type MergeSeries,
 } from './protocol';
 import { CRESCENDO_BANK, CRESCENDO_VARIANTS } from './crescendoBank';
 
@@ -220,7 +222,8 @@ export function normaliseMergeOptions(raw: unknown): MergeOptions {
   const o = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {};
   const mode = (MERGE_MODES as readonly unknown[]).includes(o['mode']) ? (o['mode'] as MergeMode) : 'crescendo';
   const target = (MERGE_TARGETS as readonly unknown[]).includes(o['target']) ? (o['target'] as number) : MERGE_DEFAULT_TARGET;
-  return { mode, target: mode === 'race' ? target : 0, aggressive: mode === 'race' && o['aggressive'] === true };
+  const series = (MERGE_SERIES as readonly unknown[]).includes(o['series']) ? (o['series'] as MergeSeries) : 'ten';
+  return { mode, target: mode === 'race' ? target : 0, aggressive: mode === 'race' && o['aggressive'] === true, series };
 }
 
 /* ── Aggressive race (spec §3.1) ─────────────────────────────────────────── */
@@ -315,6 +318,8 @@ export type Ranked = {
   moves: number;
   board: Board;
   solvedMs?: number | undefined;
+  wins?: number | undefined;
+  winMs?: number | undefined;
   level?: number | undefined;
   levelMs?: number | undefined;
 };
@@ -323,7 +328,8 @@ export type Ranked = {
  * Who is ahead, by each mode's own measure; a full tie keeps the order it was
  * given in, which is join order. Crescendo is the levels finished, then who got
  * there first; a race is the biggest tile, then the score; Highlander is the
- * fewest tiles left, then the quicker solve. Fewer moves breaks every tie.
+ * most rounds won, then the shorter time they took in all. Fewer moves breaks
+ * every tie.
  */
 export function compareEntries(mode: MergeMode): (a: Ranked, b: Ranked) => number {
   return (a, b) => {
@@ -332,10 +338,10 @@ export function compareEntries(mode: MergeMode): (a: Ranked, b: Ranked) => numbe
       if (l !== 0) return l;
       if (a.levelMs !== undefined && b.levelMs !== undefined && a.levelMs !== b.levelMs) return a.levelMs - b.levelMs;
     } else if (mode === 'highlander') {
-      const t = tilesLeft(a.board) - tilesLeft(b.board);
-      if (t !== 0) return t;
-      // Two players on one tile: the quicker solve, restarts and all.
-      if (a.solvedMs !== undefined && b.solvedMs !== undefined && a.solvedMs !== b.solvedMs) return a.solvedMs - b.solvedMs;
+      const w = (b.wins ?? 0) - (a.wins ?? 0);
+      if (w !== 0) return w;
+      // The same rounds won: the quicker solves, restarts and all.
+      if (a.winMs !== undefined && b.winMs !== undefined && a.winMs !== b.winMs) return a.winMs - b.winMs;
     } else {
       if (mode === 'race') {
         const l = bestLevel(b.board) - bestLevel(a.board);
@@ -373,6 +379,11 @@ export function solveDepth(start: Board, maxStates = 20_000): number | null {
     frontier = next;
   }
   return null;
+}
+
+/** Round `round`'s puzzle of a Highlander series: its own, from the room's seed. */
+export function highlanderPuzzle(seed: number, round: number): Board {
+  return puzzle((seed + Math.imul(round, 0x9e3779b1)) >>> 0);
 }
 
 /** The fewest moves a Highlander puzzle may be solved in, so it is a puzzle. */

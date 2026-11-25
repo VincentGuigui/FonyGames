@@ -2,6 +2,7 @@ import {
   MERGE_COUNTDOWN_MS,
   MERGE_BOT_ID,
   MERGE_CRESCENDO_LEVELS,
+  MERGE_HIGHLANDER_ROUNDS,
   MERGE_MALUS_COOLDOWN_MS,
   MERGE_MALUS_FROM,
   MERGE_MALUS_KEPT,
@@ -11,10 +12,12 @@ import {
   MERGE_MIN_PLAYERS,
   MERGE_RACE_CAP_MS,
   MERGE_REPORT_GRACE_MS,
+  MERGE_ROUND_GRACE_MS,
   type MergeEntry,
   type MergeMalus,
   type MergeMode,
   type MergeRushState,
+  type MergeSeries,
   type MergeStock,
   type PlayerId,
   type ServerMessage,
@@ -25,6 +28,7 @@ import {
   compareEntries,
   crescendoPuzzle,
   hasWon,
+  highlanderPuzzle,
   isBoard,
   malusTargets,
   mass,
@@ -32,7 +36,6 @@ import {
   maxMoves,
   maxScore,
   normaliseMergeOptions,
-  puzzle,
   roundMsFor,
   startBoard,
   tilesLeft,
@@ -68,6 +71,14 @@ export type MergeRush = {
   aggressive: boolean;
   /** Admin solo test: a local bot is the rival, and maluses may go to it. */
   bot: boolean;
+  /** Highlander is a series: which, the round being played (`startsAt`, `start`
+   *  and `endsAt` are that round's), how many there are (0 = endless), how the
+   *  last one ended, and when the series opened (the cap counts from it). */
+  series: MergeSeries;
+  round: number;
+  rounds: number;
+  last: { round: number; winner: PlayerId | null } | null;
+  openedAt: number;
   maluses: MergeMalus[];
   malusSeq: number;
   stockSeq: number;
@@ -109,12 +120,12 @@ export async function startMergeRush(
 ): Promise<boolean> {
   if (!enoughToStart(connected.length, [MERGE_MIN_PLAYERS, MERGE_MAX_PLAYERS], solo)) return false;
 
-  const { mode, target, aggressive } = normaliseMergeOptions(rawOptions);
+  const { mode, target, aggressive, series } = normaliseMergeOptions(rawOptions);
   const seed = Math.floor(ctx.random() * 0x1_0000_0000) >>> 0;
   const startsAt = ctx.now() + MERGE_COUNTDOWN_MS;
   const roundMs = roundMsFor(mode);
   const begin =
-    mode === 'highlander' ? puzzle(seed) : mode === 'crescendo' ? crescendoPuzzle(seed, 1).board : startBoard(seed);
+    mode === 'highlander' ? highlanderPuzzle(seed, 1) : mode === 'crescendo' ? crescendoPuzzle(seed, 1).board : startBoard(seed);
   const boards: Record<PlayerId, MergeEntry> = {};
   // Seeded with the starting board, so a thumbnail exists before its owner moves.
   for (const id of connected) boards[id] = { board: [...begin], score: 0, moves: 0, over: false };
@@ -122,7 +133,7 @@ export async function startMergeRush(
   const s: MergeRush = {
     roundId,
     startsAt,
-    endsAt: startsAt + playable({ roundMs }) + MERGE_REPORT_GRACE_MS,
+    endsAt: startsAt + playable({ roundMs }) + (mode === 'highlander' ? MERGE_ROUND_GRACE_MS : MERGE_REPORT_GRACE_MS),
     seed,
     mode,
     target,
@@ -135,6 +146,11 @@ export async function startMergeRush(
     phase: 'playing',
     aggressive,
     bot: solo && aggressive,
+    series,
+    round: 1,
+    rounds: mode === 'highlander' && series === 'ten' ? MERGE_HIGHLANDER_ROUNDS : 0,
+    last: null,
+    openedAt: startsAt,
     maluses: [],
     malusSeq: 0,
     stockSeq: 0,
@@ -171,11 +187,14 @@ export async function onMergeBoard(
   over: unknown,
   level?: unknown,
   fusions?: unknown,
+  round?: unknown,
 ): Promise<void> {
   const s = await ctx.load();
   if (!s || s.roundId !== roundId || s.phase !== 'playing') return;
   const e = s.boards[playerId];
   if (!e || e.over) return;
+  // A Highlander report is about one round; a late one from the last round is no news.
+  if (s.mode === 'highlander' && (whole(round) || 1) !== s.round) return;
 
   const elapsed = Math.min(Math.max(0, ctx.now() - s.startsAt), playable(s));
   if (s.mode === 'crescendo') {
@@ -192,11 +211,17 @@ export async function onMergeBoard(
   if (isBoard(board) && (fixed ? mass(board) === startMass : mass(board) <= allowed)) e.board = board;
   e.moves = m;
   e.score = Math.max(e.score, Math.min(whole(score), maxScore(startMass, fixed ? 0 : m)));
-  e.over = over === true;
+  // In a series a puzzle ends by the referee's clock or a solve, never by a phone saying it is done.
+  e.over = s.mode !== 'highlander' && over === true;
   if (s.aggressive && (!s.solo || s.bot)) unlock(ctx, s, playerId, whole(fusions));
 
   if (hasWon(s.mode, s.target, e.board)) {
-    if (s.mode === 'highlander') e.solvedMs = Math.max(0, ctx.now() - s.startsAt);
+    if (s.mode === 'highlander') {
+      e.wins = (e.wins ?? 0) + 1;
+      e.winMs = (e.winMs ?? 0) + Math.max(0, ctx.now() - s.startsAt);
+      await endRound(ctx, s, playerId);
+      return;
+    }
     await finish(ctx, s, playerId);
     return;
   }
@@ -307,8 +332,38 @@ export async function tick(ctx: Ctx): Promise<boolean> {
   const s = await ctx.load();
   if (!s || s.phase !== 'playing') return false;
   if (ctx.now() < s.endsAt) return false;
-  await finish(ctx, s);
+  // A Highlander puzzle nobody solved in time ends the round with no winner.
+  if (s.mode === 'highlander') await endRound(ctx, s, null);
+  else await finish(ctx, s);
   return true;
+}
+
+/**
+ * A Highlander round is over: solved by `winner`, or by nobody before its clock.
+ * Ten rounds end the series, and so does the first puzzle that goes unsolved in
+ * an endless one, and the 30 min cap on either; otherwise the next puzzle is
+ * dealt to everyone, with its own countdown.
+ */
+async function endRound(ctx: Ctx, s: MergeRush, winner: PlayerId | null): Promise<void> {
+  s.last = { round: s.round, winner };
+  const now = ctx.now();
+  const done = (s.rounds > 0 && s.round >= s.rounds) || (s.rounds === 0 && winner === null) || now >= s.openedAt + MERGE_RACE_CAP_MS;
+  if (done) {
+    await finish(ctx, s);
+    return;
+  }
+  s.round += 1;
+  s.startsAt = now + MERGE_COUNTDOWN_MS;
+  s.endsAt = s.startsAt + s.roundMs + MERGE_ROUND_GRACE_MS;
+  s.start = [...highlanderPuzzle(s.seed, s.round)];
+  for (const e of Object.values(s.boards)) {
+    e.board = [...s.start];
+    e.moves = 0;
+    e.score = 0;
+  }
+  await ctx.save(s);
+  broadcast(ctx, s);
+  await ctx.setAlarm(nextDeadline(s));
 }
 
 /** Their board and score stay and can still win; they stop holding the round open. */
@@ -367,6 +422,10 @@ export function toState(s: MergeRush): MergeRushState {
     // A round saved before aggressive races existed has neither.
     aggressive: s.aggressive === true,
     bot: s.bot === true,
+    series: s.series ?? 'ten',
+    round: s.round ?? 1,
+    rounds: s.rounds ?? 0,
+    last: s.last ?? null,
     maluses: (s.maluses ?? []).map((m) => ({ ...m })),
     stock: Object.fromEntries(Object.entries(s.stock ?? {}).map(([id, list]) => [id, list.map((m) => ({ ...m }))])),
     readyAt: { ...(s.readyAt ?? {}) },

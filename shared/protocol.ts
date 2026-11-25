@@ -139,7 +139,7 @@ export type ClientMessage =
         blink?: { lights?: number; duration?: number };
         /** Double Fusion's mode and, for a race, the target tile's exponent
          *  (double-fusion.md §3), sanitised by `normaliseMergeOptions`. */
-        merge?: { mode?: string; target?: number; aggressive?: boolean };
+        merge?: { mode?: string; target?: number; aggressive?: boolean; series?: string };
         /** Tentacules' mode (tentacules.md §3), sanitised by `normaliseTentMode`. */
         tentacules?: { mode?: string };
         /**
@@ -401,7 +401,7 @@ export type ClientMessage =
   /** Double Fusion: this phone's board, throttled, and once more when it ends (spec §6).
    *  `fusions` counts its merges that made `MERGE_MALUS_FROM` or more — in an
    *  aggressive race each new one unlocks a malus (spec §3.1). */
-  | { t: 'merge-board'; d: { roundId: number; board: number[]; score: number; moves: number; over: boolean; level?: number; fusions?: number } }
+  | { t: 'merge-board'; d: { roundId: number; board: number[]; score: number; moves: number; over: boolean; level?: number; fusions?: number; round?: number } }
   /** Double Fusion, aggressive race: send one of this player's unlocked maluses
    *  (its `MergeStock.id`) to a rival, dropped on their thumbnail (spec §3.1). */
   | { t: 'merge-malus'; d: { roundId: number; id: number; to: PlayerId } }
@@ -3987,8 +3987,14 @@ export const MERGE_DEFAULT_TARGET = 11;
  *  `MERGE_CRESCENDO_LEVELS` levels of ever longer puzzles. It has no clock of its own — like a race it counts
  *  up and is capped only by `MERGE_RACE_CAP_MS`. */
 export const MERGE_CRESCENDO_LEVELS = 30;
-/** Highlander's clock: a minute, so a puzzle is solved, or not, within one breath. */
+/** Highlander's clock for each puzzle: a minute, so it is solved, or not, within one breath. */
 export const MERGE_HIGHLANDER_MS = 60_000;
+/** Highlander is a series of puzzles: ten rounds, or rounds until one goes unsolved. */
+export const MERGE_SERIES = ['ten', 'endless'] as const;
+export type MergeSeries = (typeof MERGE_SERIES)[number];
+export const MERGE_HIGHLANDER_ROUNDS = 10;
+/** How long past a Highlander round's clock the referee waits for a last solve. */
+export const MERGE_ROUND_GRACE_MS = 1500;
 /** A race has no clock of its own; this only stops a room that never gets there. */
 export const MERGE_RACE_CAP_MS = 30 * 60_000;
 export const MERGE_COUNTDOWN_MS = 3000;
@@ -4020,9 +4026,12 @@ export type MergeEntry = {
    *  last of them — the score, and what breaks a tie on it. */
   level?: number;
   levelMs?: number;
+  /** Highlander: rounds won, and the time they took in all (the tiebreak). */
+  wins?: number;
+  winMs?: number;
 };
 
-export type MergeOptions = { mode: MergeMode; target: number; aggressive: boolean };
+export type MergeOptions = { mode: MergeMode; target: number; aggressive: boolean; series: MergeSeries };
 
 /* Aggressive race (spec §3.1): a big merge unlocks a malus, which its player
    sends by dropping it on a rival's thumbnail. */
@@ -4079,6 +4088,13 @@ export type MergeRushState = {
   aggressive: boolean;
   /** An admin's solo aggressive race: the phone plays a bot rival. */
   bot: boolean;
+  /** Highlander: which series, the round being played (from 1; `startsAt`, `start`
+   *  and `endsAt` are that round's), how many there are (0 = endless), and how
+   *  the last one ended. Always round 1, 0 and null in the other modes. */
+  series: MergeSeries;
+  round: number;
+  rounds: number;
+  last: { round: number; winner: PlayerId | null } | null;
   /** The latest maluses sent, oldest first. */
   maluses: MergeMalus[];
   /** Each player's unlocked maluses, and when (server ms) they may next send one. */
