@@ -43,7 +43,7 @@ export function MergeOptionsPanel({
               {mode === 'race' && value.mode === 'race' && (
                 <div class="merge-options__race">
                   <label class="merge-options__target">
-                    <span>{text({ en: 'First to make', fr: 'Le premier à faire' })}</span>
+                    <span>{text({ en: 'Target tile', fr: 'Tuile à atteindre' })}</span>
                     <select
                       value={String(value.target)}
                       disabled={!editable}

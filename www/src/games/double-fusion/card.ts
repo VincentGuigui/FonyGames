@@ -34,7 +34,7 @@ export const CARD: GameCard = {
   inputs: ['touch'],
   tags: ['party', 'arcade', 'strategy'],
   modes: [
-    { id: 'race', name: 'Race to 2048', blurb: 'First to make the tile wins — 512 up to 8192, or endless' },
+    { id: 'race', name: 'Race to 2048', blurb: 'First to reach the 2048 tile wins' },
     { id: 'crescendo', name: 'Crescendo', blurb: 'Increasing difficulty levels' },
     { id: 'highlander', name: 'Highlander', blurb: 'Puzzle: there can be only one number left' },
   ],

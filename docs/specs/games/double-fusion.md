@@ -65,7 +65,7 @@ both languages because they are the lobby's buttons, listed in this order — Ra
 
 | Mode | Name (EN / FR) | Blurb | Goal | Clock | When the goal is not met |
 | --- | --- | --- | --- | --- | --- |
-| `race` | Race to 2048 / Course à 2048 (Endless race / Course sans fin) | First to make the tile wins | First accepted board with the target tile | Counts up; 30 min cap | Biggest tile, then score |
+| `race` | Race to 2048 / Course à 2048 (Endless race / Course sans fin) | First to reach the 2048 tile wins (the target follows the pick) | First accepted board with the target tile | Counts up; 30 min cap | Biggest tile, then score |
 | `crescendo` | Crescendo / Crescendo | Increasing difficulty levels | First to finish all 30 levels | Counts up; 30 min cap | Most levels, then who got there first |
 | `highlander` | Highlander / Highlander | Puzzle: there can be only one number left | First accepted board with one tile | 60 s countdown | Fewest tiles left |
 

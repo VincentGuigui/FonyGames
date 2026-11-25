@@ -676,8 +676,8 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
               fr: 'Pas de ligne d’arrivée : la plus grosse tuile quand tout le monde est bloqué gagne.',
             }
           : {
-              en: `First to make ${targetLabel(state.target)} wins.`,
-              fr: `Le premier à faire ${targetLabel(state.target)} gagne.`,
+              en: `First to reach the ${targetLabel(state.target)} tile wins.`,
+              fr: `Le premier à obtenir la tuile ${targetLabel(state.target)} gagne.`,
             };
     return (
       <GameOverScreen

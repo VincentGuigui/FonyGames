@@ -21,7 +21,10 @@ export function modeBlurb(mode: MergeMode, target: number): Both {
   if (mode === 'race' && target === MERGE_TARGET_ENDLESS) {
     return { en: 'No finish line: play until you are stuck, biggest tile wins', fr: 'Pas de ligne d’arrivée : jouez jusqu’à être bloqué, la plus grosse tuile gagne' };
   }
-  if (mode === 'race') return { en: 'First to make the tile wins', fr: 'Le premier à faire la tuile gagne' };
+  if (mode === 'race') {
+    const tile = targetLabel(target);
+    return { en: `First to reach the ${tile} tile wins`, fr: `Le premier à obtenir la tuile ${tile} gagne` };
+  }
   if (mode === 'highlander') {
     return { en: 'Puzzle: there can be only one number left', fr: 'Puzzle : il ne doit rester qu’un seul nombre' };
   }
