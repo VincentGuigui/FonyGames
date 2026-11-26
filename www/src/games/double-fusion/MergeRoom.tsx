@@ -582,6 +582,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
   // letting go over a rival's thumbnail sends it — if that rival can take it.
   const [held, setHeld] = useState<{ id: number; over: string | null } | null>(null);
   const ghost = useRef<HTMLElement | null>(null);
+  const grabbedAt = useRef({ x: 0, y: 0 });
   const rivalAt = (x: number, y: number): string | null =>
     (document.elementFromPoint(x, y)?.closest('[data-rival]') as HTMLElement | null)?.dataset['rival'] ?? null;
   const grab = (e: PointerEvent, id: number, icon: string): void => {
@@ -593,6 +594,7 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     g.style.top = `${e.clientY}px`;
     document.body.appendChild(g);
     ghost.current = g;
+    grabbedAt.current = { x: e.clientX, y: e.clientY };
     setHeld({ id, over: null });
   };
   const drag = (e: PointerEvent): void => {
@@ -602,10 +604,13 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
     const over = rivalAt(e.clientX, e.clientY);
     if (over !== held.over) setHeld({ id: held.id, over });
   };
-  const drop = (e: PointerEvent | null, allowed: readonly string[]): void => {
+  const drop = (e: PointerEvent | null, allowed: readonly string[], rivals: number): void => {
     const g = ghost.current;
     ghost.current = null;
-    const to = e ? rivalAt(e.clientX, e.clientY) : null;
+    // Against a single rival there is nowhere else to send it: a tap is enough.
+    const tapped = e !== null && allowed.length === 1 && rivals === 1
+      && Math.hypot(e.clientX - grabbedAt.current.x, e.clientY - grabbedAt.current.y) < MERGE_SWIPE_PX;
+    const to = tapped ? (allowed[0] ?? null) : e ? rivalAt(e.clientX, e.clientY) : null;
     const id = held?.id;
     setHeld(null);
     if (!g) return;
@@ -845,8 +850,8 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
                       if (cooling === 0 && targets.length > 0) grab(e, m.id, MALUS_ICON[m.kind]);
                     }}
                     onPointerMove={drag}
-                    onPointerUp={(e) => drop(e, targets)}
-                    onPointerCancel={() => drop(null, targets)}
+                    onPointerUp={(e) => drop(e, targets, others.length)}
+                    onPointerCancel={() => drop(null, targets, others.length)}
                   >
                     <span class="merge__slot-icon" aria-hidden="true">{MALUS_ICON[m.kind]}</span>
                     {text(MALUS_SHORT[m.kind])}
@@ -859,7 +864,9 @@ function MergeRoomInner({ game: card, code }: { game: GameCard; code: string }):
                 ? text({ en: 'Merge into 64 or more to unlock a malus', fr: 'Fusionnez en 64 ou plus pour débloquer un malus' })
                 : cooling > 0
                   ? text({ en: `Next malus in ${cooling} s`, fr: `Prochain malus dans ${cooling} s` })
-                  : text({ en: 'Drag a malus onto a rival', fr: 'Glissez un malus sur un adversaire' })}
+                  : others.length === 1
+                    ? text({ en: 'Tap a malus to send it', fr: 'Touchez un malus pour l’envoyer' })
+                    : text({ en: 'Drag a malus onto a rival', fr: 'Glissez un malus sur un adversaire' })}
             </p>
           </div>
         )}

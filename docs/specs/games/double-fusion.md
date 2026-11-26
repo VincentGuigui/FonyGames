@@ -146,7 +146,7 @@ ignored (`round` names it).
 A race the host ticks **Mode agressif / Aggressive mode** on. Every merge that
 makes a **64 or bigger** (`MERGE_MALUS_FROM`) **unlocks** one malus, of a kind
 drawn at random. It appears under the player's board as an icon with its name,
-and they **drag it onto a rival's thumbnail** to send it. A player holds at most
+and they **drag it onto a rival's thumbnail** to send it — against a single rival, a **tap** is enough. A player holds at most
 three (`MERGE_MALUS_STOCK`); one unlocked past that is lost.
 
 | Malus | Icon | Effect on the receiver's board |
