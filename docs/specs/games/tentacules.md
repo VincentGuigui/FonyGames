@@ -54,10 +54,12 @@ screen.
   further than that is refused, and the tentacle visibly stretches to its limit
   and springs back — the elasticity is the feedback. While a dragged tentacle
   is over a peg it would grab, it turns **green**; past its reach, red.
-- **The body pulls itself up**: it sits 70 % of the way from the centre of its
-  pegs to the highest point every held tentacle still reaches (`place`), so
-  reaching a higher peg lifts it, and with five tentacles spread round it the
-  star shows. Hanging by one tentacle, it dangles just below the peg. (A plain
+- **The body pulls itself up, or hangs**: with four or five tentacles it sits
+  70 % of the way from the centre of its pegs to the highest point every held
+  tentacle still reaches (`place`), so reaching a higher peg lifts it and the
+  star shows. With two or three it lacks the strength and hangs 70 % of the way
+  down to the lowest point they reach, below its pegs. Hanging by one tentacle,
+  it dangles just below the peg. (A plain
   centroid was tried first: five tentacles stacked low anchored the body so far
   down that nothing above was ever in reach.)
 - **Gravity and wobble** (drawing only — where the body *is* for the rules stays

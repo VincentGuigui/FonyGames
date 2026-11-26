@@ -107,10 +107,10 @@ function stretch(pegs: readonly Point[], slack = 0): Point | null {
 }
 
 /**
- * Where a body held by these pegs sits (spec §2.1). It pulls itself up: most
- * of the way from the centre of its pegs to the highest point every tentacle
- * still reaches, so reaching higher lifts it and the star shape shows. On one
- * peg it dangles just below. Null when nothing holds it, or nothing could.
+ * Where a body held by these pegs sits (spec §2.1). It pulls itself up: with
+ * four or five tentacles most of the way from the centre of its pegs to the
+ * highest point every tentacle still reaches; with two or three it hangs most
+ * of the way down to the lowest point they reach; on one it dangles just below. Null when nothing holds it, or nothing could.
  */
 export function place(pegs: readonly Point[]): Point | null {
   if (pegs.length === 0) return null;
@@ -121,6 +121,15 @@ export function place(pegs: readonly Point[]): Point | null {
   const top = stretch(pegs);
   if (top === null) return null;
   const c = centroid(pegs);
+  if (pegs.length < 4) {
+    // Too few tentacles to pull itself up: it hangs, as low as they let it.
+    const mirrored = stretch(pegs.map((q) => ({ x: q.x, y: -q.y })));
+    const low = mirrored && { x: mirrored.x, y: -mirrored.y };
+    if (low) {
+      const body = { x: c.x + (low.x - c.x) * LIFT, y: c.y + (low.y - c.y) * LIFT };
+      return within(body, pegs, 0) ? body : low;
+    }
+  }
   const body = { x: c.x + (top.x - c.x) * LIFT, y: c.y + (top.y - c.y) * LIFT };
   return within(body, pegs, 0) ? body : top;
 }

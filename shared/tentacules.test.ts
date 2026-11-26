@@ -46,7 +46,7 @@ function body(): void {
   check('the body rests where its starting star puts it', dist(at, START_BODY) < 1e-9);
   check('every starting peg within reach of it', fits(start) && start.every((p) => dist(p, at) <= REACH + 1e-9));
   const two = place([{ x: 0.3, y: 1 }, { x: 0.7, y: 1 }]) as Point;
-  check('on two pegs it sits between them, pulled up above them', Math.abs(two.x - 0.5) < 1e-9 && two.y > 1);
+  check('on two pegs it sits between them, hanging below them', Math.abs(two.x - 0.5) < 1e-9 && two.y < 1 && (place([{ x: 0.3, y: 1 }, { x: 0.7, y: 1.1 }, { x: 0.5, y: 1.2 }]) as Point).y < 1.2);
   check('reaching higher lifts the body', (place([{ x: 0.3, y: 1 }, { x: 0.5, y: 1.3 }]) as Point).y > (place([{ x: 0.3, y: 1 }, { x: 0.5, y: 1.1 }]) as Point).y);
   check('one peg: the body dangles just below it', JSON.stringify(place([{ x: 0.3, y: 2 }])) === JSON.stringify({ x: 0.3, y: 2 - HANG_DROP }));
   check('held by nothing, it sits nowhere', place([]) === null);
