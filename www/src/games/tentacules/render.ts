@@ -148,10 +148,18 @@ function tentacle(
   const ay = sy(f, from.y);
   const bx = sx(f, to.x);
   const by = sy(f, to.y);
-  const len = Math.hypot(bx - ax, by - ay);
+  // Held, the tentacle ends at the near side of its peg and wraps round it; the
+  // direction from the body to the peg says which side is near and which is far.
+  const chord = Math.hypot(bx - ax, by - ay) || 1;
+  const ux = (bx - ax) / chord;
+  const uy = (by - ay) / chord;
+  const ring = PEG_R * f.w * 1.35;
+  const ex = curl ? bx - ux * ring : bx;
+  const ey = curl ? by - uy * ring : by;
+  const len = Math.hypot(ex - ax, ey - ay);
   // A soft droop: the control point sags below the straight line.
-  const cx = (ax + bx) / 2 + (by - ay) * 0.12 - trail.x * TRAIL * f.w;
-  const cy = (ay + by) / 2 + len * 0.22 + trail.y * TRAIL * f.w;
+  const cx = (ax + ex) / 2 + (ey - ay) * 0.12 - trail.x * TRAIL * f.w;
+  const cy = (ay + ey) / 2 + len * 0.22 + trail.y * TRAIL * f.w;
   const steps = 14;
   const base = f.w * 0.036;
   const tip = f.w * 0.011;
@@ -163,8 +171,8 @@ function tentacle(
   let py = ay;
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
-    const x = (1 - t) * (1 - t) * ax + 2 * (1 - t) * t * cx + t * t * bx;
-    const y = (1 - t) * (1 - t) * ay + 2 * (1 - t) * t * cy + t * t * by;
+    const x = (1 - t) * (1 - t) * ax + 2 * (1 - t) * t * cx + t * t * ex;
+    const y = (1 - t) * (1 - t) * ay + 2 * (1 - t) * t * cy + t * t * ey;
     ctx.lineWidth = base + (tip - base) * t;
     ctx.beginPath();
     ctx.moveTo(px, py);
@@ -180,20 +188,24 @@ function tentacle(
     py = y;
   }
   if (curl) {
-    // The end wraps the peg and its tip points away from the octopus.
-    const dx = bx - ax;
-    const dy = by - ay;
-    const d = Math.hypot(dx, dy) || 1;
-    const ux = dx / d;
-    const uy = dy / d;
+    // It wraps half way round the peg, passing in front of it and round behind,
+    // and the tip leaves on the far side, pointing away from the octopus.
     const side = ux >= 0 ? 1 : -1;
+    const toward = -side;
+    const start = Math.atan2(-uy, -ux);
+    const end = start + toward * 3.5;
     const px = -uy * side;
     const py = ux * side;
-    const r = PEG_R * f.w * 1.5;
-    ctx.lineWidth = tip * 1.5;
+    ctx.lineWidth = tip * 1.7;
     ctx.beginPath();
-    ctx.moveTo(bx - ux * r * 0.4, by - uy * r * 0.4);
-    ctx.bezierCurveTo(bx + px * r * 1.6 - ux * r * 0.6, by + py * r * 1.6 - uy * r * 0.6, bx + px * r * 1.5 + ux * r * 1.8, by + py * r * 1.5 + uy * r * 1.8, bx + ux * r * 2.1, by + uy * r * 2.1);
+    ctx.arc(bx, by, ring, start, end, toward < 0);
+    ctx.stroke();
+    const ox = bx + Math.cos(end) * ring;
+    const oy = by + Math.sin(end) * ring;
+    ctx.lineWidth = tip * 1.3;
+    ctx.beginPath();
+    ctx.moveTo(ox, oy);
+    ctx.quadraticCurveTo(ox + ux * ring * 0.9, oy + uy * ring * 0.9, bx + ux * ring * 2.4 + px * ring * 0.4, by + uy * ring * 2.4 + py * ring * 0.4);
     ctx.stroke();
   }
   ctx.restore();
